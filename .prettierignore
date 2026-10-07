@@ -1,0 +1,20 @@
+# Package managers and dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# NestJS and Build Outputs
+dist/
+build/
+.next/
+out/
+
+# Monorepo Tooling Caches
+.turbo/
+.nx/
+.cache/
+
+# Coverage and Logs
+coverage/
+*.log
