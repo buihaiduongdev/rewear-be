@@ -27,3 +27,14 @@
 - **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck` và `pnpm build` đều pass. Người thực hiện đã review lại vị trí module và phạm vi cấu hình.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Draft đầu tiên đặt ConfigModule ở `src/config`, không theo convention module-first của dự án; đã chuyển sang `src/modules/config` sau review.
 - **Minh chứng:** Commit và PR của task này.
+
+### 2026-10-08 — Thiết lập DatabaseModule
+
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Thiết lập kết nối PostgreSQL/TypeORM và cấu trúc module database theo pattern có sẵn từ Postline BE.
+- **Prompt chính:** Hỗ trợ triển khai `DatabaseModule` theo cấu trúc tham chiếu đã có; rà soát cấu hình PostgreSQL, `DATABASE_URL` và cơ chế tự đồng bộ entity/schema cho môi trường đồ án.
+- **Đầu ra AI được sử dụng:** Hỗ trợ triển khai cấu trúc `DatabaseModule`, data source, cấu hình/schema database, scripts migration và dependency theo pattern tham chiếu.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt cấu trúc ConfigModule theo `configs/` và `schemas/`; quyết định PostgreSQL, `synchronize: true`, `autoLoadEntities: true`; review và sửa cách khai báo URL kết nối database.
+- **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build` pass; khởi động NestJS và kết nối PostgreSQL thành công.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Đề xuất ban đầu tương thích ngược khi `DB_HOST` chứa connection URL; đã loại bỏ, chuẩn hóa dùng `DATABASE_URL`.
+- **Minh chứng:** Commit và PR của task này.

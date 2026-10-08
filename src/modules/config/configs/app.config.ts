@@ -1,6 +1,6 @@
 import { registerAs } from '@nestjs/config';
 
-import { appSchema } from './app.schema';
+import { appSchema } from '../schemas/app.schema';
 
 export const appConfig = registerAs('app', () =>
   appSchema.parse({
