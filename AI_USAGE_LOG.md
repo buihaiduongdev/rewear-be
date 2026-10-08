@@ -31,10 +31,21 @@
 ### 2026-10-08 — Thiết lập DatabaseModule
 
 - **Công cụ:** Codex
-- **Mục đích và phạm vi:** Thiết lập kết nối PostgreSQL/TypeORM và cấu trúc module database theo pattern có sẵn từ Postline BE.
-- **Prompt chính:** Hỗ trợ triển khai `DatabaseModule` theo cấu trúc tham chiếu đã có; rà soát cấu hình PostgreSQL, `DATABASE_URL` và cơ chế tự đồng bộ entity/schema cho môi trường đồ án.
-- **Đầu ra AI được sử dụng:** Hỗ trợ triển khai cấu trúc `DatabaseModule`, data source, cấu hình/schema database, scripts migration và dependency theo pattern tham chiếu.
+- **Mục đích và phạm vi:** Thiết lập kết nối PostgreSQL/TypeORM và cấu trúc module database cho Rewear BE.
+- **Prompt chính:** Hỗ trợ triển khai `DatabaseModule`; rà soát cấu hình PostgreSQL, `DATABASE_URL` và cơ chế tự đồng bộ entity/schema cho môi trường đồ án.
+- **Đầu ra AI được sử dụng:** Hỗ trợ triển khai cấu trúc `DatabaseModule`, data source, cấu hình/schema database, scripts migration và dependency cần thiết.
 - **Phần tự làm hoặc đã chỉnh sửa:** Chốt cấu trúc ConfigModule theo `configs/` và `schemas/`; quyết định PostgreSQL, `synchronize: true`, `autoLoadEntities: true`; review và sửa cách khai báo URL kết nối database.
 - **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build` pass; khởi động NestJS và kết nối PostgreSQL thành công.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Đề xuất ban đầu tương thích ngược khi `DB_HOST` chứa connection URL; đã loại bỏ, chuẩn hóa dùng `DATABASE_URL`.
+- **Minh chứng:** Commit và PR của task này.
+
+### 2026-10-08 — Thiết lập Swagger, common HTTP layer và rate limiting
+
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Thiết lập Swagger, validation toàn cục, chuẩn hoá response, exception filter, request ID, HTTP logging và rate limiting cho Rewear BE.
+- **Prompt chính:** Hướng dẫn cách thiết lập Swagger, common HTTP layer và rate limiting.
+- **Đầu ra AI được sử dụng:** Hỗ trợ triển khai cấu hình Swagger, `AllExceptionsFilter`, logging/transform interceptor, middleware request ID/logging, rate limiting toàn cục và các kiểu response dùng chung.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt phạm vi task, cấu hình giới hạn mặc định và biến môi trường; không đưa CORS, authentication hoặc Sentry vào task này; cài đặt dependency và rà soát lại kết quả build.
+- **Cách kiểm chứng:** `pnpm check` pass, bao gồm lint, format check, typecheck và build. Rà soát lỗi strict type của interceptor và đã bổ sung kiểu `CallHandler<T>`/`data: T`, đồng thời dùng ngưỡng status code dạng số để lint pass. Kiểm tra cấu hình rate limiting được nạp từ biến môi trường.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sau khi rà soát lint, typecheck và build.
 - **Minh chứng:** Commit và PR của task này.
