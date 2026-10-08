@@ -1,8 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 
-import { appConfig } from './app.config';
 import { ConfigService } from './config.service';
+import { appConfig, databaseConfig } from './configs';
 
 @Global()
 @Module({
@@ -11,7 +11,7 @@ import { ConfigService } from './config.service';
       cache: true,
       envFilePath: '.env',
       isGlobal: true,
-      load: [appConfig],
+      load: [appConfig, databaseConfig],
     }),
   ],
   providers: [ConfigService],

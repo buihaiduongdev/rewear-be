@@ -1,3 +1,4 @@
-export * from './app.config';
+export * from './configs';
 export * from './config.module';
 export * from './config.service';
+export * from './schemas';
