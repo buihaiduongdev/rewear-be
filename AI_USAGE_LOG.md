@@ -15,3 +15,15 @@
 - **Minh chứng:** [Link PR, commit liên quan, commit sửa lỗi, issue hoặc tài liệu]
 
 <!-- Sao chép mục trên cho task tiếp theo. Không ghi nhận lỗi/kiểm thử chưa xảy ra. -->
+
+### 2026-10-08 — Thiết lập ConfigModule nền tảng
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Thiết lập module cấu hình ứng dụng NestJS, đọc biến môi trường và validate `NODE_ENV`/`PORT`; Codex hỗ trợ review cấu trúc.
+- **Prompt chính:** “Hỗ trợ setup ConfigModule”; sau review, yêu cầu đặt module tại `src/modules/config`.
+- **Đầu ra AI được sử dụng:** Hỗ trợ áp dụng/copy pattern ConfigModule có sẵn từ dự án cũ sang Rewear BE, gồm `ConfigModule`, `ConfigService`, schema Zod, `.env.example`, bootstrap và dependency cần thiết; không đề xuất kiến trúc mới.
+- **Phần tự làm hoặc đã chỉnh sửa:** Thiết lập module, quyết định chỉ cấu hình nền tảng khi business chưa chốt, review cấu trúc và yêu cầu chuyển từ `src/config` sang `src/modules/config`.
+- **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck` và `pnpm build` đều pass. Người thực hiện đã review lại vị trí module và phạm vi cấu hình.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Draft đầu tiên đặt ConfigModule ở `src/config`, không theo convention module-first của dự án; đã chuyển sang `src/modules/config` sau review.
+- **Minh chứng:** Commit và PR của task này.
