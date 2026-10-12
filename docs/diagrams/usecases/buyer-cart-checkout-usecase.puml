@@ -1,0 +1,50 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Người mua\n(Buyer)" as NguoiMua
+actor "Cổng thanh toán" as CongThanhToan
+
+rectangle "Phân hệ Giỏ hàng & Thanh toán" {
+  usecase "Lưu danh sách yêu thích (Wishlist)" as Wishlist
+  
+  usecase "Quản lý sổ địa chỉ" as QuanLyDiaChi
+  usecase "Thêm / sửa địa chỉ nhận hàng" as SuaDiaChi
+  
+  usecase "Xem và quản lý giỏ hàng" as QuanLyGioHang
+  usecase "Tự động phân nhóm theo người bán" as TachNhomShop
+  usecase "Xóa món hàng đã hết" as XoaMonHet
+  
+  usecase "Đặt hàng" as DatHang
+  usecase "Khóa giữ món đồ độc bản" as KhoaGiuHang
+  usecase "Chọn địa chỉ & phương thức thanh toán" as ChonDiaChiPT
+  
+  usecase "Thanh toán trực tuyến" as ThanhToanOnline
+  usecase "Quét mã QR (VNPAY / MoMo)" as QuetQR
+  usecase "Thanh toán thẻ ATM / Visa" as TheATM
+}
+
+NguoiMua --> Wishlist
+NguoiMua --> QuanLyDiaChi
+NguoiMua --> QuanLyGioHang
+NguoiMua --> DatHang
+
+SuaDiaChi ..> QuanLyDiaChi : <<extend>>
+QuanLyGioHang ..> TachNhomShop : <<include>>
+XoaMonHet ..> QuanLyGioHang : <<extend>>
+
+DatHang ..> KhoaGiuHang : <<include>>
+DatHang ..> ChonDiaChiPT : <<include>>
+
+ThanhToanOnline ..> DatHang : <<extend>>
+QuetQR ..> ThanhToanOnline : <<extend>>
+TheATM ..> ThanhToanOnline : <<extend>>
+
+ThanhToanOnline -- CongThanhToan
+@enduml

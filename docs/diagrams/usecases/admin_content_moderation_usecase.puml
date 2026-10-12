@@ -1,0 +1,45 @@
+@startuml Hinh3_12_LuocDo_Admin_KiemDuyet
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Quản trị viên\n(Admin)" as Admin
+
+rectangle "Phân hệ Kiểm duyệt & Nội dung sàn" {
+  usecase "Kiểm duyệt bài đăng sản phẩm" as KiemDuyetTin
+  usecase "Phê duyệt cho phép bán" as PheDuyetTin
+  usecase "Từ chối duyệt kèm lý do vi phạm" as TuChoiTin
+  
+  usecase "Quản lý danh mục hàng hóa" as QuanLyDanhMuc
+  usecase "Thêm / sửa danh mục" as ThemsuaDM
+  usecase "Ẩn danh mục không hoạt động" as AnDanhMuc
+  
+  usecase "Quản lý quảng cáo trang chủ" as QuanLyBanner
+  usecase "Thêm banner & hẹn giờ hiển thị" as ThemBanner
+  usecase "Gỡ bỏ banner hết hạn" as GoBanner
+  
+  usecase "Kiểm duyệt đánh giá" as KiemDuyetDanhGia
+  usecase "Ẩn đánh giá chứa từ ngữ xấu" as AnDanhGia
+}
+
+Admin --> KiemDuyetTin
+Admin --> QuanLyDanhMuc
+Admin --> QuanLyBanner
+Admin --> KiemDuyetDanhGia
+
+PheDuyetTin ..> KiemDuyetTin : <<extend>>
+TuChoiTin ..> KiemDuyetTin : <<extend>>
+
+ThemsuaDM ..> QuanLyDanhMuc : <<extend>>
+AnDanhMuc ..> QuanLyDanhMuc : <<extend>>
+
+ThemBanner ..> QuanLyBanner : <<extend>>
+GoBanner ..> QuanLyBanner : <<extend>>
+
+AnDanhGia ..> KiemDuyetDanhGia : <<extend>>
+@enduml
