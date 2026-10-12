@@ -14,12 +14,15 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
+import type { IPaginatedResult } from '@/common/pagination';
+import { ZodValidationPipe } from '@/common/pipes';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 
 import { CreateUserDto, UpdateProfileDto, UpdateUserDto } from './dto';
 import { User } from './entities';
 import { UserRole } from './enums';
-import { userListSchema, userSchema } from './schemas';
+import { findUserSchema, userListSchema, userSchema } from './schemas';
+import type { FindUserQuery } from './schemas';
 import { UserService } from './user.service';
 
 @ApiTags('Users')
@@ -49,8 +52,10 @@ export class UserController {
 
   @Get()
   @Serialize(userListSchema)
-  findAll(@Query('search') search?: string): Promise<User[]> {
-    return this.userService.findAll(search);
+  findAll(
+    @Query(new ZodValidationPipe(findUserSchema)) query: FindUserQuery,
+  ): Promise<IPaginatedResult<User>> {
+    return this.userService.findAll(query);
   }
 
   @Get(':id')
