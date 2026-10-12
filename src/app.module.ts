@@ -3,13 +3,17 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
+import { AuthModule } from './modules/auth';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
+import { UserModule } from './modules/user';
 
 @Module({
   imports: [
     ConfigModule,
     DatabaseModule,
+    UserModule,
+    AuthModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

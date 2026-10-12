@@ -1,0 +1,25 @@
+@startuml
+title Luoc do tuan tu - Dang nhap
+
+actor "Nguoi dung" as User
+boundary "Front-end" as FE
+control "Back-end" as BE
+database "Database" as DB
+
+User -> FE : Nhap email va mat khau
+FE -> BE : Gui yeu cau dang nhap
+
+BE -> DB : Tim tai khoan theo email
+DB --> BE : Thong tin tai khoan
+
+alt Thong tin hop le
+    BE -> BE : Kiem tra mat khau
+    BE -> BE : Tao token
+    BE --> FE : Dang nhap thanh cong + token
+    FE --> User : Chuyen den trang chinh
+else Thong tin khong hop le
+    BE --> FE : Dang nhap that bai
+    FE --> User : Hien thi thong bao loi
+end
+
+@enduml

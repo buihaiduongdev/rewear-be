@@ -1,0 +1,45 @@
+@startuml
+title Luoc do tuan tu - Dat hang
+
+actor "Nguoi mua" as Buyer
+boundary "Front-end" as FE
+control "Back-end" as BE
+database "Database" as DB
+
+Buyer -> FE : Chon san pham
+Buyer -> FE : Chon dia chi nhan hang
+Buyer -> FE : Chon phuong thuc thanh toan
+Buyer -> FE : Xac nhan dat hang
+
+FE -> BE : Gui yeu cau dat hang
+
+BE -> DB : Kiem tra san pham
+DB --> BE : Thong tin san pham
+
+alt San pham con kha dung
+    BE -> DB : Bat dau giao dich
+
+    BE -> DB : Kiem tra va giu san pham
+    DB --> BE : Giu san pham thanh cong
+
+    BE -> DB : Tao don hang
+    DB --> BE : Thong tin don hang
+
+    BE -> DB : Luu chi tiet don hang
+    DB --> BE : Thanh cong
+
+    BE -> DB : Cap nhat trang thai san pham
+    DB --> BE : Thanh cong
+
+    BE -> DB : Hoan tat giao dich
+    DB --> BE : Thanh cong
+
+    BE --> FE : Dat hang thanh cong
+    FE --> Buyer : Hien thi thong tin don hang
+
+else San pham khong con kha dung
+    BE --> FE : Dat hang that bai
+    FE --> Buyer : Thong bao san pham da duoc ban
+end
+
+@enduml

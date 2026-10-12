@@ -31,3 +31,10 @@
 # test coverage
  pnpm run test:cov
 ```
+
+Copy `.env.example` to `.env` and configure the JWT secrets, Google OAuth client
+ID, SMTP server, and frontend URL before starting the authentication endpoints.
+
+All endpoints use the `/api` prefix. Authentication routes are under
+`/api/auth`; administrators can manage users under `/api/users`, while an
+authenticated user can read and update `/api/users/me`.
