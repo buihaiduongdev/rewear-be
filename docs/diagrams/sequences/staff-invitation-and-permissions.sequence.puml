@@ -1,0 +1,68 @@
+@startuml
+title Luoc do tuan tu - Moi va phan quyen nhan vien
+
+actor "Chu cua hang" as Owner
+actor "Nguoi duoc moi" as InvitedUser
+boundary "Front-end" as FE
+control "Back-end" as BE
+database "Database" as DB
+
+Owner -> FE : Nhap email nguoi duoc moi
+FE -> BE : Gui yeu cau moi thanh vien
+
+BE -> DB : Kiem tra quyen chu cua hang
+DB --> BE : Ket qua kiem tra
+
+BE -> DB : Kiem tra loai cua hang
+DB --> BE : Thong tin cua hang
+
+BE -> DB : Kiem tra thanh vien hien tai
+DB --> BE : Ket qua kiem tra
+
+alt Duoc phep moi
+    BE -> DB : Tao loi moi
+    DB --> BE : Loi moi da duoc tao
+
+    BE --> FE : Tao loi moi thanh cong
+    FE --> Owner : Hien thi trang thai loi moi
+
+    InvitedUser -> FE : Xem loi moi
+    InvitedUser -> FE : Chap nhan loi moi
+    FE -> BE : Gui yeu cau chap nhan
+
+    BE -> DB : Kiem tra loi moi
+    DB --> BE : Thong tin loi moi
+
+    alt Loi moi hop le
+        BE -> DB : Tao thanh vien cua hang
+        DB --> BE : Thanh cong
+
+        BE -> DB : Cap nhat trang thai loi moi
+        DB --> BE : Thanh cong
+
+        BE --> FE : Tham gia cua hang thanh cong
+        FE --> InvitedUser : Hien thi ket qua
+
+        Owner -> FE : Chon quyen cho nhan vien
+        FE -> BE : Gui yeu cau cap nhat quyen
+
+        BE -> DB : Kiem tra quyen chu cua hang
+        DB --> BE : Hop le
+
+        BE -> DB : Cap nhat quyen thanh vien
+        DB --> BE : Thanh cong
+
+        BE --> FE : Cap nhat quyen thanh cong
+        FE --> Owner : Hien thi quyen moi
+
+    else Loi moi khong hop le
+        BE --> FE : Loi moi khong hop le hoac het han
+        FE --> InvitedUser : Hien thi thong bao loi
+    end
+
+else Khong duoc phep moi
+    BE --> FE : Tu choi yeu cau
+    FE --> Owner : Hien thi thong bao loi
+end
+
+@enduml

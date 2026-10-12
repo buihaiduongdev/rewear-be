@@ -3,7 +3,7 @@ import path from 'node:path';
 import * as dotenv from 'dotenv';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
-import { databaseConfig } from '../config/configs';
+import { databaseConfig } from '@/modules/config/configs';
 
 dotenv.config();
 

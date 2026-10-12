@@ -1,0 +1,84 @@
+@startuml
+left to right direction
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Khach vang lai" as Guest
+actor "Nguoi mua" as Buyer
+actor "Chu cua hang" as Owner
+actor "Nhan vien cua hang" as Staff
+actor "Quan tri vien" as Admin
+actor "Cong thanh toan" as PaymentGateway
+actor "Don vi van chuyen" as Carrier
+
+rectangle "He thong thuong mai dien tu\nquan ao da qua su dung" {
+
+  usecase "Dang ky tai khoan" as UC01
+  usecase "Dang nhap" as UC02
+  usecase "Tim kiem va\nloc san pham" as UC03
+  usecase "Xem chi tiet\nsan pham" as UC04
+  usecase "Quan ly\ngio hang" as UC05
+  usecase "Dat hang" as UC06
+  usecase "Thanh toan\ntruc tuyen" as UC07
+  usecase "Theo doi / huy\ndon mua" as UC08
+
+  usecase "Quan ly\nsan pham" as UC09
+  usecase "Xu ly\ndon ban" as UC10
+  usecase "Tao don\nvan chuyen" as UC11
+  usecase "Theo doi trang thai\nvan chuyen" as UC12
+
+  usecase "Nhan tin" as UC13
+  usecase "Danh gia va\nphan hoi danh gia" as UC14
+  usecase "Quan ly\ncua hang" as UC15
+  usecase "Moi / xoa thanh vien\nva phan quyen" as UC16
+
+  usecase "Khieu nai /\ntra hang" as UC17
+  usecase "Xu ly tranh chap /\nhoan tien" as UC18
+
+  usecase "Quan ly nguoi dung,\ndanh muc va kiem duyet" as UC19
+}
+
+Guest --> UC01
+Guest --> UC02
+Guest --> UC03
+Guest --> UC04
+
+Buyer --> UC03
+Buyer --> UC04
+Buyer --> UC05
+Buyer --> UC06
+Buyer --> UC07
+Buyer --> UC08
+Buyer --> UC13
+Buyer --> UC14
+Buyer --> UC17
+
+Owner --> UC09
+Owner --> UC10
+Owner --> UC11
+Owner --> UC12
+Owner --> UC13
+Owner --> UC14
+Owner --> UC15
+Owner --> UC16
+Owner --> UC17
+
+Staff --> UC09
+Staff --> UC10
+Staff --> UC11
+Staff --> UC12
+Staff --> UC13
+Staff --> UC14
+
+Admin --> UC18
+Admin --> UC19
+
+PaymentGateway --> UC07
+Carrier --> UC11
+Carrier --> UC12
+
+UC07 ..> UC06 : <<extend>>
+UC11 ..> UC10 : <<extend>>
+
+@enduml

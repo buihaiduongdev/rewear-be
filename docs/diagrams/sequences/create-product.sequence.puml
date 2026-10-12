@@ -1,0 +1,38 @@
+@startuml
+title Luoc do tuan tu - Dang san pham
+
+actor "Nguoi ban" as Seller
+boundary "Front-end" as FE
+control "Back-end" as BE
+database "Database" as DB
+
+Seller -> FE : Nhap thong tin san pham
+Seller -> FE : Tai hinh anh san pham
+FE -> BE : Gui yeu cau tao san pham
+
+BE -> DB : Kiem tra quyen ban hang
+DB --> BE : Thong tin quyen
+
+alt Co quyen ban hang
+    BE -> BE : Kiem tra du lieu san pham
+
+    alt Du lieu hop le
+        BE -> DB : Luu thong tin san pham
+        DB --> BE : San pham da duoc tao
+
+        BE -> DB : Luu thong tin hinh anh
+        DB --> BE : Thanh cong
+
+        BE --> FE : Tao san pham thanh cong
+        FE --> Seller : Hien thi san pham
+    else Du lieu khong hop le
+        BE --> FE : Du lieu khong hop le
+        FE --> Seller : Hien thi thong bao loi
+    end
+
+else Khong co quyen ban hang
+    BE --> FE : Tu choi yeu cau
+    FE --> Seller : Hien thi thong bao khong co quyen
+end
+
+@enduml
