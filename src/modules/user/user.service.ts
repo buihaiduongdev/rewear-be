@@ -6,14 +6,17 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as argon2 from 'argon2';
-import { ILike, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 
+import { OrmFilterBuilder, paginate } from '@/common/pagination';
+import type { IPaginatedResult } from '@/common/pagination';
 import type { RegisterDto } from '@/modules/auth/dto';
 import { AuthProvider } from '@/modules/auth/enums';
 
 import { CreateUserDto, UpdateProfileDto, UpdateUserDto } from './dto';
 import { User } from './entities';
 import { UserRole, UserStatus } from './enums';
+import type { FindUserQuery } from './schemas';
 
 type OAuthProfile = {
   providerAccountId: string;
@@ -59,12 +62,24 @@ export class UserService {
     );
   }
 
-  async findAll(search?: string): Promise<User[]> {
-    return this.userRepository.find({
-      where: search
-        ? [{ email: ILike(`%${search}%`) }, { fullName: ILike(`%${search}%`) }]
-        : undefined,
-      order: { createdAt: 'DESC' },
+  async findAll(query: FindUserQuery): Promise<IPaginatedResult<User>> {
+    const builder = this.userRepository.createQueryBuilder('user');
+    OrmFilterBuilder.create(builder)
+      .andWhere(
+        '(user.fullName ILIKE :search OR user.email ILIKE :search)',
+        { search: `%${query.search}%` },
+        Boolean(query.search),
+      )
+      .equal('user.role', query.role)
+      .equal('user.status', query.status);
+
+    return paginate(builder, query, {
+      defaultSort: 'user.createdAt',
+      allowedSorts: {
+        createdAt: 'user.createdAt',
+        email: 'user.email',
+        fullName: 'user.fullName',
+      },
     });
   }
 

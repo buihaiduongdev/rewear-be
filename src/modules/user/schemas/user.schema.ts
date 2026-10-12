@@ -1,5 +1,6 @@
 import z from 'zod';
 
+import { paginatedSchema } from '@/common/pagination';
 import { AuthProvider } from '@/modules/auth/enums';
 
 import { UserRole, UserStatus } from '../enums';
@@ -15,4 +16,4 @@ export const userSchema = z.object({
   updatedAt: z.coerce.date(),
 });
 
-export const userListSchema = z.array(userSchema);
+export const userListSchema = paginatedSchema(userSchema);
