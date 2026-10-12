@@ -1,0 +1,46 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #2C3E50
+
+|#EAF2F8|Người mua|
+|#FEF9E7|Hệ thống sàn|
+|#F4ECF7|Quản trị viên|
+
+|Người mua|
+start
+:Mở đơn hàng đã nhận;
+:Bấm "Khiếu nại sản phẩm";
+:Nhập lý do, tải video mở hộp và ảnh chụp lỗi;
+
+|Hệ thống sàn|
+:Lưu hồ sơ khiếu nại;
+:Chuyển trạng thái Đơn hàng = "Đang khiếu nại";
+:Khóa luồng tự động giải ngân;
+:Gửi thông báo tới Quản trị viên và Người bán;
+
+|Quản trị viên|
+:Mở hồ sơ tranh chấp trên trang quản trị;
+:So sánh video ảnh người mua với ảnh gốc người bán đăng;
+
+if (Kết quả phân xử?) then (Khiếu nại không đúng sự thật)
+  :Bấm "Bác bỏ khiếu nại";
+  |Hệ thống sàn|
+  :Hồ sơ khiếu nại = "Đã đóng";
+  :Đơn hàng = "Hoàn tất";
+  :Cộng tiền cho Người bán;
+  stop
+else (Món đồ lỗi nặng, người bán mô tả sai sự thật)
+  |Quản trị viên|
+  :Bấm "Chấp nhận hoàn tiền";
+  |Hệ thống sàn|
+  :Kích hoạt hoàn tiền tự động qua Cổng thanh toán;
+  :Đơn hàng = "Đã hủy (Hoàn tiền)";
+  :Món đồ = "Đã hủy do lỗi" (Khóa không bán lại) [Quy tắc 8];
+  
+  |Người mua|
+  :Nhận lại tiền hoàn về tài khoản/thẻ ban đầu;
+  stop
+endif
+@enduml

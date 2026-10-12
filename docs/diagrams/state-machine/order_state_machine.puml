@@ -1,0 +1,41 @@
+@startuml
+hide empty description
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam state {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+}
+
+state "Chờ thanh toán" as ChoThanhToan : Khóa giữ món đồ tối đa 15 phút [Quy tắc 2]
+state "Chờ xác nhận" as ChoXacNhan : Chờ Người bán xác nhận tiếp nhận đơn
+state "Đang chuẩn bị hàng" as DangChuanBi : Người bán đang đóng gói sản phẩm
+state "Đang giao hàng" as DangGiaoHang : Bưu cục đang vận chuyển kiện hàng
+state "Đã giao hàng" as DaGiaoHang : Kiện hàng đã phát; mở hạn 3 ngày khiếu nại [Quy tắc 4]
+state "Đang khiếu nại" as DangKhieuNai : Đóng băng tài chính để giải quyết tranh chấp
+state "Hoàn tất" as HoanTat : Giao dịch thành công, tiền giải ngân cho shop
+state "Đã hủy" as DaHuy : Đơn hàng kết thúc không thành công
+
+[*] --> ChoThanhToan : Người mua chọn trả trước trực tuyến
+[*] --> ChoXacNhan : Người mua chọn trả tiền mặt khi nhận (COD)
+
+ChoThanhToan --> ChoXacNhan : Thanh toán trực tuyến thành công
+ChoThanhToan --> DaHuy : Quá 15 phút hoặc Người mua bấm hủy [Quy tắc 2, 9]
+
+ChoXacNhan --> DangChuanBi : Người bán bấm xác nhận đơn hàng
+ChoXacNhan --> DaHuy : Người mua tự hủy [Quy tắc 9] / Người bán từ chối / Quá 24h [Quy tắc 5]
+
+DangChuanBi --> DangGiaoHang : Người bán nhập mã bưu phẩm
+DangGiaoHang --> DaGiaoHang : Người bán tải biên nhận bưu phẩm [Quy tắc 3]
+
+DaGiaoHang --> HoanTat : Khách bấm đã nhận hoặc quá 3 ngày không khiếu nại [Quy tắc 4]
+DaGiaoHang --> DangKhieuNai : Khách gửi khiếu nại hàng lỗi (trong vòng 3 ngày)
+
+DangKhieuNai --> HoanTat : Quản trị viên bác bỏ khiếu nại (Giải ngân cho shop)
+DangKhieuNai --> DaHuy : Quản trị viên duyệt hoàn tiền (Trả tiền lại cho khách)
+
+HoanTat --> [*]
+DaHuy --> [*]
+@enduml

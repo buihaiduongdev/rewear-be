@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Người bán\n(Seller)" as NguoiBan
+
+rectangle "Phân hệ Xử lý Đơn bán & Vận chuyển" {
+  usecase "Xem danh sách đơn bán hàng" as XemDonBan
+  usecase "Xác nhận & chuẩn bị đóng gói" as XacNhanDon
+  usecase "Từ chối tiếp nhận đơn hàng" as TuChoiDon
+  
+  usecase "Cập nhật vận chuyển" as CapNhatVanChuyen
+  usecase "Nhập mã vận đơn bưu phẩm" as NhapMaVanDon
+  usecase "Tải ảnh biên lai bưu cục xác nhận đã giao" as TaiBienLai
+  
+  usecase "Xem số dư & lịch sử tiền bán" as XemViTien
+  usecase "Phản hồi đánh giá của người mua" as PhanHoiDanhGia
+  usecase "Trả lời tin nhắn tư vấn khách hàng" as TraLoiChat
+}
+
+NguoiBan --> XemDonBan
+NguoiBan --> XemViTien
+NguoiBan --> PhanHoiDanhGia
+NguoiBan --> TraLoiChat
+
+XacNhanDon ..> XemDonBan : <<extend>>
+TuChoiDon ..> XemDonBan : <<extend>>
+
+CapNhatVanChuyen ..> XacNhanDon : <<extend>>
+CapNhatVanChuyen ..> NhapMaVanDon : <<include>>
+CapNhatVanChuyen ..> TaiBienLai : <<include>>
+@enduml

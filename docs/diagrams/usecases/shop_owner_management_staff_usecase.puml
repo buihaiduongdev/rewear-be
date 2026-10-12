@@ -1,0 +1,37 @@
+@startuml Hinh3_11_LuocDo_ChuShop_GianHang
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Chủ cửa hàng\n(Shop Owner)" as ChuShop
+
+rectangle "Phân hệ Quản trị Gian hàng & Nhân sự" {
+  usecase "Thiết lập hồ sơ gian hàng" as ThietLapShop
+  usecase "Cập nhật logo, banner & địa chỉ kho" as CapNhatThongTinShop
+  
+  usecase "Quản lý nhân viên cửa hàng" as QuanLyNhanVien
+  usecase "Thêm tài khoản nhân viên mới" as ThemNhanVien
+  usecase "Phân quyền xử lý đơn / đăng tin" as PhanQuyen
+  usecase "Khóa quyền truy cập nhân viên" as KhoaNhanVien
+  
+  usecase "Xem báo cáo doanh số cửa hàng" as XemBaoCaoShop
+  usecase "Xuất file thống kê doanh thu" as XuatBaoCao
+}
+
+ChuShop --> ThietLapShop
+ChuShop --> QuanLyNhanVien
+ChuShop --> XemBaoCaoShop
+
+CapNhatThongTinShop ..> ThietLapShop : <<extend>>
+
+ThemNhanVien ..> QuanLyNhanVien : <<extend>>
+PhanQuyen ..> QuanLyNhanVien : <<extend>>
+KhoaNhanVien ..> QuanLyNhanVien : <<extend>>
+
+XuatBaoCao ..> XemBaoCaoShop : <<extend>>
+@enduml

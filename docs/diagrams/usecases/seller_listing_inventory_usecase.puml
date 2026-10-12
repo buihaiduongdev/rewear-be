@@ -1,0 +1,35 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Người bán\n(Seller)" as NguoiBan
+
+rectangle "Phân hệ Đăng tin & Quản lý Kho hàng" {
+  usecase "Đăng tin bán sản phẩm mới" as DangTin
+  usecase "Tải lên tối thiểu 2 ảnh chụp thật" as TaiAnhThat
+  usecase "Khai báo độ mới & số đo chi tiết" as KhaiBaoDoMoi
+  
+  usecase "Quản lý danh sách sản phẩm" as QuanLySanPham
+  usecase "Cập nhật giá bán" as SuaGia
+  usecase "Chỉnh sửa mô tả (Gửi duyệt lại)" as SuaTinDuyetLai
+  usecase "Tạm ẩn hoặc mở bán lại món đồ" as AnMoBan
+  usecase "Xóa bài đăng sản phẩm" as XoaTin
+}
+
+NguoiBan --> DangTin
+NguoiBan --> QuanLySanPham
+
+DangTin ..> TaiAnhThat : <<include>>
+DangTin ..> KhaiBaoDoMoi : <<include>>
+
+SuaGia ..> QuanLySanPham : <<extend>>
+SuaTinDuyetLai ..> QuanLySanPham : <<extend>>
+AnMoBan ..> QuanLySanPham : <<extend>>
+XoaTin ..> QuanLySanPham : <<extend>>
+@enduml

@@ -1,0 +1,45 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+}
+
+actor "Khách\n(Guest)" as Khach
+
+rectangle "Khách vãng lai" {
+  usecase "Xem trang chủ" as XemTrangChu
+  usecase "Xem banner & bộ sưu tập" as XemBanner
+  
+  usecase "Tìm kiếm sản phẩm" as TimKiem
+  usecase "Lọc theo giá, size, độ mới" as LocSP
+  
+  usecase "Xem chi tiết sản phẩm" as XemChiTiet
+  usecase "Phóng to ảnh thật & vết lỗi" as PhongToAnh
+  usecase "Xem hồ sơ & đánh giá shop" as XemShop
+  
+  usecase "Đăng ký tài khoản" as DangKy
+  usecase "Xác thực OTP qua Email/SĐT" as XacThucOTP
+  
+  usecase "Đăng nhập" as DangNhap
+  usecase "Khôi phục mật khẩu qua OTP" as QuenMatKhau
+}
+
+Khach --> XemTrangChu
+Khach --> TimKiem
+Khach --> XemChiTiet
+Khach --> DangKy
+Khach --> DangNhap
+
+XemBanner ..> XemTrangChu : <<extend>>
+LocSP ..> TimKiem : <<extend>>
+
+PhongToAnh ..> XemChiTiet : <<extend>>
+XemShop ..> XemChiTiet : <<extend>>
+
+DangKy ..> XacThucOTP : <<include>>
+QuenMatKhau ..> DangNhap : <<extend>>
+@enduml

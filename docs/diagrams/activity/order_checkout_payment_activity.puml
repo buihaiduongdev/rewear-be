@@ -1,0 +1,70 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #2C3E50
+
+|#EAF2F8|Người mua|
+|#FEF9E7|Hệ thống sàn|
+|#E9F7EF|Cổng thanh toán|
+
+|Người mua|
+start
+:Mở Giỏ hàng, chọn món đồ cần mua;
+:Nhấn "Tiến hành Đặt hàng";
+:Chọn Địa chỉ nhận & Phương thức thanh toán;
+:Nhấn "Xác nhận đặt hàng";
+
+|Hệ thống sàn|
+:Mở phiên xử lý dữ liệu an toàn (Database Transaction);
+:Kiểm tra tồn kho thời gian thực;
+
+if (Món hàng còn trạng thái "Đang bán"?) then (Đã có người mua trước)
+  :Hủy phiên xử lý dữ liệu (Rollback);
+  :Thông báo sản phẩm vừa có người mua;
+  |Người mua|
+  :Xóa món đồ khỏi giỏ hàng;
+  stop
+else (Còn hàng)
+  |Hệ thống sàn|
+  if (Người mua tự mua đồ của chính mình?) then (Vi phạm [Quy tắc 10])
+    :Hủy phiên xử lý;
+    :Báo lỗi vi phạm quy định sàn;
+    stop
+  else (Hợp lệ)
+    :Khóa món hàng: Đang bán -> "Đang giữ" [Quy tắc 1];
+    :Chụp lại giá bán & Tính phí vận chuyển (Snapshot);
+    :Tách đơn theo từng Người bán riêng [Quy tắc 6];
+    :Xóa món đã mua khỏi giỏ hàng;
+    :Lưu dữ liệu an toàn (Commit);
+    
+    if (Phương thức thanh toán đã chọn?) then (Trả tiền mặt COD)
+      :Đơn hàng = "Chờ xác nhận";
+      :Gửi thông báo đặt đơn thành công;
+      stop
+    else (Trả trực tuyến VNPAY/MoMo)
+      :Đơn hàng = "Chờ thanh toán" (Hạn 15 phút) [Quy tắc 2];
+      :Tạo đường dẫn chuyển sang cổng thanh toán;
+      
+      |Cổng thanh toán|
+      :Hiển thị màn hình quét mã hoặc nhập thẻ;
+      |Người mua|
+      :Xác nhận thanh toán tiền;
+      
+      |Cổng thanh toán|
+      :Trừ tiền và gửi kết quả ngầm (IPN) về máy chủ sàn;
+      
+      |Hệ thống sàn|
+      if (Kết quả thanh toán thành công?) then (Thành công)
+        :Ghi nhận thanh toán thành công;
+        :Đơn hàng chuyển sang: "Chờ xác nhận";
+        stop
+      else (Lỗi giao dịch hoặc quá 15 phút)
+        :Đơn hàng chuyển sang: "Đã hủy";
+        :Nhả món đồ: Đang giữ -> "Đang bán" [Quy tắc 2];
+        stop
+      endif
+    endif
+  endif
+endif
+@enduml
