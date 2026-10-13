@@ -1,5 +1,7 @@
 allowBuilds:
+  '@google/genai': false
   '@parcel/watcher': false
   '@scarf/scarf': false
   argon2: true
+  protobufjs: false
   unrs-resolver: false
