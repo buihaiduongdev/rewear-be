@@ -14,6 +14,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  app.enableCors({
+    origin: configService.cors.origin,
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'x-request-id'],
+  });
+
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(

@@ -4,6 +4,7 @@ import { ConfigService as NestConfigService } from '@nestjs/config';
 import {
   TAppConfig,
   TAuthConfig,
+  TCorsConfig,
   TDatabaseConfig,
   TMailConfig,
 } from './schemas';
@@ -15,6 +16,7 @@ export class ConfigService {
       {
         app: TAppConfig;
         auth: TAuthConfig;
+        cors: TCorsConfig;
         database: TDatabaseConfig;
         mail: TMailConfig;
       },
@@ -24,6 +26,10 @@ export class ConfigService {
 
   get app(): TAppConfig {
     return this.configService.get('app', { infer: true });
+  }
+
+  get cors(): TCorsConfig {
+    return this.configService.get('cors', { infer: true });
   }
 
   get database(): TDatabaseConfig {
