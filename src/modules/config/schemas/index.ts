@@ -3,3 +3,5 @@ export * from './auth.schema';
 export * from './database.schema';
 export * from './mail.schema';
 export * from './cors.schema';
+export * from './ai.schema';
+export * from './storage.schema';

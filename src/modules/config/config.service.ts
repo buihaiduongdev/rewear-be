@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
 import {
+  TAiConfig,
   TAppConfig,
   TAuthConfig,
   TCorsConfig,
   TDatabaseConfig,
   TMailConfig,
+  TStorageConfig,
 } from './schemas';
 
 @Injectable()
@@ -14,11 +16,13 @@ export class ConfigService {
   constructor(
     private readonly configService: NestConfigService<
       {
+        ai: TAiConfig;
         app: TAppConfig;
         auth: TAuthConfig;
         cors: TCorsConfig;
         database: TDatabaseConfig;
         mail: TMailConfig;
+        storage: TStorageConfig;
       },
       true
     >,
@@ -42,5 +46,13 @@ export class ConfigService {
 
   get mail(): TMailConfig {
     return this.configService.get('mail', { infer: true });
+  }
+
+  get ai(): TAiConfig {
+    return this.configService.get('ai', { infer: true });
+  }
+
+  get storage(): TStorageConfig {
+    return this.configService.get('storage', { infer: true });
   }
 }

@@ -3,3 +3,5 @@ export * from './auth.config';
 export * from './database.config';
 export * from './mail.config';
 export * from './cors.config';
+export * from './ai.config';
+export * from './storage.config';

@@ -3,11 +3,13 @@ import { ConfigModule as NestConfigModule } from '@nestjs/config';
 
 import { ConfigService } from './config.service';
 import {
+  aiConfig,
   appConfig,
   authConfig,
   corsConfig,
   databaseConfig,
   mailConfig,
+  storageConfig,
 } from './configs';
 
 @Global()
@@ -17,7 +19,15 @@ import {
       cache: true,
       envFilePath: '.env',
       isGlobal: true,
-      load: [appConfig, authConfig, corsConfig, databaseConfig, mailConfig],
+      load: [
+        appConfig,
+        authConfig,
+        corsConfig,
+        databaseConfig,
+        mailConfig,
+        aiConfig,
+        storageConfig,
+      ],
     }),
   ],
   providers: [ConfigService],
