@@ -52,3 +52,24 @@ cần chốt thêm các quy tắc sau:
 
 Các thay đổi sau phải giữ tương thích cho API hồ sơ Shop hiện tại hoặc có kế hoạch
 version/migration rõ ràng.
+
+## Hoàn thiện vòng đời sản phẩm
+
+**Trạng thái:** Chờ chốt nghiệp vụ sau phạm vi Product MVP.
+
+Module hiện hỗ trợ sản phẩm cá nhân hoặc sản phẩm thuộc cửa hàng, tạo bản nháp,
+đăng bán, ẩn và đánh dấu đã bán. Trước khi nối với giỏ hàng và checkout, cần hoàn
+thiện các phần sau:
+
+1. Thiết kế cơ chế giữ hàng với trạng thái `HELD`, thời hạn hết giữ và xử lý đồng
+   thời để một sản phẩm không được đặt bởi nhiều người.
+2. Chốt quy trình kiểm duyệt, lý do từ chối và quyền xử lý khi sản phẩm vi phạm.
+3. Tách module media để quản lý ảnh, thứ tự hiển thị, ảnh bìa và vòng đời file trên
+   object storage.
+4. Chốt chính sách xóa và lưu giữ dữ liệu cho sản phẩm đã bán, bị ẩn hoặc gắn với
+   đơn hàng có lịch sử giao dịch.
+5. Bổ sung migration chính thức và rà soát index truy vấn trước khi tắt
+   `synchronize` ở môi trường production.
+
+API hiện tại phải giữ `HELD` là trạng thái nội bộ cho luồng checkout; client quản lý
+sản phẩm chỉ được chuyển sang `ACTIVE`, `HIDDEN` hoặc `SOLD`.

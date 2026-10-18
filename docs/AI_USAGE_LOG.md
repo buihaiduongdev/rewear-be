@@ -121,3 +121,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 6 test suites với 56 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phản hồi ban đầu của thao tác thêm/cập nhật nhân viên chưa nạp quan hệ `user` mà schema yêu cầu; đã reload membership kèm quan hệ trước khi trả về. Mock TypeORM trong test ban đầu bị TypeScript suy luận theo overload dành cho mảng; đã giới hạn mock theo đúng lời gọi được kiểm thử.
 - **Minh chứng:** Branch `feat/shop-module`; các thay đổi tại `src/modules/shop`, `test/unit/modules/shop/shop.service.spec.ts`, `src/app.module.ts`, `docs/TODO.md` và mục nhật ký này.
+
+### 2026-10-18 — Triển khai API sản phẩm
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Triển khai module Product cho MVP, hỗ trợ sản phẩm do cá nhân hoặc cửa hàng đăng bán, danh mục công khai, quản lý sản phẩm của người bán và vòng đời cơ bản; chưa triển khai hình ảnh, giữ hàng, đơn hàng hoặc kiểm duyệt nội dung.
+- **Prompt chính:** Tiếp tục nhóm API nghiệp vụ trên một branch riêng và triển khai module Product dựa trên tài liệu cùng đề xuất cơ sở dữ liệu đang ở trạng thái draft, đồng thời giữ các quyết định checkout chưa chốt ngoài phạm vi.
+- **Đầu ra AI được sử dụng:** Hỗ trợ tạo entity, enum, DTO, schema truy vấn/phản hồi, service, controller và module tại `src/modules/product`; đăng ký `ProductModule` trong ứng dụng; bổ sung API công khai để tìm kiếm/xem sản phẩm đang bán, API người bán để tạo/cập nhật/xem sản phẩm và thay đổi trạng thái; bổ sung unit test và cập nhật danh sách công việc còn lại.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt mỗi sản phẩm thuộc đúng một nguồn bán là người dùng hoặc cửa hàng; chỉ chủ sở hữu đang hoạt động của cửa hàng được quản lý sản phẩm cửa hàng; sản phẩm mới luôn ở trạng thái `DRAFT`; tách cập nhật nội dung khỏi chuyển trạng thái; giới hạn chuyển trạng thái theo vòng đời `DRAFT`, `ACTIVE`, `HIDDEN`, `SOLD`, giữ `HELD` cho luồng giữ hàng nội bộ sau này; kiểm tra danh mục và cửa hàng đang hoạt động trước khi đăng bán; chưa cung cấp thao tác xóa khi chính sách lưu trữ chưa chốt.
+- **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 7 test suites với 61 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** TypeScript ban đầu báo lỗi do kiểu query dùng với decorator chưa được import bằng `import type` và mock `repository.save` bị suy luận sai overload; đã sửa theo đúng ngữ cảnh. Khi rà soát contract truy vấn, phát hiện bộ lọc service đã hỗ trợ tìm kiếm nhưng schema đầu vào chưa khai báo `search`; đã bổ sung trước khi chạy kiểm chứng cuối.
+- **Minh chứng:** Branch `feat/product-module`; các thay đổi tại `src/modules/product`, `test/unit/modules/product/product.service.spec.ts`, `src/app.module.ts`, `docs/TODO.md` và mục nhật ký này.
