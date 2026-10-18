@@ -61,3 +61,27 @@
 - **Cách kiểm chứng:** Chạy lại `pnpm check` trên HEAD `09a1784`: lint, Prettier, typecheck và Nest build đều pass. Sau khi chuyển folder schema auth, `pnpm typecheck` và Prettier trên các file liên quan cũng pass. Review mã nguồn cho các route auth, guards quản lý user, strategy xác minh Google ID token và mail templates. Chưa kiểm thử E2E với PostgreSQL, SMTP và Google trong lần ghi log này; các kết quả kiểm tra tĩnh/build không xác nhận toàn bộ luồng xác thực hoạt động thực tế.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát sinh `DataTypeNotSupportedError: Data type "Object" in "User.password" is not supported by "postgres" database.` khi khai báo kiểu nullable union mà thiếu kiểu cột TypeORM cụ thể; đã khai báo rõ `varchar` cho chuỗi nullable và `timestamptz` cho thời gian nullable. Schema auth ban đầu đặt ở `auth.schemas.ts` tại root module, chưa đồng nhất với user; đã chuyển vào `schemas/` và cập nhật import theo yêu cầu review.
 - **Minh chứng:** Branch `feat/auth-user-module`; commits `2202538` (common), `6418ff0` (user), `71cc8fd` (mail), `2095de2` (auth), `09a1784` (setup). Nhật ký này được bổ sung sau các commit trên.
+
+### 2026-10-18 — Triển khai API danh mục
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Triển khai module Category theo đề xuất cơ sở dữ liệu đang dùng cho MVP, gồm entity, DTO, schema phản hồi, service, controller và unit test; chưa mở rộng sang cây danh mục hoặc quan hệ với sản phẩm.
+- **Prompt chính:** Dựa trên tài liệu nghiệp vụ và đề xuất cơ sở dữ liệu hiện tại để nhóm A triển khai API Category trong Rewear BE.
+- **Đầu ra AI được sử dụng:** Hỗ trợ tạo `src/modules/category` và đăng ký `CategoryModule` trong ứng dụng. API gồm đọc danh sách/chi tiết danh mục đang hoạt động; tạo, cập nhật và vô hiệu hóa danh mục dành cho ADMIN; sinh slug chuẩn hóa từ tên tiếng Việt, kiểm tra slug trùng và serialize phản hồi bằng Zod. Bổ sung unit test cho các hành vi chính của service.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt phạm vi Category phẳng cho MVP; giữ slug ổn định khi chỉ đổi tên; dùng `isActive = false` để xóa mềm; giới hạn thao tác ghi bằng `JwtAuthGuard`, `RolesGuard` và vai trò `ADMIN`.
+- **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build` và `pnpm check` đều pass. `pnpm test --runInBand` pass 3 test suites với 36 tests, trong đó có unit test của `CategoryService`. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sau khi review mã và chạy các kiểm tra trên.
+- **Minh chứng:** Các thay đổi hiện có trong working tree tại `src/modules/category`, `test/unit/modules/category/category.service.spec.ts` và `src/app.module.ts`;
+
+### 2026-10-18 — Chuyển công cụ lint từ ESLint sang Oxlint
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Thay ESLint bằng Oxlint cho mã nguồn và unit test của Rewear BE, đồng thời giữ Prettier và TypeScript typecheck là các bước kiểm tra độc lập.
+- **Prompt chính:** “Chuyển sang oxlint thay cho eslint.”
+- **Đầu ra AI được sử dụng:** Hỗ trợ thay script `lint`/`lint:fix` bằng Oxlint, thêm `.oxlintrc.json`, cài `oxlint`, gỡ các dependency ESLint trực tiếp, xóa `eslint.config.mjs` và cập nhật lockfile.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn lint `src` và `test`; bật các plugin TypeScript, Unicorn, Oxc và Jest; đặt nhóm luật correctness ở mức error; giữ `tsc --noEmit` trong quy trình `check` để kiểm tra kiểu dữ liệu.
+- **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build`, `pnpm test --runInBand` và `pnpm check` đều pass.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thử nghiệm chế độ type-aware qua `oxlint-tsgolint` không tương thích với `tsconfig.json` hiện tại vì cấu hình đang dùng `baseUrl` và alias `paths` không tương đối. Đã không thay đổi alias/import của dự án chỉ để phục vụ lint, loại dependency type-aware trực tiếp và tiếp tục dùng `tsc --noEmit` để kiểm tra kiểu.
+- **Minh chứng:** Các thay đổi hiện có trong working tree tại `.oxlintrc.json`, `package.json`, `pnpm-lock.yaml` và việc xóa `eslint.config.mjs`;.

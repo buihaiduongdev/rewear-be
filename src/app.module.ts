@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
 import { AuthModule } from './modules/auth';
+import { CategoryModule } from './modules/category';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
 import { UserModule } from './modules/user';
@@ -12,6 +13,7 @@ import { UserModule } from './modules/user';
   imports: [
     ConfigModule,
     DatabaseModule,
+    CategoryModule,
     UserModule,
     AuthModule,
     ThrottlerModule.forRootAsync({
