@@ -85,3 +85,15 @@
 - **Cách kiểm chứng:** `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build`, `pnpm test --runInBand` và `pnpm check` đều pass.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thử nghiệm chế độ type-aware qua `oxlint-tsgolint` không tương thích với `tsconfig.json` hiện tại vì cấu hình đang dùng `baseUrl` và alias `paths` không tương đối. Đã không thay đổi alias/import của dự án chỉ để phục vụ lint, loại dependency type-aware trực tiếp và tiếp tục dùng `tsc --noEmit` để kiểm tra kiểu.
 - **Minh chứng:** Các thay đổi hiện có trong working tree tại `.oxlintrc.json`, `package.json`, `pnpm-lock.yaml` và việc xóa `eslint.config.mjs`;.
+
+### 2026-10-18 — Triển khai API sổ địa chỉ người dùng
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Triển khai và chuẩn hóa module User Address theo địa giới Việt Nam hai cấp, cho phép người dùng đã đăng nhập quản lý các địa chỉ của chính mình và chọn một địa chỉ mặc định; chưa tích hợp địa chỉ vào checkout hoặc đơn hàng.
+- **Prompt chính:** Tiếp tục nhóm A và triển khai User Address trong Rewear BE.
+- **Đầu ra AI được sử dụng:** Hỗ trợ tạo entity, DTO, schema phản hồi, service, controller và module tại `src/modules/user-address`; đăng ký `UserAddressModule` trong ứng dụng; bổ sung unit test cho truy vấn theo chủ sở hữu, tạo/cập nhật/xóa và đổi địa chỉ mặc định; refactor dữ liệu địa chỉ sang cặp mã/tên tỉnh, phường và các trường giao hàng rõ nghĩa.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt mọi truy vấn theo `userId` lấy từ JWT; không trả `userId` hoặc quan hệ user trong phản hồi; trả 404 khi địa chỉ không thuộc người gọi; dùng transaction khi đổi địa chỉ mặc định và partial unique index để bảo đảm mỗi người dùng có tối đa một địa chỉ mặc định. Không lưu mã địa bàn riêng của hãng vận chuyển trong `user_addresses`; giữ `countryCode` ở phạm vi `VN` và tách tích hợp hãng vận chuyển khỏi sổ địa chỉ.
+- **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 4 test suites với 42 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh kiểm thử đầu tiên dùng `pnpm test -- --runInBand`, khiến Jest hiểu `--runInBand` là mẫu tên file và báo không tìm thấy test; đã chạy lại đúng bằng `pnpm exec jest --runInBand`. Không phát hiện lỗi mã sau các bước kiểm chứng.
+- **Minh chứng:** Các thay đổi hiện có trong working tree tại `src/modules/user-address`, `test/unit/modules/user-address/user-address.service.spec.ts`, `src/app.module.ts` và mục nhật ký này.

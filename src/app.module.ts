@@ -8,6 +8,7 @@ import { CategoryModule } from './modules/category';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
 import { UserModule } from './modules/user';
+import { UserAddressModule } from './modules/user-address';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UserModule } from './modules/user';
     DatabaseModule,
     CategoryModule,
     UserModule,
+    UserAddressModule,
     AuthModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
