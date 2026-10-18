@@ -101,12 +101,15 @@ Các bảng đều dùng UUID, `created_at`, `updated_at`; thêm `deleted_at` kh
 ### `user_addresses`
 
 - `id`, `user_id`
-- `recipient_name`, `phone`
-- `line_1`, `line_2`
-- `ward`, `district`, `province`, `postal_code`
+- `label`, `recipient_name`, `phone`
+- `address_line_1`, `address_line_2`
+- `country_code`
+- `province_code`, `province_name`
+- `ward_code`, `ward_name`
+- `postal_code`, `delivery_instructions`
 - `is_default`
 
-Ràng buộc: partial unique index để mỗi user chỉ có một địa chỉ mặc định.
+Ràng buộc: index theo `user_id`; partial unique index để mỗi user chỉ có tối đa một địa chỉ mặc định. Không lưu mã riêng của đơn vị vận chuyển tại đây. Khi tạo đơn, địa chỉ phải được snapshot vào đơn hàng.
 
 ### `shops` và `shop_members`
 
