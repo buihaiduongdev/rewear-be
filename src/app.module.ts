@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
+import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
 import { CategoryModule } from './modules/category';
 import { ConfigModule, ConfigService } from './modules/config';
@@ -14,6 +15,7 @@ import { UserAddressModule } from './modules/user-address';
   imports: [
     ConfigModule,
     DatabaseModule,
+    AdministrativeDivisionModule,
     CategoryModule,
     UserModule,
     UserAddressModule,

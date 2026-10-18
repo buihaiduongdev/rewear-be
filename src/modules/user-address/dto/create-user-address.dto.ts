@@ -51,29 +51,17 @@ export class CreateUserAddressDto {
   @IsIn(['VN'])
   countryCode?: string;
 
-  @ApiProperty({ example: '79', maxLength: 20 })
+  @ApiProperty({ example: '79', description: 'Two-digit province code' })
   @Trim()
   @IsString()
-  @Length(1, 20)
+  @Matches(/^\d{2}$/)
   provinceCode: string;
 
-  @ApiProperty({ example: 'Thành phố Hồ Chí Minh', maxLength: 100 })
+  @ApiProperty({ example: '25747', description: 'Five-digit ward code' })
   @Trim()
   @IsString()
-  @Length(1, 100)
-  provinceName: string;
-
-  @ApiProperty({ example: '26734', maxLength: 20 })
-  @Trim()
-  @IsString()
-  @Length(1, 20)
+  @Matches(/^\d{5}$/)
   wardCode: string;
-
-  @ApiProperty({ example: 'Phường Bến Nghé', maxLength: 100 })
-  @Trim()
-  @IsString()
-  @Length(1, 100)
-  wardName: string;
 
   @ApiPropertyOptional({ example: '700000', maxLength: 20, nullable: true })
   @Trim()

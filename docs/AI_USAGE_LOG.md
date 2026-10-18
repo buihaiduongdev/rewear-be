@@ -97,3 +97,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 4 test suites với 42 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh kiểm thử đầu tiên dùng `pnpm test -- --runInBand`, khiến Jest hiểu `--runInBand` là mẫu tên file và báo không tìm thấy test; đã chạy lại đúng bằng `pnpm exec jest --runInBand`. Không phát hiện lỗi mã sau các bước kiểm chứng.
 - **Minh chứng:** Các thay đổi hiện có trong working tree tại `src/modules/user-address`, `test/unit/modules/user-address/user-address.service.spec.ts`, `src/app.module.ts` và mục nhật ký này.
+
+### 2026-10-18 — Tích hợp danh mục địa giới Việt Nam
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Tích hợp danh mục địa giới Việt Nam hai cấp vào backend, cung cấp API tỉnh/thành và xã/phường cho client, đồng thời chuẩn hóa dữ liệu khi tạo hoặc cập nhật địa chỉ người dùng. Chưa tích hợp mã địa bàn riêng của hãng vận chuyển hoặc cơ chế đồng bộ tự động.
+- **Prompt chính:** Thiết kế và tích hợp danh mục địa giới hành chính Việt Nam hai cấp vào backend để cung cấp API tra cứu tỉnh/thành, xã/phường và chuẩn hóa dữ liệu trong sổ địa chỉ người dùng.
+- **Đầu ra AI được sử dụng:** Hỗ trợ tạo `AdministrativeDivisionModule`, service và hai public endpoint đọc tỉnh/thành, xã/phường; tạo snapshot 34 tỉnh/thành và 3.321 xã/phường có metadata nguồn; nối danh mục vào `UserAddressService` để kiểm tra quan hệ tỉnh–xã và tự điền tên chuẩn từ mã; cập nhật DTO, README, unit test và ghi TODO nghiên cứu tách dataset sinh tự động khỏi TypeScript.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn snapshot có phiên bản để API không phụ thuộc dịch vụ công cộng ở runtime; đối chiếu danh mục với Cục Thống kê, Province Open API và bộ dữ liệu `open-admin-data`; áp dụng tên cấp tỉnh hiện hành tại ngày 2026-10-18 và mã xã Ba Chẽ đã hiệu chỉnh là `06970`. Chốt contract ghi địa chỉ chỉ nhận `provinceCode` và `wardCode`; backend chịu trách nhiệm lưu tên chuẩn.
+- **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 5 test suites với 49 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Mock `repository.save` ban đầu không khớp overload TypeORM trong TypeScript; đã giới hạn mock theo đúng lời gọi. Unit test ban đầu import qua barrel của module khiến Jest nạp Swagger ESM; đã đổi sang import trực tiếp service để giữ ranh giới test phù hợp. Hai nguồn dữ liệu phụ lệch mã Ba Chẽ giữa `06970` và `06978`; đã chọn `06970` theo bản hiệu chỉnh mới hơn và thêm test chống hồi quy.
+- **Minh chứng:** Branch `feat/vietnam-administrative-divisions`; các thay đổi tại `src/modules/administrative-division`, `src/modules/user-address`, `test/unit/modules/administrative-division`, `test/unit/modules/user-address`, `README.md` và mục nhật ký này.

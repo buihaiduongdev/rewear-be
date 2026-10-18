@@ -44,3 +44,13 @@ authenticated user can read and update `/api/users/me`.
 `fullName`), `search` (name/email), `role`, and `status`. The response's `data`
 contains `{ items, meta }`; `meta` includes `page`, `pageSize`, `total`,
 `totalPage`, `hasNextPage`, and `hasPreviousPage`.
+
+Vietnamese administrative divisions are exposed publicly through
+`GET /api/administrative-divisions/provinces` and
+`GET /api/administrative-divisions/provinces/:provinceCode/wards`. The data is
+a versioned two-level snapshot, so these requests do not depend on an external
+service at runtime.
+
+When creating or updating a user address, clients submit `provinceCode` and
+`wardCode`. The backend validates that the ward belongs to the province and
+stores the canonical province and ward names from the snapshot.

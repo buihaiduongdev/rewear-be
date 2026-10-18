@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, Repository } from 'typeorm';
 
+import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
+
 import { CreateUserAddressDto, UpdateUserAddressDto } from './dto';
 import { UserAddress } from './entities';
 
@@ -12,6 +14,7 @@ export class UserAddressService {
     @InjectRepository(UserAddress)
     private readonly userAddressRepository: Repository<UserAddress>,
     private readonly dataSource: DataSource,
+    private readonly administrativeDivisionService: AdministrativeDivisionService,
   ) {}
 
   findAll(userId: string): Promise<UserAddress[]> {
@@ -31,8 +34,14 @@ export class UserAddressService {
     userId: string,
     input: CreateUserAddressDto,
   ): Promise<UserAddress> {
+    const administrativeAddress =
+      this.administrativeDivisionService.resolveAddress(
+        input.provinceCode,
+        input.wardCode,
+      );
     const address = this.userAddressRepository.create({
       ...input,
+      ...administrativeAddress,
       userId,
       label: input.label ?? null,
       addressLine2: input.addressLine2 ?? null,
@@ -53,7 +62,14 @@ export class UserAddressService {
     input: UpdateUserAddressDto,
   ): Promise<UserAddress> {
     const address = await this.findOne(userId, id);
-    Object.assign(address, input);
+    const administrativeAddress =
+      input.provinceCode !== undefined || input.wardCode !== undefined
+        ? this.administrativeDivisionService.resolveAddress(
+            input.provinceCode ?? address.provinceCode,
+            input.wardCode ?? address.wardCode,
+          )
+        : {};
+    Object.assign(address, input, administrativeAddress);
 
     return input.isDefault === true
       ? this.saveAsDefault(userId, address)
