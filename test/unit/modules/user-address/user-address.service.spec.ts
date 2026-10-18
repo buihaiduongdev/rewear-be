@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 import { UserAddress } from '@/modules/user-address/entities';
 import { UserAddressService } from '@/modules/user-address/user-address.service';
 import type { User } from '@/modules/user/entities';
@@ -20,8 +21,8 @@ describe('UserAddressService', () => {
     countryCode: 'VN',
     provinceCode: '79',
     provinceName: 'Thành phố Hồ Chí Minh',
-    wardCode: '26734',
-    wardName: 'Phường Bến Nghé',
+    wardCode: '25747',
+    wardName: 'Phường Thủ Dầu Một',
     postalCode: '700000',
     deliveryInstructions: null,
     isDefault: false,
@@ -51,6 +52,7 @@ describe('UserAddressService', () => {
   const service = new UserAddressService(
     repository as unknown as Repository<UserAddress>,
     { transaction } as unknown as DataSource,
+    new AdministrativeDivisionService(),
   );
 
   beforeEach(() => {
@@ -90,9 +92,7 @@ describe('UserAddressService', () => {
         phone: address.phone,
         addressLine1: address.addressLine1,
         provinceCode: address.provinceCode,
-        provinceName: address.provinceName,
         wardCode: address.wardCode,
-        wardName: address.wardName,
       }),
     ).resolves.toBe(created);
     expect(repository.create).toHaveBeenCalledWith({
@@ -126,9 +126,7 @@ describe('UserAddressService', () => {
         phone: address.phone,
         addressLine1: address.addressLine1,
         provinceCode: address.provinceCode,
-        provinceName: address.provinceName,
         wardCode: address.wardCode,
-        wardName: address.wardName,
         isDefault: true,
       }),
     ).resolves.toBe(created);
@@ -158,6 +156,24 @@ describe('UserAddressService', () => {
     expect(repository.save).toHaveBeenCalledWith({
       ...existing,
       recipientName: 'Trần Văn B',
+    });
+  });
+
+  it('refreshes canonical names when an administrative code changes', async () => {
+    const existing = { ...address };
+    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.save.mockResolvedValueOnce(existing);
+
+    await expect(
+      service.update(userId, address.id, {
+        provinceCode: '01',
+        wardCode: '00004',
+      }),
+    ).resolves.toMatchObject({
+      provinceCode: '01',
+      provinceName: 'Thành phố Hà Nội',
+      wardCode: '00004',
+      wardName: 'Phường Ba Đình',
     });
   });
 
