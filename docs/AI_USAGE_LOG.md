@@ -109,3 +109,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 5 test suites với 49 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Mock `repository.save` ban đầu không khớp overload TypeORM trong TypeScript; đã giới hạn mock theo đúng lời gọi. Unit test ban đầu import qua barrel của module khiến Jest nạp Swagger ESM; đã đổi sang import trực tiếp service để giữ ranh giới test phù hợp. Hai nguồn dữ liệu phụ lệch mã Ba Chẽ giữa `06970` và `06978`; đã chọn `06970` theo bản hiệu chỉnh mới hơn và thêm test chống hồi quy.
 - **Minh chứng:** Branch `feat/vietnam-administrative-divisions`; các thay đổi tại `src/modules/administrative-division`, `src/modules/user-address`, `test/unit/modules/administrative-division`, `test/unit/modules/user-address`, `README.md` và mục nhật ký này.
+
+### 2026-10-18 — Triển khai API quản lý cửa hàng và thành viên
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Mục đích và phạm vi:** Triển khai module Shop cho MVP, gồm hồ sơ cửa hàng, quan hệ thành viên và các thao tác quản lý nhân viên cơ bản; chưa mở rộng sang phân quyền sản phẩm/đơn hàng, chuyển quyền sở hữu, tài sản hình ảnh hoặc địa chỉ cửa hàng.
+- **Prompt chính:** Tiếp tục nhóm API nghiệp vụ trên một branch riêng và triển khai module quản lý cửa hàng theo tài liệu thiết kế cơ sở dữ liệu đang ở trạng thái draft.
+- **Đầu ra AI được sử dụng:** Hỗ trợ tạo entity `Shop`/`ShopMember`, enum, DTO, schema phản hồi, service, controller và module; đăng ký `ShopModule` trong ứng dụng; bổ sung public API đọc cửa hàng đang hoạt động, API tạo/cập nhật cửa hàng, xem các cửa hàng của người dùng và quản lý danh sách nhân viên; bổ sung unit test cho các ràng buộc chính.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt phạm vi MVP với hai vai trò `OWNER`/`STAFF`; người tạo trở thành chủ sở hữu đang hoạt động trong cùng transaction; chỉ chủ sở hữu đang hoạt động được sửa cửa hàng hoặc quản lý nhân viên; dùng trạng thái `ACTIVE`/`INACTIVE` thay cho xóa membership; giữ các quyết định chưa chốt trong `docs/TODO.md`.
+- **Cách kiểm chứng:** `pnpm check` pass, gồm Oxlint, Prettier check, TypeScript typecheck và Nest build. `pnpm exec jest --runInBand` pass 6 test suites với 56 tests. `git diff --check` pass. Chưa kiểm thử HTTP E2E với PostgreSQL trong lần ghi log này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phản hồi ban đầu của thao tác thêm/cập nhật nhân viên chưa nạp quan hệ `user` mà schema yêu cầu; đã reload membership kèm quan hệ trước khi trả về. Mock TypeORM trong test ban đầu bị TypeScript suy luận theo overload dành cho mảng; đã giới hạn mock theo đúng lời gọi được kiểm thử.
+- **Minh chứng:** Branch `feat/shop-module`; các thay đổi tại `src/modules/shop`, `test/unit/modules/shop/shop.service.spec.ts`, `src/app.module.ts`, `docs/TODO.md` và mục nhật ký này.
