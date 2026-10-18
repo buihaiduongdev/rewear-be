@@ -31,3 +31,24 @@ chỉnh sửa thủ công ngoài quy trình cập nhật.
 Ưu tiên nghiên cứu phương án JSON có version trước vì thay đổi nhỏ và vẫn giữ được
 đặc tính không phụ thuộc mạng ở runtime. Phương án database phù hợp hơn khi cần tìm
 kiếm nâng cao, lịch sử phiên bản hoặc đồng bộ thường xuyên.
+
+## Hoàn thiện quyền và vòng đời cửa hàng
+
+**Trạng thái:** Chờ chốt nghiệp vụ sau phạm vi Shop MVP.
+
+Module hiện hỗ trợ hồ sơ cửa hàng, chủ sở hữu và nhân viên ở hai trạng thái
+`ACTIVE`/`INACTIVE`. Trước khi nối Shop với sản phẩm, đơn hàng và vận hành thực tế,
+cần chốt thêm các quy tắc sau:
+
+1. Luồng chuyển quyền sở hữu, chủ shop rời cửa hàng và cách xử lý khi tài khoản chủ
+   shop bị khóa.
+2. Ma trận quyền chi tiết của nhân viên đối với sản phẩm, tồn kho, đơn hàng và báo
+   cáo; xác định có cần thêm vai trò ngoài `OWNER`/`STAFF` hay không.
+3. Vòng đời vô hiệu hóa hoặc xóa cửa hàng và ảnh hưởng tới sản phẩm, đơn hàng đang
+   xử lý, lịch sử giao dịch và dữ liệu cần lưu giữ.
+4. Quy tắc quản lý địa chỉ cửa hàng, logo/banner, kiểm duyệt và trạng thái công khai.
+5. Bổ sung migration chính thức cho `shops` và `shop_members` trước khi tắt
+   `synchronize` ở môi trường production.
+
+Các thay đổi sau phải giữ tương thích cho API hồ sơ Shop hiện tại hoặc có kế hoạch
+version/migration rõ ràng.
