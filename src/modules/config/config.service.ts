@@ -7,6 +7,7 @@ import {
   TCorsConfig,
   TDatabaseConfig,
   TMailConfig,
+  TStorageConfig,
 } from './schemas';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class ConfigService {
         cors: TCorsConfig;
         database: TDatabaseConfig;
         mail: TMailConfig;
+        storage: TStorageConfig;
       },
       true
     >,
@@ -42,5 +44,9 @@ export class ConfigService {
 
   get mail(): TMailConfig {
     return this.configService.get('mail', { infer: true });
+  }
+
+  get storage(): TStorageConfig {
+    return this.configService.get('storage', { infer: true });
   }
 }

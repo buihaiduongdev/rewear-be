@@ -97,6 +97,15 @@ export class ProductService {
     return product;
   }
 
+  async findOneForManagement(
+    id: string,
+    currentUserId: string,
+  ): Promise<Product> {
+    const product = await this.findManagedProduct(id);
+    await this.assertCanManage(product, currentUserId);
+    return product;
+  }
+
   async create(
     currentUserId: string,
     input: CreateProductDto,
@@ -132,8 +141,7 @@ export class ProductService {
     currentUserId: string,
     input: UpdateProductDto,
   ): Promise<Product> {
-    const product = await this.findManagedProduct(id);
-    await this.assertCanManage(product, currentUserId);
+    const product = await this.findOneForManagement(id, currentUserId);
     if (
       input.categoryId !== undefined &&
       input.categoryId !== product.categoryId
@@ -166,8 +174,7 @@ export class ProductService {
     currentUserId: string,
     input: UpdateProductStatusDto,
   ): Promise<Product> {
-    const product = await this.findManagedProduct(id);
-    await this.assertCanManage(product, currentUserId);
+    const product = await this.findOneForManagement(id, currentUserId);
     if (product.status === input.status) return product;
     this.assertStatusTransition(product.status, input.status);
 

@@ -8,6 +8,7 @@ import {
   corsConfig,
   databaseConfig,
   mailConfig,
+  storageConfig,
 } from './configs';
 
 @Global()
@@ -17,7 +18,14 @@ import {
       cache: true,
       envFilePath: '.env',
       isGlobal: true,
-      load: [appConfig, authConfig, corsConfig, databaseConfig, mailConfig],
+      load: [
+        appConfig,
+        authConfig,
+        corsConfig,
+        databaseConfig,
+        mailConfig,
+        storageConfig,
+      ],
     }),
   ],
   providers: [ConfigService],
