@@ -43,7 +43,7 @@ export class CategoryController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @Serialize(categorySchema)
+  @Serialize(categorySchema, { status: HttpStatus.CREATED })
   create(@Body() input: CreateCategoryDto): Promise<Category> {
     return this.categoryService.create(input);
   }

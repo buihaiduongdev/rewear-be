@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -66,7 +67,7 @@ export class ProductController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(productSchema)
+  @Serialize(productSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
     @Body() input: CreateProductDto,

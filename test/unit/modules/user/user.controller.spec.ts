@@ -16,6 +16,7 @@ jest.mock('@nestjs/swagger', () => ({
   ApiBearerAuth: () => () => undefined,
   ApiProperty: () => () => undefined,
   ApiPropertyOptional: () => () => undefined,
+  ApiResponse: () => () => undefined,
   ApiTags: () => () => undefined,
   PartialType: (baseClass: new () => object) => class extends baseClass {},
 }));

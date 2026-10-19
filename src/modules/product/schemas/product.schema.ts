@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { paginatedSchema } from '@/common/pagination';
+import { dateTimeSchema } from '@/common/schemas';
 
 import { ProductCondition, ProductStatus } from '../enums';
 
@@ -17,11 +18,11 @@ export const productSchema = z.object({
   brand: z.string().nullable(),
   price: z.number().int().min(0),
   status: z.enum(ProductStatus),
-  publishedAt: z.coerce.date().nullable(),
-  heldUntil: z.coerce.date().nullable(),
-  soldAt: z.coerce.date().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  publishedAt: dateTimeSchema.nullable(),
+  heldUntil: dateTimeSchema.nullable(),
+  soldAt: dateTimeSchema.nullable(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
   category: z.object({
     id: z.uuid(),
     name: z.string(),

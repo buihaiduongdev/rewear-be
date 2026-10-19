@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { dateTimeSchema } from '@/common/schemas';
+
 export const userAddressSchema = z.object({
   id: z.uuid(),
   recipientName: z.string(),
@@ -15,8 +17,8 @@ export const userAddressSchema = z.object({
   postalCode: z.string().nullable(),
   deliveryInstructions: z.string().nullable(),
   isDefault: z.boolean(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 
 export const userAddressListSchema = z.array(userAddressSchema);

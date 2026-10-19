@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { dateTimeSchema } from '@/common/schemas';
+
 import { MediaRole, MediaType } from '../enums';
 
 export const mediaSchema = z.object({
@@ -10,8 +12,8 @@ export const mediaSchema = z.object({
   sizeBytes: z.number().int().nonnegative(),
   role: z.enum(MediaRole),
   sortOrder: z.number().int().nonnegative(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 
 export const mediaListSchema = z.array(mediaSchema);
@@ -22,5 +24,5 @@ export const mediaUploadTicketSchema = z.object({
   publicUrl: z.url(),
   method: z.literal('PUT'),
   headers: z.record(z.string(), z.string()),
-  expiresAt: z.coerce.date(),
+  expiresAt: dateTimeSchema,
 });

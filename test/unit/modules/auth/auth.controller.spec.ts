@@ -17,6 +17,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 jest.mock('@nestjs/swagger', () => ({
   ApiBody: () => () => undefined,
   ApiProperty: () => () => undefined,
+  ApiResponse: () => () => undefined,
   ApiTags: () => () => undefined,
 }));
 jest.mock('@/modules/auth/auth.service', () => ({
@@ -142,10 +143,11 @@ describe('AuthController', () => {
   describe('POST /auth/logout', () => {
     const input: RefreshTokenDto = { refreshToken: 'refresh-token' };
 
-    it('revokes the refresh token', async () => {
-      authService.logout.mockResolvedValueOnce(undefined);
+    it('revokes the refresh token and returns a message', async () => {
+      const logoutMessage = { message: 'Logged out successfully' };
+      authService.logout.mockResolvedValueOnce(logoutMessage);
 
-      await expect(controller.logout(input)).resolves.toBeUndefined();
+      await expect(controller.logout(input)).resolves.toEqual(logoutMessage);
       expect(authService.logout).toHaveBeenCalledWith(input.refreshToken);
     });
 

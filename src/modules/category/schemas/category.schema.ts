@@ -1,12 +1,14 @@
 import z from 'zod';
 
+import { dateTimeSchema } from '@/common/schemas';
+
 export const categorySchema = z.object({
   id: z.uuid(),
   name: z.string(),
   slug: z.string(),
   isActive: z.boolean(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 
 export const categoryListSchema = z.array(categorySchema);

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -58,7 +59,7 @@ export class ShopController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(shopSchema)
+  @Serialize(shopSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
     @Body() input: CreateShopDto,
@@ -92,7 +93,7 @@ export class ShopController {
   @Post(':id/members')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(shopMemberSchema)
+  @Serialize(shopMemberSchema, { status: HttpStatus.CREATED })
   addStaff(
     @CurrentUser() currentUser: User,
     @Param('id', ParseUUIDPipe) id: string,
