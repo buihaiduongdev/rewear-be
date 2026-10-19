@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth';
 import { CategoryModule } from './modules/category';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
+import { MediaModule } from './modules/media';
 import { ProductModule } from './modules/product';
 import { ShopModule } from './modules/shop';
 import { UserModule } from './modules/user';
@@ -21,6 +22,7 @@ import { UserAddressModule } from './modules/user-address';
     CategoryModule,
     ShopModule,
     ProductModule,
+    MediaModule,
     UserModule,
     UserAddressModule,
     AuthModule,

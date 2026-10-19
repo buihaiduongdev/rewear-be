@@ -64,12 +64,41 @@ thiện các phần sau:
 1. Thiết kế cơ chế giữ hàng với trạng thái `HELD`, thời hạn hết giữ và xử lý đồng
    thời để một sản phẩm không được đặt bởi nhiều người.
 2. Chốt quy trình kiểm duyệt, lý do từ chối và quyền xử lý khi sản phẩm vi phạm.
-3. Tách module media để quản lý ảnh, thứ tự hiển thị, ảnh bìa và vòng đời file trên
-   object storage.
-4. Chốt chính sách xóa và lưu giữ dữ liệu cho sản phẩm đã bán, bị ẩn hoặc gắn với
+3. Chốt chính sách xóa và lưu giữ dữ liệu cho sản phẩm đã bán, bị ẩn hoặc gắn với
    đơn hàng có lịch sử giao dịch.
-5. Bổ sung migration chính thức và rà soát index truy vấn trước khi tắt
+4. Bổ sung migration chính thức và rà soát index truy vấn trước khi tắt
    `synchronize` ở môi trường production.
 
 API hiện tại phải giữ `HELD` là trạng thái nội bộ cho luồng checkout; client quản lý
 sản phẩm chỉ được chuyển sang `ACTIVE`, `HIDDEN` hoặc `SOLD`.
+
+## Nâng cấp quản lý media
+
+**Trạng thái:** Media MVP đã hỗ trợ ảnh sản phẩm và tải trực tiếp lên object storage
+bằng presigned URL; các mục dưới đây thuộc giai đoạn tối ưu vận hành production.
+
+Luồng hiện tại:
+
+1. Client gửi MIME và kích thước để backend kiểm tra quyền, giới hạn và cấp URL
+   `PUT` có thời hạn ngắn.
+2. Client tải file trực tiếp lên dịch vụ S3-compatible với đúng header do backend
+   trả về. Binary không đi qua API server.
+3. Client gửi `storageKey`, MIME và kích thước để xác nhận. Backend dùng `HEAD`
+   kiểm tra object thực tế trước khi lưu metadata, thứ tự và ảnh bìa trong database.
+
+Các nâng cấp cần nghiên cứu tiếp:
+
+1. Bổ sung job hoặc lifecycle rule để dọn object của ticket đã hết hạn nhưng client
+   không gọi bước xác nhận.
+2. Kiểm tra chữ ký thực của file thay vì chỉ dựa vào MIME header; chuẩn hóa ảnh,
+   loại metadata nhạy cảm và tạo thumbnail theo kích thước hiển thị.
+3. Dùng outbox hoặc hàng đợi để đồng bộ vòng đời bản ghi và object; bổ sung job đối
+   soát, dọn file mồ côi và retry khi object storage tạm thời lỗi.
+4. Chốt quota theo tài khoản/cửa hàng, chính sách lưu giữ và cơ chế kiểm duyệt nội
+   dung trước khi mở upload cho quy mô lớn.
+5. Bổ sung migration chính thức cho `media` và `media_links`, cùng index phục vụ các
+   owner type mới nếu module được mở rộng ngoài sản phẩm.
+
+Client phải hoàn tất đủ ba bước `upload-ticket` → `PUT` trực tiếp → xác nhận. Sau
+khi xác nhận, client quản lý ảnh theo product và media ID; `storageKey` chỉ dùng
+trong quá trình upload.
