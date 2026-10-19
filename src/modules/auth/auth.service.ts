@@ -100,11 +100,12 @@ export class AuthService {
     });
   }
 
-  async logout(rawToken: string): Promise<void> {
+  async logout(rawToken: string): Promise<Message> {
     await this.refreshTokenRepository.update(
       { tokenHash: this.hashToken(rawToken), revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+    return { message: 'Logged out successfully' };
   }
 
   async verifyEmail({ token: rawToken }: VerifyEmailDto): Promise<Message> {

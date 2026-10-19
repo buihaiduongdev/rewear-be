@@ -54,6 +54,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @Serialize(messageSchema)
   logout(@Body() input: RefreshTokenDto) {
     return this.authService.logout(input.refreshToken);
   }

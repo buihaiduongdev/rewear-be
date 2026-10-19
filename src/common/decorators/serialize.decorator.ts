@@ -14,12 +14,15 @@ type SerializeOptions = {
 export const Serialize = (
   schema: ZodType,
   options: SerializeOptions = {},
-): MethodDecorator =>
-  applyDecorators(
+): MethodDecorator => {
+  const status = options.status ?? HttpStatus.OK;
+
+  return applyDecorators(
     UseInterceptors(new SerializeInterceptor(schema)),
     ApiResponse({
-      status: options.status ?? HttpStatus.OK,
+      status,
       description: options.description ?? 'Successful response',
-      standardSchema: createApiSuccessSchema(schema),
+      standardSchema: createApiSuccessSchema(schema, status),
     }),
   );
+};
