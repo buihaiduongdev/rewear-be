@@ -45,7 +45,7 @@ export class UserAddressController {
   }
 
   @Post()
-  @Serialize(userAddressSchema)
+  @Serialize(userAddressSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
     @Body() input: CreateUserAddressDto,

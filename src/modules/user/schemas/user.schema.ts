@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { paginatedSchema } from '@/common/pagination';
+import { dateTimeSchema } from '@/common/schemas';
 import { AuthProvider } from '@/modules/auth/enums';
 
 import { UserRole, UserStatus } from '../enums';
@@ -12,8 +13,8 @@ export const userSchema = z.object({
   provider: z.enum(AuthProvider),
   role: z.enum(UserRole),
   status: z.enum(UserStatus),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 
 export const userListSchema = paginatedSchema(userSchema);

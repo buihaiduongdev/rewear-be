@@ -17,6 +17,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 jest.mock('@nestjs/swagger', () => ({
   ApiBody: () => () => undefined,
   ApiProperty: () => () => undefined,
+  ApiResponse: () => () => undefined,
   ApiTags: () => () => undefined,
 }));
 jest.mock('@/modules/auth/auth.service', () => ({

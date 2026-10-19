@@ -31,7 +31,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @Serialize(userSchema)
+  @Serialize(userSchema, { status: HttpStatus.CREATED })
   register(@Body() input: RegisterDto) {
     return this.authService.register(input);
   }

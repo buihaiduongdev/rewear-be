@@ -65,7 +65,7 @@ export class UserController {
   }
 
   @Post()
-  @Serialize(userSchema)
+  @Serialize(userSchema, { status: HttpStatus.CREATED })
   create(@Body() input: CreateUserDto): Promise<User> {
     return this.userService.create(input);
   }

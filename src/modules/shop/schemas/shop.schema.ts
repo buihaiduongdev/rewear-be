@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { dateTimeSchema } from '@/common/schemas';
+
 import { ShopMemberRole, ShopMemberStatus, ShopStatus } from '../enums';
 
 export const shopSchema = z.object({
@@ -7,8 +9,8 @@ export const shopSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   status: z.enum(ShopStatus),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 
 export const shopListSchema = z.array(shopSchema);
@@ -19,7 +21,7 @@ export const shopMembershipSchema = z.object({
   userId: z.uuid(),
   memberRole: z.enum(ShopMemberRole),
   status: z.enum(ShopMemberStatus),
-  joinedAt: z.coerce.date(),
+  joinedAt: dateTimeSchema,
   shop: shopSchema,
 });
 
@@ -31,9 +33,9 @@ export const shopMemberSchema = z.object({
   userId: z.uuid(),
   memberRole: z.enum(ShopMemberRole),
   status: z.enum(ShopMemberStatus),
-  joinedAt: z.coerce.date(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  joinedAt: dateTimeSchema,
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
   user: z.object({
     id: z.uuid(),
     email: z.email(),

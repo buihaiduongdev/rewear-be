@@ -46,7 +46,7 @@ export class MediaController {
   @Post('upload-ticket')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(mediaUploadTicketSchema)
+  @Serialize(mediaUploadTicketSchema, { status: HttpStatus.CREATED })
   createUploadTicket(
     @CurrentUser() currentUser: User,
     @Param('productId', ParseUUIDPipe) productId: string,
@@ -62,7 +62,7 @@ export class MediaController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(mediaSchema)
+  @Serialize(mediaSchema, { status: HttpStatus.CREATED })
   confirmUpload(
     @CurrentUser() currentUser: User,
     @Param('productId', ParseUUIDPipe) productId: string,
