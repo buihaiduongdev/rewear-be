@@ -15,14 +15,23 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import type { IPaginatedResult } from '@/common/pagination';
-import { ZodValidationPipe } from '@/common/pipes';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 
-import { CreateUserDto, UpdateProfileDto, UpdateUserDto } from './dto';
 import { User } from './entities';
 import { UserRole } from './enums';
 import { findUserSchema, userListSchema, userSchema } from './schemas';
 import type { FindUserQuery } from './schemas';
+import {
+  createUserSchema,
+  updateProfileSchema,
+  updateUserSchema,
+} from './schemas/user-input.schema';
+import type {
+  CreateUserInput,
+  UpdateProfileInput,
+  UpdateUserInput,
+} from './schemas/user-input.schema';
 import { UserService } from './user.service';
 
 @ApiTags('Users')
@@ -45,7 +54,7 @@ export class UserController {
   @Serialize(userSchema)
   updateMe(
     @CurrentUser() currentUser: User,
-    @Body() input: UpdateProfileDto,
+    @Body({ schema: updateProfileSchema }) input: UpdateProfileInput,
   ): Promise<User> {
     return this.userService.updateProfile(currentUser.id, input);
   }
@@ -53,32 +62,37 @@ export class UserController {
   @Get()
   @Serialize(userListSchema)
   findAll(
-    @Query(new ZodValidationPipe(findUserSchema)) query: FindUserQuery,
+    @Query({ schema: findUserSchema }) query: FindUserQuery,
   ): Promise<IPaginatedResult<User>> {
     return this.userService.findAll(query);
   }
 
   @Get(':id')
   @Serialize(userSchema)
-  findOne(@Param('id') id: string): Promise<User> {
+  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<User> {
     return this.userService.findById(id);
   }
 
   @Post()
   @Serialize(userSchema, { status: HttpStatus.CREATED })
-  create(@Body() input: CreateUserDto): Promise<User> {
+  create(
+    @Body({ schema: createUserSchema }) input: CreateUserInput,
+  ): Promise<User> {
     return this.userService.create(input);
   }
 
   @Patch(':id')
   @Serialize(userSchema)
-  update(@Param('id') id: string, @Body() input: UpdateUserDto): Promise<User> {
+  update(
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateUserSchema }) input: UpdateUserInput,
+  ): Promise<User> {
     return this.userService.update(id, input);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string): Promise<void> {
+  remove(@Param('id', { schema: uuidSchema }) id: string): Promise<void> {
     return this.userService.remove(id);
   }
 }

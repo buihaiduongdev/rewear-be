@@ -1,4 +1,3 @@
-import { plainToInstance } from 'class-transformer';
 import { ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 
 import { PAGINATION_DEFAULT, PAGINATION_ORDER } from '@/common/constants';
@@ -6,16 +5,11 @@ import { PAGINATION_DEFAULT, PAGINATION_ORDER } from '@/common/constants';
 import { IPaginatedResult, IPaginateOptions } from './pagination.interface';
 import type { PaginationQuery } from './pagination.schema';
 
-export async function paginate<T extends ObjectLiteral, D = T>(
+export async function paginate<T extends ObjectLiteral>(
   queryBuilder: SelectQueryBuilder<T>,
   { page, pageSize, order, sortBy: requestedSortBy }: Partial<PaginationQuery>,
-  {
-    defaultOrder,
-    allowedSorts,
-    defaultSort,
-    itemsDto,
-  }: IPaginateOptions<D> = {},
-): Promise<IPaginatedResult<D>> {
+  { defaultOrder, allowedSorts, defaultSort }: IPaginateOptions = {},
+): Promise<IPaginatedResult<T>> {
   page = page && page > 0 ? page : PAGINATION_DEFAULT.PAGE;
   pageSize =
     pageSize && pageSize > 0
@@ -42,14 +36,8 @@ export async function paginate<T extends ObjectLiteral, D = T>(
     .getManyAndCount();
 
   const totalPage = Math.ceil(total / pageSize);
-  const transformedItems = itemsDto
-    ? plainToInstance(itemsDto, items, {
-        excludeExtraneousValues: true,
-      })
-    : (items as unknown as D[]);
-
   return {
-    items: transformedItems,
+    items,
     meta: {
       page,
       pageSize,

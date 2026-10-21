@@ -10,13 +10,17 @@ import { Repository } from 'typeorm';
 
 import { OrmFilterBuilder, paginate } from '@/common/pagination';
 import type { IPaginatedResult } from '@/common/pagination';
-import type { RegisterDto } from '@/modules/auth/dto';
 import { AuthProvider } from '@/modules/auth/enums';
+import type { RegisterInput } from '@/modules/auth/schemas/auth-input.schema';
 
-import { CreateUserDto, UpdateProfileDto, UpdateUserDto } from './dto';
 import { User } from './entities';
 import { UserRole, UserStatus } from './enums';
 import type { FindUserQuery } from './schemas';
+import type {
+  CreateUserInput,
+  UpdateProfileInput,
+  UpdateUserInput,
+} from './schemas/user-input.schema';
 
 type OAuthProfile = {
   providerAccountId: string;
@@ -33,7 +37,7 @@ export class UserService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async register(input: RegisterDto): Promise<User> {
+  async register(input: RegisterInput): Promise<User> {
     await this.assertEmailAvailable(input.email);
     const user = this.userRepository.create({
       email: this.normalizeEmail(input.email),
@@ -47,7 +51,7 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
-  async create(input: CreateUserDto): Promise<User> {
+  async create(input: CreateUserInput): Promise<User> {
     await this.assertEmailAvailable(input.email);
     return this.userRepository.save(
       this.userRepository.create({
@@ -136,7 +140,7 @@ export class UserService {
     );
   }
 
-  async update(id: string, input: UpdateUserDto): Promise<User> {
+  async update(id: string, input: UpdateUserInput): Promise<User> {
     const user = await this.findById(id);
     if (input.email && this.normalizeEmail(input.email) !== user.email) {
       await this.assertEmailAvailable(input.email);
@@ -149,7 +153,7 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
-  async updateProfile(id: string, input: UpdateProfileDto): Promise<User> {
+  async updateProfile(id: string, input: UpdateProfileInput): Promise<User> {
     const user = await this.findById(id);
     user.fullName = input.fullName.trim();
     return this.userRepository.save(user);

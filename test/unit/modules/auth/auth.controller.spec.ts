@@ -2,15 +2,15 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 import { AuthController } from '@/modules/auth/auth.controller';
 import type { AuthService } from '@/modules/auth/auth.service';
-import {
-  ForgotPasswordDto,
-  RefreshTokenDto,
-  RegisterDto,
-  ResendVerificationDto,
-  ResetPasswordDto,
-  VerifyEmailDto,
-} from '@/modules/auth/dto';
 import { AuthProvider } from '@/modules/auth/enums';
+import type {
+  ForgotPasswordInput,
+  RefreshTokenInput,
+  RegisterInput,
+  ResendVerificationInput,
+  ResetPasswordInput,
+  VerifyEmailInput,
+} from '@/modules/auth/schemas/auth-input.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -82,7 +82,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/register', () => {
-    const input: RegisterDto = {
+    const input: RegisterInput = {
       email: 'user@example.com',
       password: 'password123',
       fullName: 'Rewear User',
@@ -105,10 +105,16 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/login', () => {
+    const input = {
+      provider: AuthProvider.CREDENTIALS,
+      email: user.email,
+      password: '12345678',
+    };
+
     it('returns a token pair for the authenticated user', async () => {
       authService.login.mockResolvedValueOnce(tokenPair);
 
-      await expect(controller.login(user)).resolves.toEqual(tokenPair);
+      await expect(controller.login(user, input)).resolves.toEqual(tokenPair);
       expect(authService.login).toHaveBeenCalledWith(user);
     });
 
@@ -116,13 +122,13 @@ describe('AuthController', () => {
       const error = new UnauthorizedException('Unable to login');
       authService.login.mockRejectedValueOnce(error);
 
-      await expect(controller.login(user)).rejects.toBe(error);
+      await expect(controller.login(user, input)).rejects.toBe(error);
       expect(authService.login).toHaveBeenCalledWith(user);
     });
   });
 
   describe('POST /auth/refresh', () => {
-    const input: RefreshTokenDto = { refreshToken: 'refresh-token' };
+    const input: RefreshTokenInput = { refreshToken: 'refresh-token' };
 
     it('returns a rotated token pair', async () => {
       authService.refresh.mockResolvedValueOnce(tokenPair);
@@ -141,7 +147,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/logout', () => {
-    const input: RefreshTokenDto = { refreshToken: 'refresh-token' };
+    const input: RefreshTokenInput = { refreshToken: 'refresh-token' };
 
     it('revokes the refresh token and returns a message', async () => {
       const logoutMessage = { message: 'Logged out successfully' };
@@ -161,7 +167,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/verify-email', () => {
-    const input: VerifyEmailDto = { token: 'verification-token' };
+    const input: VerifyEmailInput = { token: 'verification-token' };
 
     it('verifies the email and returns a message', async () => {
       authService.verifyEmail.mockResolvedValueOnce(message);
@@ -180,7 +186,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/resend-verification', () => {
-    const input: ResendVerificationDto = { email: 'user@example.com' };
+    const input: ResendVerificationInput = { email: 'user@example.com' };
 
     it('resends verification and returns a message', async () => {
       authService.resendVerification.mockResolvedValueOnce(message);
@@ -201,7 +207,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/forgot-password', () => {
-    const input: ForgotPasswordDto = { email: 'user@example.com' };
+    const input: ForgotPasswordInput = { email: 'user@example.com' };
 
     it('requests a password reset and returns a message', async () => {
       authService.forgotPassword.mockResolvedValueOnce(message);
@@ -220,7 +226,7 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/reset-password', () => {
-    const input: ResetPasswordDto = {
+    const input: ResetPasswordInput = {
       token: 'reset-token',
       newPassword: 'new-password123',
     };

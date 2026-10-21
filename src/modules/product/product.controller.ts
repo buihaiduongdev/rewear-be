@@ -4,7 +4,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -14,15 +13,10 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { IPaginatedResult } from '@/common/pagination';
-import { ZodValidationPipe } from '@/common/pipes';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
-import {
-  CreateProductDto,
-  UpdateProductDto,
-  UpdateProductStatusDto,
-} from './dto';
 import { Product } from './entities';
 import { ProductService } from './product.service';
 import {
@@ -32,6 +26,16 @@ import {
   productSchema,
 } from './schemas';
 import type { FindMyProductQuery, FindProductQuery } from './schemas';
+import {
+  createProductSchema,
+  updateProductSchema,
+  updateProductStatusSchema,
+} from './schemas/product-input.schema';
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  UpdateProductStatusInput,
+} from './schemas/product-input.schema';
 
 @ApiTags('Products')
 @Controller('products')
@@ -41,7 +45,7 @@ export class ProductController {
   @Get()
   @Serialize(productListSchema)
   findAll(
-    @Query(new ZodValidationPipe(findProductSchema)) query: FindProductQuery,
+    @Query({ schema: findProductSchema }) query: FindProductQuery,
   ): Promise<IPaginatedResult<Product>> {
     return this.productService.findAll(query);
   }
@@ -52,7 +56,7 @@ export class ProductController {
   @Serialize(productListSchema)
   findMine(
     @CurrentUser() currentUser: User,
-    @Query(new ZodValidationPipe(findMyProductSchema))
+    @Query({ schema: findMyProductSchema })
     query: FindMyProductQuery,
   ): Promise<IPaginatedResult<Product>> {
     return this.productService.findMine(currentUser.id, query);
@@ -60,7 +64,7 @@ export class ProductController {
 
   @Get(':id')
   @Serialize(productSchema)
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Product> {
+  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<Product> {
     return this.productService.findOne(id);
   }
 
@@ -70,7 +74,7 @@ export class ProductController {
   @Serialize(productSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
-    @Body() input: CreateProductDto,
+    @Body({ schema: createProductSchema }) input: CreateProductInput,
   ): Promise<Product> {
     return this.productService.create(currentUser.id, input);
   }
@@ -81,8 +85,9 @@ export class ProductController {
   @Serialize(productSchema)
   updateStatus(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateProductStatusDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateProductStatusSchema })
+    input: UpdateProductStatusInput,
   ): Promise<Product> {
     return this.productService.updateStatus(id, currentUser.id, input);
   }
@@ -93,8 +98,8 @@ export class ProductController {
   @Serialize(productSchema)
   update(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateProductDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateProductSchema }) input: UpdateProductInput,
   ): Promise<Product> {
     return this.productService.update(id, currentUser.id, input);
   }

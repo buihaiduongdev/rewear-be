@@ -7,6 +7,7 @@ import { AdministrativeDivisionService } from './administrative-division.service
 import type { AdministrativeProvince, AdministrativeWard } from './data';
 import {
   administrativeProvinceListSchema,
+  administrativeProvinceSchema,
   administrativeWardListSchema,
 } from './schemas';
 
@@ -26,7 +27,8 @@ export class AdministrativeDivisionController {
   @Get('provinces/:provinceCode/wards')
   @Serialize(administrativeWardListSchema)
   findWardsByProvinceCode(
-    @Param('provinceCode') provinceCode: string,
+    @Param('provinceCode', { schema: administrativeProvinceSchema.shape.code })
+    provinceCode: string,
   ): readonly AdministrativeWard[] {
     return this.administrativeDivisionService.findWardsByProvinceCode(
       provinceCode,

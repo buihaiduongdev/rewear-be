@@ -1,8 +1,9 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
+import { createRequestValidationPipe } from './common/validation';
 import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
 import { CategoryModule } from './modules/category';
@@ -34,6 +35,7 @@ import { UserAddressModule } from './modules/user-address';
     }),
   ],
   providers: [
+    { provide: APP_PIPE, useFactory: createRequestValidationPipe },
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

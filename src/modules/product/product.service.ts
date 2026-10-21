@@ -17,14 +17,14 @@ import {
   ShopStatus,
 } from '@/modules/shop/enums';
 
-import {
-  CreateProductDto,
-  UpdateProductDto,
-  UpdateProductStatusDto,
-} from './dto';
 import { Product } from './entities';
 import { ProductStatus } from './enums';
 import { FindMyProductQuery, FindProductQuery } from './schemas';
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  UpdateProductStatusInput,
+} from './schemas/product-input.schema';
 
 const PRODUCT_RELATIONS = {
   category: true,
@@ -108,7 +108,7 @@ export class ProductService {
 
   async create(
     currentUserId: string,
-    input: CreateProductDto,
+    input: CreateProductInput,
   ): Promise<Product> {
     await this.assertActiveCategory(input.categoryId);
     if (input.shopId) {
@@ -139,7 +139,7 @@ export class ProductService {
   async update(
     id: string,
     currentUserId: string,
-    input: UpdateProductDto,
+    input: UpdateProductInput,
   ): Promise<Product> {
     const product = await this.findOneForManagement(id, currentUserId);
     if (
@@ -172,7 +172,7 @@ export class ProductService {
   async updateStatus(
     id: string,
     currentUserId: string,
-    input: UpdateProductStatusDto,
+    input: UpdateProductStatusInput,
   ): Promise<Product> {
     const product = await this.findOneForManagement(id, currentUserId);
     if (product.status === input.status) return product;
@@ -345,7 +345,7 @@ export class ProductService {
     }
   }
 
-  private normalizeOptionalText(value?: string): string | null {
+  private normalizeOptionalText(value?: string | null): string | null {
     return value?.trim() || null;
   }
 }

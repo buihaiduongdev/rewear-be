@@ -17,15 +17,15 @@ import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 import { UserService } from '@/modules/user/user.service';
 
-import {
-  ForgotPasswordDto,
-  RegisterDto,
-  ResendVerificationDto,
-  ResetPasswordDto,
-  VerifyEmailDto,
-} from './dto';
 import { AuthToken, RefreshToken } from './entities';
 import { AuthProvider, AuthTokenType } from './enums';
+import type {
+  ForgotPasswordInput,
+  RegisterInput,
+  ResendVerificationInput,
+  ResetPasswordInput,
+  VerifyEmailInput,
+} from './schemas/auth-input.schema';
 import type { JwtPayload, RefreshJwtPayload } from './types';
 
 type TokenPair = {
@@ -49,7 +49,7 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) {}
 
-  async register(input: RegisterDto): Promise<User> {
+  async register(input: RegisterInput): Promise<User> {
     const user = await this.userService.register(input);
     const token = await this.issueAuthToken(
       user.id,
@@ -108,7 +108,7 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async verifyEmail({ token: rawToken }: VerifyEmailDto): Promise<Message> {
+  async verifyEmail({ token: rawToken }: VerifyEmailInput): Promise<Message> {
     await this.consumeAuthToken(
       rawToken,
       AuthTokenType.VERIFY_EMAIL,
@@ -121,7 +121,7 @@ export class AuthService {
     return { message: 'Email verified successfully' };
   }
 
-  async resendVerification(input: ResendVerificationDto): Promise<Message> {
+  async resendVerification(input: ResendVerificationInput): Promise<Message> {
     const user = await this.userService.findByEmail(input.email);
     if (!user) {
       return {
@@ -143,7 +143,7 @@ export class AuthService {
     return { message: 'Verification email sent successfully.' };
   }
 
-  async forgotPassword(input: ForgotPasswordDto): Promise<Message> {
+  async forgotPassword(input: ForgotPasswordInput): Promise<Message> {
     const user = await this.userService.findByEmail(input.email);
     if (user?.provider === AuthProvider.CREDENTIALS) {
       const token = await this.issueAuthToken(
@@ -158,7 +158,7 @@ export class AuthService {
     };
   }
 
-  async resetPassword(input: ResetPasswordDto): Promise<Message> {
+  async resetPassword(input: ResetPasswordInput): Promise<Message> {
     const password = await argon2.hash(input.newPassword);
     await this.consumeAuthToken(
       input.token,

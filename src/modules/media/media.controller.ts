@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -14,14 +13,10 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
-import {
-  ConfirmMediaUploadDto,
-  CreateMediaUploadTicketDto,
-  ReorderMediaDto,
-} from './dto';
 import { MediaService } from './media.service';
 import type { ProductMediaView } from './media.service';
 import {
@@ -29,6 +24,16 @@ import {
   mediaSchema,
   mediaUploadTicketSchema,
 } from './schemas';
+import {
+  confirmMediaUploadSchema,
+  createMediaUploadTicketSchema,
+  reorderMediaSchema,
+} from './schemas/media-input.schema';
+import type {
+  ConfirmMediaUploadInput,
+  CreateMediaUploadTicketInput,
+  ReorderMediaInput,
+} from './schemas/media-input.schema';
 
 @ApiTags('Product media')
 @Controller('products/:productId/media')
@@ -38,7 +43,7 @@ export class MediaController {
   @Get()
   @Serialize(mediaListSchema)
   findAll(
-    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('productId', { schema: uuidSchema }) productId: string,
   ): Promise<ProductMediaView[]> {
     return this.mediaService.findAll(productId);
   }
@@ -49,8 +54,9 @@ export class MediaController {
   @Serialize(mediaUploadTicketSchema, { status: HttpStatus.CREATED })
   createUploadTicket(
     @CurrentUser() currentUser: User,
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Body() input: CreateMediaUploadTicketDto,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Body({ schema: createMediaUploadTicketSchema })
+    input: CreateMediaUploadTicketInput,
   ) {
     return this.mediaService.createUploadTicket(
       productId,
@@ -65,8 +71,8 @@ export class MediaController {
   @Serialize(mediaSchema, { status: HttpStatus.CREATED })
   confirmUpload(
     @CurrentUser() currentUser: User,
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Body() input: ConfirmMediaUploadDto,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Body({ schema: confirmMediaUploadSchema }) input: ConfirmMediaUploadInput,
   ): Promise<ProductMediaView> {
     return this.mediaService.confirmUpload(productId, currentUser.id, input);
   }
@@ -77,8 +83,8 @@ export class MediaController {
   @Serialize(mediaListSchema)
   reorder(
     @CurrentUser() currentUser: User,
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Body() input: ReorderMediaDto,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Body({ schema: reorderMediaSchema }) input: ReorderMediaInput,
   ): Promise<ProductMediaView[]> {
     return this.mediaService.reorder(productId, currentUser.id, input);
   }
@@ -89,8 +95,8 @@ export class MediaController {
   @Serialize(mediaSchema)
   setCover(
     @CurrentUser() currentUser: User,
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Param('mediaId', ParseUUIDPipe) mediaId: string,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Param('mediaId', { schema: uuidSchema }) mediaId: string,
   ): Promise<ProductMediaView> {
     return this.mediaService.setCover(productId, mediaId, currentUser.id);
   }
@@ -101,8 +107,8 @@ export class MediaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(
     @CurrentUser() currentUser: User,
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Param('mediaId', ParseUUIDPipe) mediaId: string,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Param('mediaId', { schema: uuidSchema }) mediaId: string,
   ): Promise<void> {
     return this.mediaService.delete(productId, mediaId, currentUser.id);
   }

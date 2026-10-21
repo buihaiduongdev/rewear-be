@@ -20,13 +20,13 @@ import { ConfigService } from '@/modules/config';
 import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
 
-import {
-  ConfirmMediaUploadDto,
-  CreateMediaUploadTicketDto,
-  ReorderMediaDto,
-} from './dto';
 import { Media, MediaLink } from './entities';
 import { MediaOwnerType, MediaRole, MediaType } from './enums';
+import type {
+  ConfirmMediaUploadInput,
+  CreateMediaUploadTicketInput,
+  ReorderMediaInput,
+} from './schemas/media-input.schema';
 
 const MAX_PRODUCT_MEDIA = 10;
 const UUID_PATTERN =
@@ -76,7 +76,7 @@ export class MediaService {
   async createUploadTicket(
     productId: string,
     currentUserId: string,
-    input: CreateMediaUploadTicketDto,
+    input: CreateMediaUploadTicketInput,
   ): Promise<UploadTicket> {
     await this.productService.findOneForManagement(productId, currentUserId);
     const mimeType = this.validateUploadMetadata(
@@ -100,7 +100,7 @@ export class MediaService {
   async confirmUpload(
     productId: string,
     currentUserId: string,
-    input: ConfirmMediaUploadDto,
+    input: ConfirmMediaUploadInput,
   ): Promise<ProductMediaView> {
     await this.productService.findOneForManagement(productId, currentUserId);
     const mimeType = this.validateUploadMetadata(
@@ -162,7 +162,7 @@ export class MediaService {
   async reorder(
     productId: string,
     currentUserId: string,
-    input: ReorderMediaDto,
+    input: ReorderMediaInput,
   ): Promise<ProductMediaView[]> {
     await this.productService.findOneForManagement(productId, currentUserId);
     return this.dataSource.transaction(async (manager) => {
