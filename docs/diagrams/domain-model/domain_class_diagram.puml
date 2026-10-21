@@ -1,140 +1,46 @@
 @startuml
+title Miền nghiệp vụ mua bán — thiết kế MVP
 hide circle
 hide methods
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam class {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
-  HeaderBackgroundColor #F2F4F4
-}
-
-class "Người dùng" as NguoiDung {
-  Mã người dùng
-  Tên tài khoản
-  Họ và tên
-  Email (Duy nhất)
-  Số điện thoại
-  Vai trò (Admin, User)
-  Trạng thái tài khoản
-}
-
-class "Cửa hàng" as CuaHang {
-  Mã cửa hàng
-  Tên cửa hàng (Duy nhất)
-  Mô tả thương hiệu
-  Địa chỉ kinh doanh
-  Trạng thái hoạt động
-}
-
-class "Địa chỉ nhận hàng" as DiaChi {
-  Mã địa chỉ
-  Tên người nhận
-  Số điện thoại
-  Địa chỉ chi tiết
-  Phường Xã, Quận Huyện, Tỉnh Thành
-  Là địa chỉ mặc định
-}
-
-class "Sản phẩm" as SanPham {
-  Mã sản phẩm
-  Tiêu đề tin
-  Mô tả chi tiết
-  Độ mới phần trăm (80%, 90%, Như mới)
-  Kích cỡ (Size)
-  Màu sắc
-  Giá niêm yết
-  Số lượng tồn kho (= 1)
-  Trạng thái món đồ
-}
-
-class "Danh mục" as DanhMuc {
-  Mã danh mục
-  Tên danh mục
-  Cấp phân loại cha
-  Trạng thái hiển thị
-}
-
-class "Ảnh sản phẩm" as AnhSanPham {
-  Mã ảnh
-  Đường dẫn lưu trữ
-  Thứ tự hiển thị
-}
-
-class "Giỏ hàng" as GioHang {
-  Mã giỏ hàng
-  Thời gian tạo
-}
-
-class "Đơn hàng" as DonHang {
-  Mã đơn hàng
-  Mã người bán phụ trách
-  Thời gian đặt mua
-  Tổng tiền hàng
-  Phí vận chuyển
-  Tổng thanh toán
-  Phương thức thanh toán (COD, Online)
-  Mã vận đơn bưu cục
-  Ảnh chứng từ gửi hàng
-  Trạng thái đơn hàng
-}
-
-class "Chi tiết Đơn hàng" as ChiTietDonHang {
-  Mã chi tiết
-  Giá bán chụp lại tại thời điểm đặt (Snapshot)
-  Tên sản phẩm chụp lại
-}
-
-class "Giao dịch Thanh toán" as ThanhToan {
-  Mã giao dịch
-  Mã tham chiếu đối tác (VNPAY/MoMo)
-  Số tiền thanh toán
-  Thời gian giao dịch
-  Chữ ký số kiểm thực
-  Trạng thái thanh toán
-}
-
-class "Khiếu nại" as KhieuNai {
-  Mã khiếu nại
-  Lý do khiếu nại
-  Mô tả chi tiết lỗi
-  Đường dẫn video mở hộp
-  Ảnh chụp cận cảnh lỗi
-  Phán quyết quản trị
-  Trạng thái khiếu nại
-}
-
-class "Đánh giá" as DanhGia {
-  Mã đánh giá
-  Số sao đánh giá (1 đến 5 sao)
-  Nội dung nhận xét
-  Thời gian đánh giá
-  Phản hồi của người bán
-}
-
-' Quan hệ phân quyền & người dùng
-NguoiDung "1" -- "0..1" CuaHang : sở hữu làm chủ >
-NguoiDung "1" -- "0..*" CuaHang : làm nhân viên >
-NguoiDung "1" -- "1..*" DiaChi : lưu trong sổ địa chỉ >
-NguoiDung "1" -- "1" GioHang : sở hữu >
-NguoiDung "1" -- "0..*" DonHang : mua hàng >
-
-' Quan hệ nguồn hàng
-CuaHang "0..1" -- "0..*" SanPham : đăng bán với tư cách Shop >
-NguoiDung "1" -- "0..*" SanPham : đăng bán với tư cách Cá nhân >
-
-DanhMuc "1" -- "0..*" SanPham : phân loại >
-SanPham "1" *-- "2..*" AnhSanPham : gồm các ảnh chụp thực tế >
-
-GioHang "0..1" -- "0..*" SanPham : chứa tạm các món >
-
-' Quan hệ đơn hàng & chi tiết
-DonHang "1" *-- "1" ChiTietDonHang : bao gồm món đồ độc bản >
-ChiTietDonHang "1" -- "1" SanPham : tương ứng với món đồ >
-
-DonHang "1" -- "1" DiaChi : giao đến địa chỉ >
-DonHang "0..*" -- "0..1" ThanhToan : thanh toán đối soát qua >
-DonHang "1" -- "0..1" KhieuNai : phát sinh tranh chấp >
-ChiTietDonHang "1" -- "0..1" DanhGia : nhận đánh giá >
+skinparam defaultFontName SansSerif
+skinparam classAttributeIconSize 0
+class "Người dùng" as U
+class "Địa chỉ" as A
+class "Cửa hàng" as S
+class "Thành viên shop" as M
+class "Sản phẩm" as P
+class "Media / liên kết" as Media
+class "Giỏ" as C
+class "Món trong giỏ" as CI
+class "Nhóm checkout" as G
+class "Đơn hàng" as O
+class "Món trong đơn" as I
+class "Thanh toán" as T
+class "Vận chuyển" as H
+class "Khiếu nại" as D
+U "1" -- "0..*" A
+U "1" -- "0..*" M
+S "1" -- "1..*" M
+U "0..1" -- "0..*" P : cá nhân
+S "0..1" -- "0..*" P : shop
+P .. Media : liên kết có quyền
+U "1" -- "0..1" C
+C "1" *-- "0..*" CI
+P "1" -- "0..*" CI
+U "1" -- "0..*" G : mua
+G "1" *-- "1..*" O
+O "1" *-- "1..*" I
+P "0..1" -- "0..*" I : nguồn snapshot
+G "1" -- "0..*" T
+O "1" -- "0..*" H
+O "1" -- "0..*" D
+D "0..*" -- "1..*" I : món bị khiếu nại
+legend bottom
+Cá nhân XOR shop là nguồn bán của mỗi sản phẩm/đơn.
+Nhiều giỏ cùng lưu món; một order nhiều item cùng nguồn bán.
+Checkout giữ chung 10 phút, thanh toán một lần.
+Địa chỉ/nội dung/giá/ảnh được snapshot trên giao dịch.
+Bản rút gọn; domain và ERD đầy đủ nằm trong repository.
+endlegend
 @enduml

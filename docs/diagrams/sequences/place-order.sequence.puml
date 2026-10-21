@@ -1,45 +1,36 @@
 @startuml
-title Luoc do tuan tu - Dat hang
-
-actor "Nguoi mua" as Buyer
-boundary "Front-end" as FE
-control "Back-end" as BE
-database "Database" as DB
-
-Buyer -> FE : Chon san pham
-Buyer -> FE : Chon dia chi nhan hang
-Buyer -> FE : Chon phuong thuc thanh toan
-Buyer -> FE : Xac nhan dat hang
-
-FE -> BE : Gui yeu cau dat hang
-
-BE -> DB : Kiem tra san pham
-DB --> BE : Thong tin san pham
-
-alt San pham con kha dung
-    BE -> DB : Bat dau giao dich
-
-    BE -> DB : Kiem tra va giu san pham
-    DB --> BE : Giu san pham thanh cong
-
-    BE -> DB : Tao don hang
-    DB --> BE : Thong tin don hang
-
-    BE -> DB : Luu chi tiet don hang
-    DB --> BE : Thanh cong
-
-    BE -> DB : Cap nhat trang thai san pham
-    DB --> BE : Thanh cong
-
-    BE -> DB : Hoan tat giao dich
-    DB --> BE : Thanh cong
-
-    BE --> FE : Dat hang thanh cong
-    FE --> Buyer : Hien thi thong tin don hang
-
-else San pham khong con kha dung
-    BE --> FE : Dat hang that bai
-    FE --> Buyer : Thong bao san pham da duoc ban
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Tạo checkout và order theo vendor
+actor Buyer
+control Rewear as BE
+database PostgreSQL as DB
+participant "Đơn vị vận chuyển" as Carrier
+Buyer -> BE : Chọn món và địa chỉ chung
+BE -> Carrier : Quote theo kho / kiện
+Carrier --> BE : Phí từng nguồn bán
+BE --> Buyer : Giá và tổng tiền
+Buyer -> BE : Xác nhận, idempotency key
+alt Retry cùng lượt
+ BE -> DB : Đọc kết quả đã tạo
+ BE --> Buyer : Kết quả / deadline cũ
+else Yêu cầu mới hợp lệ
+ BE -> DB : BEGIN, kiểm tra chống tự mua
+ BE -> DB : CAS từng món còn khả dụng
+ DB --> BE : Danh sách giữ được / hết khả dụng
+ alt Lỗi hệ thống
+  BE -> DB : ROLLBACK
+  BE --> Buyer : Báo lỗi, không xóa giỏ
+ else Có món hợp lệ
+  BE -> DB : Loại món hết hàng khỏi giỏ;\nTạo nhóm, order theo vendor;\nSnapshot giá / địa chỉ / phí;\nDeadline chung 10 phút; COMMIT
+  BE --> Buyer : Order, món bị loại và tổng mới
+ else Không còn món
+  BE -> DB : Loại món hết hàng khỏi giỏ; COMMIT
+  BE --> Buyer : Không tạo thanh toán
+ end
 end
-
 @enduml

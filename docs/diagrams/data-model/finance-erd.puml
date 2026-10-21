@@ -1,0 +1,57 @@
+@startuml
+hide circle
+hide methods
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam classAttributeIconSize 0
+title ERD dự thảo — thanh toán và số dư vendor
+entity "checkout_groups" as G
+entity "orders" as O
+entity "payment_transactions" as P {
+checkout_group_id / reference
+amount / status / idempotency_key
+}
+entity "payment_allocations" as A {
+payment_id / order_id
+goods_amount / shipping_amount
+}
+entity "refund_operations" as R {
+payment_id / order_id
+dispute_id nullable / reference
+}
+entity "refund_lines" as RL {
+refund_id / order_item_id nullable
+kind: item hoặc shipping / amount
+}
+entity "vendor_accounts" as V {
+seller_user_id XOR shop_id
+}
+entity "vendor_ledger_entries" as L {
+account_id / idempotency_key
+order_id nullable / withdrawal_id nullable
+bucket / amount / reason
+}
+entity "withdrawal_requests" as W {
+account_id / receiver_snapshot
+status / transfer_reference
+}
+entity "system_setting_versions" as S
+G ||--|{ O
+G ||--o{ P
+P ||--o{ A
+O ||--o{ A
+P ||--o{ R
+O ||--o{ R
+R ||--|{ RL
+V ||--o{ L
+V ||--o{ W
+W |o--o{ L
+O |o--o{ L
+S |o--o{ G : snapshot
+legend bottom
+Thu chung checkout; refund riêng order/item và ship được duyệt.
+Mở tiền sau giao +72 giờ, không tranh chấp; rút do admin chuyển ngoài.
+Entry số dư có thể thuộc order hoặc yêu cầu rút; không ép một lần rút/một order.
+Tên bảng/cột dự kiến; hoa hồng, thiếu số dư, ngưỡng/phí rút còn mở.
+endlegend
+@enduml

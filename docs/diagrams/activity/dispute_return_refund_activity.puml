@@ -1,46 +1,32 @@
 @startuml
 skinparam shadowing false
-skinparam defaultFontName Arial
-skinparam ActivityBackgroundColor #FFFFFF
-skinparam ActivityBorderColor #2C3E50
-
-|#EAF2F8|Người mua|
-|#FEF9E7|Hệ thống sàn|
-|#F4ECF7|Quản trị viên|
-
-|Người mua|
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Khiếu nại, trả hàng và hoàn tiền
 start
-:Mở đơn hàng đã nhận;
-:Bấm "Khiếu nại sản phẩm";
-:Nhập lý do, tải video mở hộp và ảnh chụp lỗi;
-
-|Hệ thống sàn|
-:Lưu hồ sơ khiếu nại;
-:Chuyển trạng thái Đơn hàng = "Đang khiếu nại";
-:Khóa luồng tự động giải ngân;
-:Gửi thông báo tới Quản trị viên và Người bán;
-
-|Quản trị viên|
-:Mở hồ sơ tranh chấp trên trang quản trị;
-:So sánh video ảnh người mua với ảnh gốc người bán đăng;
-
-if (Kết quả phân xử?) then (Khiếu nại không đúng sự thật)
-  :Bấm "Bác bỏ khiếu nại";
-  |Hệ thống sàn|
-  :Hồ sơ khiếu nại = "Đã đóng";
-  :Đơn hàng = "Hoàn tất";
-  :Cộng tiền cho Người bán;
-  stop
-else (Món đồ lỗi nặng, người bán mô tả sai sự thật)
-  |Quản trị viên|
-  :Bấm "Chấp nhận hoàn tiền";
-  |Hệ thống sàn|
-  :Kích hoạt hoàn tiền tự động qua Cổng thanh toán;
-  :Đơn hàng = "Đã hủy (Hoàn tiền)";
-  :Món đồ = "Đã hủy do lỗi" (Khóa không bán lại) [Quy tắc 8];
-  
-  |Người mua|
-  :Nhận lại tiền hoàn về tài khoản/thẻ ban đầu;
-  stop
+:Buyer gửi hồ sơ trong 72 giờ;\nChọn món trả và yêu cầu hoàn ship nếu có;
+:Khóa khoản tiền order;\nSeller phản hồi trong 24 giờ;
+:Bất đồng / seller quá hạn thì admin xét;\nĐối chiếu bằng chứng hai bên;
+if (Có căn cứ chấp thuận do lỗi vendor?) then (Không)
+ :Bác trả / hoàn; đơn hoàn tất;\nTiền vẫn chờ đủ 72 giờ và điều kiện;
+ stop
+else (Có)
+ :Chấp thuận món trả;\nBuyer gửi trả trong 3 ngày;
 endif
+:Đơn vị vận chuyển giao trả thành công;\nVendor xác nhận đúng hàng trong 48 giờ;
+if (Đã xác minh đủ điều kiện hoàn?) then (Chưa)
+ :Chuyển admin, tiếp tục khóa tiền;\nKhông tự refund vì vendor im lặng;
+ stop
+else (Rồi)
+ :Cổng thanh toán refund phần được chấp thuận;\nChỉ ghi đã hoàn khi có xác nhận;
+endif
+stop
+legend bottom
+Trả một phần: hoàn tiền món; ship chỉ hoàn khi admin duyệt.
+Trả toàn bộ do lỗi vendor: hoàn tiền hàng và ship của order.
+Vendor chịu cước theo quyết định; không thu trùng. Món khác giữ nguyên.
+endlegend
 @enduml

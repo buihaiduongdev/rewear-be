@@ -1,31 +1,33 @@
 @startuml
+title Trạng thái thanh toán nhóm checkout
 hide empty description
+skinparam ranksep 22
+skinparam nodesep 18
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam state {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
-  ArrowColor #2C3E50
-}
-
-state "Khởi tạo" as KhoiTao : Tạo đường dẫn thanh toán an toàn
-state "Đã thanh toán" as DaThanhToan : Cổng thanh toán báo giao dịch thành công
-state "Thất bại" as ThatBai : Thẻ lỗi, sai OTP hoặc người dùng hủy
-state "Hết hạn" as HetHan : Quá 15 phút khách không hoàn tất giao dịch [Quy tắc 2]
-state "Chờ hoàn tiền" as ChoHoanTien : Đã duyệt khiếu nại, chuẩn bị trả tiền
-state "Đã hoàn tiền" as DaHoanTien : Tiền đã được trả về tài khoản người mua
-
-[*] --> KhoiTao : Người mua chọn thanh toán qua cổng trực tuyến
-KhoiTao --> DaThanhToan : Cổng thanh toán gửi thông báo thành công
-KhoiTao --> ThatBai : Cổng thanh toán gửi thông báo giao dịch lỗi
-KhoiTao --> HetHan : Hệ thống tự động quét quá 15 phút [Quy tắc 2]
-
-DaThanhToan --> ChoHoanTien : Quản trị viên duyệt hồ sơ khiếu nại hoàn tiền
-ChoHoanTien --> DaHoanTien : Cổng thanh toán xác nhận đã chuyển lại tiền
-
-DaThanhToan --> [*]
-ThatBai --> [*]
-HetHan --> [*]
-DaHoanTien --> [*]
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+state "Chờ thanh toán" as waiting
+state "Đã thu tiền" as paid
+state "Chờ đối soát" as reconcile
+state "Attempt lỗi" as failed
+state "Hết hạn / hủy" as expired
+state "Đang refund" as refunding
+state "Hoàn một phần" as partial
+state "Hoàn toàn bộ" as refunded
+[*] --> waiting
+waiting --> paid : Thành công đã xác minh
+waiting -left-> failed : Xác nhận lỗi
+waiting -right-> expired : Hết hạn / hủy; chưa thu
+ waiting --> reconcile : Chưa rõ / kết quả muộn
+ reconcile --> paid : Query hợp lệ
+ paid --> refunding : Hoàn theo order / item
+ refunding --> partial : Hoàn một phần
+ refunding --> refunded : Hoàn toàn bộ
+ partial --> refunding : Hoàn bổ sung
+legend bottom
+Kết quả chưa rõ hoặc callback muộn: đối soát trước thu / hoàn / nhả hàng.
+Sơ đồ rút gọn; mỗi attempt / operation chống xử lý trùng riêng.
+Thanh toán chưa mở tiền vendor. Retry không gia hạn checkout.
+endlegend
 @enduml

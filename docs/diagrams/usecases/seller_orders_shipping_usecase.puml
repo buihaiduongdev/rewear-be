@@ -1,38 +1,27 @@
 @startuml
 left to right direction
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam usecase {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam Padding 4
+title Người bán — đơn, giao hàng và số dư
+actor "Seller" as A
+rectangle "Rewear" {
+usecase "Xác nhận / từ chối đơn riêng" as U0
+usecase "Tạo vận đơn / lấy nhãn" as U1
+usecase "Theo dõi giao nhận" as U2
+usecase "Xem số dư / yêu cầu rút" as U3
+usecase "Hủy yêu cầu rút còn chờ" as U4
 }
-
-actor "Người bán\n(Seller)" as NguoiBan
-
-rectangle "Phân hệ Xử lý Đơn bán & Vận chuyển" {
-  usecase "Xem danh sách đơn bán hàng" as XemDonBan
-  usecase "Xác nhận & chuẩn bị đóng gói" as XacNhanDon
-  usecase "Từ chối tiếp nhận đơn hàng" as TuChoiDon
-  
-  usecase "Cập nhật vận chuyển" as CapNhatVanChuyen
-  usecase "Nhập mã vận đơn bưu phẩm" as NhapMaVanDon
-  usecase "Tải ảnh biên lai bưu cục xác nhận đã giao" as TaiBienLai
-  
-  usecase "Xem số dư & lịch sử tiền bán" as XemViTien
-  usecase "Phản hồi đánh giá của người mua" as PhanHoiDanhGia
-  usecase "Trả lời tin nhắn tư vấn khách hàng" as TraLoiChat
-}
-
-NguoiBan --> XemDonBan
-NguoiBan --> XemViTien
-NguoiBan --> PhanHoiDanhGia
-NguoiBan --> TraLoiChat
-
-XacNhanDon ..> XemDonBan : <<extend>>
-TuChoiDon ..> XemDonBan : <<extend>>
-
-CapNhatVanChuyen ..> XacNhanDon : <<extend>>
-CapNhatVanChuyen ..> NhapMaVanDon : <<include>>
-CapNhatVanChuyen ..> TaiBienLai : <<include>>
+A --> U0
+A --> U1
+A --> U2
+A --> U3
+A --> U4
+legend bottom
+Tài khoản vận chuyển của sàn, kho từng nguồn bán; COD = 0.
+Đủ 72 giờ sau giao, không tranh chấp mới mở tiền.
+Admin nhận xử lý rút: vendor không hủy được.
+Quyền shop/staff theo ma trận, không mặc định staff được rút.
+endlegend
 @enduml

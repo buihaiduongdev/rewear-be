@@ -1,63 +1,32 @@
 @startuml
-title Luoc do tuan tu - Xu ly don ban va giao hang
-
-actor "Nguoi ban / Nhan vien" as Seller
-boundary "Front-end" as FE
-control "Back-end" as BE
-database "Database" as DB
-
-Seller -> FE : Mo danh sach don ban
-FE -> BE : Yeu cau danh sach don hang
-
-BE -> DB : Lay danh sach don hang
-DB --> BE : Danh sach don hang
-
-BE --> FE : Tra ve danh sach don hang
-FE --> Seller : Hien thi danh sach
-
-Seller -> FE : Chon don hang
-FE -> BE : Yeu cau chi tiet don hang
-
-BE -> DB : Lay thong tin don hang
-DB --> BE : Chi tiet don hang
-
-BE -> DB : Kiem tra quyen xu ly
-DB --> BE : Ket qua kiem tra
-
-alt Co quyen xu ly
-    BE --> FE : Tra ve chi tiet don hang
-    FE --> Seller : Hien thi chi tiet
-
-    Seller -> FE : Xac nhan don hang
-    FE -> BE : Gui yeu cau xac nhan
-
-    BE -> DB : Cap nhat trang thai don hang
-    DB --> BE : Thanh cong
-
-    BE -> DB : Luu lich su trang thai
-    DB --> BE : Thanh cong
-
-    BE --> FE : Xac nhan thanh cong
-    FE --> Seller : Hien thi trang thai moi
-
-    Seller -> FE : Nhap don vi van chuyen va ma van don
-    FE -> BE : Gui thong tin giao hang
-
-    BE -> DB : Luu thong tin giao hang
-    DB --> BE : Thanh cong
-
-    BE -> DB : Cap nhat trang thai don hang
-    DB --> BE : Thanh cong
-
-    BE -> DB : Luu lich su trang thai
-    DB --> BE : Thanh cong
-
-    BE --> FE : Cap nhat thanh cong
-    FE --> Seller : Hien thi thong tin giao hang
-
-else Khong co quyen xu ly
-    BE --> FE : Tu choi yeu cau
-    FE --> Seller : Hien thi thong bao khong co quyen
-end
-
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Xử lý order và vận chuyển
+actor Vendor
+control Rewear as BE
+database PostgreSQL as DB
+participant "Đơn vị vận chuyển" as Carrier
+Vendor -> BE : Xác nhận trong hạn 24 giờ
+BE -> DB : Kiểm tra quyền / deadline;\nCập nhật và ghi history
+BE -> Carrier : Tạo vận đơn theo kho vendor;\nSàn trả cước, COD = 0
+Carrier --> BE : Mã vận đơn / kết quả
+BE -> DB : Lưu reference và thông tin cước
+note over BE, Carrier
+Timeout: query trước khi retry tạo vận đơn.
+Có mã vận đơn chưa đồng nghĩa lấy hàng.
+end note
+Carrier -> BE : Pickup / in-transit
+BE -> DB : Xác thực / dedup; cập nhật
+Carrier -> BE : Delivered
+BE -> DB : Xác minh, ghi delivered_at;\nDeadline +72 giờ đúng một lần
+BE -> Carrier : Query cước để đối soát
+Carrier --> BE : Chi tiết cước
+note over Vendor, DB
+Buyer hoàn tất sớm không mở tiền / mất quyền khiếu nại.
+Vendor không nhận khoản bù ship; sàn trả đơn vị vận chuyển.
+end note
 @enduml
