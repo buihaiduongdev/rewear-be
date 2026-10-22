@@ -1,0 +1,26 @@
+@startuml
+title Vendor yêu cầu rút — admin chuyển thủ công
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+start
+:Vendor chọn đích nhận và số tiền;
+:Kiểm tra quyền / số dư;\nGiữ tiền chờ rút và tạo yêu cầu nguyên tử;
+if (Vendor hủy trước khi admin nhận?) then (Hủy thắng)
+ :Trả số dư đúng một lần;
+ stop
+else (Admin nhận thắng)
+ :Đang xử lý; khóa vendor hủy;
+endif
+:Admin kiểm tra và chuyển bên ngoài;
+if (Có căn cứ đã chuyển?) then (Có)
+ :Ghi reference / chứng từ;\nĐã chi, cập nhật lịch sử đúng một lần;
+else (Chưa rõ)
+ :Giữ tiền chờ rút; đối chiếu kết quả;\nKhông chuyển lại / trả số dư ngay;
+endif
+stop
+legend bottom
+Không ghi đã chi chỉ vì được duyệt. Demo mô phỏng phải ghi rõ.
+Ngưỡng/phí rút và nhánh từ chối/thất bại cần đặc tả tiếp.
+endlegend
+@enduml

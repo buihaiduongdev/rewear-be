@@ -1,70 +1,32 @@
 @startuml
 skinparam shadowing false
-skinparam defaultFontName Arial
-skinparam ActivityBackgroundColor #FFFFFF
-skinparam ActivityBorderColor #2C3E50
-
-|#EAF2F8|Người mua|
-|#FEF9E7|Hệ thống sàn|
-|#E9F7EF|Cổng thanh toán|
-
-|Người mua|
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Checkout và thanh toán chung
 start
-:Mở Giỏ hàng, chọn món đồ cần mua;
-:Nhấn "Tiến hành Đặt hàng";
-:Chọn Địa chỉ nhận & Phương thức thanh toán;
-:Nhấn "Xác nhận đặt hàng";
-
-|Hệ thống sàn|
-:Mở phiên xử lý dữ liệu an toàn (Database Transaction);
-:Kiểm tra tồn kho thời gian thực;
-
-if (Món hàng còn trạng thái "Đang bán"?) then (Đã có người mua trước)
-  :Hủy phiên xử lý dữ liệu (Rollback);
-  :Thông báo sản phẩm vừa có người mua;
-  |Người mua|
-  :Xóa món đồ khỏi giỏ hàng;
-  stop
-else (Còn hàng)
-  |Hệ thống sàn|
-  if (Người mua tự mua đồ của chính mình?) then (Vi phạm [Quy tắc 10])
-    :Hủy phiên xử lý;
-    :Báo lỗi vi phạm quy định sàn;
-    stop
-  else (Hợp lệ)
-    :Khóa món hàng: Đang bán -> "Đang giữ" [Quy tắc 1];
-    :Chụp lại giá bán & Tính phí vận chuyển (Snapshot);
-    :Tách đơn theo từng Người bán riêng [Quy tắc 6];
-    :Xóa món đã mua khỏi giỏ hàng;
-    :Lưu dữ liệu an toàn (Commit);
-    
-    if (Phương thức thanh toán đã chọn?) then (Trả tiền mặt COD)
-      :Đơn hàng = "Chờ xác nhận";
-      :Gửi thông báo đặt đơn thành công;
-      stop
-    else (Trả trực tuyến VNPAY/MoMo)
-      :Đơn hàng = "Chờ thanh toán" (Hạn 15 phút) [Quy tắc 2];
-      :Tạo đường dẫn chuyển sang cổng thanh toán;
-      
-      |Cổng thanh toán|
-      :Hiển thị màn hình quét mã hoặc nhập thẻ;
-      |Người mua|
-      :Xác nhận thanh toán tiền;
-      
-      |Cổng thanh toán|
-      :Trừ tiền và gửi kết quả ngầm (IPN) về máy chủ sàn;
-      
-      |Hệ thống sàn|
-      if (Kết quả thanh toán thành công?) then (Thành công)
-        :Ghi nhận thanh toán thành công;
-        :Đơn hàng chuyển sang: "Chờ xác nhận";
-        stop
-      else (Lỗi giao dịch hoặc quá 15 phút)
-        :Đơn hàng chuyển sang: "Đã hủy";
-        :Nhả món đồ: Đang giữ -> "Đang bán" [Quy tắc 2];
-        stop
-      endif
-    endif
-  endif
+:Buyer chọn món và một địa chỉ;
+:Lấy phí giao hàng theo từng nguồn bán;\nHiển thị giá và tổng tiền;
+:Buyer xác nhận checkout;
+:Transaction: giữ món khả dụng bằng CAS;\nLoại món hết hàng khỏi lượt mua và giỏ;
+if (Còn món hợp lệ?) then (Không)
+ :Báo món bị loại; không thanh toán;
+ stop
+else (Có)
+ :Tạo các order theo vendor;\nSnapshot giá, địa chỉ và phí;
+ :Deadline 10 phút chung; commit;\nHiển thị tổng cập nhật;
 endif
+:Cổng thanh toán thu tiền ngay cho checkout;\nXác minh kết quả / đối soát khi chưa rõ;
+if (Thanh toán được xác nhận?) then (Có)
+ :Các order chờ seller xác nhận;\nTiền vendor chờ quyết toán;
+else (Không)
+ :Retry còn hạn hoặc đối soát;\nHết hạn nhả đúng reservation sau kiểm tra;
+endif
+stop
+legend bottom
+Retry không gia hạn. Lỗi DB rollback; không xóa giỏ vì lỗi hệ thống.
+Không gọi dịch vụ ngoài trong transaction giữ hàng.
+endlegend
 @enduml

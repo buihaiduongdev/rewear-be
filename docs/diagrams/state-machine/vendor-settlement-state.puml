@@ -1,0 +1,27 @@
+@startuml
+title Quyết toán và số dư vendor
+hide empty description
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+state "Chờ quyết toán" as P
+state "Khóa do tranh chấp" as D
+state "Xử lý theo phán quyết" as R
+state "Có thể rút" as A
+state "Tiền chờ rút" as W
+state "Đã chi" as X
+[*] --> P : Đã thu / phân bổ theo order
+P --> D : Khiếu nại hợp lệ
+D --> P : Bác / đóng không refund
+D --> R : Trả / refund / điều chỉnh
+P --> A : Đủ 72 giờ sau giao\nKhông tranh chấp, đủ điều kiện
+A --> W : Yêu cầu rút nguyên tử
+W --> A : Hủy khi còn chờ xử lý
+W --> X : Admin xác nhận đã chuyển
+legend bottom
+Buyer hoàn tất sớm không đổi deadline hoặc mở số dư.
+Admin đã nhận xử lý: vendor không được hủy.
+Chuyển chưa rõ kết quả: giữ chờ đối soát, không chi lại.
+Phân bổ sau tranh chấp/hoa hồng/thiếu số dư còn cần chốt.
+endlegend
+@enduml

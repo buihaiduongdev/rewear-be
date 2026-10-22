@@ -1,50 +1,27 @@
-@startuml Hinh3_13_LuocDo_Admin_PhanXu_TaiChinh
+@startuml
 left to right direction
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam usecase {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam Padding 4
+title Quản trị — tranh chấp và tài chính
+actor "Admin" as A
+rectangle "Rewear" {
+usecase "Quản lý tài khoản / tra cứu đơn" as U0
+usecase "Xét tranh chấp / hoàn ship" as U1
+usecase "Đối soát thu tiền / refund" as U2
+usecase "Cấu hình tham số có audit" as U3
+usecase "Xử lý rút / ghi chứng từ chuyển" as U4
 }
-
-actor "Quản trị viên\n(Admin)" as Admin
-actor "Cổng thanh toán" as CongThanhToan
-
-rectangle "Phân hệ Quản trị Người dùng & Tài chính" {
-  usecase "Quản lý người dùng sàn" as QuanLyNguoiDung
-  usecase "Khóa tài khoản vi phạm" as KhoaTK
-  usecase "Mở khóa tài khoản" as MoKhoaTK
-  
-  usecase "Giải quyết khiếu nại tranh chấp" as GiaiQuyetKhieuNai
-  usecase "Xem đối chiếu video mở hộp & ảnh thật" as XemDoiChieu
-  usecase "Bác bỏ khiếu nại (Giải ngân cho shop)" as BacBoKhieuNai
-  usecase "Chấp nhận khiếu nại (Hoàn tiền)" as ChapNhanKhieuNai
-  usecase "Gọi lệnh hoàn tiền tự động qua cổng" as GoiHoanTien
-  
-  usecase "Tra cứu đơn hàng toàn sàn" as TraCuuDonToanSan
-  usecase "Đối soát giao dịch thanh toán trực tuyến" as DoiSoatThanhToan
-  
-  usecase "Xem dashboard thống kê sàn" as XemThongKe
-  usecase "Tra cứu nhật ký kiểm toán (Audit Log)" as TraCuuLog
-}
-
-Admin --> QuanLyNguoiDung
-Admin --> GiaiQuyetKhieuNai
-Admin --> TraCuuDonToanSan
-Admin --> XemThongKe
-Admin --> TraCuuLog
-
-KhoaTK ..> QuanLyNguoiDung : <<extend>>
-MoKhoaTK ..> QuanLyNguoiDung : <<extend>>
-
-GiaiQuyetKhieuNai ..> XemDoiChieu : <<include>>
-BacBoKhieuNai ..> GiaiQuyetKhieuNai : <<extend>>
-ChapNhanKhieuNai ..> GiaiQuyetKhieuNai : <<extend>>
-ChapNhanKhieuNai ..> GoiHoanTien : <<include>>
-
-DoiSoatThanhToan ..> TraCuuDonToanSan : <<extend>>
-
-GoiHoanTien -- CongThanhToan
-DoiSoatThanhToan -- CongThanhToan
+A --> U0
+A --> U1
+A --> U2
+A --> U3
+A --> U4
+legend bottom
+Refund chỉ sau đủ điều kiện và kết quả cổng hợp lệ.
+Bác khiếu nại không mở tiền trước 72 giờ.
+Rút: chuyển bên ngoài, không ghi đã chi chỉ từ phê duyệt.
+Kết quả tiền chưa rõ phải đối soát; không xử lý trùng.
+endlegend
 @enduml

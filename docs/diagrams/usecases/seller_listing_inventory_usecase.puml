@@ -1,35 +1,24 @@
 @startuml
 left to right direction
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam usecase {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam Padding 4
+title Người bán — tin đăng
+actor "Seller" as A
+rectangle "Rewear" {
+usecase "Lưu nháp / gửi duyệt tin" as U0
+usecase "Khai báo tình trạng / số đo / lỗi" as U1
+usecase "Bổ sung ảnh thực tế / ảnh lỗi" as U2
+usecase "Quản lý / sửa / ẩn tin hợp lệ" as U3
 }
-
-actor "Người bán\n(Seller)" as NguoiBan
-
-rectangle "Phân hệ Đăng tin & Quản lý Kho hàng" {
-  usecase "Đăng tin bán sản phẩm mới" as DangTin
-  usecase "Tải lên tối thiểu 2 ảnh chụp thật" as TaiAnhThat
-  usecase "Khai báo độ mới & số đo chi tiết" as KhaiBaoDoMoi
-  
-  usecase "Quản lý danh sách sản phẩm" as QuanLySanPham
-  usecase "Cập nhật giá bán" as SuaGia
-  usecase "Chỉnh sửa mô tả (Gửi duyệt lại)" as SuaTinDuyetLai
-  usecase "Tạm ẩn hoặc mở bán lại món đồ" as AnMoBan
-  usecase "Xóa bài đăng sản phẩm" as XoaTin
-}
-
-NguoiBan --> DangTin
-NguoiBan --> QuanLySanPham
-
-DangTin ..> TaiAnhThat : <<include>>
-DangTin ..> KhaiBaoDoMoi : <<include>>
-
-SuaGia ..> QuanLySanPham : <<extend>>
-SuaTinDuyetLai ..> QuanLySanPham : <<extend>>
-AnMoBan ..> QuanLySanPham : <<extend>>
-XoaTin ..> QuanLySanPham : <<extend>>
+A --> U0
+A --> U1
+A --> U2
+A --> U3
+legend bottom
+Bộ ảnh theo UC-16; ngoại lệ thiếu nhãn cần chốt.
+Sửa nội dung/ảnh cần duyệt lại; chỉ đổi giá không duyệt lại.
+HELD khóa sửa giá, nội dung, ảnh và trạng thái bán.
+endlegend
 @enduml

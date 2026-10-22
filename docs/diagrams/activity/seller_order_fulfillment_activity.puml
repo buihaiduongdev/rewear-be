@@ -1,58 +1,30 @@
 @startuml
 skinparam shadowing false
-skinparam defaultFontName Arial
-skinparam ActivityBackgroundColor #FFFFFF
-skinparam ActivityBorderColor #2C3E50
-
-|#E9F7EF|Người bán|
-|#FEF9E7|Hệ thống sàn|
-|#EAF2F8|Người mua|
-
-|Người bán|
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Xử lý đơn bán và giao nhận
 start
-:Nhận thông báo đơn hàng mới "Chờ xác nhận";
-
-if (Khả năng chuẩn bị hàng?) then (Từ chối / Quá 24 giờ [Quy tắc 5])
-  :Bấm Hủy đơn;
-  |Hệ thống sàn|
-  :Đơn hàng = "Đã hủy";
-  :Hoàn tiền cho khách (nếu đã trả trước);
-  :Món đồ = "Đang bán" (Nhả lại kho);
-  stop
-else (Đồng ý bán)
-  |Người bán|
-  :Bấm "Xác nhận & Chuẩn bị hàng";
-  |Hệ thống sàn|
-  :Đơn hàng = "Đang chuẩn bị hàng";
-  :Món đồ chuyển: Đang giữ -> "Đã bán" [Quy tắc 1];
-  
-  |Người bán|
-  :Đóng gói và đem gửi bưu cục;
-  :Nhập mã vận đơn bưu phẩm vào hệ thống;
-  |Hệ thống sàn|
-  :Đơn hàng = "Đang giao hàng";
-  
-  |Người bán|
-  :Tải ảnh biên lai bưu cục & bấm "Đã giao hàng" [Quy tắc 3];
-  |Hệ thống sàn|
-  :Đơn hàng = "Đã giao hàng";
-  :Kích hoạt đếm ngược 3 ngày khiếu nại [Quy tắc 4];
-  
-  |Người mua|
-  if (Kiểm tra món đồ nhận được?) then (Hài lòng / Quá 3 ngày không khiếu nại)
-    |Người mua|
-    :Bấm "Đã nhận được hàng";
-    |Hệ thống sàn|
-    :Đơn hàng = "Hoàn tất";
-    :Cộng tiền bán vào số dư tài khoản Người bán;
-    stop
-  else (Món đồ bị lỗi / Rách / Khác mô tả)
-    |Người mua|
-    :Bấm "Khiếu nại" kèm video ảnh bằng chứng [Quy tắc 4];
-    |Hệ thống sàn|
-    :Đơn hàng = "Đang khiếu nại";
-    :Đóng băng tiền thanh toán để chờ giải quyết;
-    stop
-  endif
+:Seller nhận order riêng;
+if (Chấp nhận trong 24 giờ?) then (Không)
+ :Hủy và refund riêng order;\nCác order khác tiếp tục;
+ stop
+else (Có)
+ :Chuẩn bị kiện tại kho vendor;
 endif
+:Sàn tạo vận đơn qua hãng vận chuyển;\nSàn ứng / trả cước;
+:Đơn vị vận chuyển lấy hàng và vận chuyển;
+:Webhook giao thành công được xác minh;\nLưu deadline kiểm tra 72 giờ;
+if (Có tranh chấp hợp lệ?) then (Có)
+ :Khóa khoản tiền của order;\nXử lý theo hồ sơ tranh chấp;
+else (Không)
+ :Chờ đủ 72 giờ và đối soát;\nMở số dư tiền hàng trừ hoa hồng;
+endif
+stop
+legend bottom
+Có mã vận đơn chưa đồng nghĩa lấy hàng.
+Buyer hoàn tất sớm không mở tiền. Vendor chủ động yêu cầu rút.
+endlegend
 @enduml

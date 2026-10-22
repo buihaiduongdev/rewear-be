@@ -1,40 +1,34 @@
 @startuml
+title Trạng thái sản phẩm — một món độc bản
 hide empty description
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam state {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
-  ArrowColor #2C3E50
-}
-
-state "Chờ duyệt" as ChoDuyet : Bài đăng mới hoặc tin sửa nội dung [Quy tắc 7]
-state "Từ chối" as TuChoi : Bị quản trị viên từ chối do vi phạm quy định
-state "Đang bán" as DangBan : Đang hiển thị trên sàn, sẵn sàng để mua
-state "Đang giữ" as DangGiu : Tạm khóa do có người đang đặt mua [Quy tắc 1]
-state "Đã bán" as DaBan : Đã bán thành công cho khách (Khóa vĩnh viễn)
-state "Bị ẩn" as BiAn : Người bán tạm ẩn món đồ
-state "Đã hủy do lỗi" as DaHuyHangLoi : Hàng bị lỗi sau khiếu nại, không bán lại [Quy tắc 8]
-
-[*] --> ChoDuyet : Người bán đăng tin món đồ mới
-
-ChoDuyet --> TuChoi : Quản trị viên từ chối (Kèm lý do)
-TuChoi --> ChoDuyet : Người bán sửa lại nội dung và nộp duyệt lại
-ChoDuyet --> DangBan : Quản trị viên bấm phê duyệt
-
-DangBan --> BiAn : Người bán chủ động bấm ẩn
-BiAn --> DangBan : Người bán bấm mở bán lại
-
-DangBan --> ChoDuyet : Chỉnh sửa tiêu đề, mô tả hoặc ảnh chụp [Quy tắc 7]
-DangBan --> DangBan : Chỉ thay đổi giá bán (Giữ nguyên trạng thái) [Quy tắc 7]
-
-DangBan --> DangGiu : Có khách tạo đơn đặt mua [Quy tắc 1]
-DangGiu --> DangBan : Đơn mua bị hủy hoặc hết hạn thanh toán (Nhả hàng lại)
-DangGiu --> DaBan : Người bán xác nhận đóng gói chuyển hàng
-
-DaBan --> DaHuyHangLoi : Khiếu nại thành công, hoàn tiền (Khóa vĩnh viễn) [Quy tắc 8]
-
-DaBan --> [*]
-DaHuyHangLoi --> [*]
+skinparam defaultFontName SansSerif
+state "Nháp" as draft
+state "Chờ duyệt" as pending
+state "Từ chối" as rejected
+state "Đang bán" as active
+state "Người bán tạm ẩn" as hidden
+state "Đang giữ" as held
+state "Đã bán" as sold
+state "Khóa bán lại do lỗi" as blocked
+[*] --> draft : Tạo nháp
+ draft --> pending : Đủ thông tin / gửi duyệt
+ pending --> rejected : Từ chối có lý do
+ rejected --> draft : Sửa lại
+ pending --> active : Duyệt đúng phiên bản
+ active --> hidden : Seller tạm ẩn
+ hidden --> active : Mở lại tin còn hợp lệ
+ active --> pending : Sửa nội dung / ảnh
+ active --> active : Chỉ đổi giá; không HELD
+ active --> held : Checkout giữ thành công
+ held --> active : Hủy / hết hạn; đã kiểm tra tiền\nNhả đúng reservation
+ held --> sold : Seller xác nhận giao hàng\nTheo Quy tắc 1 hiện có
+ sold --> blocked : Món có lỗi được chấp thuận trả/hoàn\nTheo Quy tắc 8
+legend bottom
+HELD chặn sửa giá, nội dung, ảnh và tự đổi trạng thái bán.
+Tạo mã vận đơn chưa phải giao hàng; không tự nhả khi tiền chưa rõ.
+Không tự đăng bán lại món đã trả; không khóa các món khác trong đơn.
+Nhánh kiểm duyệt khi sửa tin đang public, thiếu nhãn và khóa vi phạm cần đặc tả tiếp.
+Đây là mô hình đích; enum code hiện tại chưa có đủ các trạng thái này.
+endlegend
 @enduml
