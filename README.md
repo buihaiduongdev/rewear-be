@@ -2,6 +2,10 @@
 
 ## Project setup
 
+Use Node.js 24 LTS (minimum 24.9, see `.nvmrc`) and pnpm 11.22.0. NestJS 12
+ships ESM packages; the test scripts enable VM modules so Jest can load them
+without rewriting framework dependencies.
+
 ```bash
  pnpm install
 ```
@@ -54,3 +58,42 @@ service at runtime.
 When creating or updating a user address, clients submit `provinceCode` and
 `wardCode`. The backend validates that the ward belongs to the province and
 stores the canonical province and ward names from the snapshot.
+
+## Request schemas
+
+Each module declares request schemas and inferred `*Input` types under `schemas/`.
+Controllers attach those schemas directly to `@Body({ schema })`,
+`@Query({ schema })`, or `@Param('id', { schema })`. A global native
+`StandardSchemaValidationPipe` validates and transforms requests; Swagger reads
+the same parameter metadata to generate OpenAPI. No DTO class or duplicated
+`ApiProperty` declarations are needed.
+
+Bodies reject unknown keys and do not coerce numeric or boolean strings. Query
+schemas retain numeric conversion and pagination defaults. PATCH schemas allow
+omitted fields without applying creation defaults. Explicit `null` clears
+nullable address/product text; `null` for legacy optional non-nullable inputs is
+treated as omitted. Product/address text retains the previous whitespace
+normalization.
+
+Validation failures return HTTP 400 with a `message` array and structured
+`errors: [{ path, message, code }]`. The frontend's existing string/array message
+handling remains supported. Query validation now also uses the message array
+instead of the former generic `Validation failed` string. Error wording comes
+from the schema library and should not be used as a stable machine identifier.
+
+Login validates its body before selecting an authentication strategy because
+guards run before parameter pipes; its schema is also attached to the body for
+OpenAPI. Invalid/unknown login fields now return 400 before authentication.
+User management IDs now receive the same UUID validation as other resource IDs.
+
+Response serialization remains separate: `@Serialize(responseSchema)` filters
+output and documents the existing `{ statusCode, message, data }` envelope and
+ISO date strings. This refactor does not change database entities or business
+state transitions.
+
+`pnpm test --runInBand` runs unit checks. `pnpm test:e2e --runInBand` boots real
+controllers and the validation/serialization pipeline with mocked persistence;
+it checks request rejection, coercion, login ordering, HTTP status, response
+filtering and generated OpenAPI. It does not prove PostgreSQL or external-service
+integration. The HTTP contract suite also writes a temporary OpenAPI snapshot
+to `/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.

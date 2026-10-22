@@ -7,15 +7,15 @@ import { UserStatus } from '@/modules/user/enums';
 import { UserService } from '@/modules/user/user.service';
 
 import { AUTH_ERROR_CODE } from '../constants';
-import { LoginDto } from '../dto';
 import { authError } from '../errors/auth.error';
 import type { AuthStrategy } from '../interfaces/auth-strategy.interface';
+import type { LoginInput } from '../schemas/auth-input.schema';
 
 @Injectable()
 export class CredentialAuthStrategy implements AuthStrategy {
   constructor(private readonly userService: UserService) {}
 
-  async validate({ email, password }: LoginDto): Promise<User> {
+  async validate({ email, password }: LoginInput): Promise<User> {
     if (!email || !password) {
       throw authError(
         AUTH_ERROR_CODE.INVALID_CREDENTIALS,

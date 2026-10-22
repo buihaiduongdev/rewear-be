@@ -4,7 +4,6 @@ import {
   Get,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -12,15 +11,10 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
-import {
-  AddShopStaffDto,
-  CreateShopDto,
-  UpdateShopDto,
-  UpdateShopStaffDto,
-} from './dto';
 import { Shop, ShopMember } from './entities';
 import {
   shopListSchema,
@@ -29,6 +23,18 @@ import {
   shopMembershipListSchema,
   shopSchema,
 } from './schemas';
+import {
+  addShopStaffSchema,
+  createShopSchema,
+  updateShopSchema,
+  updateShopStaffSchema,
+} from './schemas/shop-input.schema';
+import type {
+  AddShopStaffInput,
+  CreateShopInput,
+  UpdateShopInput,
+  UpdateShopStaffInput,
+} from './schemas/shop-input.schema';
 import { ShopService } from './shop.service';
 
 @ApiTags('Shops')
@@ -52,7 +58,7 @@ export class ShopController {
 
   @Get(':id')
   @Serialize(shopSchema)
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Shop> {
+  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<Shop> {
     return this.shopService.findOne(id);
   }
 
@@ -62,7 +68,7 @@ export class ShopController {
   @Serialize(shopSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
-    @Body() input: CreateShopDto,
+    @Body({ schema: createShopSchema }) input: CreateShopInput,
   ): Promise<Shop> {
     return this.shopService.create(currentUser.id, input);
   }
@@ -73,8 +79,8 @@ export class ShopController {
   @Serialize(shopSchema)
   update(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateShopDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateShopSchema }) input: UpdateShopInput,
   ): Promise<Shop> {
     return this.shopService.update(id, currentUser.id, input);
   }
@@ -85,7 +91,7 @@ export class ShopController {
   @Serialize(shopMemberListSchema)
   findMembers(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', { schema: uuidSchema }) id: string,
   ): Promise<ShopMember[]> {
     return this.shopService.findMembers(id, currentUser.id);
   }
@@ -96,8 +102,8 @@ export class ShopController {
   @Serialize(shopMemberSchema, { status: HttpStatus.CREATED })
   addStaff(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: AddShopStaffDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: addShopStaffSchema }) input: AddShopStaffInput,
   ): Promise<ShopMember> {
     return this.shopService.addStaff(id, currentUser.id, input);
   }
@@ -108,9 +114,9 @@ export class ShopController {
   @Serialize(shopMemberSchema)
   updateStaff(
     @CurrentUser() currentUser: User,
-    @Param('shopId', ParseUUIDPipe) shopId: string,
-    @Param('memberId', ParseUUIDPipe) memberId: string,
-    @Body() input: UpdateShopStaffDto,
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+    @Param('memberId', { schema: uuidSchema }) memberId: string,
+    @Body({ schema: updateShopStaffSchema }) input: UpdateShopStaffInput,
   ): Promise<ShopMember> {
     return this.shopService.updateStaff(
       shopId,

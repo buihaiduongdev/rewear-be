@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -14,12 +13,20 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
-import { CreateUserAddressDto, UpdateUserAddressDto } from './dto';
 import { UserAddress } from './entities';
 import { userAddressListSchema, userAddressSchema } from './schemas';
+import {
+  createUserAddressSchema,
+  updateUserAddressSchema,
+} from './schemas/user-address-input.schema';
+import type {
+  CreateUserAddressInput,
+  UpdateUserAddressInput,
+} from './schemas/user-address-input.schema';
 import { UserAddressService } from './user-address.service';
 
 @ApiTags('User Addresses')
@@ -39,7 +46,7 @@ export class UserAddressController {
   @Serialize(userAddressSchema)
   findOne(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', { schema: uuidSchema }) id: string,
   ): Promise<UserAddress> {
     return this.userAddressService.findOne(currentUser.id, id);
   }
@@ -48,7 +55,7 @@ export class UserAddressController {
   @Serialize(userAddressSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
-    @Body() input: CreateUserAddressDto,
+    @Body({ schema: createUserAddressSchema }) input: CreateUserAddressInput,
   ): Promise<UserAddress> {
     return this.userAddressService.create(currentUser.id, input);
   }
@@ -57,8 +64,8 @@ export class UserAddressController {
   @Serialize(userAddressSchema)
   update(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateUserAddressDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateUserAddressSchema }) input: UpdateUserAddressInput,
   ): Promise<UserAddress> {
     return this.userAddressService.update(currentUser.id, id, input);
   }
@@ -67,7 +74,7 @@ export class UserAddressController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() currentUser: User,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', { schema: uuidSchema }) id: string,
   ): Promise<void> {
     return this.userAddressService.remove(currentUser.id, id);
   }

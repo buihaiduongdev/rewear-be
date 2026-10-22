@@ -1,5 +1,3 @@
-import { ClassConstructor } from 'class-transformer';
-
 import { TPaginationOrder } from '@/common/constants';
 
 export interface IPaginationMeta {
@@ -16,12 +14,10 @@ export interface IPaginatedResult<T> {
   meta: IPaginationMeta;
 }
 
-export interface IPaginateOptions<D = unknown> {
+export interface IPaginateOptions {
   allowedSorts?: Record<string, string>;
 
   defaultSort?: string;
 
   defaultOrder?: TPaginationOrder;
-
-  itemsDto?: ClassConstructor<D>;
 }

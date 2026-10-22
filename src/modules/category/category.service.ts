@@ -8,8 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { Not, Repository } from 'typeorm';
 
-import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities';
+import type {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from './schemas/category-input.schema';
 
 @Injectable()
 export class CategoryService {
@@ -34,7 +37,7 @@ export class CategoryService {
     return category;
   }
 
-  async create(input: CreateCategoryDto): Promise<Category> {
+  async create(input: CreateCategoryInput): Promise<Category> {
     const name = input.name.trim();
     const slug = this.normalizeSlug(input.slug ?? name);
     await this.assertSlugAvailable(slug);
@@ -48,7 +51,7 @@ export class CategoryService {
     );
   }
 
-  async update(id: string, input: UpdateCategoryDto): Promise<Category> {
+  async update(id: string, input: UpdateCategoryInput): Promise<Category> {
     const category = await this.findById(id);
 
     if (input.name !== undefined) category.name = input.name.trim();

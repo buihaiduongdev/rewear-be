@@ -8,10 +8,10 @@ import { UserStatus } from '@/modules/user/enums';
 import { UserService } from '@/modules/user/user.service';
 
 import { AUTH_ERROR_CODE } from '../constants';
-import { LoginDto } from '../dto';
 import { AuthProvider } from '../enums';
 import { authError } from '../errors/auth.error';
 import type { AuthStrategy } from '../interfaces/auth-strategy.interface';
+import type { LoginInput } from '../schemas/auth-input.schema';
 
 @Injectable()
 export class GoogleAuthStrategy implements AuthStrategy {
@@ -24,7 +24,7 @@ export class GoogleAuthStrategy implements AuthStrategy {
     this.client = new OAuth2Client(this.configService.auth.googleClientId);
   }
 
-  async validate({ token: idToken }: LoginDto): Promise<User> {
+  async validate({ token: idToken }: LoginInput): Promise<User> {
     if (!idToken) {
       throw new UnauthorizedException('Google ID token is required');
     }

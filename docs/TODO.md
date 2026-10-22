@@ -1,5 +1,28 @@
 # Technical TODO
 
+## Thống nhất validation và response schema bằng Zod
+
+**Trạng thái:** Đã refactor ngày 20/10/2026 theo hướng schema của
+`be-marty-demo-2`; giữ hạ tầng auth và response của Rewear.
+
+- [x] Nâng nhóm NestJS lên 12, TypeScript 6; đồng bộ Node 24 LTS tối thiểu
+      24.9, `.nvmrc`, cấu hình build/test và CI.
+- [x] Chuyển request DTO của Auth, User, Category, Shop, Product, User Address
+      và Media sang Zod schema cùng type `z.output`; gắn schema trực tiếp vào body,
+      query và param, đăng ký native `StandardSchemaValidationPipe` global.
+- [x] Xóa DTO class, decorator Trim, custom ZodValidationPipe và dependency trực
+      tiếp class-validator/class-transformer; bỏ nhánh pagination dùng itemsDto
+      không có caller. Một số dependency vẫn có thể kéo thư viện cũ qua optional peer.
+- [x] Kiểm chứng trim, số/boolean, PATCH, null, field dư, query defaults và các
+      trường không được phép ghi; login được validate trước khi chạy strategy.
+- [x] Giữ serialize/envelope/status/ISO date; sinh OpenAPI từ metadata schema,
+      chạy Orval trên snapshot tạm và kiểm tra TypeScript của client sinh ra.
+- [x] Kiểm chứng HTTP với controller thật và persistence mock; giữ đường dẫn
+      field trong `errors`. `message` của lỗi validation thống nhất thành mảng;
+      FE hiện đã hỗ trợ cả chuỗi và mảng. Các điểm thay đổi được ghi trong README.
+- [ ] Kiểm thử ứng dụng với PostgreSQL và các dịch vụ thật; test HTTP contract
+      hiện không thay thế kiểm thử tích hợp này.
+
 ## Nâng cấp module danh mục địa giới Việt Nam
 
 **Trạng thái:** Cần nghiên cứu trước khi module được dùng lâu dài trong production.

@@ -5,8 +5,11 @@ import { DataSource, Repository } from 'typeorm';
 
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 
-import { CreateUserAddressDto, UpdateUserAddressDto } from './dto';
 import { UserAddress } from './entities';
+import type {
+  CreateUserAddressInput,
+  UpdateUserAddressInput,
+} from './schemas/user-address-input.schema';
 
 @Injectable()
 export class UserAddressService {
@@ -32,7 +35,7 @@ export class UserAddressService {
 
   async create(
     userId: string,
-    input: CreateUserAddressDto,
+    input: CreateUserAddressInput,
   ): Promise<UserAddress> {
     const administrativeAddress =
       this.administrativeDivisionService.resolveAddress(
@@ -59,7 +62,7 @@ export class UserAddressService {
   async update(
     userId: string,
     id: string,
-    input: UpdateUserAddressDto,
+    input: UpdateUserAddressInput,
   ): Promise<UserAddress> {
     const address = await this.findOne(userId, id);
     const administrativeAddress =

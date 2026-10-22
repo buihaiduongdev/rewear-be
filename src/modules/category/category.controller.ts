@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -14,13 +13,21 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { Roles, Serialize } from '@/common/decorators';
+import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 import { UserRole } from '@/modules/user/enums';
 
 import { CategoryService } from './category.service';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities';
 import { categoryListSchema, categorySchema } from './schemas';
+import {
+  createCategorySchema,
+  updateCategorySchema,
+} from './schemas/category-input.schema';
+import type {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from './schemas/category-input.schema';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -35,7 +42,7 @@ export class CategoryController {
 
   @Get(':id')
   @Serialize(categorySchema)
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Category> {
+  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<Category> {
     return this.categoryService.findOne(id);
   }
 
@@ -44,7 +51,9 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Serialize(categorySchema, { status: HttpStatus.CREATED })
-  create(@Body() input: CreateCategoryDto): Promise<Category> {
+  create(
+    @Body({ schema: createCategorySchema }) input: CreateCategoryInput,
+  ): Promise<Category> {
     return this.categoryService.create(input);
   }
 
@@ -54,8 +63,8 @@ export class CategoryController {
   @Roles(UserRole.ADMIN)
   @Serialize(categorySchema)
   update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() input: UpdateCategoryDto,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: updateCategorySchema }) input: UpdateCategoryInput,
   ): Promise<Category> {
     return this.categoryService.update(id, input);
   }
@@ -65,7 +74,7 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  remove(@Param('id', { schema: uuidSchema }) id: string): Promise<void> {
     return this.categoryService.remove(id);
   }
 }

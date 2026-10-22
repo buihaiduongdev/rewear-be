@@ -10,14 +10,14 @@ import { DataSource, Repository } from 'typeorm';
 
 import { User } from '@/modules/user/entities';
 
-import {
-  AddShopStaffDto,
-  CreateShopDto,
-  UpdateShopDto,
-  UpdateShopStaffDto,
-} from './dto';
 import { Shop, ShopMember } from './entities';
 import { ShopMemberRole, ShopMemberStatus, ShopStatus } from './enums';
+import type {
+  AddShopStaffInput,
+  CreateShopInput,
+  UpdateShopInput,
+  UpdateShopStaffInput,
+} from './schemas/shop-input.schema';
 
 @Injectable()
 export class ShopService {
@@ -55,7 +55,7 @@ export class ShopService {
     });
   }
 
-  create(userId: string, input: CreateShopDto): Promise<Shop> {
+  create(userId: string, input: CreateShopInput): Promise<Shop> {
     return this.dataSource.transaction(async (manager) => {
       const shop = await manager.save(
         Shop,
@@ -81,7 +81,7 @@ export class ShopService {
   async update(
     shopId: string,
     currentUserId: string,
-    input: UpdateShopDto,
+    input: UpdateShopInput,
   ): Promise<Shop> {
     await this.assertOwner(shopId, currentUserId);
     const shop = await this.findById(shopId);
@@ -110,7 +110,7 @@ export class ShopService {
   async addStaff(
     shopId: string,
     currentUserId: string,
-    input: AddShopStaffDto,
+    input: AddShopStaffInput,
   ): Promise<ShopMember> {
     await this.assertOwner(shopId, currentUserId);
     if (!(await this.userRepository.findOneBy({ id: input.userId }))) {
@@ -140,7 +140,7 @@ export class ShopService {
     shopId: string,
     memberId: string,
     currentUserId: string,
-    input: UpdateShopStaffDto,
+    input: UpdateShopStaffInput,
   ): Promise<ShopMember> {
     await this.assertOwner(shopId, currentUserId);
     const member = await this.shopMemberRepository.findOneBy({

@@ -1,7 +1,7 @@
 import type { User } from '@/modules/user/entities';
 
-import type { LoginDto } from '../dto';
+import type { LoginInput } from '../schemas/auth-input.schema';
 
 export interface AuthStrategy {
-  validate(loginDto: LoginDto): Promise<User>;
+  validate(input: LoginInput): Promise<User>;
 }
