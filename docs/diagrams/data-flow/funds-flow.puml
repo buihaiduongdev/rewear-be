@@ -1,0 +1,29 @@
+@startuml
+title Luồng tiền — thu ngay, quyết toán sau
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+rectangle "Buyer thanh toán một lần" as B
+rectangle "Cổng thanh toán" as M
+rectangle "Sàn ghi nhận đã thu" as T
+rectangle "Sàn trả đơn vị vận chuyển" as H
+rectangle "Refund hợp lệ theo order / món" as R
+rectangle "Tiền hàng vendor chờ quyết toán" as P
+rectangle "Tách hoa hồng theo snapshot" as C
+rectangle "Số dư có thể rút" as A
+rectangle "Vendor yêu cầu; admin chuyển ngoài" as W
+B --> M
+M --> T : Kết quả đã xác minh
+T --> H : Cước sàn chịu thanh toán
+T --> R : Trả buyer theo quyết định
+T .down.> P : Phân bổ nội bộ; không cộng ship
+P .down.> C
+C .down.> A : Đủ 72 giờ sau giao, không tranh chấp
+A .down.> W : Giữ tiền chờ rút; lưu chứng từ chi
+legend bottom
+Nét đứt là phân bổ số dư, không chuyển tiền thực.
+Thu tiền, mở số dư và chuyển vendor là các bước riêng.
+Lịch về ngân hàng merchant theo đối soát cổng.
+Hoa hồng khởi tạo/chênh cước/thiếu số dư còn cần chốt.
+endlegend
+@enduml

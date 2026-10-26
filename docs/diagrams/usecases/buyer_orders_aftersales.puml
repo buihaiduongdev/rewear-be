@@ -1,44 +1,26 @@
 @startuml
 left to right direction
 skinparam shadowing false
-skinparam defaultFontName Arial
-
-skinparam usecase {
-  BackgroundColor #FFFFFF
-  BorderColor #2C3E50
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam Padding 4
+title Người mua — đơn hàng và sau mua
+actor "Buyer" as A
+rectangle "Rewear" {
+usecase "Xem / theo dõi đơn mua" as U0
+usecase "Hủy khi chờ thanh toán / xác nhận" as U1
+usecase "Xác nhận đã nhận hàng" as U2
+usecase "Khiếu nại / trả theo món" as U3
+usecase "Đánh giá / nhắn tin" as U4
 }
-
-actor "Người mua\n(Buyer)" as NguoiMua
-
-rectangle "Phân hệ Quản lý Đơn hàng & Hậu mãi" {
-  usecase "Xem danh sách đơn mua" as XemDonMua
-  usecase "Hủy đơn hàng chưa đóng gói" as HuyDon
-  usecase "Theo dõi tiến độ vận chuyển" as TheoDoiVanChuyen
-  usecase "Xác nhận đã nhận hàng" as NhanHang
-  
-  usecase "Gửi khiếu nại trả hàng" as GuiKhieuNai
-  usecase "Tải lên video mở hộp & ảnh lỗi" as TaiVideoAnh
-  usecase "Theo dõi kết quả xử lý khiếu nại" as TheoDoiKhieuNai
-  
-  usecase "Đánh giá chất lượng sản phẩm" as DanhGia
-  usecase "Đính kèm ảnh chụp thực tế" as AnhThucTe
-  
-  usecase "Nhắn tin trao đổi với người bán" as NhanTin
-  usecase "Xem thông báo biến động giao dịch" as XemThongBao
-}
-
-NguoiMua --> XemDonMua
-NguoiMua --> NhanTin
-NguoiMua --> XemThongBao
-
-HuyDon ..> XemDonMua : <<extend>>
-TheoDoiVanChuyen ..> XemDonMua : <<extend>>
-NhanHang ..> XemDonMua : <<extend>>
-
-GuiKhieuNai ..> XemDonMua : <<extend>>
-GuiKhieuNai ..> TaiVideoAnh : <<include>>
-TheoDoiKhieuNai ..> GuiKhieuNai : <<extend>>
-
-DanhGia ..> NhanHang : <<extend>>
-AnhThucTe ..> DanhGia : <<extend>>
+A --> U0
+A --> U1
+A --> U2
+A --> U3
+A --> U4
+legend bottom
+Khiếu nại trong 72 giờ từ giao, kể cả hoàn tất sớm.
+Gửi mô tả và bằng chứng; thiếu video không tự mất quyền.
+Hoàn ship khi trả một phần: buyer yêu cầu, admin xét duyệt.
+endlegend
 @enduml

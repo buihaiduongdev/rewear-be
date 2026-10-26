@@ -1,5 +1,7 @@
 # Re.wear
 
+[Tổng quan tính năng, link Figma và mục lục tài liệu](docs/README.md).
+
 ## Project setup
 
 Use Node.js 24 LTS (minimum 24.9, see `.nvmrc`) and pnpm 11.22.0. NestJS 12

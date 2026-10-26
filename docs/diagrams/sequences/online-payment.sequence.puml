@@ -1,57 +1,33 @@
 @startuml
-title Luoc do tuan tu - Thanh toan truc tuyen
-
-actor "Nguoi mua" as Buyer
-boundary "Front-end" as FE
-control "Back-end" as BE
-database "Database" as DB
-participant "Cong thanh toan" as PaymentGateway
-
-Buyer -> FE : Chon thanh toan truc tuyen
-FE -> BE : Gui yeu cau thanh toan
-
-BE -> DB : Lay thong tin don hang
-DB --> BE : Thong tin don hang
-
-alt Don hang hop le
-    BE -> DB : Tao thong tin thanh toan
-    DB --> BE : Thanh cong
-
-    BE -> PaymentGateway : Tao giao dich thanh toan
-    PaymentGateway --> BE : Tra ve duong dan thanh toan
-
-    BE --> FE : Tra ve duong dan thanh toan
-    FE -> PaymentGateway : Chuyen nguoi mua den trang thanh toan
-
-    Buyer -> PaymentGateway : Thuc hien thanh toan
-
-    alt Thanh toan thanh cong
-        PaymentGateway -> BE : Gui ket qua giao dich
-        BE -> PaymentGateway : Xac minh giao dich
-        PaymentGateway --> BE : Giao dich hop le
-
-        BE -> DB : Cap nhat thanh toan thanh cong
-        DB --> BE : Thanh cong
-
-        BE -> DB : Cap nhat trang thai don hang
-        DB --> BE : Thanh cong
-
-        BE --> FE : Thanh toan thanh cong
-        FE --> Buyer : Hien thi ket qua thanh toan
-
-    else Thanh toan that bai
-        PaymentGateway -> BE : Gui ket qua that bai
-
-        BE -> DB : Cap nhat thanh toan that bai
-        DB --> BE : Thanh cong
-
-        BE --> FE : Thanh toan that bai
-        FE --> Buyer : Hien thi thong bao loi
-    end
-
-else Don hang khong hop le
-    BE --> FE : Tu choi thanh toan
-    FE --> Buyer : Hien thi thong bao loi
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 18
+skinparam ArrowFontSize 16
+skinparam noteFontSize 15
+skinparam Padding 4
+title Thanh toán chung, xử lý order riêng
+actor Buyer
+control Rewear as BE
+database PostgreSQL as DB
+participant "Cổng thanh toán" as Gateway
+Buyer -> BE : Thanh toán nhóm checkout
+BE -> DB : Kiểm tra deadline / reservation;\nLưu attempt / reference
+BE -> Gateway : Tạo giao dịch thu tiền ngay
+Gateway --> Buyer : Trang thanh toán
+Buyer -> Gateway : Xác thực
+Gateway -> BE : Thông báo kết quả thanh toán
+BE -> BE : Xác thực, đối chiếu tiền;\nDedup, kiểm tra còn hiệu lực
+BE -> Gateway : Query khi kết quả chưa rõ
+Gateway --> BE : Kết quả đã xác minh
+alt Đã thu tiền, reservation hợp lệ
+ BE -> DB : Đã thu; phân bổ order;\nTiền vendor chờ quyết toán
+ BE --> Buyer : Thanh toán đã xác nhận
+else Kết quả chưa rõ / muộn
+ BE -> DB : Chờ đối soát; không thu trùng;\nKhông hồi sinh đơn đã nhả
 end
-
+... Một seller từ chối / quá hạn ...
+BE -> DB : Hủy riêng order, tạo refund operation
+BE -> Gateway : Refund phần order hợp lệ
+Gateway --> BE : Xác nhận hoặc cần query
+BE -> DB : Ghi kết quả, order khác tiếp tục
 @enduml

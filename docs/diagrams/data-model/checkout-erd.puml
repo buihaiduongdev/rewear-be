@@ -1,0 +1,61 @@
+@startuml
+hide circle
+hide methods
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam classAttributeIconSize 0
+title ERD dự thảo — checkout và đơn hàng
+entity "users" as U
+entity "user_addresses" as A
+entity "products" as P {
+seller_user_id XOR shop_id
+status / held_until
+}
+entity "carts" as C
+entity "cart_items" as CI {
+UNIQUE(cart_id, product_id)
+}
+entity "checkout_groups" as G {
+buyer_id / address_snapshot
+expires_at / idempotency_key
+}
+entity "reservations" as R {
+checkout_group_id / product_id
+Một reservation hiệu lực/món
+}
+entity "orders" as O {
+checkout_group_id
+seller_user_id XOR shop_id
+address_snapshot / policy_snapshot
+}
+entity "order_items" as I {
+order_id / product_id nullable
+content_snapshot / price_snapshot
+}
+entity "shipments" as H {
+order_id / direction
+carrier_reference / shop_snapshot
+}
+entity "disputes" as D
+entity "dispute_items" as DI
+U ||--o{ A
+U ||--o| C
+C ||--o{ CI
+P ||--o{ CI
+U ||--o{ G
+G ||--|{ O
+G ||--o{ R
+P ||--o{ R
+O ||--|{ I
+P |o--o{ I
+O ||--o{ H
+O ||--o{ D
+D ||--|{ DI
+I ||--o{ DI
+legend bottom
+ERD rút gọn: bảng auth/shop/media/chat/review xem database-proposal.md.
+Một shipment giao đi/order; trả hàng có shipment riêng.
+Một dispute đang mở/order. Không có quantity trong cart.
+Thiết kế dự kiến, chưa tạo schema; không migration ở giai đoạn dev này.
+endlegend
+@enduml
