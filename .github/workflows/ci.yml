@@ -28,6 +28,7 @@ jobs:
           --health-retries 10
     env:
       PRODUCT_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rewear_product_test
+      SEED_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rewear_seed_test
 
     steps:
       - uses: actions/checkout@v4
@@ -47,4 +48,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test --runInBand
+      - name: Prepare seed test database
+        env:
+          PGPASSWORD: postgres
+        run: psql --host=127.0.0.1 --username=postgres --dbname=postgres --command='CREATE DATABASE rewear_seed_test'
       - run: pnpm test:e2e --runInBand

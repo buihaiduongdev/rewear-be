@@ -366,6 +366,17 @@
 - **Giới hạn:** HTTP contract test dùng controller thật nhưng mock strategy/service, không chứng minh đăng nhập với PostgreSQL hoặc xác minh Google token thật. Chưa kiểm chứng SMTP và E2E frontend/backend; không xác nhận người thực hiện đã tự review toàn bộ diff.
 - **Minh chứng:** Branch `refactor/auth-orval-cleanup`; mục này được liên kết trong phần AI assistance của PR tương ứng.
 
+### 2026-10-27 — Marketplace seed và factory dùng cho dev/E2E
+
+- **Người thực hiện:** Hải Dương
+- **Công cụ:** Codex
+- **Prompt chính:** Tạo seed/factory cho dữ liệu để frontend gọi API thật thay cho mock; người thực hiện xác nhận giữ phần seed trong worktree product sau khi agent product hoàn tất.
+- **Đầu ra AI được sử dụng:** `src/modules/database/seeds/` với factory thuần có override và UUID ổn định theo namespace; seed transaction cho 7 tài khoản, 6 danh mục, 3 shop, 36 sản phẩm, 108 ảnh, revision kiểm duyệt và liên kết giữ bằng chứng. Thêm `pnpm seed`, `pnpm test:seed`, cấu hình mẫu và `docs/SEEDING.md`. Chạy lại chỉ thêm bản ghi còn thiếu, không ghi đè chỉnh sửa hoặc truncate bảng. Không thêm dependency, gọi R2 hoặc gửi email.
+- **Kiểm chứng:** Node 24.19.0: lint, format, typecheck và Nest build pass; 104 unit test pass; 4 test seed với PostgreSQL thật pass, kiểm tra public ProductService/response schema, duyệt pending, hash mật khẩu, chạy lặp đồng thời, giữ dữ liệu khác và rollback toàn bộ khi xung đột ownership. CLI seed đã chạy hai lần trên DB local riêng `rewear_seed_test`; kiểm đếm vẫn là 7 user, 36 product, 108 media, 35 revision. `git diff --check` pass.
+- **Giới hạn:** Ảnh fixture dùng sáu URL Unsplash đã kiểm tra HTTP/MIME; ba slot góc ảnh dùng lại ảnh danh mục, không chứng minh tình trạng hàng thật. Chưa chạy luồng upload/delete R2 hoặc E2E trình duyệt với dataset này. Chưa seed DB dev đang dùng của ứng dụng, commit hoặc tạo PR.
+- **Điều chỉnh trong quá trình làm:** Phần seed ban đầu được tạo trong worktree `rewear-be-product`, gây lẫn diff với agent product; không sửa product/media/category/storage của agent đó. Người thực hiện xác nhận không cần tách worktree sau khi agent product đã hoàn tất. Nhánh `feat/database-seeds` ở BE gốc chưa có code riêng. Do node_modules là symlink sang checkout gốc, kiểm tra dùng Node 24 và tắt bước tự kiểm tra/cài lại dependency của pnpm bằng biến môi trường trong phiên chạy; không thay cấu hình repo.
+- **Minh chứng:** Worktree `rewear-be-product`, branch `feat/product-completion`; `docs/SEEDING.md` và các test seed mới. Các thay đổi vẫn chưa commit.
+
 ### 2026-10-27 — Hoàn thiện vòng đời product và chuẩn bị PR product/seed
 
 - **Công cụ:** Codex, Git/GitHub CLI, Node 24, Jest, PostgreSQL 16 và Orval.

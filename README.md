@@ -116,3 +116,9 @@ See [product lifecycle/API contract](docs/PRODUCT_LIFECYCLE.md) for routes,
 photo/measurement requirements, image retention and PostgreSQL test setup.
 Upload clients must send the returned `If-None-Match` header; configure bucket
 CORS to allow that header before testing direct uploads.
+
+## Development seed
+
+Use `pnpm seed` with an explicit `SEED_DATABASE_URL` to populate a development
+PostgreSQL database with accounts, shops, categories, approved products and images.
+See [seed commands, fixture accounts and E2E factory usage](docs/SEEDING.md).
