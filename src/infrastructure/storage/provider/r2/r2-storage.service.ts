@@ -43,8 +43,12 @@ export class R2StorageService implements IStorageProvider {
         Bucket: bucket,
         Key: key,
         ContentType: contentType,
+        IfNoneMatch: '*',
       }),
-      { expiresIn: uploadExpiresInSeconds },
+      {
+        expiresIn: uploadExpiresInSeconds,
+        signableHeaders: new Set(['if-none-match']),
+      },
     );
 
     return {
@@ -52,7 +56,7 @@ export class R2StorageService implements IStorageProvider {
       uploadUrl,
       publicUrl: `${publicBaseUrl}/${key}`,
       method: 'PUT',
-      headers: { 'Content-Type': contentType },
+      headers: { 'Content-Type': contentType, 'If-None-Match': '*' },
       expiresAt: new Date(Date.now() + uploadExpiresInSeconds * 1000),
     };
   }
@@ -66,6 +70,7 @@ export class R2StorageService implements IStorageProvider {
     );
     return {
       contentType: response.ContentType,
+      eTag: response.ETag,
       sizeBytes: response.ContentLength,
     };
   }

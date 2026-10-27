@@ -16,6 +16,7 @@ export interface UploadTicket {
 }
 
 export interface StoredObjectMetadata {
+  eTag?: string;
   contentType?: string;
   sizeBytes?: number;
 }

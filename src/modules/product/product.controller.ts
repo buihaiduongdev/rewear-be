@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   Patch,
@@ -11,19 +12,23 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, Serialize } from '@/common/decorators';
+import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { IPaginatedResult } from '@/common/pagination';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard } from '@/modules/auth/guards';
+import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 
 import { Product } from './entities';
 import { ProductService } from './product.service';
 import {
   findMyProductSchema,
   findProductSchema,
+  moderateProductSchema,
   productListSchema,
+  productRevisionListSchema,
   productSchema,
+  suspendProductSchema,
 } from './schemas';
 import type { FindMyProductQuery, FindProductQuery } from './schemas';
 import {
@@ -33,6 +38,8 @@ import {
 } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
+  ModerateProductInput,
+  SuspendProductInput,
   UpdateProductInput,
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
@@ -60,6 +67,104 @@ export class ProductController {
     query: FindMyProductQuery,
   ): Promise<IPaginatedResult<Product>> {
     return this.productService.findMine(currentUser.id, query);
+  }
+
+  @Get('manage/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(productSchema)
+  findManaged(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.findOneForManagement(id, user.id);
+  }
+
+  @Get('manage/:id/revisions')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(productRevisionListSchema)
+  revisions(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.findRevisions(id, user.id);
+  }
+
+  @Get('admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Serialize(productListSchema)
+  reviewQueue(
+    @CurrentUser() user: User,
+    @Query({ schema: findMyProductSchema }) query: FindMyProductQuery,
+  ) {
+    return this.productService.findReviewQueue(query, user.id);
+  }
+
+  @Get('admin/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Serialize(productSchema)
+  reviewDetail(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.findForReview(id, user.id);
+  }
+
+  @Get('admin/:id/revisions')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Serialize(productRevisionListSchema)
+  reviewHistory(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.findRevisions(id, user.id, true);
+  }
+
+  @Post(':id/submit')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(productSchema)
+  submit(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.submit(id, user.id);
+  }
+
+  @Post('admin/:id/moderation')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Serialize(productSchema)
+  moderate(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: moderateProductSchema }) input: ModerateProductInput,
+  ) {
+    return this.productService.moderate(id, user.id, input);
+  }
+
+  @Post('admin/:id/suspend')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Serialize(productSchema)
+  suspend(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: suspendProductSchema }) input: SuspendProductInput,
+  ) {
+    return this.productService.suspend(id, user.id, input.reason);
   }
 
   @Get(':id')

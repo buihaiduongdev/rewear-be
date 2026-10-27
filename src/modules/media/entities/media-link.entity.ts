@@ -32,6 +32,9 @@ export class MediaLink extends BaseEntity {
   @Column({ type: 'enum', enum: MediaRole })
   role: MediaRole;
 
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  angle: string | null;
+
   @Column({ type: 'integer' })
   sortOrder: number;
 }

@@ -105,3 +105,14 @@ it checks request rejection, coercion, login ordering, HTTP status, response
 filtering and generated OpenAPI. It does not prove PostgreSQL or external-service
 integration. The HTTP contract suite also writes a temporary OpenAPI snapshot
 to `/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
+
+## Product drafts and moderation
+
+Product creation now saves incomplete drafts. Publishing requires submission and
+admin approval; seller status updates only hide/reactivate approved listings.
+Product responses include `coverUrl` and `mediaCount`. Draft fields can be null;
+regenerate API clients from `/api/docs-json` after switching to this backend.
+See [product lifecycle/API contract](docs/PRODUCT_LIFECYCLE.md) for routes,
+photo/measurement requirements, image retention and PostgreSQL test setup.
+Upload clients must send the returned `If-None-Match` header; configure bucket
+CORS to allow that header before testing direct uploads.

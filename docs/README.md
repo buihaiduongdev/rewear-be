@@ -7,17 +7,18 @@ tìm nhóm tính năng, mở đúng khu vực Figma và tra cứu mã nguồn, d
 
 ## Mục lục dự án
 
-| Nội dung                                  | Vị trí                                      |
-| ----------------------------------------- | ------------------------------------------- |
-| Cài đặt, chạy, kiểm thử và API contract   | [README dự án](../README.md)                |
-| Quy tắc làm việc và PR                    | [AGENT.md](../AGENT.md)                     |
-| Module nghiệp vụ                          | [src/modules](../src/modules)               |
-| Thành phần dùng chung                     | [src/common](../src/common)                 |
-| Tích hợp hạ tầng                          | [src/infrastructure](../src/infrastructure) |
-| Kiểm thử                                  | [test](../test)                             |
-| Danh mục diagram, source và ảnh tương ứng | [diagrams/README.md](diagrams/README.md)    |
-| Nhật ký hỗ trợ AI                         | [AI_USAGE_LOG.md](AI_USAGE_LOG.md)          |
-| Quyết định, kế hoạch và ghi chú tham khảo | [archive](#tài-liệu-lưu-trữ)                |
+| Nội dung                                  | Vị trí                                       |
+| ----------------------------------------- | -------------------------------------------- |
+| Cài đặt, chạy, kiểm thử và API contract   | [README dự án](../README.md)                 |
+| Quy tắc làm việc và PR                    | [AGENT.md](../AGENT.md)                      |
+| Product lifecycle và API mới              | [PRODUCT_LIFECYCLE.md](PRODUCT_LIFECYCLE.md) |
+| Module nghiệp vụ                          | [src/modules](../src/modules)                |
+| Thành phần dùng chung                     | [src/common](../src/common)                  |
+| Tích hợp hạ tầng                          | [src/infrastructure](../src/infrastructure)  |
+| Kiểm thử                                  | [test](../test)                              |
+| Danh mục diagram, source và ảnh tương ứng | [diagrams/README.md](diagrams/README.md)     |
+| Nhật ký hỗ trợ AI                         | [AI_USAGE_LOG.md](AI_USAGE_LOG.md)           |
+| Quyết định, kế hoạch và ghi chú tham khảo | [archive](#tài-liệu-lưu-trữ)                 |
 
 ## Tính năng và giao diện
 

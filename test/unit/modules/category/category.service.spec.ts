@@ -11,6 +11,7 @@ describe('CategoryService', () => {
     name: 'Áo khoác',
     slug: 'ao-khoac',
     isActive: true,
+    requiredMeasurements: [],
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -54,6 +55,7 @@ describe('CategoryService', () => {
       name: 'Áo khoác',
       slug: 'ao-khoac',
       isActive: true,
+      requiredMeasurements: [],
     });
   });
 

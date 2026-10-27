@@ -15,6 +15,9 @@ const productFilters = {
   shopId: z.uuid().optional(),
   sellerUserId: z.uuid().optional(),
   condition: z.enum(ProductCondition).optional(),
+  size: z.string().trim().min(1).max(50).optional(),
+  color: z.string().trim().min(1).max(50).optional(),
+  brand: z.string().trim().min(1).max(100).optional(),
   minPrice: queryPrice.optional(),
   maxPrice: queryPrice.optional(),
 };
