@@ -1,7 +1,10 @@
 import { AuthProvider } from '@/modules/auth/enums';
 import {
+  forgotPasswordSchema,
   loginSchema,
+  oauthLoginSchema,
   registerSchema,
+  resendVerificationSchema,
 } from '@/modules/auth/schemas/auth-input.schema';
 import {
   createCategorySchema,
@@ -25,9 +28,25 @@ import {
   createUserAddressSchema,
   updateUserAddressSchema,
 } from '@/modules/user-address/schemas/user-address-input.schema';
-import { updateUserSchema } from '@/modules/user/schemas/user-input.schema';
+import {
+  createUserSchema,
+  updateUserSchema,
+} from '@/modules/user/schemas/user-input.schema';
 
 describe('Request schema compatibility', () => {
+  it.each([registerSchema, createUserSchema, updateUserSchema])(
+    'trims full names before validating their length',
+    (schema) => {
+      const input = { email: 'an@example.com', password: 'Password123!' };
+      expect(schema.parse({ ...input, fullName: '  An  ' }).fullName).toBe(
+        'An',
+      );
+      expect(schema.safeParse({ ...input, fullName: '   ' }).success).toBe(
+        false,
+      );
+    },
+  );
+
   const id = '598745cf-8764-499a-ad43-e6223713ee90';
   const product = {
     categoryId: id,
@@ -35,6 +54,34 @@ describe('Request schema compatibility', () => {
     condition: ProductCondition.GOOD,
     price: 0,
   };
+
+  it.each([
+    ['register', registerSchema, { password: 'Password123!', fullName: 'An' }],
+    ['login', loginSchema, { password: 'Password123!' }],
+    ['forgot password', forgotPasswordSchema, {}],
+    ['resend verification', resendVerificationSchema, {}],
+    [
+      'create user',
+      createUserSchema,
+      { password: 'Password123!', fullName: 'An' },
+    ],
+    ['update user', updateUserSchema, {}],
+  ])('limits %s emails to 255 characters', (_, schema, input) => {
+    const email = `${'a'.repeat(64)}@${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(62)}`;
+    expect(email).toHaveLength(255);
+    expect(schema.safeParse({ ...input, email }).success).toBe(true);
+    const invalid = schema.safeParse({ ...input, email: `${email}e` });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ['email'],
+          code: 'too_big',
+          maximum: 255,
+        }),
+      ]),
+    );
+  });
 
   it('normalizes whitespace and keeps numeric boundaries without coercing body strings', () => {
     expect(createProductSchema.parse(product).title).toBe('Áo khoác');
@@ -165,7 +212,7 @@ describe('Request schema compatibility', () => {
       }).success,
     ).toBe(false);
     expect(
-      loginSchema.safeParse({ provider: AuthProvider.GOOGLE, token: {} })
+      oauthLoginSchema.safeParse({ provider: AuthProvider.GOOGLE, token: {} })
         .success,
     ).toBe(false);
   });

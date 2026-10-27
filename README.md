@@ -83,9 +83,15 @@ handling remains supported. Query validation now also uses the message array
 instead of the former generic `Validation failed` string. Error wording comes
 from the schema library and should not be used as a stable machine identifier.
 
-Login validates its body before selecting an authentication strategy because
-guards run before parameter pipes; its schema is also attached to the body for
-OpenAPI. Invalid/unknown login fields now return 400 before authentication.
+Credentials login uses `POST /api/auth/login` with required `{ email, password }`.
+OAuth uses `POST /api/auth/oauth` with required `{ provider, token }`; only `google`
+is currently supported. Existing clients must stop sending `provider` to login
+and move Google login requests to the OAuth endpoint. Both endpoints return the
+same token-pair envelope. The global validation pipe checks the route-specific
+body before the controller calls its strategy; OpenAPI documents the same
+required fields. Login and OAuth do not need separate guards. Credentials call
+`CredentialAuthStrategy` directly; `OAuthStrategyFactory` selects only OAuth
+strategies using a shared input contract, with no credentials/OAuth union or overloads.
 User management IDs now receive the same UUID validation as other resource IDs.
 
 Response serialization remains separate: `@Serialize(responseSchema)` filters

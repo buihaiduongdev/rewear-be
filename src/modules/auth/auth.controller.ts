@@ -1,23 +1,15 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, Serialize } from '@/common/decorators';
-import { User } from '@/modules/user/entities';
+import { Serialize } from '@/common/decorators';
 import { userSchema } from '@/modules/user/schemas';
 
 import { AuthService } from './auth.service';
-import { AuthLoginGuard } from './guards';
 import { messageSchema, tokenPairSchema } from './schemas';
 import {
   forgotPasswordSchema,
   loginSchema,
+  oauthLoginSchema,
   refreshTokenSchema,
   registerSchema,
   resendVerificationSchema,
@@ -27,17 +19,24 @@ import {
 import type {
   ForgotPasswordInput,
   LoginInput,
+  OAuthLoginInput,
   RefreshTokenInput,
   RegisterInput,
   ResendVerificationInput,
   ResetPasswordInput,
   VerifyEmailInput,
 } from './schemas/auth-input.schema';
+import { CredentialAuthStrategy } from './strategies/credential.strategy';
+import { OAuthStrategyFactory } from './strategies/oauth-strategy.factory';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly oauthStrategyFactory: OAuthStrategyFactory,
+    private readonly credentialStrategy: CredentialAuthStrategy,
+  ) {}
 
   @Post('register')
   @Serialize(userSchema, { status: HttpStatus.CREATED })
@@ -47,12 +46,19 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthLoginGuard)
   @Serialize(tokenPairSchema)
-  login(
-    @CurrentUser() user: User,
-    @Body({ schema: loginSchema }) _input: LoginInput,
-  ) {
+  async login(@Body({ schema: loginSchema }) input: LoginInput) {
+    const user = await this.credentialStrategy.validate(input);
+    return this.authService.login(user);
+  }
+
+  @Post('oauth')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(tokenPairSchema)
+  async oauth(@Body({ schema: oauthLoginSchema }) input: OAuthLoginInput) {
+    const user = await this.oauthStrategyFactory
+      .getStrategy(input.provider)
+      .validate(input);
     return this.authService.login(user);
   }
 

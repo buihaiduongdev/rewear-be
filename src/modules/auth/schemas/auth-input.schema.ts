@@ -1,20 +1,23 @@
 import z from 'zod';
 
-import { optionalInput } from '@/common/schemas/request.schema';
+import { emailSchema } from '@/common/schemas/request.schema';
 
 import { AuthProvider } from '../enums';
 
 export const registerSchema = z.strictObject({
-  email: z.email(),
+  email: emailSchema,
   password: z.string().min(8).max(72),
-  fullName: z.string().min(1).max(255),
+  fullName: z.string().trim().min(1).max(255),
 });
 
 export const loginSchema = z.strictObject({
-  provider: z.enum(AuthProvider),
-  email: optionalInput(z.email()),
-  password: optionalInput(z.string()),
-  token: optionalInput(z.string().describe('Google ID token')),
+  email: emailSchema,
+  password: z.string().min(8).max(72),
+});
+
+export const oauthLoginSchema = z.strictObject({
+  provider: z.literal(AuthProvider.GOOGLE),
+  token: z.string().min(1).describe('OAuth provider ID token'),
 });
 
 export const refreshTokenSchema = z.strictObject({
@@ -22,14 +25,15 @@ export const refreshTokenSchema = z.strictObject({
 });
 
 export const verifyEmailSchema = z.strictObject({ token: z.string().min(1) });
-export const resendVerificationSchema = z.strictObject({ email: z.email() });
-export const forgotPasswordSchema = z.strictObject({ email: z.email() });
+export const resendVerificationSchema = z.strictObject({ email: emailSchema });
+export const forgotPasswordSchema = z.strictObject({ email: emailSchema });
 export const resetPasswordSchema = z.strictObject({
   token: z.string().min(1),
   newPassword: z.string().min(8).max(72),
 });
 
 export type RegisterInput = z.output<typeof registerSchema>;
+export type OAuthLoginInput = z.output<typeof oauthLoginSchema>;
 export type LoginInput = z.output<typeof loginSchema>;
 export type RefreshTokenInput = z.output<typeof refreshTokenSchema>;
 export type VerifyEmailInput = z.output<typeof verifyEmailSchema>;

@@ -1,6 +1,7 @@
 import z from 'zod';
 
 export const uuidSchema = z.uuid();
+export const emailSchema = z.email().max(255);
 
 // Matches the existing Trim decorator without changing internal whitespace rules.
 export const trimmedTextSchema = z

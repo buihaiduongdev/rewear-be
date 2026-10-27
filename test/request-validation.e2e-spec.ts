@@ -16,12 +16,9 @@ import { AdministrativeDivisionService } from '@/modules/administrative-division
 import { AuthController } from '@/modules/auth/auth.controller';
 import { AuthService } from '@/modules/auth/auth.service';
 import { AuthProvider } from '@/modules/auth/enums';
-import {
-  AuthLoginGuard,
-  JwtAuthGuard,
-  RolesGuard,
-} from '@/modules/auth/guards';
-import { AuthStrategyFactory } from '@/modules/auth/strategies/auth-strategy';
+import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { CredentialAuthStrategy } from '@/modules/auth/strategies/credential.strategy';
+import { OAuthStrategyFactory } from '@/modules/auth/strategies/oauth-strategy.factory';
 import { CategoryController } from '@/modules/category/category.controller';
 import { CategoryService } from '@/modules/category/category.service';
 import { MediaController } from '@/modules/media/media.controller';
@@ -91,6 +88,7 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
   const shops = { create: jest.fn() };
   const media = { createUploadTicket: jest.fn() };
   const users = { create: jest.fn() };
+  const credentialStrategy = { validate: jest.fn().mockResolvedValue(user) };
   const strategy = { validate: jest.fn().mockResolvedValue(user) };
   const strategies = { getStrategy: jest.fn().mockReturnValue(strategy) };
 
@@ -116,8 +114,8 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
         { provide: ShopService, useValue: shops },
         { provide: MediaService, useValue: media },
         { provide: UserService, useValue: users },
-        { provide: AuthStrategyFactory, useValue: strategies },
-        AuthLoginGuard,
+        { provide: OAuthStrategyFactory, useValue: strategies },
+        { provide: CredentialAuthStrategy, useValue: credentialStrategy },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -150,6 +148,27 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
   afterAll(async () => {
     await app?.close();
   });
+
+  it.each(['register', 'login', 'forgot-password', 'resend-verification'])(
+    'rejects overlong emails at /auth/%s before calling the service',
+    async (route) => {
+      const result = await request(app.getHttpServer())
+        .post(`/api/auth/${route}`)
+        .send({
+          email: `${'a'.repeat(64)}@${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(63)}`,
+          ...(route === 'register'
+            ? { password: 'Password123!', fullName: 'An' }
+            : {}),
+          ...(route === 'login' ? { password: 'Password123!' } : {}),
+        })
+        .expect(400);
+      expect(result.body.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['email'], code: 'too_big' }),
+        ]),
+      );
+    },
+  );
 
   it.each([
     [
@@ -267,25 +286,54 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
     expect(categories.findOne).not.toHaveBeenCalled();
   });
 
-  it('validates login before selecting a strategy and keeps valid login at 200', async () => {
+  it('validates credentials before invoking their strategy and keeps login at 200', async () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ provider: 'UNKNOWN', token: {} })
       .expect(400);
     expect(strategies.getStrategy).not.toHaveBeenCalled();
+    expect(credentialStrategy.validate).not.toHaveBeenCalled();
     const result = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({
-        provider: AuthProvider.CREDENTIALS,
         email: user.email,
         password: '12345678',
       })
       .expect(200);
-    expect(strategy.validate).toHaveBeenCalledWith({
-      provider: AuthProvider.CREDENTIALS,
+    expect(strategies.getStrategy).not.toHaveBeenCalled();
+    expect(credentialStrategy.validate).toHaveBeenCalledWith({
       email: user.email,
       password: '12345678',
     });
+    expect(result.body.data.user).not.toHaveProperty('password');
+  });
+
+  it.each([
+    {},
+    { provider: 'google' },
+    { provider: 'google', token: '' },
+    { provider: 'facebook', token: 'token' },
+    { provider: 'credentials', token: 'token' },
+    { provider: 'google', token: 'token', password: 'Password123!' },
+  ])(
+    'rejects invalid OAuth body %j before choosing a strategy',
+    async (input) => {
+      await request(app.getHttpServer())
+        .post('/api/auth/oauth')
+        .send(input)
+        .expect(400);
+      expect(strategies.getStrategy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('authenticates Google through the shared OAuth endpoint', async () => {
+    const input = { provider: AuthProvider.GOOGLE, token: 'google-id-token' };
+    const result = await request(app.getHttpServer())
+      .post('/api/auth/oauth')
+      .send(input)
+      .expect(200);
+    expect(strategies.getStrategy).toHaveBeenCalledWith(AuthProvider.GOOGLE);
+    expect(strategy.validate).toHaveBeenCalledWith(input);
     expect(result.body.data.user).not.toHaveProperty('password');
   });
 
@@ -301,6 +349,14 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
       (document.paths[path] as Record<string, any>)[method].requestBody.content[
         'application/json'
       ].schema;
+    for (const path of [
+      '/api/auth/register',
+      '/api/auth/forgot-password',
+      '/api/auth/resend-verification',
+      '/api/users',
+    ]) {
+      expect(body(path).properties.email.maxLength).toBe(255);
+    }
     expect(body('/api/products')).toMatchObject({
       type: 'object',
       additionalProperties: false,
@@ -311,9 +367,16 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
         'price',
       ]),
     });
-    expect(body('/api/auth/login').properties.provider.enum).toContain(
-      AuthProvider.CREDENTIALS,
+    expect(body('/api/auth/login').required).toEqual(
+      expect.arrayContaining(['email', 'password']),
     );
+    expect(body('/api/auth/login').properties).not.toHaveProperty('provider');
+    expect(body('/api/auth/oauth').required).toEqual(
+      expect.arrayContaining(['provider', 'token']),
+    );
+    expect(body('/api/auth/oauth').properties.provider).toMatchObject({
+      enum: [AuthProvider.GOOGLE],
+    });
     expect(body('/api/products/{id}', 'patch').required ?? []).toEqual([]);
     expect(body('/api/products/{id}', 'patch').properties).not.toHaveProperty(
       'shopId',
