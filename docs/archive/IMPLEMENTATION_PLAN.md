@@ -117,11 +117,16 @@ Kiểm chứng: seller/staff ngoài quyền không duyệt được; chưa đủ
 
 ### PLAN-05 — Cart
 
-- [ ] Module cart, cart_items và entity cho synchronize dev; unique cartId + productId, không unique productId toàn hệ thống và không quantity.
-- [ ] Đề xuất API đọc giỏ, thêm item, xóa item; hỗ trợ chọn tập item để checkout mà không tự chọn hết giỏ.
-- [ ] Không giữ hàng lúc thêm; đọc giá/tình trạng hiện tại, nhóm hiển thị theo nguồn bán; BE vẫn tính lại khi checkout.
-- [ ] Chặn tự mua món cá nhân hoặc shop buyer sở hữu. Khi checkout, tự loại món hết khả dụng khỏi giỏ/lượt mua, báo rõ món bị loại; tiếp tục món hợp lệ.
-- [ ] Kiểm chứng nhiều buyer lưu cùng listing, request thêm trùng và truy cập cart của user khác.
+Cập nhật 28/10/2026: module cart/API và kiểm thử PostgreSQL đã được bổ sung trên
+branch `feat/cart`; xem [contract và giới hạn](../CART.md). Chọn tập item thực hiện
+ở client; loại item hết khả dụng trong transaction vẫn thuộc checkout PLAN-06.
+
+- [x] Module cart, cart_items và entity cho synchronize dev; unique cartId + productId, không unique productId toàn hệ thống và không quantity.
+- [x] API đọc giỏ, thêm item, xóa item; hỗ trợ chọn tập item để checkout mà không tự chọn hết giỏ.
+- [x] Không giữ hàng lúc thêm; đọc giá/tình trạng hiện tại, nhóm hiển thị theo nguồn bán; BE vẫn tính lại khi checkout.
+- [x] Chặn thêm món cá nhân hoặc shop buyer sở hữu vào giỏ.
+- [ ] Khi checkout, tự loại món hết khả dụng khỏi giỏ/lượt mua, báo rõ món bị loại; tiếp tục món hợp lệ.
+- [x] Kiểm chứng nhiều buyer lưu cùng listing, request thêm trùng và truy cập cart của user khác.
 
 ### PLAN-06 — Checkout và Order
 

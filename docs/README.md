@@ -13,6 +13,7 @@ tìm nhóm tính năng, mở đúng khu vực Figma và tra cứu mã nguồn, d
 | Quy tắc làm việc và PR                    | [AGENT.md](../AGENT.md)                      |
 | Product lifecycle và API mới              | [PRODUCT_LIFECYCLE.md](PRODUCT_LIFECYCLE.md) |
 | Seed và factory cho dev/E2E               | [SEEDING.md](SEEDING.md)                     |
+| Giỏ hàng và API cart                      | [CART.md](CART.md)                           |
 | Module nghiệp vụ                          | [src/modules](../src/modules)                |
 | Thành phần dùng chung                     | [src/common](../src/common)                  |
 | Tích hợp hạ tầng                          | [src/infrastructure](../src/infrastructure)  |
