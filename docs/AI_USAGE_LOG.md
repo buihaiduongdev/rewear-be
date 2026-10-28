@@ -396,3 +396,10 @@
 - **Kiểm chứng:** Node 24.19.0; lint/format/typecheck/build đạt, 104 unit test và 75 HTTP/PostgreSQL test đạt, bao gồm 24 ca cart. Cart suite chạy trên database riêng rewear_cart_test ở cổng 55439; regression product/seed dùng hai database riêng cùng cluster. Các bài test dùng test identity guard thay JWT, còn controller/module/TypeORM/validation/serialization thực thi thật. Orval sinh Axios functions, React Query v5 và Zod từ cart OpenAPI; TypeScript check client sinh trong thư mục tạm đạt.
 - **Giới hạn:** Chưa có checkout/reservation/payment, chưa kiểm chứng trình duyệt FE–BE hoặc JWT end-to-end. Chưa chạy migration/reset hay seed database dev. PR cart nối tiếp product/seed #18; Home FE có PR riêng. Staff policy giữ phạm vi hiện tại; không tự mở rộng quy tắc mua của staff.
 - **Minh chứng:** Worktree rewear-be-cart, branch feat/cart từ 422401a; docs/CART.md, test/cart.e2e-spec.ts; OpenAPI tạm /tmp/rewear-cart-openapi.json. Kiểm tra trước PR chạy lại format/lint/typecheck/build, 104 unit test và 75 HTTP/PostgreSQL test trên ba database test riêng.
+
+### 2026-10-28 — Làm rõ nguồn đặc tả cho session tiếp theo
+
+- **Công cụ:** Codex.
+- **Yêu cầu:** Lưu link Báo cáo Google Docs trong docs để session khác không cần người dùng gửi lại URL.
+- **Phần AI hỗ trợ:** Đưa liên kết đã có trong docs/README.md thành mục Nguồn đặc tả riêng, ghi rõ tab t.0 và cách đối chiếu quyết định/code. Không sửa nội dung Google Docs hoặc nghiệp vụ ứng dụng.
+- **Kiểm chứng:** Kiểm tra nguyên URL theo yêu cầu, Prettier và git diff --check; không chạy lại test ứng dụng vì chỉ thay đổi Markdown.

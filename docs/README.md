@@ -2,8 +2,14 @@
 
 Sàn mua bán thời trang secondhand. Tài liệu này là điểm vào cho developer/agent:
 tìm nhóm tính năng, mở đúng khu vực Figma và tra cứu mã nguồn, diagram.
-Đặc tả chi tiết và phần trình bày giao diện nằm trong
-[Báo cáo](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0).
+
+## Nguồn đặc tả
+
+[Báo cáo Re.wear — Google Docs, tab t.0](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0)
+là tài liệu đặc tả nghiệp vụ và trình bày giao diện. Session mới dùng liên kết này
+để đọc nguồn khi cần đối chiếu yêu cầu; không cần yêu cầu người dùng gửi lại URL.
+Đối chiếu thêm quyết định trong `archive/` và code hiện tại trước khi triển khai;
+phạm vi thiết kế không đồng nghĩa tính năng đã hoàn thành.
 
 ## Mục lục dự án
 
