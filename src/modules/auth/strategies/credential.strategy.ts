@@ -12,7 +12,7 @@ import type { AuthStrategy } from '../interfaces/auth-strategy.interface';
 import type { LoginInput } from '../schemas/auth-input.schema';
 
 @Injectable()
-export class CredentialAuthStrategy implements AuthStrategy {
+export class CredentialAuthStrategy implements AuthStrategy<LoginInput> {
   constructor(private readonly userService: UserService) {}
 
   async validate({ email, password }: LoginInput): Promise<User> {

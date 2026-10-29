@@ -12,10 +12,10 @@ import { UserModule } from '@/modules/user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthToken, RefreshToken } from './entities';
-import { AuthStrategyFactory } from './strategies/auth-strategy';
 import { CredentialAuthStrategy } from './strategies/credential.strategy';
 import { GoogleAuthStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { OAuthStrategyFactory } from './strategies/oauth-strategy.factory';
 
 @Module({
   imports: [
@@ -37,7 +37,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [
     AuthService,
     JwtStrategy,
-    AuthStrategyFactory,
+    OAuthStrategyFactory,
     CredentialAuthStrategy,
     GoogleAuthStrategy,
   ],

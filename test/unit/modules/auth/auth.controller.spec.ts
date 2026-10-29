@@ -11,6 +11,8 @@ import type {
   ResetPasswordInput,
   VerifyEmailInput,
 } from '@/modules/auth/schemas/auth-input.schema';
+import type { CredentialAuthStrategy } from '@/modules/auth/strategies/credential.strategy';
+import type { OAuthStrategyFactory } from '@/modules/auth/strategies/oauth-strategy.factory';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -22,9 +24,6 @@ jest.mock('@nestjs/swagger', () => ({
 }));
 jest.mock('@/modules/auth/auth.service', () => ({
   AuthService: class AuthService {},
-}));
-jest.mock('@/modules/auth/guards', () => ({
-  AuthLoginGuard: class AuthLoginGuard {},
 }));
 
 describe('AuthController', () => {
@@ -75,10 +74,20 @@ describe('AuthController', () => {
     forgotPassword: jest.fn(),
     resetPassword: jest.fn(),
   };
-  const controller = new AuthController(authService as unknown as AuthService);
+  const credentialStrategy = { validate: jest.fn() };
+  const strategy = { validate: jest.fn() };
+  const strategyFactory = { getStrategy: jest.fn() };
+  const controller = new AuthController(
+    authService as unknown as AuthService,
+    strategyFactory as unknown as OAuthStrategyFactory,
+    credentialStrategy as unknown as CredentialAuthStrategy,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
+    strategy.validate.mockResolvedValue(user);
+    credentialStrategy.validate.mockResolvedValue(user);
+    strategyFactory.getStrategy.mockReturnValue(strategy);
   });
 
   describe('POST /auth/register', () => {
@@ -106,7 +115,6 @@ describe('AuthController', () => {
 
   describe('POST /auth/login', () => {
     const input = {
-      provider: AuthProvider.CREDENTIALS,
       email: user.email,
       password: '12345678',
     };
@@ -114,7 +122,9 @@ describe('AuthController', () => {
     it('returns a token pair for the authenticated user', async () => {
       authService.login.mockResolvedValueOnce(tokenPair);
 
-      await expect(controller.login(user, input)).resolves.toEqual(tokenPair);
+      await expect(controller.login(input)).resolves.toEqual(tokenPair);
+      expect(credentialStrategy.validate).toHaveBeenCalledWith(input);
+      expect(strategyFactory.getStrategy).not.toHaveBeenCalled();
       expect(authService.login).toHaveBeenCalledWith(user);
     });
 
@@ -122,7 +132,24 @@ describe('AuthController', () => {
       const error = new UnauthorizedException('Unable to login');
       authService.login.mockRejectedValueOnce(error);
 
-      await expect(controller.login(user, input)).rejects.toBe(error);
+      await expect(controller.login(input)).rejects.toBe(error);
+      expect(authService.login).toHaveBeenCalledWith(user);
+    });
+  });
+
+  describe('POST /auth/oauth', () => {
+    it('returns a token pair using the same login service', async () => {
+      authService.login.mockResolvedValueOnce(tokenPair);
+      await expect(
+        controller.oauth({
+          provider: AuthProvider.GOOGLE,
+          token: 'google-id-token',
+        }),
+      ).resolves.toEqual(tokenPair);
+      expect(strategyFactory.getStrategy).toHaveBeenCalledWith(
+        AuthProvider.GOOGLE,
+      );
+      expect(credentialStrategy.validate).not.toHaveBeenCalled();
       expect(authService.login).toHaveBeenCalledWith(user);
     });
   });

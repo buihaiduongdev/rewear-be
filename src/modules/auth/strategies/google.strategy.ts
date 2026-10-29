@@ -11,10 +11,10 @@ import { AUTH_ERROR_CODE } from '../constants';
 import { AuthProvider } from '../enums';
 import { authError } from '../errors/auth.error';
 import type { AuthStrategy } from '../interfaces/auth-strategy.interface';
-import type { LoginInput } from '../schemas/auth-input.schema';
+import type { OAuthLoginInput } from '../schemas/auth-input.schema';
 
 @Injectable()
-export class GoogleAuthStrategy implements AuthStrategy {
+export class GoogleAuthStrategy implements AuthStrategy<OAuthLoginInput> {
   private readonly client: OAuth2Client;
 
   constructor(
@@ -24,7 +24,7 @@ export class GoogleAuthStrategy implements AuthStrategy {
     this.client = new OAuth2Client(this.configService.auth.googleClientId);
   }
 
-  async validate({ token: idToken }: LoginInput): Promise<User> {
+  async validate({ token: idToken }: OAuthLoginInput): Promise<User> {
     if (!idToken) {
       throw new UnauthorizedException('Google ID token is required');
     }

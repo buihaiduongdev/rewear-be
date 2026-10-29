@@ -355,3 +355,13 @@
 - **Giới hạn:** Thay đổi chỉ gồm tài liệu; không xác nhận hoàn thiện các luồng nghiệp vụ hoặc tích hợp bên ngoài. Không ghi nhận người thực hiện tự kiểm tra toàn bộ diff.
 - **Kiểm tra trước amend:** pnpm check đạt trên Node 24.19.0 (Oxlint, Prettier, typecheck và build); không chạy lại test ứng dụng vì chỉ thay đổi tài liệu.
 - **Minh chứng:** docs/README.md, docs/archive, README.md, các README diagram và PR #16.
+
+### 2026-10-27 — Rà soát và chuẩn bị PR contract đăng nhập cho Orval
+
+- **Công cụ:** Codex, Git và GitHub CLI.
+- **Prompt chính:** Kiểm tra lịch sử PR backend và tạo PR cho phần auth cleanup đang có trong working tree.
+- **Phần người thực hiện quyết định:** Yêu cầu đưa diff auth hiện có lên PR riêng trước khi tiếp tục các hạng mục backend trong kế hoạch; frontend đã chuyển sang các endpoint credentials/OAuth riêng.
+- **Đầu ra AI được sử dụng:** Rà soát diff tách `POST /auth/login` với `{ email, password }` và `POST /auth/oauth` với `{ provider, token }`; credentials gọi strategy trực tiếp, OAuth chọn strategy qua factory riêng, bỏ login guard và factory chung cũ. Đối chiếu schema/OpenAPI, trim tên trước validation, giới hạn email 255 ký tự, README và các test liên quan; chuẩn bị commit và mô tả PR. Không thay đổi payment, checkout, database schema hoặc chạy migration.
+- **Kiểm chứng:** Trên Node 24.19.0, `pnpm check` pass (Oxlint, Prettier, TypeScript và Nest build); `pnpm test --runInBand` pass 12 suites/99 tests; `pnpm test:e2e --runInBand` pass 1 suite/29 tests. Prettier kiểm tra README/AI Usage Log và `git diff --check` đều pass.
+- **Giới hạn:** HTTP contract test dùng controller thật nhưng mock strategy/service, không chứng minh đăng nhập với PostgreSQL hoặc xác minh Google token thật. Chưa kiểm chứng SMTP và E2E frontend/backend; không xác nhận người thực hiện đã tự review toàn bộ diff.
+- **Minh chứng:** Branch `refactor/auth-orval-cleanup`; mục này được liên kết trong phần AI assistance của PR tương ứng.

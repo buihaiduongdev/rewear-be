@@ -2,20 +2,17 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { AuthProvider } from '../enums';
 import type { AuthStrategy } from '../interfaces/auth-strategy.interface';
-import { CredentialAuthStrategy } from './credential.strategy';
+import type { OAuthLoginInput } from '../schemas/auth-input.schema';
 import { GoogleAuthStrategy } from './google.strategy';
 
 @Injectable()
-export class AuthStrategyFactory {
-  constructor(
-    private readonly credentialStrategy: CredentialAuthStrategy,
-    private readonly googleStrategy: GoogleAuthStrategy,
-  ) {}
+export class OAuthStrategyFactory {
+  constructor(private readonly googleStrategy: GoogleAuthStrategy) {}
 
-  getStrategy(provider: AuthProvider): AuthStrategy {
+  getStrategy(
+    provider: OAuthLoginInput['provider'],
+  ): AuthStrategy<OAuthLoginInput> {
     switch (provider) {
-      case AuthProvider.CREDENTIALS:
-        return this.credentialStrategy;
       case AuthProvider.GOOGLE:
         return this.googleStrategy;
       default:
