@@ -98,6 +98,10 @@ export class Product extends BaseEntity {
   @Column({ type: 'timestamptz', nullable: true })
   publishedAt: Date | null;
 
+  @Index('IDX_products_reservation')
+  @Column({ type: 'uuid', nullable: true })
+  reservationId: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   heldUntil: Date | null;
 
