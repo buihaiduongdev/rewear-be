@@ -47,6 +47,7 @@ export class CategoryService {
         name,
         slug,
         isActive: input.isActive ?? true,
+        requiredMeasurements: input.requiredMeasurements ?? [],
       }),
     );
   }
@@ -62,6 +63,8 @@ export class CategoryService {
         category.slug = slug;
       }
     }
+    if (input.requiredMeasurements !== undefined)
+      category.requiredMeasurements = input.requiredMeasurements;
     if (input.isActive !== undefined) category.isActive = input.isActive;
 
     return this.categoryRepository.save(category);

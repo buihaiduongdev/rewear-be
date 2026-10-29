@@ -82,7 +82,11 @@ describe('MediaService', () => {
   };
   const productService = {
     findOne: jest.fn(),
+    findPublishedMedia: jest.fn(),
     findOneForManagement: jest.fn(),
+    assertEditable: jest.fn(),
+    lockForManagement: jest.fn(),
+    markContentChanged: jest.fn(),
   };
   const storageService = {
     createUploadTicket: jest.fn(),
@@ -123,18 +127,12 @@ describe('MediaService', () => {
 
   it('returns ordered media only after the public product lookup succeeds', async () => {
     const cover = makeLink(mediaId, MediaRole.COVER, 0);
-    mediaLinkRepository.find.mockResolvedValueOnce([cover]);
+    productService.findPublishedMedia.mockResolvedValueOnce([cover]);
 
     await expect(service.findAll(productId)).resolves.toEqual([
       expect.objectContaining({ id: mediaId, role: MediaRole.COVER }),
     ]);
     expect(productService.findOne).toHaveBeenCalledWith(productId);
-    expect(mediaLinkRepository.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { ownerType: MediaOwnerType.PRODUCT, ownerId: productId },
-        order: { sortOrder: 'ASC', createdAt: 'ASC' },
-      }),
-    );
   });
 
   it('creates a short-lived upload ticket for valid image metadata', async () => {
@@ -204,7 +202,7 @@ describe('MediaService', () => {
     );
   });
 
-  it('rejects and deletes an object whose stored metadata does not match', async () => {
+  it('rejects mismatched metadata without deleting an object another confirm may use', async () => {
     storageService.getObjectMetadata.mockResolvedValueOnce({
       contentType: 'image/png',
       sizeBytes: 1024,
@@ -217,11 +215,11 @@ describe('MediaService', () => {
         sizeBytes: 1024,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(storageService.delete).toHaveBeenCalledWith(storageKey);
+    expect(storageService.delete).not.toHaveBeenCalled();
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
-  it('deletes an uploaded object when the product reaches its media limit', async () => {
+  it('retains an uploaded object for retry when the product reaches its media limit', async () => {
     manager.count.mockResolvedValueOnce(10);
 
     await expect(
@@ -231,7 +229,7 @@ describe('MediaService', () => {
         sizeBytes: 1024,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(storageService.delete).toHaveBeenCalledWith(storageKey);
+    expect(storageService.delete).not.toHaveBeenCalled();
   });
 
   it('does not delete an object when the same upload is confirmed twice', async () => {
@@ -272,7 +270,8 @@ describe('MediaService', () => {
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),
     );
-    expect(manager.remove).toHaveBeenNthCalledWith(2, cover.media);
+    expect(cover.media.retiredAt).toBeInstanceOf(Date);
+    expect(manager.save).toHaveBeenCalledWith(cover.media);
     expect(storageService.delete).toHaveBeenCalledWith(cover.media.storageKey);
   });
 

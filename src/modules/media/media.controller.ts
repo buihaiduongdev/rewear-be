@@ -28,11 +28,13 @@ import {
   confirmMediaUploadSchema,
   createMediaUploadTicketSchema,
   reorderMediaSchema,
+  updateMediaMetadataSchema,
 } from './schemas/media-input.schema';
 import type {
   ConfirmMediaUploadInput,
   CreateMediaUploadTicketInput,
   ReorderMediaInput,
+  UpdateMediaMetadataInput,
 } from './schemas/media-input.schema';
 
 @ApiTags('Product media')
@@ -46,6 +48,31 @@ export class MediaController {
     @Param('productId', { schema: uuidSchema }) productId: string,
   ): Promise<ProductMediaView[]> {
     return this.mediaService.findAll(productId);
+  }
+
+  @Get('manage')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(mediaListSchema)
+  findForManagement(
+    @CurrentUser() user: User,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+  ) {
+    return this.mediaService.findForManagement(productId, user.id);
+  }
+
+  @Patch(':mediaId/metadata')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(mediaSchema)
+  updateMetadata(
+    @CurrentUser() user: User,
+    @Param('productId', { schema: uuidSchema }) productId: string,
+    @Param('mediaId', { schema: uuidSchema }) mediaId: string,
+    @Body({ schema: updateMediaMetadataSchema })
+    input: UpdateMediaMetadataInput,
+  ) {
+    return this.mediaService.updateMetadata(productId, mediaId, user.id, input);
   }
 
   @Post('upload-ticket')

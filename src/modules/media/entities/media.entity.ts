@@ -35,6 +35,12 @@ export class Media extends BaseEntity {
   @Column({ length: 100 })
   mimeType: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  eTag: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  retiredAt: Date | null;
+
   @Column({ type: 'integer' })
   sizeBytes: number;
 

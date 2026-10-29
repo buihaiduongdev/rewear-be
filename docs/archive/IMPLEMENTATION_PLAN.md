@@ -94,6 +94,11 @@ Người thực hiện xác nhận DB dev trống; tiếp tục synchronize, ch�
 
 ### PLAN-04 — Product moderation, tình trạng và media
 
+Cập nhật triển khai 27/10/2026: xem [Product lifecycle](../PRODUCT_LIFECYCLE.md)
+cho contract, quy tắc đã xác nhận và kiểm thử PostgreSQL. Checklist dưới đây giữ
+lịch sử đề xuất; quy tắc lưu giữ dài hạn, quyền staff và liên kết Order vẫn cần
+hoàn thiện theo các module tương ứng.
+
 Chia thành hai PR: dữ liệu tình trạng/ảnh; workflow kiểm duyệt và khóa chỉnh sửa. Phương án enum sơ bộ: giữ DRAFT, ACTIVE, HIDDEN, HELD, SOLD; bổ sung PENDING_REVIEW/REJECTED và trạng thái sau xử lý vi phạm theo quyết định. Không tái sử dụng HIDDEN cho mọi nguyên nhân mà làm seller mở lại tin đã bị admin chặn.
 
 - [ ] Khai báo tình trạng theo bốn mức, số đo theo loại đồ, sửa chữa và danh sách khuyết điểm; mỗi khuyết điểm có thể gắn ảnh cụ thể.

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import type {
@@ -17,7 +17,6 @@ import type {
   UploadTicket,
 } from '@/infrastructure/storage';
 import { ConfigService } from '@/modules/config';
-import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
 
 import { Media, MediaLink } from './entities';
@@ -26,6 +25,7 @@ import type {
   ConfirmMediaUploadInput,
   CreateMediaUploadTicketInput,
   ReorderMediaInput,
+  UpdateMediaMetadataInput,
 } from './schemas/media-input.schema';
 
 const MAX_PRODUCT_MEDIA = 10;
@@ -46,6 +46,7 @@ export interface ProductMediaView {
   mimeType: string;
   sizeBytes: number;
   role: MediaRole;
+  angle: string | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -65,12 +66,50 @@ export class MediaService {
   ) {}
 
   async findAll(productId: string): Promise<ProductMediaView[]> {
-    await this.productService.findOne(productId);
-    const links = await this.findProductLinks(
-      this.mediaLinkRepository,
-      productId,
-    );
+    const product = await this.productService.findOne(productId);
+    const links = await this.productService.findPublishedMedia(product);
     return links.map((link) => this.toView(link));
+  }
+
+  async findForManagement(
+    productId: string,
+    userId: string,
+  ): Promise<ProductMediaView[]> {
+    await this.productService.findOneForManagement(productId, userId);
+    return (
+      await this.findProductLinks(this.mediaLinkRepository, productId)
+    ).map((link) => this.toView(link));
+  }
+
+  async updateMetadata(
+    productId: string,
+    mediaId: string,
+    userId: string,
+    input: UpdateMediaMetadataInput,
+  ): Promise<ProductMediaView> {
+    return this.dataSource.transaction(async (manager) => {
+      const product = await this.productService.lockForManagement(
+        manager,
+        productId,
+        userId,
+      );
+      this.productService.assertEditable(product);
+      const link = await manager.findOne(MediaLink, {
+        where: {
+          ownerType: MediaOwnerType.PRODUCT,
+          ownerId: productId,
+          mediaId,
+        },
+        relations: { media: true },
+      });
+      if (!link) throw new NotFoundException('Product media not found');
+      if (link.angle !== input.angle) {
+        await this.productService.markContentChanged(manager, product);
+        link.angle = input.angle;
+        await manager.save(link);
+      }
+      return this.toView(link);
+    });
   }
 
   async createUploadTicket(
@@ -78,7 +117,11 @@ export class MediaService {
     currentUserId: string,
     input: CreateMediaUploadTicketInput,
   ): Promise<UploadTicket> {
-    await this.productService.findOneForManagement(productId, currentUserId);
+    const managedProduct = await this.productService.findOneForManagement(
+      productId,
+      currentUserId,
+    );
+    this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
       input.mimeType,
       input.sizeBytes,
@@ -102,61 +145,66 @@ export class MediaService {
     currentUserId: string,
     input: ConfirmMediaUploadInput,
   ): Promise<ProductMediaView> {
-    await this.productService.findOneForManagement(productId, currentUserId);
+    const managedProduct = await this.productService.findOneForManagement(
+      productId,
+      currentUserId,
+    );
+    this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
       input.mimeType,
       input.sizeBytes,
     );
     this.validateStorageKey(productId, input.storageKey, mimeType);
-    await this.validateStoredObject(
+    const metadata = await this.validateStoredObject(
       input.storageKey,
       mimeType,
       input.sizeBytes,
     );
 
-    try {
-      const link = await this.dataSource.transaction(async (manager) => {
-        await this.lockProduct(manager, productId);
-        const existingMedia = await manager.findOne(Media, {
-          where: { storageKey: input.storageKey },
-          select: { id: true },
-        });
-        if (existingMedia) {
-          throw new ConflictException('Uploaded object is already confirmed');
-        }
-        const existingCount = await manager.count(MediaLink, {
-          where: { ownerType: MediaOwnerType.PRODUCT, ownerId: productId },
-        });
-        this.assertMediaCapacity(existingCount);
-
-        const media = await manager.save(
-          manager.create(Media, {
-            uploadedById: currentUserId,
-            storageKey: input.storageKey,
-            url: this.storageService.getPublicUrl(input.storageKey),
-            mediaType: MediaType.IMAGE,
-            mimeType,
-            sizeBytes: input.sizeBytes,
-          }),
-        );
-        return manager.save(
-          manager.create(MediaLink, {
-            media,
-            mediaId: media.id,
-            ownerType: MediaOwnerType.PRODUCT,
-            ownerId: productId,
-            role: existingCount === 0 ? MediaRole.COVER : MediaRole.GALLERY,
-            sortOrder: existingCount,
-          }),
-        );
+    const link = await this.dataSource.transaction(async (manager) => {
+      const product = await this.productService.lockForManagement(
+        manager,
+        productId,
+        currentUserId,
+      );
+      await this.productService.markContentChanged(manager, product);
+      const existingMedia = await manager.findOne(Media, {
+        where: { storageKey: input.storageKey },
+        select: { id: true },
       });
-      return this.toView(link);
-    } catch (error) {
-      if (!(error instanceof ConflictException)) {
-        await this.deleteStoredObject(input.storageKey);
+      if (existingMedia) {
+        throw new ConflictException('Uploaded object is already confirmed');
       }
-      throw error;
-    }
+      const existingCount = await manager.count(MediaLink, {
+        where: { ownerType: MediaOwnerType.PRODUCT, ownerId: productId },
+      });
+      this.assertMediaCapacity(existingCount);
+
+      const media = await manager.save(
+        manager.create(Media, {
+          uploadedById: currentUserId,
+          storageKey: input.storageKey,
+          url: this.storageService.getPublicUrl(input.storageKey),
+          mediaType: MediaType.IMAGE,
+          mimeType,
+          sizeBytes: input.sizeBytes,
+          eTag: metadata.eTag ?? null,
+          retiredAt: null,
+        }),
+      );
+      return manager.save(
+        manager.create(MediaLink, {
+          media,
+          mediaId: media.id,
+          ownerType: MediaOwnerType.PRODUCT,
+          ownerId: productId,
+          role: existingCount === 0 ? MediaRole.COVER : MediaRole.GALLERY,
+          sortOrder: existingCount,
+          angle: input.angle ?? null,
+        }),
+      );
+    });
+    return this.toView(link);
   }
 
   async reorder(
@@ -164,9 +212,18 @@ export class MediaService {
     currentUserId: string,
     input: ReorderMediaInput,
   ): Promise<ProductMediaView[]> {
-    await this.productService.findOneForManagement(productId, currentUserId);
+    const managedProduct = await this.productService.findOneForManagement(
+      productId,
+      currentUserId,
+    );
+    this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      await this.lockProduct(manager, productId);
+      const product = await this.productService.lockForManagement(
+        manager,
+        productId,
+        currentUserId,
+      );
+      this.productService.assertEditable(product);
       const links = await this.findProductLinks(
         manager.getRepository(MediaLink),
         productId,
@@ -174,6 +231,7 @@ export class MediaService {
       const currentIds = new Set(links.map(({ mediaId }) => mediaId));
       if (
         input.mediaIds.length !== links.length ||
+        new Set(input.mediaIds).size !== input.mediaIds.length ||
         input.mediaIds.some((id) => !currentIds.has(id))
       ) {
         throw new BadRequestException(
@@ -181,6 +239,9 @@ export class MediaService {
         );
       }
 
+      if (links.every((link, index) => link.mediaId === input.mediaIds[index]))
+        return links.map((link) => this.toView(link));
+      await this.productService.markContentChanged(manager, product);
       const byMediaId = new Map(links.map((link) => [link.mediaId, link]));
       const ordered = input.mediaIds.map((mediaId, sortOrder) => {
         const link = byMediaId.get(mediaId) as MediaLink;
@@ -197,9 +258,18 @@ export class MediaService {
     mediaId: string,
     currentUserId: string,
   ): Promise<ProductMediaView> {
-    await this.productService.findOneForManagement(productId, currentUserId);
+    const managedProduct = await this.productService.findOneForManagement(
+      productId,
+      currentUserId,
+    );
+    this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      await this.lockProduct(manager, productId);
+      const product = await this.productService.lockForManagement(
+        manager,
+        productId,
+        currentUserId,
+      );
+      this.productService.assertEditable(product);
       const links = await this.findProductLinks(
         manager.getRepository(MediaLink),
         productId,
@@ -208,6 +278,7 @@ export class MediaService {
       if (!target) throw new NotFoundException('Product media not found');
       if (target.role === MediaRole.COVER) return this.toView(target);
 
+      await this.productService.markContentChanged(manager, product);
       const currentCover = links.find((link) => link.role === MediaRole.COVER);
       if (currentCover) {
         currentCover.role = MediaRole.GALLERY;
@@ -224,9 +295,18 @@ export class MediaService {
     mediaId: string,
     currentUserId: string,
   ): Promise<void> {
-    await this.productService.findOneForManagement(productId, currentUserId);
+    const managedProduct = await this.productService.findOneForManagement(
+      productId,
+      currentUserId,
+    );
+    this.productService.assertEditable(managedProduct);
     const storageKey = await this.dataSource.transaction(async (manager) => {
-      await this.lockProduct(manager, productId);
+      const product = await this.productService.lockForManagement(
+        manager,
+        productId,
+        currentUserId,
+      );
+      await this.productService.markContentChanged(manager, product);
       const links = await this.findProductLinks(
         manager.getRepository(MediaLink),
         productId,
@@ -252,7 +332,8 @@ export class MediaService {
         where: { mediaId },
       });
       if (otherLinkCount > 0) return null;
-      await manager.remove(target.media);
+      target.media.retiredAt = new Date();
+      await manager.save(target.media);
       return target.media.storageKey;
     });
 
@@ -267,17 +348,6 @@ export class MediaService {
       where: { ownerType: MediaOwnerType.PRODUCT, ownerId: productId },
       relations: { media: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
-    });
-  }
-
-  private async lockProduct(
-    manager: EntityManager,
-    productId: string,
-  ): Promise<void> {
-    await manager.findOneOrFail(Product, {
-      where: { id: productId },
-      select: { id: true },
-      lock: { mode: 'pessimistic_write' },
     });
   }
 
@@ -322,7 +392,7 @@ export class MediaService {
     storageKey: string,
     mimeType: string,
     sizeBytes: number,
-  ): Promise<void> {
+  ): Promise<StoredObjectMetadata> {
     let metadata: StoredObjectMetadata;
     try {
       metadata = await this.storageService.getObjectMetadata(storageKey);
@@ -344,11 +414,11 @@ export class MediaService {
       metadata.contentType?.toLowerCase() !== mimeType ||
       metadata.sizeBytes !== sizeBytes
     ) {
-      await this.deleteStoredObject(storageKey);
       throw new BadRequestException(
         'Uploaded object metadata does not match the upload request',
       );
     }
+    return metadata;
   }
 
   private toView(link: MediaLink): ProductMediaView {
@@ -359,6 +429,7 @@ export class MediaService {
       mimeType: link.media.mimeType,
       sizeBytes: link.media.sizeBytes,
       role: link.role,
+      angle: link.angle ?? null,
       sortOrder: link.sortOrder,
       createdAt: link.media.createdAt,
       updatedAt: link.media.updatedAt,

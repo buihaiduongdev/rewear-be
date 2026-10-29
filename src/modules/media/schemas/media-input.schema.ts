@@ -5,8 +5,21 @@ export const createMediaUploadTicketSchema = z.strictObject({
   sizeBytes: z.number().int().min(1),
 });
 
+export const mediaAngleSchema = z.enum([
+  'FRONT',
+  'BACK',
+  'LABEL',
+  'DETAIL',
+  'DEFECT',
+]);
+
+export const updateMediaMetadataSchema = z.strictObject({
+  angle: mediaAngleSchema.nullable(),
+});
+
 export const confirmMediaUploadSchema = createMediaUploadTicketSchema.extend({
   storageKey: z.string().max(512),
+  angle: mediaAngleSchema.nullish(),
 });
 
 export const reorderMediaSchema = z.strictObject({
@@ -24,3 +37,7 @@ export type CreateMediaUploadTicketInput = z.output<
 >;
 export type ConfirmMediaUploadInput = z.output<typeof confirmMediaUploadSchema>;
 export type ReorderMediaInput = z.output<typeof reorderMediaSchema>;
+
+export type UpdateMediaMetadataInput = z.output<
+  typeof updateMediaMetadataSchema
+>;

@@ -1,5 +1,8 @@
 export enum ProductStatus {
   DRAFT = 'DRAFT',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  REJECTED = 'REJECTED',
+  SUSPENDED = 'SUSPENDED',
   ACTIVE = 'ACTIVE',
   HELD = 'HELD',
   SOLD = 'SOLD',

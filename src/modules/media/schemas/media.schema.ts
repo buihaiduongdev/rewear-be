@@ -11,6 +11,7 @@ export const mediaSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int().nonnegative(),
   role: z.enum(MediaRole),
+  angle: z.string().nullable(),
   sortOrder: z.number().int().nonnegative(),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,

@@ -53,6 +53,7 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
     name: 'Áo',
     slug: 'ao',
     isActive: true,
+    requiredMeasurements: [],
     createdAt: now,
     updatedAt: now,
     internalSecret: 'private',
@@ -360,13 +361,8 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
     expect(body('/api/products')).toMatchObject({
       type: 'object',
       additionalProperties: false,
-      required: expect.arrayContaining([
-        'categoryId',
-        'title',
-        'condition',
-        'price',
-      ]),
     });
+    expect(body('/api/products').required ?? []).toEqual([]);
     expect(body('/api/auth/login').required).toEqual(
       expect.arrayContaining(['email', 'password']),
     );
