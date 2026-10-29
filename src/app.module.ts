@@ -6,6 +6,7 @@ import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
 import { createRequestValidationPipe } from './common/validation';
 import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
+import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
@@ -21,6 +22,7 @@ import { UserAddressModule } from './modules/user-address';
     DatabaseModule,
     AdministrativeDivisionModule,
     CategoryModule,
+    CartModule,
     ShopModule,
     ProductModule,
     MediaModule,

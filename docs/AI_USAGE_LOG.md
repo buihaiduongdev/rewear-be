@@ -386,3 +386,20 @@
 - **Kiểm chứng:** Kiểm tra lại diff product và seed trên Node 24.19.0; Oxlint, Prettier, typecheck và Nest build pass; 14 unit suites/104 tests và 3 HTTP/PostgreSQL suites/51 tests pass, với cả PRODUCT_TEST_DATABASE_URL và SEED_TEST_DATABASE_URL trỏ tới hai database test local riêng. Trước khi gộp seed, product đã pass 100 unit test, 47 HTTP/PostgreSQL test, lint/format/typecheck/build; Orval sinh Axios, React Query v5, Zod và TypeScript check client tại thư mục tạm đạt. Các bộ HTTP dùng controller/role check thật, thay JWT bằng test identity guard; network storage được mock.
 - **Giới hạn:** Chưa kiểm chứng R2 PUT/delete/CORS thực tế, luồng trình duyệt FE–BE, Google/SMTP hoặc triển khai. Ảnh fixture không phải bằng chứng tình trạng hàng; chưa seed database dev ứng dụng. Giữ synchronize theo chính sách dev hiện tại, không chạy migration/reset dev DB. Cần regenerate Orval cho FE và cấu hình CORS cho header If-None-Match. PR nối tiếp auth PR #17; không coi auth đã merge.
 - **Minh chứng:** docs/PRODUCT_LIFECYCLE.md, docs/SEEDING.md, test/product-lifecycle.e2e-spec.ts, test/marketplace-seed.e2e-spec.ts và kết quả kiểm tra trong PR.
+
+### 2026-10-28 — Cart backend và bàn giao contract cho Home
+
+- **Công cụ:** Codex, Node 24, PostgreSQL 16, Jest và Orval.
+- **Prompt chính:** Phân công cart BE cho phiên hiện tại, Home FE cho task FE-agent; hoàn thiện module cart và kiểm thử, sau đó tạo hai PR riêng theo yêu cầu người thực hiện.
+- **Phần người thực hiện quyết định:** Triển khai cart theo CART-01/BUYER-01 và phạm vi PLAN-05 đã chốt; hai task trao đổi trực tiếp, tách worktree và database test để tránh ghi đè. Chưa xác nhận tác giả tự review toàn bộ diff.
+- **Đầu ra AI được sử dụng:** Bổ sung CartModule, carts/cart_items với unique user/cart-product, JWT-scoped GET/PUT/DELETE, nhóm giỏ theo nguồn bán, current price/subtotal và availability. Không quantity hoặc giữ hàng; chặn món của cá nhân/shop owner, bảo vệ bản chưa duyệt khi listing đổi trạng thái, giữ món lỗi để xóa và kiểm tra lại khi checkout. Kiểm thử concurrency/ownership với module Nest và PostgreSQL thật; bổ sung CI/test DB, tài liệu API và OpenAPI cho FE-agent. Không chỉnh source frontend hay worktree product/seed.
+- **Kiểm chứng:** Node 24.19.0; lint/format/typecheck/build đạt, 104 unit test và 75 HTTP/PostgreSQL test đạt, bao gồm 24 ca cart. Cart suite chạy trên database riêng rewear_cart_test ở cổng 55439; regression product/seed dùng hai database riêng cùng cluster. Các bài test dùng test identity guard thay JWT, còn controller/module/TypeORM/validation/serialization thực thi thật. Orval sinh Axios functions, React Query v5 và Zod từ cart OpenAPI; TypeScript check client sinh trong thư mục tạm đạt.
+- **Giới hạn:** Chưa có checkout/reservation/payment, chưa kiểm chứng trình duyệt FE–BE hoặc JWT end-to-end. Chưa chạy migration/reset hay seed database dev. PR cart nối tiếp product/seed #18; Home FE có PR riêng. Staff policy giữ phạm vi hiện tại; không tự mở rộng quy tắc mua của staff.
+- **Minh chứng:** Worktree rewear-be-cart, branch feat/cart từ 422401a; docs/CART.md, test/cart.e2e-spec.ts; OpenAPI tạm /tmp/rewear-cart-openapi.json. Kiểm tra trước PR chạy lại format/lint/typecheck/build, 104 unit test và 75 HTTP/PostgreSQL test trên ba database test riêng.
+
+### 2026-10-28 — Làm rõ nguồn đặc tả cho session tiếp theo
+
+- **Công cụ:** Codex.
+- **Yêu cầu:** Lưu link Báo cáo Google Docs trong docs để session khác không cần người dùng gửi lại URL.
+- **Phần AI hỗ trợ:** Đưa liên kết đã có trong docs/README.md thành mục Nguồn đặc tả riêng, ghi rõ tab t.0 và cách đối chiếu quyết định/code. Không sửa nội dung Google Docs hoặc nghiệp vụ ứng dụng.
+- **Kiểm chứng:** Kiểm tra nguyên URL theo yêu cầu, Prettier và git diff --check; không chạy lại test ứng dụng vì chỉ thay đổi Markdown.
