@@ -1,6 +1,7 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import type { ShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { Category } from '@/modules/category/entities';
 import type { MediaLink } from '@/modules/media/entities';
 import { Shop } from '@/modules/shop/entities';
@@ -63,6 +64,9 @@ export class Product extends BaseEntity {
   @Column({ type: 'integer', nullable: true })
   @Check('CHK_products_price_non_negative', '"price" >= 0')
   price: number | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  shippingPackage: ShippingPackage | null;
 
   @Column({ type: 'jsonb', default: {} })
   measurements: Record<string, number>;

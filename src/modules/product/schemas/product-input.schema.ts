@@ -6,6 +6,7 @@ import {
   trimmedTextSchema,
   uuidSchema,
 } from '@/common/schemas/request.schema';
+import { shippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
 import { ProductCondition, ProductStatus } from '../enums';
 
@@ -31,6 +32,7 @@ export const createProductSchema = z.strictObject({
   brand: trimmedTextSchema.max(100).nullish(),
   price: z.number().int().min(0).max(2147483647).nullish(),
   measurements: measurementsSchema.optional(),
+  shippingPackage: shippingPackageSchema.nullish(),
   repairs: trimmedTextSchema.max(2000).nullish(),
   defects: z.array(defectSchema).max(20).optional(),
 });

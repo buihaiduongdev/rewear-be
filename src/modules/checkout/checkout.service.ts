@@ -9,6 +9,7 @@ import {
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
+import { resolveShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { CartService } from '@/modules/cart';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
@@ -192,6 +193,9 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           groups.set(key, order);
         }
         order.items.push({
+          shippingPackage: row.shippingPackage
+            ? resolveShippingPackage(row.shippingPackage)
+            : null,
           productId,
           title: product.title,
           price: product.price,
