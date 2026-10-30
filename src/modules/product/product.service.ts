@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import {
   BadRequestException,
   ConflictException,
@@ -159,6 +161,7 @@ export class ProductService {
         brand: this.normalizeOptionalText(input.brand),
         price: input.price ?? null,
         measurements: input.measurements ?? {},
+        shippingPackage: input.shippingPackage ?? null,
         repairs: this.normalizeOptionalText(input.repairs),
         defects: input.defects ?? [],
         revision: 1,
@@ -267,6 +270,16 @@ export class ProductService {
           contentChanged = true;
         }
       }
+      if (
+        input.shippingPackage !== undefined &&
+        !isDeepStrictEqual(
+          product.shippingPackage ?? null,
+          input.shippingPackage,
+        )
+      ) {
+        product.shippingPackage = input.shippingPackage;
+        contentChanged = true;
+      }
       if (input.price !== undefined && product.price !== input.price) {
         if (
           [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
@@ -348,6 +361,7 @@ export class ProductService {
             brand: product.brand,
             price: product.price,
             measurements: product.measurements,
+            shippingPackage: product.shippingPackage,
             repairs: product.repairs,
             defects: product.defects,
             media: links.map((link) => ({

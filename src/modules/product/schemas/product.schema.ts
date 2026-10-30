@@ -2,6 +2,7 @@ import z from 'zod';
 
 import { paginatedSchema } from '@/common/pagination';
 import { dateTimeSchema } from '@/common/schemas';
+import { shippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
 import { ProductCondition, ProductStatus } from '../enums';
 import { defectSchema, measurementsSchema } from './product-input.schema';
@@ -19,6 +20,7 @@ export const productSchema = z.object({
   brand: z.string().nullable(),
   price: z.number().int().min(0).nullable(),
   measurements: measurementsSchema,
+  shippingPackage: shippingPackageSchema.nullable().default(null),
   repairs: z.string().nullable(),
   defects: z.array(defectSchema),
   revision: z.number().int().positive(),
