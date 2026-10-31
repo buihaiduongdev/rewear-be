@@ -54,7 +54,7 @@ CheckoutPage integration, Cypress spec, docs and AI log.
       reload persistence; missing setup and cancelled/expired state remain nonpayable.
 - [x] Regenerate clients; add refresh/error/expiry UI, one parcel per source, sum
       totals only for a complete fresh quote; keep payment disabled.
-- [ ] Test real seeded PG/API + GHN sandbox with agent-browser MCP desktop/mobile;
+- [x] Test real seeded PG/API + GHN sandbox with agent-browser MCP desktop/mobile;
       production build, Cypress, self-review, isolated BE/FE PRs and CI checks.
 
 ## Execution ledger
@@ -64,4 +64,4 @@ CheckoutPage integration, Cypress spec, docs and AI log.
   pricing account. No token, carrier contact details or raw response is committed.
 
 - 2026-10-31: 115 unit and 108 HTTP/PG tests pass; real sandbox Cypress passes.
-- Final FE clock regression, mobile screenshot, commits and PR/checks are being closed.
+- Final FE clock regression (RED/GREEN), production build and Cypress pass; agent-browser desktop/mobile screenshots and cancellation verified. BE PR #23 CI passed; FE companion is linked in the PR description.
