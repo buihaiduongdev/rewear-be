@@ -14,15 +14,20 @@ import { DataSource } from 'typeorm';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { createRequestValidationPipe } from '@/common/validation';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { CartService } from '@/modules/cart';
 import { Category } from '@/modules/category/entities';
 import { CheckoutModule } from '@/modules/checkout/checkout.module';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { CheckoutShippingQuote } from '@/modules/checkout/entities/shipping-quote.entity';
+import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Product, ProductRevision } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 
@@ -35,6 +40,15 @@ suite('Checkout HTTP and PostgreSQL', () => {
   let app: INestApplication;
   let service: CheckoutService;
   let cart: CartService;
+  let quotes: ShippingQuoteService;
+  let quoteBehavior: (
+    input: CarrierQuoteInput,
+    signal: AbortSignal,
+  ) => Promise<{ fee: number; estimatedDeliveryAt: string | null }>;
+  const carrier = {
+    quote: (input: CarrierQuoteInput, signal: AbortSignal) =>
+      quoteBehavior(input, signal),
+  };
   let factory: MarketplaceFactory;
   let buyer: User;
   let other: User;
@@ -72,6 +86,8 @@ suite('Checkout HTTP and PostgreSQL', () => {
         { provide: APP_PIPE, useFactory: createRequestValidationPipe },
       ],
     })
+      .overrideProvider(GhnSandboxAdapter)
+      .useValue(carrier)
       .overrideGuard(JwtAuthGuard)
       .useValue({
         async canActivate(ctx: ExecutionContext) {
@@ -86,6 +102,7 @@ suite('Checkout HTTP and PostgreSQL', () => {
       .compile();
     service = module.get(CheckoutService);
     cart = module.get(CartService);
+    quotes = module.get(ShippingQuoteService);
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalFilters(new AllExceptionsFilter());
@@ -93,6 +110,7 @@ suite('Checkout HTTP and PostgreSQL', () => {
     await app.init();
   });
   beforeEach(async () => {
+    quoteBehavior = async () => ({ fee: 25000, estimatedDeliveryAt: null });
     factory = new MarketplaceFactory(`checkout-${counter++}`);
     [buyer, other, seller] = await db
       .getRepository(User)
@@ -186,6 +204,247 @@ suite('Checkout HTTP and PostgreSQL', () => {
       (await db.manager.findOneByOrFail(Product, { id: a.id })).reservationId,
     ).toBe(created.id);
   });
+  async function quoteReady(otherSource = false) {
+    const a = await product(0, seller.id, {
+      shippingPackage: {
+        weight: { mode: 'CUSTOM', grams: 300 },
+        size: { mode: 'CUSTOM', lengthCm: 20, widthCm: 15, heightCm: 10 },
+      },
+    });
+    const b = await product(1, otherSource ? other.id : seller.id, {
+      shippingPackage: {
+        weight: { mode: 'CUSTOM', grams: 500 },
+        size: { mode: 'CUSTOM', lengthCm: 30, widthCm: 20, heightCm: 15 },
+      },
+    });
+    await cart.add(buyer.id, a.id);
+    await cart.add(buyer.id, b.id);
+    const pickup = await db.manager.save(PickupLocation, {
+      userId: seller.id,
+      shopId: null,
+      contactName: 'Private pickup contact',
+      phone: '0999999999',
+      addressLine1: 'Private pickup street',
+      countryCode: 'VN',
+      provinceCode: '79',
+      provinceName: 'Ho Chi Minh City',
+      wardCode: '26734',
+      wardName: 'Test ward',
+    });
+    if (otherSource)
+      await db.manager.save(PickupLocation, {
+        userId: other.id,
+        shopId: null,
+        contactName: 'Other pickup',
+        phone: '0999999998',
+        addressLine1: 'Other private street',
+        countryCode: 'VN',
+        provinceCode: '79',
+        provinceName: 'Ho Chi Minh City',
+        wardCode: '26734',
+        wardName: 'Test ward',
+      });
+    return {
+      held: await service.create(buyer.id, input([a.id, b.id])),
+      pickup,
+    };
+  }
+  function providerGate() {
+    let started!: () => void;
+    let finish!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    quoteBehavior = async (_input, signal) => {
+      started();
+      await Promise.race([
+        gate,
+        new Promise<void>((_resolve, reject) =>
+          signal.addEventListener(
+            'abort',
+            () => reject(new Error('CARRIER_UNAVAILABLE')),
+            { once: true },
+          ),
+        ),
+      ]);
+      return { fee: 25000, estimatedDeliveryAt: null };
+    };
+    return { entered, finish };
+  }
+  it('quotes one combined parcel, persists it privately and reuses a fresh result', async () => {
+    const { held } = await quoteReady();
+    let sent: CarrierQuoteInput | undefined;
+    quoteBehavior = async (data) => {
+      sent = data;
+      return { fee: 25000, estimatedDeliveryAt: null };
+    };
+    const response = await request(app.getHttpServer())
+      .post(`/api/checkouts/${held.id}/shipping-quotes`)
+      .set('x-test-user', buyer.id)
+      .send({})
+      .expect(200);
+    const result = response.body.data;
+    expect(result.status).toBe('READY');
+    expect(result.orders).toHaveLength(1);
+    expect(result.orders[0].parcel).toEqual({
+      weightGrams: 800,
+      lengthCm: 30,
+      widthCm: 20,
+      heightCm: 25,
+    });
+    expect(result.orders[0].parcelCount).toBe(1);
+    expect(result.orders[0].itemCount).toBe(2);
+    expect(result.totalShippingFee).toBe(25000);
+    expect(result.grandTotal).toBe(held.subtotal + 25000);
+    expect(result.environment).toBe('SANDBOX');
+    expect(result.paymentReady).toBe(false);
+    expect(sent?.from.addressLine1).toBe('Private pickup street');
+    expect(JSON.stringify(result)).not.toContain('Private pickup');
+    expect((await quotes.refresh(buyer.id, held.id)).id).toBe(result.id);
+    const read = await service.findMine(buyer.id, held.id);
+    expect(read.shippingQuote?.id).toBe(result.id);
+    expect(read.expiresAt).toEqual(held.expiresAt);
+  });
+  it('enforces buyer auth, ownership, strict quote input and active reservation', async () => {
+    const { held } = await quoteReady();
+    const path = `/api/checkouts/${held.id}/shipping-quotes`;
+    await request(app.getHttpServer()).post(path).send({}).expect(401);
+    await request(app.getHttpServer())
+      .post(path)
+      .set('x-test-user', other.id)
+      .send({})
+      .expect(404);
+    await request(app.getHttpServer())
+      .post(path)
+      .set('x-test-user', buyer.id)
+      .send({ shippingFee: 0 })
+      .expect(400);
+    await service.cancel(buyer.id, held.id);
+    await request(app.getHttpServer())
+      .post(path)
+      .set('x-test-user', buyer.id)
+      .send({})
+      .expect(409);
+  });
+  it('invalidates a saved estimate after pickup changes without exposing the address', async () => {
+    const { held, pickup } = await quoteReady();
+    const first = await quotes.refresh(buyer.id, held.id);
+    await db.manager.update(PickupLocation, pickup.id, {
+      addressLine1: 'New private pickup street',
+    });
+    const read = await service.findMine(buyer.id, held.id);
+    expect(read.shippingQuote?.status).toBe('INVALIDATED');
+    expect(read.shippingQuote?.totalShippingFee).toBeNull();
+    expect(JSON.stringify(read)).not.toContain('private pickup street');
+    expect((await quotes.refresh(buyer.id, held.id)).id).not.toBe(first.id);
+  });
+  it('allows cancellation during provider HTTP and discards the in-flight fee', async () => {
+    const { held } = await quoteReady();
+    const gate = providerGate();
+    const pending = quotes.refresh(buyer.id, held.id);
+    await gate.entered;
+    try {
+      expect((await service.cancel(buyer.id, held.id)).status).toBe(
+        'CANCELLED',
+      );
+    } finally {
+      gate.finish();
+    }
+    const result = await pending;
+    expect(result.status).toBe('INVALIDATED');
+    expect(result.grandTotal).toBeNull();
+    expect(result.orders[0].fee).toBeNull();
+  });
+  it('expires an in-flight quote when the hold deadline passes', async () => {
+    const { held } = await quoteReady();
+    const gate = providerGate();
+    const pending = quotes.refresh(buyer.id, held.id);
+    await gate.entered;
+    await db.manager.update(Checkout, held.id, {
+      expiresAt: new Date(Date.now() - 1000),
+    });
+    gate.finish();
+    expect((await pending).status).toBe('EXPIRED');
+    expect((await service.findMine(buyer.id, held.id)).status).toBe('EXPIRED');
+  });
+  it('keeps the latest refresh when a changed pickup supersedes a slow request', async () => {
+    const { held, pickup } = await quoteReady();
+    const gate = providerGate();
+    const first = quotes.refresh(buyer.id, held.id);
+    await gate.entered;
+    await db.manager.update(PickupLocation, pickup.id, {
+      addressLine1: 'Updated street',
+    });
+    quoteBehavior = async () => ({ fee: 30000, estimatedDeliveryAt: null });
+    const latest = await quotes.refresh(buyer.id, held.id);
+    gate.finish();
+    expect((await first).status).toBe('INVALIDATED');
+    const read = await service.findMine(buyer.id, held.id);
+    expect(read.shippingQuote?.id).toBe(latest.id);
+    expect(read.shippingQuote?.totalShippingFee).toBe(30000);
+  });
+  it('reuses an identical pending request instead of contacting the provider twice', async () => {
+    const { held } = await quoteReady();
+    const gate = providerGate();
+    const first = quotes.refresh(buyer.id, held.id);
+    await gate.entered;
+    const repeated = await quotes.refresh(buyer.id, held.id);
+    expect(repeated.status).toBe('FETCHING');
+    gate.finish();
+    expect((await first).id).toBe(repeated.id);
+    expect(
+      await db.manager.countBy(CheckoutShippingQuote, { checkoutId: held.id }),
+    ).toBe(1);
+  });
+  it('does not expose a complete total when one source cannot be quoted', async () => {
+    const { held } = await quoteReady(true);
+    quoteBehavior = async (data) => {
+      if (data.from.name === 'Other pickup')
+        throw new Error('CARRIER_UNAVAILABLE');
+      return { fee: 25000, estimatedDeliveryAt: null };
+    };
+    const result = await quotes.refresh(buyer.id, held.id);
+    expect(result.status).toBe('PARTIAL');
+    expect(result.orders).toHaveLength(2);
+    expect(
+      result.orders.filter((order) => order.status === 'QUOTED'),
+    ).toHaveLength(1);
+    expect(result.totalShippingFee).toBeNull();
+    expect(result.grandTotal).toBeNull();
+  });
+  it('requires pickup setup and never substitutes a zero fee for disabled carrier configuration', async () => {
+    const { held, pickup } = await quoteReady();
+    await db.manager.delete(PickupLocation, pickup.id);
+    const missing = await quotes.refresh(buyer.id, held.id);
+    expect(missing.orders[0].reason).toBe('PICKUP_REQUIRED');
+    await db.manager.save(PickupLocation, pickup);
+    quoteBehavior = async () => {
+      throw new Error('CARRIER_NOT_CONFIGURED');
+    };
+    const disabled = await quotes.refresh(buyer.id, held.id);
+    expect(disabled.status).toBe('UNAVAILABLE');
+    expect(disabled.orders[0].fee).toBeNull();
+    expect(disabled.orders[0].reason).toBe('CARRIER_NOT_CONFIGURED');
+  });
+  it('caps TTL at the hold deadline and makes aged quotes unusable', async () => {
+    const { held } = await quoteReady();
+    const deadline = new Date(Date.now() + 45000);
+    await db.manager.update(Checkout, held.id, { expiresAt: deadline });
+    const result = await quotes.refresh(buyer.id, held.id);
+    expect(result.expiresAt).toBe(deadline.toISOString());
+    await db.manager.update(CheckoutShippingQuote, result.id, {
+      result: {
+        ...result,
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      },
+    });
+    const read = await service.findMine(buyer.id, held.id);
+    expect(read.shippingQuote?.status).toBe('EXPIRED');
+    expect(read.shippingQuote?.grandTotal).toBeNull();
+  });
   it('serializes duplicate concurrent requests', async () => {
     const p = await product();
     await cart.add(buyer.id, p.id);
@@ -195,6 +454,19 @@ suite('Checkout HTTP and PostgreSQL', () => {
       service.create(buyer.id, body),
     ]);
     expect(results[0].id).toBe(results[1].id);
+  });
+  it('offers a buyer-scoped shipping quote endpoint without invented fees for missing packages', async () => {
+    const p = await product();
+    await cart.add(buyer.id, p.id);
+    const held = await service.create(buyer.id, input([p.id]));
+    const response = await request(app.getHttpServer())
+      .post(`/api/checkouts/${held.id}/shipping-quotes`)
+      .set('x-test-user', buyer.id)
+      .send({})
+      .expect(200);
+    expect(response.body.data.status).toBe('UNAVAILABLE');
+    expect(response.body.data.orders[0].reason).toBe('PACKAGE_REQUIRED');
+    expect(response.body.data.totalShippingFee).toBeNull();
   });
   it('allows only one buyer to hold a product', async () => {
     const p = await product();

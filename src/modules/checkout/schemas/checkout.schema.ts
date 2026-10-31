@@ -3,6 +3,8 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
+import { shippingQuoteSchema } from './shipping-quote.schema';
+
 export const createCheckoutSchema = z.strictObject({
   requestId: z.uuid(),
   addressId: z.uuid(),
@@ -31,6 +33,7 @@ const addressSchema = z.object({
 });
 export const checkoutSchema = z.object({
   id: z.uuid(),
+  shippingQuote: shippingQuoteSchema.nullable().default(null),
   status: z.enum(['HELD', 'EMPTY', 'CANCELLED', 'EXPIRED']),
   expiresAt: dateTimeSchema.nullable(),
   holdSeconds: z.number().int(),

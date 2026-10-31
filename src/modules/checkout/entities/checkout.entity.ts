@@ -40,6 +40,8 @@ export class Checkout extends BaseEntity {
   buyer: User;
   @Column('uuid') requestId: string;
   @Column('uuid') addressId: string;
+  @Column({ type: 'uuid', nullable: true }) activeShippingQuoteId:
+    string | null;
   @Column('jsonb') requestedProductIds: string[];
   @Column('jsonb') address: CheckoutAddress;
   @Column({ type: 'varchar', length: 20 }) status: CheckoutState;
