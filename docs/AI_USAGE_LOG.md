@@ -424,3 +424,10 @@
 - **AI hỗ trợ:** PickupLocation cho cá nhân/shop, JWT và quyền owner, địa giới chuẩn do server xác định, unique/XOR constraints và khóa nguồn bán khi lưu đồng thời; FE/client sinh qua Orval, test và tài liệu.
 - **Kiểm chứng:** 107 unit tests và 97 HTTP/PostgreSQL tests trên 6 suites qua; riêng pickup 8 ca. Regression chạy tuần tự với --testTimeout=30000 sau timeout do tải máy; không sửa service để bỏ kiểm tra. Typecheck, Oxlint và Nest build qua. Browser dùng real JWT/API/PostgreSQL seed riêng; Cypress 2 ca qua, agent-browser kiểm tra lưu/reload và screenshot desktop/mobile.
 - **Giới hạn:** Chỉ lưu cấu hình, chưa carrier registration/availability/quote/shipment snapshot. Dữ liệu riêng không thêm vào public shop hoặc checkout. Không mở quyền staff, không áp migration hay thay CI DB service.
+
+### 2026-10-31 — Sandbox shipping quote
+
+- **Yêu cầu/quyết định:** Hoàn tất BE/FE, test, tự review và tạo PR. Một seller/shop trong checkout là một kiện và một phí; dùng agent-browser MCP headless. Người thực hiện chưa xác nhận đã đọc toàn bộ diff.
+- **AI hỗ trợ:** Gộp package, GHN staging preview adapter, versioned quote, prepare/publish transaction ngắn, latest-generation guard, TTL, invalidation và strict buyer endpoint; FE client sinh qua Orval, UI/test và contract SHIPPING_QUOTE.md.
+- **Kiểm chứng:** TypeScript/Oxlint/Nest build/format qua; 115 unit tests và 108 HTTP/PostgreSQL tests trên 6 suites qua. DB tests dùng local DB riêng và thay upstream adapter. Cypress gọi JWT/API/PostgreSQL thật + GHN sandbox kiểm tra hai món thành một kiện 800g/30×20×25cm, phí 20.900đ, tổng chính xác, reload, 390px, hết hạn và hủy. Agent-browser MCP kiểm tra bản FE cuối trên desktop/mobile 1280/390: quote sau reload, đồng hồ không vượt TTL, hủy ẩn tổng và không tràn ngang. FE có thêm regression đồng hồ RED/GREEN, tổng 5 unit tests và production build qua.
+- **Giới hạn:** Chỉ sandbox preview, không tạo shipment, không thu tiền. Pickup/provider inputs không trả về buyer. Adapter không thay thế carrier registration lúc fulfillment; không có production migration. Không thêm DB service vào CI. Fixtures của vòng QA này ở local DB riêng; không sửa DB dev đã seed.
