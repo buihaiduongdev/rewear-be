@@ -431,3 +431,12 @@
 - **AI hỗ trợ:** Gộp package, GHN staging preview adapter, versioned quote, prepare/publish transaction ngắn, latest-generation guard, TTL, invalidation và strict buyer endpoint; FE client sinh qua Orval, UI/test và contract SHIPPING_QUOTE.md.
 - **Kiểm chứng:** TypeScript/Oxlint/Nest build/format qua; 115 unit tests và 108 HTTP/PostgreSQL tests trên 6 suites qua. DB tests dùng local DB riêng và thay upstream adapter. Cypress gọi JWT/API/PostgreSQL thật + GHN sandbox kiểm tra hai món thành một kiện 800g/30×20×25cm, phí 20.900đ, tổng chính xác, reload, 390px, hết hạn và hủy. Agent-browser MCP kiểm tra bản FE cuối trên desktop/mobile 1280/390: quote sau reload, đồng hồ không vượt TTL, hủy ẩn tổng và không tràn ngang. FE có thêm regression đồng hồ RED/GREEN, tổng 5 unit tests và production build qua.
 - **Giới hạn:** Chỉ sandbox preview, không tạo shipment, không thu tiền. Pickup/provider inputs không trả về buyer. Adapter không thay thế carrier registration lúc fulfillment; không có production migration. Không thêm DB service vào CI. Fixtures của vòng QA này ở local DB riêng; không sửa DB dev đã seed.
+
+### 2026-11-03 — Tạo bộ khung hồ sơ nộp và session handoff
+
+- **Công cụ:** Codex.
+- **Prompt chính:** Tạo folder/file rỗng theo danh mục nộp; lưu quyết định đã chốt trong phiên brainstorm; tạo README handoff để member tiếp tục đọc và hoàn thiện hồ sơ.
+- **Phần người thực hiện quyết định:** Chỉ định vị trí `docs/submission_docs/`, yêu cầu file decision, xác nhận từng quy tắc khảo sát/checkout/refund/wallet/coin trong hội thoại và xác nhận cách dùng một địa chỉ chung cho checkout.
+- **Đầu ra AI:** Tạo các file và thư mục khung nộp, ghi DECISIONS.md theo câu trả lời, tổng hợp session và hướng dẫn tiếp tục vào README.md. Các hồ sơ rỗng chưa được điền nội dung hoặc xem là hoàn tất.
+- **Kiểm chứng:** Đối chiếu danh sách file với cấu trúc thư mục; đọc lại DECISIONS.md và README.md; kiểm tra `git diff --check`. Không chạy test ứng dụng vì thay đổi chỉ là tài liệu.
+- **Giới hạn:** Chưa hoàn thiện câu hỏi khảo sát, phân công thành viên, SRS/SDD, KPI, hồ sơ test/UAT, CI/CD hoặc báo cáo. Chưa xác nhận GVHD. PR này chỉ ghi nhận decision và handoff; không thay đổi code sản phẩm.
