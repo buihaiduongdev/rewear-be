@@ -440,3 +440,10 @@
 - **Đầu ra AI:** Tạo các file và thư mục khung nộp, ghi DECISIONS.md theo câu trả lời, tổng hợp session và hướng dẫn tiếp tục vào README.md. Các hồ sơ rỗng chưa được điền nội dung hoặc xem là hoàn tất.
 - **Kiểm chứng:** Đối chiếu danh sách file với cấu trúc thư mục; đọc lại DECISIONS.md và README.md; kiểm tra `git diff --check`. Không chạy test ứng dụng vì thay đổi chỉ là tài liệu.
 - **Giới hạn:** Chưa hoàn thiện câu hỏi khảo sát, phân công thành viên, SRS/SDD, KPI, hồ sơ test/UAT, CI/CD hoặc báo cáo. Chưa xác nhận GVHD. PR này chỉ ghi nhận decision và handoff; không thay đổi code sản phẩm.
+
+### 2026-11-03 — Làm rõ độ tin cậy của tài liệu tham khảo trong handoff
+
+- **Công cụ:** Codex.
+- **Prompt chính:** Ghi trong README handoff rằng tài liệu Drive và `docs/archive/` có thể outdate, chưa được developer đọc/review; nếu trùng logic vẫn phải hỏi developer.
+- **Đầu ra AI:** Thêm lưu ý về cách dùng tài liệu cũ như nguồn tham khảo và yêu cầu xác nhận lại các quy tắc trùng lặp.
+- **Kiểm chứng:** Đọc lại đoạn vừa thêm và chạy `git diff --check`; không chạy test ứng dụng vì chỉ sửa Markdown.

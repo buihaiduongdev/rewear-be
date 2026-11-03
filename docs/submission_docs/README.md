@@ -15,6 +15,14 @@ hoàn thành hay được GVHD xác nhận.
 - [COMMITMENT_STEP3.MD](COMMITMENT_STEP3.MD): phạm vi cam kết và metric cần thống
   nhất với GVHD.
 
+## Lưu ý về tài liệu cũ
+
+Tài liệu Google Drive và các tài liệu lưu trong `docs/archive/` có thể đã lỗi thời;
+developer chưa đọc và review đầy đủ chúng trong đợt tổng hợp này. Hãy dùng chúng
+để tham khảo và tìm manh mối, không xem nội dung là quy tắc đã được duyệt. Nếu
+quy tắc trong đó trùng với câu hỏi đang chốt, vẫn hỏi developer xác nhận lại
+trước khi ghi là quyết định hiện hành hoặc đưa vào yêu cầu nộp.
+
 ## Session đang làm gì
 
 Đang rà soát lại logic Rewear theo từng câu hỏi để member có thể đọc và tiếp tục
