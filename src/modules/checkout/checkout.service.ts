@@ -22,6 +22,7 @@ import { User } from '@/modules/user/entities';
 import { Checkout, CheckoutOrder } from './entities/checkout.entity';
 import type { CheckoutAddress } from './entities/checkout.entity';
 import type { CreateCheckoutInput } from './schemas/checkout.schema';
+import { effectiveShippingQuote } from './shipping-quote.state';
 
 @Injectable()
 export class CheckoutService implements OnModuleInit, OnModuleDestroy {
@@ -304,6 +305,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return {
       ...checkout,
       orders,
+      shippingQuote: await effectiveShippingQuote(manager, checkout, orders),
       subtotal: orders.reduce((total, order) => total + order.subtotal, 0),
       currency: 'VND' as const,
       paymentReady: false as const,

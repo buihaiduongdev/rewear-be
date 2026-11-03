@@ -20,13 +20,31 @@ import {
   createCheckoutSchema,
 } from './schemas/checkout.schema';
 import type { CreateCheckoutInput } from './schemas/checkout.schema';
+import {
+  refreshShippingQuoteSchema,
+  shippingQuoteSchema,
+} from './schemas/shipping-quote.schema';
+import { ShippingQuoteService } from './shipping-quote.service';
 
 @ApiTags('Checkout')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('checkouts')
 export class CheckoutController {
-  constructor(private readonly service: CheckoutService) {}
+  constructor(
+    private readonly service: CheckoutService,
+    private readonly shipping: ShippingQuoteService,
+  ) {}
+  @Post(':id/shipping-quotes')
+  @HttpCode(200)
+  @Serialize(shippingQuoteSchema)
+  quote(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: refreshShippingQuoteSchema }) _body: Record<string, never>,
+  ) {
+    return this.shipping.refresh(user.id, id);
+  }
   @Post()
   @HttpCode(200)
   @Serialize(checkoutSchema)
