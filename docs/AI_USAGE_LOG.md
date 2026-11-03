@@ -403,3 +403,10 @@
 - **Yêu cầu:** Lưu link Báo cáo Google Docs trong docs để session khác không cần người dùng gửi lại URL.
 - **Phần AI hỗ trợ:** Đưa liên kết đã có trong docs/README.md thành mục Nguồn đặc tả riêng, ghi rõ tab t.0 và cách đối chiếu quyết định/code. Không sửa nội dung Google Docs hoặc nghiệp vụ ứng dụng.
 - **Kiểm chứng:** Kiểm tra nguyên URL theo yêu cầu, Prettier và git diff --check; không chạy lại test ứng dụng vì chỉ thay đổi Markdown.
+
+### 2026-10-29 — Checkout reservation foundation
+
+- **Yêu cầu:** Triển khai BE/FE checkout, viết test và kiểm tra trên Chrome, tạo PR rồi tự review.
+- **Đầu ra:** Checkout JWT-scoped; kiểm tra món trong giỏ và địa chỉ thuộc buyer; snapshot giá/địa chỉ; nhóm đơn tạm theo nguồn bán; deadline chung 600 giây; idempotency theo buyer/request; hủy và thu hồi giữ hàng hết hạn; client API cho FE.
+- **Kiểm chứng:** 104 unit tests, 85 HTTP/PostgreSQL tests (10 checkout); typecheck, Oxlint và Nest build đạt. Các test DB dùng schema riêng trên PostgreSQL local; test HTTP thay JWT bằng fixture guard. Chrome FE–BE dùng JWT thật qua tài khoản seed trên database disposable.
+- **Giới hạn:** Chưa có quote vận chuyển, thu tiền, đơn đã thanh toán hay fulfillment. Bảng checkout_orders lưu đơn tạm. Chưa có admin settings; 600 giây được snapshot ở checkout. Lifecycle dùng advisory lock chung và sweep chưa phân trang; xem CHECKOUT.md.

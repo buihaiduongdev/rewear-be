@@ -102,3 +102,5 @@ tra quyết định mới nhất và code; không coi bản đề xuất là hi�
 | [Integration scope](archive/INTEGRATION_SCOPE.md)     | Phạm vi tích hợp và giao diện               |
 | [TODO](archive/TODO.md)                               | Backlog, việc đã làm và giới hạn kiểm chứng |
 | [GHN integration notes](archive/ghn_integrate.md)     | Chứng cứ thử nghiệm một adapter vận chuyển  |
+
+Checkout implementation: [reservation API and limits](CHECKOUT.md).

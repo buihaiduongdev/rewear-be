@@ -131,10 +131,7 @@ export class CartService {
     );
   }
 
-  private async readCart(
-    manager: EntityManager,
-    userId: string,
-  ): Promise<CartView> {
+  async readCart(manager: EntityManager, userId: string): Promise<CartView> {
     const result: CartView = {
       groups: [],
       summary: {
