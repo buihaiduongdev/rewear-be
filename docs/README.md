@@ -21,6 +21,7 @@ phạm vi thiết kế không đồng nghĩa tính năng đã hoàn thành.
 | Seed và factory cho dev/E2E               | [SEEDING.md](SEEDING.md)                     |
 | Giỏ hàng và API cart                      | [CART.md](CART.md)                           |
 | Thông số đóng gói cho sản phẩm            | [SHIPPING_PACKAGE.md](SHIPPING_PACKAGE.md)   |
+| Địa chỉ lấy hàng riêng theo nguồn bán     | [PICKUP_LOCATION.md](PICKUP_LOCATION.md)     |
 | Module nghiệp vụ                          | [src/modules](../src/modules)                |
 | Thành phần dùng chung                     | [src/common](../src/common)                  |
 | Tích hợp hạ tầng                          | [src/infrastructure](../src/infrastructure)  |

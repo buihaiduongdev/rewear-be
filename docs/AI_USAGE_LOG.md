@@ -417,3 +417,10 @@
 - **Công cụ và đầu ra AI:** Codex hỗ trợ contract RANGE/CUSTOM, tùy chọn công khai, API cập nhật theo quyền chủ tin, kiểm tra giới hạn, revision/duyệt lại và snapshot package trong ProductRevision/checkout. Orval sinh client cho FE; tài liệu SHIPPING_PACKAGE.md ghi giới hạn triển khai.
 - **Kiểm chứng:** Node 24; 107 unit tests và 89 HTTP/PostgreSQL tests qua trên các database test local riêng. TypeScript, Oxlint và Nest build qua. Browser FE–BE dùng JWT thật trên database seed disposable; agent-browser MCP kiểm tra khoảng/custom, lưu/tải lại, gửi duyệt, tin đã bán và kích thước màn hình. Cypress kiểm tra lại luồng lưu/validation/persistence/review và 390px.
 - **Giới hạn:** Chưa có live quote, địa chỉ lấy hàng hoặc gộp kiện nhiều món. Shipping fee vẫn null, payment tắt. Không áp dụng migration hoặc thay dữ liệu dùng chung; cột JSONB nullable theo synchronize của môi trường phát triển. CI không được thêm database service.
+
+### 2026-10-30 — Địa chỉ lấy hàng riêng theo nguồn bán
+
+- **Yêu cầu:** Tiếp tục BE/FE, test và PR/review cho địa chỉ lấy hàng; dùng agent-browser MCP headless. Chưa xác nhận người thực hiện tự đọc toàn bộ diff.
+- **AI hỗ trợ:** PickupLocation cho cá nhân/shop, JWT và quyền owner, địa giới chuẩn do server xác định, unique/XOR constraints và khóa nguồn bán khi lưu đồng thời; FE/client sinh qua Orval, test và tài liệu.
+- **Kiểm chứng:** 107 unit tests và 97 HTTP/PostgreSQL tests trên 6 suites qua; riêng pickup 8 ca. Regression chạy tuần tự với --testTimeout=30000 sau timeout do tải máy; không sửa service để bỏ kiểm tra. Typecheck, Oxlint và Nest build qua. Browser dùng real JWT/API/PostgreSQL seed riêng; Cypress 2 ca qua, agent-browser kiểm tra lưu/reload và screenshot desktop/mobile.
+- **Giới hạn:** Chỉ lưu cấu hình, chưa carrier registration/availability/quote/shipment snapshot. Dữ liệu riêng không thêm vào public shop hoặc checkout. Không mở quyền staff, không áp migration hay thay CI DB service.
