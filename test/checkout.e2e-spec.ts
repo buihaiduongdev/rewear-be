@@ -122,19 +122,30 @@ suite('Checkout HTTP and PostgreSQL', () => {
       await admin.end();
     }
   });
-  async function product(index = 0, sellerId = seller.id) {
+  async function product(
+    index = 0,
+    sellerId = seller.id,
+    overrides: Partial<Product> = {},
+  ) {
     const row = await db.getRepository(Product).save(
-      factory.product(index, {
-        categoryId: category.id,
-        sellerUserId: sellerId,
-        shopId: null,
-      }),
+      factory.product(
+        index,
+        {
+          categoryId: category.id,
+          sellerUserId: sellerId,
+          shopId: null,
+        },
+        overrides,
+      ),
     );
     await db.getRepository(ProductRevision).save({
       productId: row.id,
       revision: row.revision,
       decision: 'APPROVED',
-      snapshot: { title: row.title },
+      snapshot: {
+        title: row.title,
+        shippingPackage: row.shippingPackage ?? null,
+      },
       submittedById: seller.id,
       reviewedById: other.id,
       reviewedAt: factory.now,
@@ -274,6 +285,29 @@ suite('Checkout HTTP and PostgreSQL', () => {
     expect(
       (await db.manager.findOneByOrFail(Product, { id: p.id })).status,
     ).toBe(ProductStatus.ACTIVE);
+  });
+  it('snapshots resolved upper package bounds for future shipping quotes', async () => {
+    const p = await product(0, seller.id, {
+      shippingPackage: {
+        weight: { mode: 'RANGE', preset: 'UP_TO_500_G' },
+        size: { mode: 'CUSTOM', lengthCm: 20.1, widthCm: 15.5, heightCm: 8 },
+      },
+    });
+    await cart.add(buyer.id, p.id);
+    const created = await service.create(buyer.id, input([p.id]));
+    expect(created.orders[0].items[0].shippingPackage).toEqual({
+      weightGrams: 500,
+      lengthCm: 21,
+      widthCm: 16,
+      heightCm: 8,
+    });
+    const response = await request(app.getHttpServer())
+      .get(`/api/checkouts/${created.id}`)
+      .set('x-test-user', buyer.id)
+      .expect(200);
+    expect(
+      response.body.data.orders[0].items[0].shippingPackage.weightGrams,
+    ).toBe(500);
   });
   it('enforces HTTP authentication, validation, serialization, and ownership', async () => {
     await request(app.getHttpServer())

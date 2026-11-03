@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
+import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
 export const createCheckoutSchema = z.strictObject({
   requestId: z.uuid(),
@@ -44,6 +45,9 @@ export const checkoutSchema = z.object({
       address: addressSchema,
       items: z.array(
         z.object({
+          shippingPackage: resolvedShippingPackageSchema
+            .nullable()
+            .default(null),
           productId: z.uuid(),
           title: z.string(),
           price: z.number().int(),

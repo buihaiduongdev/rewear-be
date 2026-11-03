@@ -13,6 +13,7 @@ import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
 import { MediaModule } from './modules/media';
 import { ProductModule } from './modules/product';
+import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
 import { UserModule } from './modules/user';
 import { UserAddressModule } from './modules/user-address';
@@ -26,6 +27,7 @@ import { UserAddressModule } from './modules/user-address';
     CartModule,
     CheckoutModule,
     ShopModule,
+    ShippingModule,
     ProductModule,
     MediaModule,
     UserModule,

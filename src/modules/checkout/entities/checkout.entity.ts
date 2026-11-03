@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { User } from '@/modules/user/entities';
 
 export type CheckoutState = 'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED';
@@ -18,6 +19,7 @@ export type CheckoutAddress = {
   deliveryInstructions: string | null;
 };
 export type CheckoutItem = {
+  shippingPackage: ResolvedShippingPackage | null;
   productId: string;
   title: string;
   price: number;

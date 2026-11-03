@@ -25,6 +25,10 @@ items by personal seller or shop into `checkout_orders`, all linked to one check
 These are provisional orders, not paid or fulfillable orders. Address edits do
 not change the saved snapshot. `addressId` is retained as an idempotency fingerprint.
 
+Each item also snapshots resolved package bounds when the seller has declared
+them; otherwise `shippingPackage` is null. See [SHIPPING_PACKAGE.md](SHIPPING_PACKAGE.md)
+for presets, custom values and the remaining requirements before live quotes.
+
 `requestId` is unique per buyer. Repeating it with the same sorted selection and
 address returns the original result/deadline, including terminal results; a changed
 payload returns 409. To change a held checkout, cancel it first and issue a new

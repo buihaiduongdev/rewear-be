@@ -34,6 +34,7 @@ import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductController } from '@/modules/product/product.controller';
 import { ProductService } from '@/modules/product/product.service';
 import { findProductSchema, productSchema } from '@/modules/product/schemas';
+import { ShippingController } from '@/modules/shipping/shipping.controller';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -93,7 +94,7 @@ suite('Product lifecycle (real PostgreSQL)', () => {
       } as ConfigService,
     );
     const module = await Test.createTestingModule({
-      controllers: [ProductController, MediaController],
+      controllers: [ProductController, MediaController, ShippingController],
       providers: [
         { provide: ProductService, useValue: products },
         { provide: MediaService, useValue: media },
@@ -197,6 +198,93 @@ suite('Product lifecycle (real PostgreSQL)', () => {
     };
   }
 
+  it('accepts package ranges/custom dimensions and rejects invalid or forged options', async () => {
+    const server = app.getHttpServer();
+    const shippingPackage = {
+      weight: { mode: 'RANGE', preset: 'UP_TO_500_G' },
+      size: { mode: 'CUSTOM', lengthCm: 21.2, widthCm: 15, heightCm: 8 },
+    };
+    const response = await request(server)
+      .post('/api/products')
+      .set('x-test-user', seller.id)
+      .send({ shippingPackage })
+      .expect(201);
+    expect(response.body.data.shippingPackage).toEqual(shippingPackage);
+    const options = await request(server)
+      .get('/api/shipping/package-options')
+      .expect(200);
+    expect(options.body.data.weightPresets).toHaveLength(5);
+    await request(server)
+      .patch(`/api/shipping/products/${response.body.data.id}/package`)
+      .send(shippingPackage)
+      .expect(401);
+    await request(server)
+      .patch(`/api/shipping/products/${response.body.data.id}/package`)
+      .set('x-test-user', stranger.id)
+      .send(shippingPackage)
+      .expect(403);
+    await request(server)
+      .patch(`/api/shipping/products/${response.body.data.id}/package`)
+      .set('x-test-user', seller.id)
+      .send(shippingPackage)
+      .expect(200);
+
+    for (const value of [
+      { ...shippingPackage, weight: { mode: 'CUSTOM', grams: 0 } },
+      { ...shippingPackage, weight: { mode: 'RANGE', preset: 'UNKNOWN' } },
+      {
+        ...shippingPackage,
+        size: { mode: 'CUSTOM', lengthCm: 201, widthCm: 15, heightCm: 8 },
+      },
+      {
+        ...shippingPackage,
+        weight: { mode: 'RANGE', preset: 'UP_TO_500_G', grams: 1 },
+      },
+    ])
+      await request(server)
+        .patch(`/api/products/${response.body.data.id}`)
+        .set('x-test-user', seller.id)
+        .send({ shippingPackage: value })
+        .expect(400);
+  });
+  it('revises packaging changes but does not revise an identical JSONB payload', async () => {
+    const { product } = await approved();
+    const shippingPackage = {
+      weight: { mode: 'CUSTOM' as const, grams: 800 },
+      size: { mode: 'RANGE' as const, preset: 'BOX_30_20_15_CM' as const },
+    };
+    const edited = await products.update(product.id, seller.id, {
+      shippingPackage,
+    });
+    expect(edited.status).toBe(ProductStatus.DRAFT);
+    expect(edited.approvedRevision).toBeNull();
+    expect(edited.revision).toBe(product.revision + 1);
+    const repeated = await products.update(product.id, seller.id, {
+      shippingPackage,
+    });
+    expect(repeated.revision).toBe(edited.revision);
+    await products.submit(product.id, seller.id);
+    const history = await products.findRevisions(product.id, seller.id);
+    expect(history[0].snapshot.shippingPackage).toEqual(shippingPackage);
+  });
+  it('blocks package edits for other sellers and held listings', async () => {
+    const { product } = await approved();
+    const input = {
+      shippingPackage: {
+        weight: { mode: 'RANGE' as const, preset: 'UP_TO_250_G' as const },
+        size: { mode: 'RANGE' as const, preset: 'BOX_20_15_10_CM' as const },
+      },
+    };
+    await expect(
+      products.update(product.id, stranger.id, input),
+    ).rejects.toThrow(ForbiddenException);
+    await db
+      .getRepository(Product)
+      .update(product.id, { status: ProductStatus.HELD });
+    await expect(products.update(product.id, seller.id, input)).rejects.toThrow(
+      ConflictException,
+    );
+  });
   it('enforces HTTP ownership/admin roles and serializes the draft-to-approval contract', async () => {
     const server = app.getHttpServer();
     await request(server).post('/api/products').send({}).expect(401);

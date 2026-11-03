@@ -410,3 +410,10 @@
 - **Đầu ra:** Checkout JWT-scoped; kiểm tra món trong giỏ và địa chỉ thuộc buyer; snapshot giá/địa chỉ; nhóm đơn tạm theo nguồn bán; deadline chung 600 giây; idempotency theo buyer/request; hủy và thu hồi giữ hàng hết hạn; client API cho FE.
 - **Kiểm chứng:** 104 unit tests, 85 HTTP/PostgreSQL tests (10 checkout); typecheck, Oxlint và Nest build đạt. Các test DB dùng schema riêng trên PostgreSQL local; test HTTP thay JWT bằng fixture guard. Chrome FE–BE dùng JWT thật qua tài khoản seed trên database disposable.
 - **Giới hạn:** Chưa có quote vận chuyển, thu tiền, đơn đã thanh toán hay fulfillment. Bảng checkout_orders lưu đơn tạm. Chưa có admin settings; 600 giây được snapshot ở checkout. Lifecycle dùng advisory lock chung và sweep chưa phân trang; xem CHECKOUT.md.
+
+### 2026-10-30 — Thông số đóng gói theo sản phẩm
+
+- **Yêu cầu và quyết định của người thực hiện:** Tiếp tục BE/FE, test và PR/review; cho seller chọn khoảng khối lượng/kích thước hoặc tự nhập. Chuyển kiểm tra giao diện sang agent-browser MCP. Chưa xác nhận người thực hiện tự đọc toàn bộ diff.
+- **Công cụ và đầu ra AI:** Codex hỗ trợ contract RANGE/CUSTOM, tùy chọn công khai, API cập nhật theo quyền chủ tin, kiểm tra giới hạn, revision/duyệt lại và snapshot package trong ProductRevision/checkout. Orval sinh client cho FE; tài liệu SHIPPING_PACKAGE.md ghi giới hạn triển khai.
+- **Kiểm chứng:** Node 24; 107 unit tests và 89 HTTP/PostgreSQL tests qua trên các database test local riêng. TypeScript, Oxlint và Nest build qua. Browser FE–BE dùng JWT thật trên database seed disposable; agent-browser MCP kiểm tra khoảng/custom, lưu/tải lại, gửi duyệt, tin đã bán và kích thước màn hình. Cypress kiểm tra lại luồng lưu/validation/persistence/review và 390px.
+- **Giới hạn:** Chưa có live quote, địa chỉ lấy hàng hoặc gộp kiện nhiều món. Shipping fee vẫn null, payment tắt. Không áp dụng migration hoặc thay dữ liệu dùng chung; cột JSONB nullable theo synchronize của môi trường phát triển. CI không được thêm database service.
