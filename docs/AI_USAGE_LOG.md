@@ -447,3 +447,21 @@
 - **Prompt chính:** Ghi trong README handoff rằng tài liệu Drive và `docs/archive/` có thể outdate, chưa được developer đọc/review; nếu trùng logic vẫn phải hỏi developer.
 - **Đầu ra AI:** Thêm lưu ý về cách dùng tài liệu cũ như nguồn tham khảo và yêu cầu xác nhận lại các quy tắc trùng lặp.
 - **Kiểm chứng:** Đọc lại đoạn vừa thêm và chạy `git diff --check`; không chạy test ứng dụng vì chỉ sửa Markdown.
+
+### 2026-11-05 — Lưu quyết định nghiệp vụ từ hội thoại tiếp nối handoff
+
+- **Công cụ:** Codex; skill brainstorming hỗ trợ cách hỏi, verification-before-completion hỗ trợ kiểm tra tài liệu trước khi bàn giao.
+- **Yêu cầu:** Người dùng yêu cầu đọc lại README và lưu các câu trả lời đã chốt sau PR #24; trước đó quyết định mới chỉ nằm trong hội thoại.
+- **Phần người dùng quyết định:** Chọn từng phương án về đăng ký/định danh seller, cập nhật giấy tờ và giả mạo, chờ quyết toán, tranh chấp/SLA/xét lại/bằng chứng, giữ hàng hoàn một phần, hoa hồng, phí thanh toán, nguồn/thưởng/hạn/giữ xu và tra soát thanh toán trước deadline. Người dùng bổ sung yêu cầu SLA để tiền seller không bị giữ quá lâu.
+- **AI hỗ trợ:** Tổng hợp các lựa chọn vào `docs/submission_docs/DECISIONS.md`, giữ ID đã dùng, thêm ID cho câu tra soát cuối, chỉ rõ quy tắc thay thế/làm rõ; đồng bộ README và liệt kê câu còn treo/điểm tiếp tục.
+- **Kiểm chứng:** Đọc lại README, decision log và đối chiếu các lựa chọn trong hội thoại; kiểm tra ID, lịch sử thay thế và `git diff --check`. Không chạy test ứng dụng vì chỉ thay đổi Markdown.
+- **Giới hạn:** Đây là quyết định nghiệp vụ, không triển khai code/DB/API hoặc xác nhận nghiệm thu. Câu 29 về order cũ khi kết luận seller giả mạo chưa được trả lời; độ uy tín và chống spam checkout/blacklist chưa chốt. Không điền các hồ sơ rỗng thành nội dung hoàn tất. Chưa có xác nhận người dùng tự review toàn bộ diff.
+
+### 2026-11-06 — Bổ sung quyết định COD, ví và chuẩn bị PR tài liệu
+
+- **Công cụ:** Codex và GitHub plugin.
+- **Yêu cầu:** Lưu quyết định theo nhóm 5 câu, không đổi chủ đề theo mốc lưu; đưa tài liệu lên một PR theo mẫu cũ, gắn reviewer/assignee/label theo prefix, không merge và tiếp tục cập nhật cùng PR.
+- **Phần người dùng quyết định:** Chọn MoMo Sandbox, bổ sung COD qua GHN Sandbox; chốt xác nhận/bàn giao/hủy, phí và quyền phản đối, thu/đối soát COD, bồi thường, giữ/nhả/phục hồi xu, giới hạn và hạn chế lạm dụng COD; chốt ứng refund, SLA ví và sửa khoản cộng thừa. Những câu chưa được trả lời giữ trạng thái còn mở.
+- **AI hỗ trợ:** Ghi từng lựa chọn vào DECISIONS, đồng bộ README, phân biệt quyết định với bằng chứng triển khai/API, rút gọn danh sách việc còn mở và chuẩn bị commit/PR bằng GitHub plugin.
+- **Kiểm chứng:** Đối chiếu diff và các nhóm quyết định đã lưu, kiểm tra trùng ID/tham chiếu nội bộ và liên kết Markdown local; `git diff --check`. Không chạy test ứng dụng vì chỉ sửa ba file Markdown.
+- **Giới hạn:** Chưa triển khai hoặc kiểm thử luồng mới, chưa gọi thanh toán MoMo/refund/GHN COD backend để nghiệm thu. Tần suất query còn phải kiểm chứng theo provider. Câu trả lời cho việc chủ động trả tiền ví cộng thừa qua MoMo chưa có; câu 29 và các nhóm uy tín/checkout online còn mở. Chưa có xác nhận người dùng tự review toàn bộ diff; PR không được merge trong phạm vi yêu cầu.
