@@ -44,6 +44,58 @@ soạn hồ sơ nộp. Đây là ghi nhận trao đổi, không tự thay thế 
 | CHECKOUT-REVIEW-01 | Đã xác nhận giữ nguyên | Nếu một số món không còn khả dụng lúc checkout thì loại riêng món đó khỏi checkout và giỏ; các món còn khả dụng tiếp tục. Nếu tất cả món không khả dụng thì không tạo thanh toán. |
 | CHECKOUT-REVIEW-02 | Đã xác nhận giữ nguyên trong phiên | Checkout dùng một địa chỉ giao hàng chung cho mọi order trong checkout và lưu snapshot; muốn giao đến địa chỉ khác thì tạo checkout riêng. Người dùng xác nhận đây là cách hoạt động mong muốn như Shopee và các sàn phổ biến. |
 
+## Luồng ứng dụng
+
+| ID | Trạng thái | Quyết định |
+| --- | --- | --- |
+| GUEST-SESSION-01 | Đã chốt trong phiên | Khách chưa đăng nhập được duyệt/tìm và xem chi tiết sản phẩm; cần đăng nhập để thêm sản phẩm vào giỏ và checkout. |
+| CHAT-SESSION-01 | Đã chốt trong phiên | MVP có chat giữa người mua và shop. |
+| CHAT-SESSION-02 | Đã chốt trong phiên | Mỗi cặp buyer–shop có một hội thoại chung; có thể gửi kèm thẻ sản phẩm hoặc đơn hàng làm ngữ cảnh, không tách hội thoại riêng theo từng sản phẩm/đơn hàng. |
+| CHAT-SESSION-03 | Đã sửa theo xác nhận của người dùng | Chat MVP hỗ trợ văn bản, ảnh, video và thẻ sản phẩm/đơn hàng. Video cũng có thể dùng làm bằng chứng khiếu nại; không giới hạn video chỉ ở luồng khiếu nại. |
+| RATING-SESSION-01 | Đã chốt trong phiên | MVP có đánh giá shop; không đánh giá riêng từng sản phẩm. |
+| RATING-SESSION-02 | Đã chốt trong phiên | Mỗi buyer chỉ có một đánh giá cho mỗi shop; có thể cập nhật đánh giá khi mua lại. |
+| RATING-SESSION-03 | Đã chốt trong phiên | Đánh giá shop gồm điểm 1–5 sao; bình luận và ảnh/video là tùy chọn. |
+| PRODUCT-SESSION-01 | Đã chốt trong phiên | Mọi thay đổi trên tin đã duyệt, kể cả đổi giá, phải được admin duyệt lại trước khi nội dung mới hiển thị. |
+| PRODUCT-SESSION-02 | Đã chốt trong phiên | Khi seller gửi duyệt bản sửa của tin đã duyệt, ẩn tin trong thời gian chờ; chỉ hiển thị lại sau khi bản sửa được admin duyệt. |
+| SHOP-RBAC-SESSION-01 | Đã chốt một phần trong phiên | MVP có RBAC cho phép cấu hình linh hoạt quyền nhân viên shop; người được cấu hình quyền và ma trận quyền cụ thể sẽ được chốt riêng. |
+| SHOP-RBAC-SESSION-02 | Đã chốt trong phiên | Chủ shop được cấu hình quyền nhân viên trong phạm vi shop của mình. |
+| SHOP-RBAC-SESSION-03 | Đã chốt trong phiên | Giữ role `OWNER`; có role dựng sẵn `STAFF` với các quyền quản lý cơ bản. Chủ shop có thể tạo thêm role và chọn permission linh hoạt từ danh mục hệ thống. |
+| SHOP-RBAC-SESSION-04 | Đã cập nhật; đơn giản hóa phân quyền | Chỉ Owner được mời/gỡ thành viên, tạo/sửa role, chọn permission và gán/đổi role. Manager và Staff chỉ vận hành theo permission được cấp, không thay đổi role/quyền của bất kỳ ai. Vẫn hỗ trợ role tùy chỉnh và nhiều role mỗi thành viên. Thay thế quyết định ủy quyền quản lý thành viên/role cho Manager trước đó. |
+| SHOP-RBAC-SESSION-05 | Đã chốt trong phiên | Một thành viên có thể được gán nhiều role cùng lúc; quyền hiệu lực là phép hợp các tập permission của các role đã gán (`Set(permissions)`). |
+| SHOP-RBAC-SESSION-06 | Đã chốt trong phiên | Sửa permission của role có hiệu lực ngay với tất cả thành viên đang được gán role đó. |
+| SHOP-RBAC-SESSION-07 | Đã chốt trong phiên | Owner được chỉnh permission của role `STAFF` dựng sẵn như các role tùy chỉnh khác. |
+| SHOP-RBAC-SESSION-08 | Không còn áp dụng; thay thế bởi SHOP-RBAC-SESSION-04 | Quy tắc trước đây giới hạn Manager cấp permission trong phạm vi quyền của mình không còn cần thiết vì Manager không được quản lý role/quyền. |
+| SHOP-INVITE-SESSION-01 | Đã chốt trong phiên | Thêm nhân viên bằng lời mời; thành viên chỉ được kích hoạt sau khi chấp nhận lời mời. |
+| SHOP-INVITE-SESSION-02 | Đã chốt trong phiên | Chỉ gửi lời mời cho người đã có tài khoản Rewear. |
+| SHOP-INVITE-SESSION-03 | Đã chốt trong phiên | Lời mời nhân viên hết hạn sau 3 ngày nếu chưa được chấp nhận. |
+| SHOP-INVITE-SESSION-04 | Đã chốt trong phiên | Owner có thể thu hồi lời mời chưa được chấp nhận. |
+| SHOP-INVITE-SESSION-05 | Đã chốt trong phiên | Khi chấp nhận lời mời, nhân viên nhận các role owner đã chọn khi gửi lời mời. |
+| SHOP-INVITE-SESSION-06 | Đã cập nhật theo SHOP-RBAC-SESSION-04 | Chỉ Owner được mời thành viên; không ủy quyền thao tác này cho Manager hoặc Staff. |
+| SHOP-MEMBER-SESSION-01 | Đã chốt trong phiên | Nhân viên được tự rời shop bất kỳ lúc nào, không cần owner đồng ý. |
+| SHOP-MEMBER-SESSION-02 | Đã chốt trong phiên | Một tài khoản chỉ được làm nhân viên tại một shop ở một thời điểm. |
+| SHOP-MEMBER-SESSION-03 | Đã chốt trong phiên; mở rộng giới hạn SHOP-MEMBER-SESSION-02 | Mỗi tài khoản chỉ được tham gia một shop tại một thời điểm, dù là owner hay nhân viên. |
+| SHOP-MEMBER-SESSION-04 | Được thay thế bởi SHOP-MODEL-SESSION-01 | Cách hiểu trước đó tách bán cá nhân với bán qua shop và coi tài khoản tạo shop là tài khoản doanh nghiệp không còn áp dụng. |
+| SHOP-MODEL-SESSION-01 | Đã chốt trong phiên | Mọi người bán, dù cá nhân hay doanh nghiệp/shop lớn, đều phải tạo shop và dùng chung mô hình code. Khác biệt tên gọi nghiệp vụ không tạo hai nguồn bán riêng; shop có thể chỉ có owner hoặc mời thêm staff tùy nhu cầu. Thay thế cách hiểu trước đó rằng tạo shop đồng nghĩa tài khoản doanh nghiệp. |
+| SHOP-VERIFY-SESSION-01 | Đã chốt trong phiên; làm rõ đối tượng xét duyệt | Admin xét duyệt đơn tạo shop; shop được duyệt mới được đăng bán. Không có bước admin duyệt riêng từng owner hoặc staff. |
+| SHOP-BANK-SESSION-01 | Đã chốt trong phiên | Bắt buộc khai báo tài khoản ngân hàng nhận tiền của Owner ngay trong đơn tạo shop. Không đợi đến lần rút tiền đầu tiên mới khai báo. |
+| SHOP-BANK-SESSION-02 | Đã chốt trong phiên | Shop có thể lưu nhiều tài khoản ngân hàng nhận tiền; thêm tài khoản mới bằng kiểm tra tự động qua API, không cần admin duyệt riêng. Chưa xác minh nhà cung cấp/API và mức kiểm tra số tài khoản, tên hoặc quyền sở hữu; không coi tích hợp này đã có trong code. |
+| SHOP-BANK-SESSION-03 | Đã chốt trong phiên | Cho phép tài khoản ngân hàng nhận tiền khác tên Owner, miễn kiểm tra hợp lệ và Owner xác nhận sử dụng. Owner chịu trách nhiệm chọn đúng người nhận. |
+| SHOP-ROLE-SESSION-01 | Đã cập nhật; thay tên Shop Admin | Dùng các role dựng sẵn `OWNER`, `MANAGER`, `STAFF`. Owner là chủ sở hữu, đứng hồ sơ định danh/tài khoản nhận tiền và có toàn quyền trong shop. Manager và Staff hoạt động theo permission; Manager có thêm các permission quản lý shop so với Staff. Tiếp tục hỗ trợ role tùy chỉnh theo SHOP-RBAC-SESSION-03. |
+| SHOP-OWNER-SESSION-01 | Đã cập nhật; thay thế quyết định nhiều owner | Mỗi shop có một Owner duy nhất; có thể có nhiều Manager và Staff. |
+| SHOP-OWNER-SESSION-02 | Không còn áp dụng | Quyết định trước đây cho nhiều owner quyền ngang nhau và thêm/gỡ lẫn nhau được thay thế bởi SHOP-OWNER-SESSION-01. |
+| SHOP-OWNER-SESSION-03 | Đã cập nhật theo mô hình một owner | Shop không được còn 0 owner; owner phải chuyển quyền sở hữu trước khi rời shop. |
+| NOTIF-SESSION-01 | Đã chốt trong phiên | Hệ thống thông báo MVP hỗ trợ 2 kênh: chuông thông báo trong ứng dụng (In-app notification) và gửi Email cho các sự kiện quan trọng (đơn hàng mới, admin xét duyệt đơn tạo shop / duyệt tin đăng, lời mời thành viên tham gia shop). |
+| WISHLIST-FOLLOW-SESSION-01 | Đã chốt trong phiên | MVP hỗ trợ cả hai tính năng Lưu sản phẩm yêu thích (Wishlist) và Theo dõi Shop (Follow Shop). Buyer có trang xem danh sách sản phẩm đã lưu và danh sách các shop đang theo dõi để cập nhật hàng mới. |
+| CATEGORY-SESSION-01 | Đã chốt trong phiên | Danh mục sản phẩm tổ chức theo mô hình phẳng 1 cấp (Flat categories) gồm các nhóm đồ chính (Áo, Quần, Đầm/Váy, Áo khoác, Giày dép, Phụ kiện/Túi xách...); không phân nhánh cây đa cấp trong MVP để tinh gọn việc đăng bán và tìm kiếm đồ secondhand. |
+| FILTER-SESSION-01 | Đã chốt trong phiên | Bộ lọc tìm kiếm và khám phá sản phẩm MVP hỗ trợ: Danh mục (Category), Khoảng giá min–max, Độ mới/Tình trạng (Condition), Kích cỡ (Size), Khu vực/Tỉnh thành của shop và Sắp xếp (Mới nhất, Giá tăng dần, Giá giảm dần). |
+| REPORT-SESSION-01 | Đã chốt trong phiên | MVP hỗ trợ tính năng Báo cáo vi phạm (Report) trên trang chi tiết sản phẩm và trang Shop. Người dùng có thể gửi báo cáo kèm phân loại lý do (hàng giả/nhái, hàng cấm, sai sự thật, phản cảm, lừa đảo...) cùng mô tả/ảnh bằng chứng để Admin xử lý vi phạm. |
+| ADDRESS-SESSION-01 | Đã chốt trong phiên | Buyer có sổ địa chỉ (Address Book) cho phép lưu nhiều địa chỉ nhận hàng, chọn theo 3 cấp hành chính (Tỉnh/Thành, Quận/Huyện, Phường/Xã) và đặt 1 địa chỉ Mặc định. Khi checkout tự động chọn địa chỉ mặc định hoặc cho phép đổi sang địa chỉ khác trong sổ. |
+| PROMO-SESSION-01 | Đã chốt trong phiên | Mô hình chợ thời trang secondhand mang đặc thù mỗi món là hàng độc bản (unique item, tồn kho = 1) nên MVP không hỗ trợ mã coupon/voucher giảm giá của Shop; giảm giá thanh toán duy nhất thông qua cơ chế Xu thưởng do sàn tài trợ (tối đa 10% tiền hàng theo COIN-SESSION-01..03). |
+| DASHBOARD-SESSION-01 | Đã chốt trong phiên | Cả trang quản lý Shop và trang quản trị Admin đều có Dashboard trực quan với các biểu đồ (Charts): biểu đồ đường/cột thể hiện biến động doanh thu theo tuần/tháng, số lượng đơn hàng theo trạng thái, và top sản phẩm được quan tâm/lượt xem nhiều nhất. |
+| ORDER-STATE-SESSION-01 | Đã xác nhận giữ nguyên theo diagram | Vòng đời đơn hàng chuẩn hóa theo đúng file sơ đồ `order_state_machine.puml` gồm 9 trạng thái: `waiting` (Chờ thanh toán) -> `pending` (Chờ xác nhận 24h) -> `preparing` (Đang chuẩn bị) -> `shipping` (Đang giao) -> `delivered` (Đã giao, chờ 72h) -> `completed` (Hoàn tất). Các nhánh rẽ gồm `dispute` (Đang khiếu nại), `returns` (Chờ trả/hoàn) và `cancelled` (Đã hủy). Hoàn tất không mở tiền ngay mà phải đủ 72h và không tranh chấp. |
+| AI-FEATURE-SESSION-01 | Đã chốt trong phiên | Tính năng AI tích hợp trong ứng dụng hỗ trợ người bán viết mô tả sản phẩm (AI Description Suggestion): không xử lý nhận diện hình ảnh, hệ thống gọi Google Gemini API dựa trên các trường thông tin cơ bản người bán đã nhập ở form trước (tên món đồ, thương hiệu, chất liệu, độ mới/khuyết điểm...) để sinh văn bản mô tả chỉn chu, rõ ràng; người bán được xem trước và tùy ý chỉnh sửa trước khi gửi duyệt tin. |
+| PAYOUT-SESSION-01 | Đã chốt trong phiên | Quy trình rút tiền của Shop (Shop Payout) trong MVP áp dụng duyệt thủ công: Owner tạo lệnh rút tiền từ số dư khả dụng về tài khoản ngân hàng đã đăng ký; hệ thống khóa số tiền vào trạng thái chờ rút; Admin tiếp nhận yêu cầu trên Admin Portal, chuyển khoản ngân hàng thủ công ngoài sàn và xác nhận đã chi tiền (kèm mã giao dịch/biên lai). Tự động chi tiền qua API ngân hàng là hướng nghiên cứu mở rộng sau này cho các shop uy tín. |
+
 ## Còn cần tổng hợp
 
 - Soạn bộ câu hỏi khảo sát hoàn chỉnh, lựa chọn đáp án và nhánh câu hỏi theo vai trò.

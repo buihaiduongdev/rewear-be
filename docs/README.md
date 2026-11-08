@@ -5,9 +5,11 @@ tìm nhóm tính năng, mở đúng khu vực Figma và tra cứu mã nguồn, d
 
 ## Nguồn đặc tả
 
-[Báo cáo Re.wear — Google Docs, tab t.0](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0)
-là tài liệu đặc tả nghiệp vụ và trình bày giao diện. Session mới dùng liên kết này
-để đọc nguồn khi cần đối chiếu yêu cầu; không cần yêu cầu người dùng gửi lại URL.
+- [Báo cáo Re.wear — Google Docs, tab t.0](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0): tài liệu đặc tả nghiệp vụ và trình bày giao diện.
+- [Rubric đánh giá đồ án — Google Docs](https://docs.google.com/document/d/1juEuPZqhd7-ZqkM5EcUMriEUEbTT4rph/edit): tiêu chí chấm và yêu cầu các mốc nộp bài môn học.
+- [Cổng Kiểm Tra Hồ Sơ Đồ Án Phần Mềm](https://kanghidro.github.io/hd-nop-project/): trang hướng dẫn và kiểm tra hồ sơ nộp đồ án.
+
+Session mới dùng các liên kết này để đọc nguồn khi cần đối chiếu yêu cầu; không cần yêu cầu người dùng gửi lại URL.
 Đối chiếu thêm quyết định trong `archive/` và code hiện tại trước khi triển khai;
 phạm vi thiết kế không đồng nghĩa tính năng đã hoàn thành.
 

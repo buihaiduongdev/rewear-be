@@ -6,9 +6,13 @@ hoàn thành hay được GVHD xác nhận.
 
 ## Bắt đầu từ đâu
 
+- [Cổng Kiểm Tra Hồ Sơ Đồ Án Phần Mềm](https://kanghidro.github.io/hd-nop-project/): trang hướng dẫn và kiểm tra hồ sơ nộp đồ án.
+- [Rubric đánh giá đồ án — Google Docs](https://docs.google.com/document/d/1juEuPZqhd7-ZqkM5EcUMriEUEbTT4rph/edit): tiêu chí chấm và yêu cầu các mốc nộp bài môn học.
+- [Báo cáo Re.wear — Google Docs, tab t.0](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0): tài liệu đặc tả nghiệp vụ và trình bày giao diện gốc.
 - [DECISIONS.md](DECISIONS.md): quyết định đã được xác nhận trong buổi làm việc,
   nội dung cũ trong docs đang chờ review, và các điểm chưa chốt. Đây là file
   handoff quan trọng nhất để member nắm trạng thái.
+- [PLAN.MD](PLAN.MD): kế hoạch hoàn thiện hồ sơ đồ án theo lộ trình và cổng nộp.
 - [SURVEY_EVIDENCE.MD](SURVEY_EVIDENCE.MD): kết quả khảo sát người mua/người bán.
 - [LIST_TASK.MD](LIST_TASK.MD): phân công hai thành viên và liên kết bằng chứng.
 - [SRS_SDD.MD](SRS_SDD.MD): phạm vi, yêu cầu, quy tắc và sơ đồ hệ thống.
@@ -137,8 +141,27 @@ code đã triển khai. Đọc cả ID thay thế/làm rõ và mục câu còn t
   ghi phải hoàn trả riêng và bù refund sau. Buyer phản đối trong 7 ngày một lần
   có căn cứ, admin xét 2 ngày làm việc; khi xét không giữ/bù refund mới.
 
+## Cập nhật hội thoại ngày 07–08/11/2026: Luồng ứng dụng tổng quát
+
+Đã bổ sung mục “Luồng ứng dụng” vào [DECISIONS.md](DECISIONS.md) bao gồm:
+- **Khách vãng lai & Đăng nhập (`GUEST-SESSION-01`):** Xem/tìm sản phẩm tự do; bắt buộc đăng nhập để thêm vào giỏ và checkout.
+- **Mô hình Shop thống nhất & Phân quyền RBAC (`SHOP-MODEL-SESSION-01`, `SHOP-RBAC-SESSION-01..08`):** Tất cả người bán (cá nhân hay doanh nghiệp) đều lập Shop; 1 Owner duy nhất per shop; role dựng sẵn `OWNER`, `MANAGER`, `STAFF` + custom roles; chỉ Owner quản lý role/quyền/lời mời; 1 tài khoản chỉ tham gia 1 shop tại một thời điểm; Owner bắt buộc khai báo tài khoản ngân hàng khi tạo shop.
+- **Chat (`CHAT-SESSION-01..03`):** 1 hội thoại chung giữa cặp buyer–shop đính kèm thẻ sản phẩm/đơn hàng; hỗ trợ ảnh, video và văn bản.
+- **Đánh giá (`RATING-SESSION-01..03`):** Đánh giá cấp Shop (1–5 sao, 1 review/buyer/shop), không đánh giá lẻ từng SKU.
+- **Duyệt tin khi sửa (`PRODUCT-SESSION-01..02`):** Mọi sửa đổi (kể cả đổi giá) đều ẩn tin để Admin duyệt lại.
+- **Thông báo (`NOTIF-SESSION-01`):** Chuông In-app + Email cho các sự kiện quan trọng (đơn hàng mới, duyệt shop/tin, lời mời shop).
+- **Tương tác (`WISHLIST-FOLLOW-SESSION-01`):** Có cả lưu sản phẩm yêu thích (Wishlist) và Theo dõi Shop (Follow Shop).
+- **Danh mục & Bộ lọc (`CATEGORY-SESSION-01`, `FILTER-SESSION-01`):** Danh mục 1 cấp phẳng; Bộ lọc đa tiêu chí (Danh mục, Giá, Độ mới, Size, Khu vực Shop, Sắp xếp).
+- **Báo cáo vi phạm (`REPORT-SESSION-01`):** Nút Report tin đăng & Shop gửi về Admin xử lý.
+- **Sổ địa chỉ (`ADDRESS-SESSION-01`):** Đa địa chỉ 3 cấp hành chính + 1 địa chỉ mặc định tự động chọn khi checkout.
+- **Khuyến mãi (`PROMO-SESSION-01`):** Không làm Shop Voucher (đặc thù hàng 2hand độc bản), chỉ dùng Xu thưởng sàn tài trợ.
+- **Dashboard (`DASHBOARD-SESSION-01`):** Thống kê có biểu đồ Charts trực quan cho cả Shop và Admin.
+- **Vòng đời đơn hàng (`ORDER-STATE-SESSION-01`):** Chuẩn hóa 9 trạng thái theo đúng `order_state_machine.puml`.
+- **Tính năng AI (`AI-FEATURE-SESSION-01`):** Gemini AI gợi ý mô tả sản phẩm từ các trường text đã nhập ở form trước (không phân tích ảnh).
+- **Rút tiền Shop (`PAYOUT-SESSION-01`):** Duyệt thủ công (Admin chuyển khoản ngoài và xác nhận bill); API tự động nghiên cứu mở rộng sau.
+
 Điểm tiếp tục: câu buyer có được chủ động trả khoản tiền ví cộng thừa qua MoMo
-**chưa được trả lời**. Câu 29 về order cũ khi seller bị kết luận giả mạo vẫn còn
+**chưa được trả lời** (thuộc nhánh của Tâm). Câu 29 về order cũ khi seller bị kết luận giả mạo vẫn còn
 treo. Các điểm còn mở khác xem cuối DECISIONS.md, không suy ra từ đề xuất của AI.
 
 ## Các hồ sơ còn lại
