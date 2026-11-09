@@ -89,12 +89,10 @@ Hoàn thiện đầy đủ nội dung và minh chứng cho từng đầu mục n
 
 - [x] Chốt toàn bộ các quyết định luồng ứng dụng tổng quát (`DECISIONS.md`).
 - [x] Xác nhận đầu mối hai thành viên, vai trò và phân rã chi tiết (`LIST_TASK.MD`).
+- [x] Soạn thảo bản cam kết sản phẩm và chốt bộ 5 KPI định lượng (`COMMITMENT_STEP3.MD`); chuẩn bị xin chữ ký GVHD.
 - [ ] Soạn và rà phiếu khảo sát Google Forms.
 - [ ] Thu thập và phân tích $\ge 30$ phản hồi khảo sát (`SURVEY_EVIDENCE.MD`).
-- [ ] Developer xác nhận mục tiêu/phạm vi; xin chữ ký GVHD (`COMMITMENT_STEP3.MD`).
-- [ ] Hoàn thiện `LIST_TASK.MD` từ bằng chứng PR/commit.
 - [ ] Hoàn thiện `SRS_SDD.MD` và chuẩn hóa diagrams.
-- [ ] Chốt bộ 5 KPI định lượng và xác nhận GVHD.
 - [ ] Gom minh chứng kiểm thử, quality reports, CI/CD và staging.
 - [ ] Chạy thực nghiệm UAT và ghi nhận cải tiến.
 - [ ] Hoàn thiện luận văn, kiểm tra đạo văn, slide và video demo.

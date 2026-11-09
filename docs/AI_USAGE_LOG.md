@@ -486,3 +486,15 @@
 - **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; kiểm tra thực tế giao diện và tính năng qua 14 ảnh audit chụp bằng agent browser; kiểm chứng bộ 75/75 E2E integration test backend và Vitest frontend.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản nháp ban đầu của AI viện dẫn nguồn phân rã từ các phân hệ Figma (vi phạm quy trình kỹ nghệ phần mềm chuẩn vì thiết kế UI không phải nguồn sinh ra WBS) và dùng từ ngữ "chủ trì" không sát ngữ cảnh sinh viên; người dùng đã yêu cầu sửa lại để WBS phân rã trực tiếp từ SRS/SDD và dùng từ "phụ trách".
 - **Minh chứng:** PR #26, file `docs/submission_docs/LIST_TASK.MD` và `docs/submission_docs/PLAN.MD`.
+
+### 2026-11-09 — Xây dựng Bản cam kết sản phẩm và bộ 5 KPI định lượng (COMMITMENT_STEP3.MD)
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Soạn thảo bản cam kết sản phẩm cuối cùng tại mốc 50% thời gian thực hiện đồ án (Bước 3 quy trình), xác lập phạm vi làm/không làm (In-scope/Out-of-scope) và chốt bộ 5 KPI định lượng theo Rubric TC1 (Mức 5) và TC2.2 để tránh vi phạm lỗi chặn G1.
+- **Prompt chính:** Yêu cầu soạn thảo `COMMITMENT_STEP3.MD` bám sát quyết định kiến trúc, quy chuẩn Rubric Khoa và không dùng từ "chủ trì".
+- **Đầu ra AI được sử dụng:** Cấu trúc văn bản cam kết, danh mục phạm vi 10 mô-đun kỹ thuật, bảng 5 chỉ số KPI định lượng (Inventory Atomic Hold 10 phút, P95 API Response Time $\le 200\text{ms}$, Escrow SLA 72h, Code Coverage $\ge 70\%$, SUS $\ge 80$), khung ký duyệt của GVHD và sinh viên.
+- **Phần tự làm hoặc đã chỉnh sửa:** Rà soát và chuẩn hóa ngưỡng cam kết kỹ thuật phù hợp với năng lực hệ thống hiện tại, thống nhất phạm vi không thực hiện đấu giá trực tiếp/ví đa năng; đối chiếu tỷ lệ đóng góp 50% - 50% giữa hai thành viên.
+- **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
+- **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
