@@ -1,108 +1,63 @@
-# Re.wear — Tổng quan dự án
+# Re.wear — Tổng quan Tài liệu Kỹ thuật
 
-Sàn mua bán thời trang secondhand. Tài liệu này là điểm vào cho developer/agent:
-tìm nhóm tính năng, mở đúng khu vực Figma và tra cứu mã nguồn, diagram.
+Nền tảng thương mại điện tử chuyên biệt cho quần áo thời trang đã qua sử dụng (Secondhand / Pre-loved Fashion), giải quyết bài toán hàng độc bản (Single Inventory), chống tranh chấp mua đồng thời (Race Condition), tích hợp vận chuyển đa kiện và ký quỹ bảo vệ giao dịch.
 
-## Nguồn đặc tả
+- **Đề tài chính thức:** Xây dựng Hệ thống Website bán quần áo đã qua sử dụng
+- **Bộ môn:** Công nghệ Phần mềm — Khoa Công nghệ Thông tin
+- **Giảng viên hướng dẫn:** ThS. Nguyễn Minh Đạo
+- **Sinh viên thực hiện:** Bùi Hải Dương (`23110197`) & Bùi Thành Tâm (`23110310`) (Tỷ lệ đóng góp: 50% – 50%)
 
-[Báo cáo Re.wear — Google Docs, tab t.0](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0)
-là tài liệu đặc tả nghiệp vụ và trình bày giao diện. Session mới dùng liên kết này
-để đọc nguồn khi cần đối chiếu yêu cầu; không cần yêu cầu người dùng gửi lại URL.
-Đối chiếu thêm quyết định trong `archive/` và code hiện tại trước khi triển khai;
-phạm vi thiết kế không đồng nghĩa tính năng đã hoàn thành.
+---
 
-## Mục lục dự án
+## 1. Nguồn tra cứu chính thức
 
-| Nội dung                                  | Vị trí                                       |
-| ----------------------------------------- | -------------------------------------------- |
-| Cài đặt, chạy, kiểm thử và API contract   | [README dự án](../README.md)                 |
-| Quy tắc làm việc và PR                    | [AGENT.md](../AGENT.md)                      |
-| Product lifecycle và API mới              | [PRODUCT_LIFECYCLE.md](PRODUCT_LIFECYCLE.md) |
-| Seed và factory cho dev/E2E               | [SEEDING.md](SEEDING.md)                     |
-| Giỏ hàng và API cart                      | [CART.md](CART.md)                           |
-| Thông số đóng gói cho sản phẩm            | [SHIPPING_PACKAGE.md](SHIPPING_PACKAGE.md)   |
-| Địa chỉ lấy hàng riêng theo nguồn bán     | [PICKUP_LOCATION.md](PICKUP_LOCATION.md)     |
-| Module nghiệp vụ                          | [src/modules](../src/modules)                |
-| Thành phần dùng chung                     | [src/common](../src/common)                  |
-| Tích hợp hạ tầng                          | [src/infrastructure](../src/infrastructure)  |
-| Kiểm thử                                  | [test](../test)                              |
-| Danh mục diagram, source và ảnh tương ứng | [diagrams/README.md](diagrams/README.md)     |
-| Nhật ký hỗ trợ AI                         | [AI_USAGE_LOG.md](AI_USAGE_LOG.md)           |
-| Quyết định, kế hoạch và ghi chú tham khảo | [archive](#tài-liệu-lưu-trữ)                 |
+- **Cổng Kiểm Tra Hồ Sơ Đồ Án:** [https://kanghidro.github.io/hd-nop-project/](https://kanghidro.github.io/hd-nop-project/)
+- **Rubric đánh giá đồ án:** [Google Docs Rubric](https://docs.google.com/document/d/1juEuPZqhd7-ZqkM5EcUMriEUEbTT4rph/edit)
+- **Báo cáo đề cương luận văn:** [Google Docs Báo cáo](https://docs.google.com/document/d/1iSOPW66vllAYl5PjRUGdEqCqoB3ZvL_9gCXr2o7c9DQ/edit?tab=t.0)
+- **Nhật ký kiểm soát AI:** [`AI_USAGE_LOG.md`](AI_USAGE_LOG.md)
 
-## Tính năng và giao diện
+---
 
-Link mở thẳng section trong Figma; mỗi nhóm tính năng được xếp trên một hàng riêng.
-Đây là phạm vi thiết kế, **không phải danh sách tính năng đã triển khai**.
+## 2. Danh mục Hồ sơ Nộp Đồ án (`submission_docs/`)
 
-| Vai trò            | Nhóm tính năng                                                            | Figma                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Chung              | Thành phần, màu sắc và kiểu chữ                                           | [UI foundations](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=41-2)         |
-| Chung              | Đăng ký, đăng nhập và khôi phục tài khoản                                 | [Authentication](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=28-2)         |
-| Chung              | Hướng dẫn mua hàng và chính sách                                          | [Buying help](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-419)          |
-| Guest / Buyer      | Trang chủ, tìm kiếm, lọc và chi tiết sản phẩm                             | [Product discovery](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=28-3)      |
-| Buyer              | Hồ sơ và địa chỉ nhận hàng                                                | [Profile & addresses](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-420)  |
-| Buyer              | Giỏ hàng, kiểm tra khả dụng và checkout                                   | [Cart & checkout](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=28-4)        |
-| Buyer              | Chọn phương thức và theo dõi kết quả thanh toán                           | [Payment](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=48-2524)             |
-| Buyer              | Danh sách đơn, chi tiết và theo dõi giao hàng                             | [Orders & delivery](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=48-113)    |
-| Buyer              | Yêu cầu trả hàng, bằng chứng và khiếu nại                                 | [Returns & disputes](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=56-341)   |
-| Buyer / Seller     | Trao đổi qua tin nhắn                                                     | [Messages](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-421)             |
-| Seller             | Tổng quan hoạt động bán hàng                                              | [Overview](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=28-5)               |
-| Shop Owner         | Tạo shop, địa chỉ lấy hàng và đăng ký điểm lấy hàng với đơn vị vận chuyển | [Shop onboarding](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=63-2225)     |
-| Seller             | Đăng bán, ảnh thực tế, tình trạng và quản lý sản phẩm                     | [Products & listings](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-422)  |
-| Seller             | Xác nhận đơn, đóng gói, tạo vận đơn và theo dõi giao nhận                 | [Orders & shipping](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-423)    |
-| Seller             | Phản hồi yêu cầu trả hàng và xử lý hàng hoàn                              | [Returns](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-424)              |
-| Seller             | Số dư chờ quyết toán, khả dụng và yêu cầu rút tiền                        | [Funds & withdrawals](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-425)  |
-| Shop Owner / Staff | Thông tin shop, địa chỉ lấy hàng và nhân viên theo quyền                  | [Shop settings & team](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-426) |
-| Admin              | Duyệt và xử lý vi phạm sản phẩm                                           | [Product moderation](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=28-6)     |
-| Admin              | Quản lý người dùng và shop                                                | [Users & shops](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-427)        |
-| Admin              | Quản lý danh mục                                                          | [Categories](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-428)           |
-| Admin              | Duyệt tranh chấp và quyết định hoàn tiền/phí                              | [Disputes](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-429)             |
-| Admin              | Duyệt yêu cầu rút và ghi nhận chuyển tiền bên ngoài                       | [Withdrawals](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-430)          |
-| Admin              | Cấu hình tham số nghiệp vụ và lịch sử thay đổi                            | [System settings](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=67-431)      |
+Toàn bộ hồ sơ phục vụ các mốc đánh giá của Bộ môn và Cổng nộp đồ án được quy hoạch tập trung tại thư mục [`docs/submission_docs/`](submission_docs/):
 
-Seller bao gồm người bán cá nhân và người bán thuộc shop; quyền Owner/Staff phải
-được kiểm tra ở backend. Các mẫu cũ nằm ở
-[Reference](https://www.figma.com/design/xjyTlIecBwx0SdTILgBkFL/Re.wear-design?node-id=51-3207),
-không dùng để suy ra phạm vi tích hợp đã hoàn thành.
+| Hồ sơ | Nội dung chính | Mốc hạn cổng nộp |
+|---|---|---|
+| [`DECISIONS.md`](submission_docs/DECISIONS.md) | Toàn bộ quyết định luồng ứng dụng: RBAC Shop, Chat, Đánh giá, Xu sàn, Trạng thái đơn, Rút tiền. | Nền tảng |
+| [`LIST_TASK.MD`](submission_docs/LIST_TASK.MD) | Phân công 10 mô-đun code & 6 đầu mục tài liệu (50% Dương — 50% Tâm), phân rã trực tiếp từ SRS/SDD. | 30/11/2026 |
+| [`COMMITMENT_STEP3.MD`](submission_docs/COMMITMENT_STEP3.MD) | Cam kết sản phẩm Bước 3 & Bộ 5 chỉ số KPI định lượng (Atomic Hold, P95 $\le 200\text{ms}$, Escrow 72h, Coverage $\ge 70\%$, SUS $\ge 80$). | 23/11/2026 |
+| [`PLAN.MD`](submission_docs/PLAN.MD) | Lộ trình và checklist theo dõi tiến độ hoàn thiện hồ sơ nộp cổng. | Điều phối |
+| [`SRS_SDD.MD`](submission_docs/SRS_SDD.MD) | Đặc tả yêu cầu phần mềm (SRS) và Thiết kế kiến trúc (SDD) khớp 100% mã nguồn thực tế. | 01/12/2026 |
+| [`SURVEY_EVIDENCE.MD`](submission_docs/SURVEY_EVIDENCE.MD) | Phiếu khảo sát Google Forms, dữ liệu $\ge 30$ người dùng TP.HCM và phân tích nhu cầu. | Nghiên cứu |
+| [`TEST_PLAN_AND_CASES.MD`](submission_docs/TEST_PLAN_AND_CASES.MD) | Kế hoạch kiểm thử 4 tầng, ma trận test cases và kết quả kiểm thử tự động. | 07/12/2026 |
 
-## Quy tắc chính
+---
 
-- Mỗi sản phẩm là một món riêng. Checkout kiểm tra lại khả dụng, loại món không
-  còn mua được; các món hợp lệ giữ chung 10 phút, không gia hạn và không được sửa khi đang giữ.
-- Một checkout thanh toán một lần, tách đơn theo nguồn bán và tính phí vận chuyển
-  riêng cho từng nguồn bán. Seller tạo vận đơn từ đơn đã có.
-- Nghiệp vụ dùng cổng thanh toán và đơn vị vận chuyển chung; phương thức trên UI
-  chỉ được bật khi có adapter khả dụng. MVP thanh toán online sandbox.
-- Sàn ghi nhận tiền thanh toán và quản lý số dư nội bộ. Tiền seller được mở sau
-  72 giờ từ giao thành công nếu không có tranh chấp; xác nhận nhận hàng sớm không mở tiền sớm.
-- Seller yêu cầu rút tiền; admin xử lý chuyển tiền bên ngoài và ghi nhận kết quả.
-  Tham số cấu hình mới không thay đổi phí/deadline đã lưu trên giao dịch cũ.
+## 3. Tổng quan Kiến trúc & Công nghệ
 
-## Hiện trạng và bước tiếp theo
+- **Backend:** NestJS 11 theo Clean Architecture / Module-first, TypeScript, TypeORM, PostgreSQL 16, Swagger OpenAPI, Zod Environment Validation.
+- **Frontend:** Next.js 16 (App Router, Turbopack), Tailwind CSS, React Query, NextAuth.
+- **Tích hợp bên ngoài:**
+  - **GHN Sandbox:** Báo giá cước vận chuyển tự động theo từng kiện shop, tạo vận đơn bưu tá lấy hàng.
+  - **MoMo Sandbox:** Cổng thanh toán trực tuyến QR/App, IPN webhook và worker tra soát giao dịch.
+  - **Google Gemini AI:** Gợi ý tiêu đề, mô tả sản phẩm thông minh từ dữ liệu form người bán nhập.
+- **Hệ thống sơ đồ thiết kế:** Bộ 28 biểu đồ PlantUML hoàn chỉnh được lưu trữ tại [`docs/diagrams/`](diagrams/README.md) (Usecase, Sequence, Activity, State Machine, Domain Model).
 
-Backend đã có các module tài khoản/xác thực, danh mục, địa giới Việt Nam, địa chỉ,
-shop, sản phẩm và media. Mức hoàn thiện từng API cần đối chiếu mã nguồn và kiểm thử;
-việc có module không đồng nghĩa toàn bộ luồng trong Figma đã hoạt động.
+---
 
-Ưu tiên tiếp theo: hoàn thiện contract tồn kho/trạng thái sản phẩm và snapshot,
-rồi triển khai giỏ hàng → checkout/reservation/đơn hàng → thanh toán → vận chuyển
-→ trả hàng/hoàn tiền/quyết toán. Quy tắc còn mở và backlog chi tiết giữ trong
-[TODO](archive/TODO.md) và [kế hoạch](archive/IMPLEMENTATION_PLAN.md).
+## 4. Tóm lược Nghiệp vụ cốt lõi
 
-## Tài liệu lưu trữ
+1. **Tồn kho độc bản (Unique Items):** Mỗi sản phẩm thời trang secondhand là duy nhất (tồn kho $= 1$).
+2. **Khóa giữ hàng nguyên tử 10 phút (Atomic Hold):** Khi người mua tiến hành checkout, hệ thống khóa giữ sản phẩm trong 10 phút với TTL cố định nhằm triệt tiêu tranh chấp mua trùng (Race condition). Hết hạn sẽ tự động nhả kho.
+3. **Đóng gói quy chuẩn & Cước phí đa shop:** Người bán thiết lập thông số kiện hàng (kích thước, trọng lượng) và địa chỉ kho lấy hàng riêng (`/selling/pickup`). Cước GHN được tính và hiển thị minh bạch theo từng kiện seller.
+4. **Vòng đời đơn 9 trạng thái & Escrow 72h:** Đơn hàng tuân thủ state machine 9 trạng thái. Tiền thanh toán được giữ ký quỹ an toàn trong 72 giờ từ khi giao hàng thành công trước khi giải ngân cho người bán, bảo đảm quyền mở khiếu nại unbox cho người mua.
+5. **Ví hoàn tiền (Refund-only):** Tiền hoàn từ đơn hủy/khiếu nại được cộng vào ví nội bộ để cấn trừ 100% cho lần mua sắm tiếp theo.
 
-Các tài liệu dưới đây giữ nguyên lịch sử thiết kế và công việc chưa hoàn thành;
-chuyển thư mục không có nghĩa đã hoàn tất hoặc hủy các TODO. Khi triển khai, kiểm
-tra quyết định mới nhất và code; không coi bản đề xuất là hiện trạng database/API.
+---
 
-| Tài liệu                                              | Nội dung                                    |
-| ----------------------------------------------------- | ------------------------------------------- |
-| [Checkout decisions](archive/CHECKOUT_DECISIONS.md)   | Quyết định và câu hỏi nghiệp vụ còn mở      |
-| [Database proposal](archive/database-proposal.md)     | Mô hình dữ liệu dự thảo                     |
-| [Implementation plan](archive/IMPLEMENTATION_PLAN.md) | Thứ tự triển khai, phụ thuộc và kiểm chứng  |
-| [Integration scope](archive/INTEGRATION_SCOPE.md)     | Phạm vi tích hợp và giao diện               |
-| [TODO](archive/TODO.md)                               | Backlog, việc đã làm và giới hạn kiểm chứng |
-| [GHN integration notes](archive/ghn_integrate.md)     | Chứng cứ thử nghiệm một adapter vận chuyển  |
+## 5. Tài liệu Lưu trữ (`docs/archive/`)
 
-Checkout implementation: [reservation API and limits](CHECKOUT.md).
+Các bản ghi chép chi tiết, bản nháp sprint ban đầu và đặc tả tính năng legacy được lưu trữ tại:
+- [`archive/legacy_specs/`](archive/legacy_specs/): Các file đặc tả kỹ thuật tính năng ban đầu (`CART`, `CHECKOUT`, `PICKUP_LOCATION`, `PRODUCT_LIFECYCLE`, `SEEDING`, `SHIPPING_PACKAGE`, `SHIPPING_QUOTE`, `superpowers/`).
+- [`archive/`](archive/): Các đề xuất database, kế hoạch thực hiện và checklist cũ (`CHECKOUT_DECISIONS`, `TODO`, `ghn_integrate`).

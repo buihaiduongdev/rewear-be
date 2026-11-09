@@ -447,3 +447,54 @@
 - **Prompt chính:** Ghi trong README handoff rằng tài liệu Drive và `docs/archive/` có thể outdate, chưa được developer đọc/review; nếu trùng logic vẫn phải hỏi developer.
 - **Đầu ra AI:** Thêm lưu ý về cách dùng tài liệu cũ như nguồn tham khảo và yêu cầu xác nhận lại các quy tắc trùng lặp.
 - **Kiểm chứng:** Đọc lại đoạn vừa thêm và chạy `git diff --check`; không chạy test ứng dụng vì chỉ sửa Markdown.
+
+### 2026-11-05 — Lưu quyết định nghiệp vụ từ hội thoại tiếp nối handoff
+
+- **Công cụ:** Codex; skill brainstorming hỗ trợ cách hỏi, verification-before-completion hỗ trợ kiểm tra tài liệu trước khi bàn giao.
+- **Yêu cầu:** Người dùng yêu cầu đọc lại README và lưu các câu trả lời đã chốt sau PR #24; trước đó quyết định mới chỉ nằm trong hội thoại.
+- **Phần người dùng quyết định:** Chọn từng phương án về đăng ký/định danh seller, cập nhật giấy tờ và giả mạo, chờ quyết toán, tranh chấp/SLA/xét lại/bằng chứng, giữ hàng hoàn một phần, hoa hồng, phí thanh toán, nguồn/thưởng/hạn/giữ xu và tra soát thanh toán trước deadline. Người dùng bổ sung yêu cầu SLA để tiền seller không bị giữ quá lâu.
+- **AI hỗ trợ:** Tổng hợp các lựa chọn vào `docs/submission_docs/DECISIONS.md`, giữ ID đã dùng, thêm ID cho câu tra soát cuối, chỉ rõ quy tắc thay thế/làm rõ; đồng bộ README và liệt kê câu còn treo/điểm tiếp tục.
+- **Kiểm chứng:** Đọc lại README, decision log và đối chiếu các lựa chọn trong hội thoại; kiểm tra ID, lịch sử thay thế và `git diff --check`. Không chạy test ứng dụng vì chỉ thay đổi Markdown.
+- **Giới hạn:** Đây là quyết định nghiệp vụ, không triển khai code/DB/API hoặc xác nhận nghiệm thu. Câu 29 về order cũ khi kết luận seller giả mạo chưa được trả lời; độ uy tín và chống spam checkout/blacklist chưa chốt. Không điền các hồ sơ rỗng thành nội dung hoàn tất. Chưa có xác nhận người dùng tự review toàn bộ diff.
+
+### 2026-11-06 — Bổ sung quyết định COD, ví và chuẩn bị PR tài liệu
+
+- **Công cụ:** Codex và GitHub plugin.
+- **Yêu cầu:** Lưu quyết định theo nhóm 5 câu, không đổi chủ đề theo mốc lưu; đưa tài liệu lên một PR theo mẫu cũ, gắn reviewer/assignee/label theo prefix, không merge và tiếp tục cập nhật cùng PR.
+- **Phần người dùng quyết định:** Chọn MoMo Sandbox, bổ sung COD qua GHN Sandbox; chốt xác nhận/bàn giao/hủy, phí và quyền phản đối, thu/đối soát COD, bồi thường, giữ/nhả/phục hồi xu, giới hạn và hạn chế lạm dụng COD; chốt ứng refund, SLA ví và sửa khoản cộng thừa. Những câu chưa được trả lời giữ trạng thái còn mở.
+- **AI hỗ trợ:** Ghi từng lựa chọn vào DECISIONS, đồng bộ README, phân biệt quyết định với bằng chứng triển khai/API, rút gọn danh sách việc còn mở và chuẩn bị commit/PR bằng GitHub plugin.
+- **Kiểm chứng:** Đối chiếu diff và các nhóm quyết định đã lưu, kiểm tra trùng ID/tham chiếu nội bộ và liên kết Markdown local; `git diff --check`. Không chạy test ứng dụng vì chỉ sửa ba file Markdown.
+- **Giới hạn:** Chưa triển khai hoặc kiểm thử luồng mới, chưa gọi thanh toán MoMo/refund/GHN COD backend để nghiệm thu. Tần suất query còn phải kiểm chứng theo provider. Câu trả lời cho việc chủ động trả tiền ví cộng thừa qua MoMo chưa có; câu 29 và các nhóm uy tín/checkout online còn mở. Chưa có xác nhận người dùng tự review toàn bộ diff; PR không được merge trong phạm vi yêu cầu.
+
+### 2026-11-08 — Ghi nhận các quyết định luồng ứng dụng tổng quát và kế hoạch nộp đồ án
+
+- **Công cụ:** Antigravity (Gemini 3.8 Flash).
+- **Yêu cầu:** Người dùng yêu cầu rà soát và chốt toàn bộ các luồng ứng dụng tổng quát còn lại của app (phân hệ buyer, shop, RBAC, tương tác, kiểm duyệt, thông báo, khuyến mãi, trạng thái đơn hàng, tính năng AI và rút tiền); bổ sung link rubric và cổng nộp; đưa kế hoạch nộp vào `docs/submission_docs/PLAN.MD` và tạo PR tài liệu theo quy chuẩn.
+- **Phần người dùng quyết định:** Chốt luồng khách vãng lai/đăng nhập (`GUEST-SESSION-01`); mô hình Shop thống nhất cho mọi seller, 1 Owner duy nhất per shop, phân quyền RBAC Owner/Manager/Staff (`SHOP-MODEL`, `SHOP-OWNER`, `SHOP-RBAC`, `SHOP-INVITE`, `SHOP-MEMBER`, `SHOP-BANK`); chat 1-1 Buyer-Shop đính kèm thẻ món/đơn; đánh giá cấp Shop 1–5 sao; ẩn tin chờ duyệt lại khi sửa; thông báo in-app + email (`NOTIF-SESSION-01`); Wishlist và Follow Shop (`WISHLIST-FOLLOW-SESSION-01`); danh mục phẳng 1 cấp (`CATEGORY-SESSION-01`); bộ lọc mở rộng (`FILTER-SESSION-01`); báo cáo vi phạm (`REPORT-SESSION-01`); sổ đa địa chỉ 3 cấp hành chính (`ADDRESS-SESSION-01`); không làm shop voucher mà dùng xu sàn (`PROMO-SESSION-01`); dashboard charts trực quan (`DASHBOARD-SESSION-01`); giữ nguyên 9 trạng thái đơn hàng theo sơ đồ state machine (`ORDER-STATE-SESSION-01`); Gemini AI gợi ý mô tả từ form text không xử lý ảnh (`AI-FEATURE-SESSION-01`); rút tiền shop duyệt thủ công ngoài sàn (`PAYOUT-SESSION-01`).
+- **AI hỗ trợ:** Ghi nhận và chuẩn hóa các mã quyết định vào `DECISIONS.md`; cập nhật `README.md`; đồng bộ link Cổng kiểm tra đồ án và Rubric; tạo `docs/submission_docs/PLAN.MD` chi tiết theo các mốc hạn cổng nộp; chuẩn bị commit và PR theo quy chuẩn repository.
+- **Kiểm chứng:** `git diff --check` pass; đối chiếu tham chiếu các ID quyết định và liên kết Markdown local; không thay đổi mã nguồn ứng dụng hay cấu hình runtime.
+- **Giới hạn:** Đây là quyết định tài liệu nghiệp vụ và kế hoạch hồ sơ, không khẳng định các tính năng mới đã được code hoặc kiểm thử nghiệm thu. Các câu hỏi chuyên sâu về COD/MoMo Sandbox và tranh chấp vẫn do thành viên phụ trách theo dõi riêng.
+
+### 2026-11-09 — Chuẩn hóa danh mục công việc LIST_TASK.MD theo quy trình Kỹ nghệ phần mềm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Hoàn thiện bảng phân công công việc chi tiết `LIST_TASK.MD` (10 mô-đun kỹ thuật và 6 đầu mục tài liệu) với tỷ lệ đóng góp cam kết 50% - 50% giữa 2 thành viên; rà soát tính hợp chuẩn của quy trình Kỹ nghệ phần mềm.
+- **Prompt chính:** Yêu cầu hoàn thiện bảng phân rã WBS từ SRS/SDD thay vì viện dẫn Figma; loại bỏ từ ngữ hành chính "chủ trì"; ánh xạ ca sử dụng (Use Cases) và đồng bộ trạng thái trong `PLAN.MD`.
+- **Đầu ra AI được sử dụng:** Khung bảng phân chia công việc, phân rã chi tiết trách nhiệm của hai sinh viên, ma trận ánh xạ Use Case và cập nhật tiến độ trong kế hoạch nộp đồ án.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt thông tin đề tài chính thức (GVHD ThS. Nguyễn Minh Đạo, MSSV hai thành viên), tỷ lệ đóng góp 50% - 50%; phân chia các mô-đun kỹ thuật (Dương: Kiến trúc, Auth, Catalog, AI, Cart/Hold, GHN Preview; Tâm: MoMo Sandbox, GHN COD, Order Lifecycle, Dispute, Wallet/Payout); rà soát loại bỏ triệt để từ "chủ trì" thay bằng "phụ trách".
+- **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; kiểm tra thực tế giao diện và tính năng qua 14 ảnh audit chụp bằng agent browser; kiểm chứng bộ 75/75 E2E integration test backend và Vitest frontend.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản nháp ban đầu của AI viện dẫn nguồn phân rã từ các phân hệ Figma (vi phạm quy trình kỹ nghệ phần mềm chuẩn vì thiết kế UI không phải nguồn sinh ra WBS) và dùng từ ngữ "chủ trì" không sát ngữ cảnh sinh viên; người dùng đã yêu cầu sửa lại để WBS phân rã trực tiếp từ SRS/SDD và dùng từ "phụ trách".
+- **Minh chứng:** PR #26, file `docs/submission_docs/LIST_TASK.MD` và `docs/submission_docs/PLAN.MD`.
+
+### 2026-11-09 — Xây dựng Bản cam kết sản phẩm và bộ 5 KPI định lượng (COMMITMENT_STEP3.MD)
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Soạn thảo bản cam kết sản phẩm cuối cùng tại mốc 50% thời gian thực hiện đồ án (Bước 3 quy trình), xác lập phạm vi làm/không làm (In-scope/Out-of-scope) và chốt bộ 5 KPI định lượng theo Rubric TC1 (Mức 5) và TC2.2 để tránh vi phạm lỗi chặn G1.
+- **Prompt chính:** Yêu cầu soạn thảo `COMMITMENT_STEP3.MD` bám sát quyết định kiến trúc, quy chuẩn Rubric Khoa và không dùng từ "chủ trì".
+- **Đầu ra AI được sử dụng:** Cấu trúc văn bản cam kết, danh mục phạm vi 10 mô-đun kỹ thuật, bảng 5 chỉ số KPI định lượng (Inventory Atomic Hold 10 phút, P95 API Response Time $\le 200\text{ms}$, Escrow SLA 72h, Code Coverage $\ge 70\%$, SUS $\ge 80$), khung ký duyệt của GVHD và sinh viên.
+- **Phần tự làm hoặc đã chỉnh sửa:** Rà soát và chuẩn hóa ngưỡng cam kết kỹ thuật phù hợp với năng lực hệ thống hiện tại, thống nhất phạm vi không thực hiện đấu giá trực tiếp/ví đa năng; đối chiếu tỷ lệ đóng góp 50% - 50% giữa hai thành viên.
+- **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
+- **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
