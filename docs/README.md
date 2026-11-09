@@ -56,25 +56,8 @@ Toàn bộ hồ sơ phục vụ các mốc đánh giá của Bộ môn và Cổn
 
 ---
 
-## 5. Hướng dẫn Chạy thử & Dữ liệu mẫu (Development & Seeding)
+## 5. Tài liệu Lưu trữ (`docs/archive/`)
 
-- **Khởi động Database:** `docker compose up -d` (PostgreSQL trên cổng `5432`).
-- **Seed dữ liệu thử nghiệm:**
-  ```bash
-  cd rewear-be
-  SEED_DATABASE_URL='postgresql://postgres:postgres@localhost:5432/rewear' pnpm seed
-  ```
-- **Chạy kiểm thử tích hợp (E2E Integration Tests):**
-  ```bash
-  cd rewear-be
-  pnpm test:e2e
-  ```
-  *(Đã kiểm chứng: 75/75 E2E tests passing 100% bao gồm pickup location, cart, checkout atomic lock và product lifecycle).*
-
----
-
-## 6. Lưu trữ Tài liệu Cũ (`docs/archive/`)
-
-Các bản ghi chép chi tiết, bản nháp sprint ban đầu và log công cụ AI được lưu trữ tại:
+Các bản ghi chép chi tiết, bản nháp sprint ban đầu và đặc tả tính năng legacy được lưu trữ tại:
 - [`archive/legacy_specs/`](archive/legacy_specs/): Các file đặc tả kỹ thuật tính năng ban đầu (`CART`, `CHECKOUT`, `PICKUP_LOCATION`, `PRODUCT_LIFECYCLE`, `SEEDING`, `SHIPPING_PACKAGE`, `SHIPPING_QUOTE`, `superpowers/`).
 - [`archive/`](archive/): Các đề xuất database, kế hoạch thực hiện và checklist cũ (`CHECKOUT_DECISIONS`, `TODO`, `ghn_integrate`).
