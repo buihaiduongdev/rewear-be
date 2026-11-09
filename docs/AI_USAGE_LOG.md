@@ -474,3 +474,15 @@
 - **AI hỗ trợ:** Ghi nhận và chuẩn hóa các mã quyết định vào `DECISIONS.md`; cập nhật `README.md`; đồng bộ link Cổng kiểm tra đồ án và Rubric; tạo `docs/submission_docs/PLAN.MD` chi tiết theo các mốc hạn cổng nộp; chuẩn bị commit và PR theo quy chuẩn repository.
 - **Kiểm chứng:** `git diff --check` pass; đối chiếu tham chiếu các ID quyết định và liên kết Markdown local; không thay đổi mã nguồn ứng dụng hay cấu hình runtime.
 - **Giới hạn:** Đây là quyết định tài liệu nghiệp vụ và kế hoạch hồ sơ, không khẳng định các tính năng mới đã được code hoặc kiểm thử nghiệm thu. Các câu hỏi chuyên sâu về COD/MoMo Sandbox và tranh chấp vẫn do thành viên phụ trách theo dõi riêng.
+
+### 2026-11-09 — Chuẩn hóa danh mục công việc LIST_TASK.MD theo quy trình Kỹ nghệ phần mềm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Hoàn thiện bảng phân công công việc chi tiết `LIST_TASK.MD` (10 mô-đun kỹ thuật và 6 đầu mục tài liệu) với tỷ lệ đóng góp cam kết 50% - 50% giữa 2 thành viên; rà soát tính hợp chuẩn của quy trình Kỹ nghệ phần mềm.
+- **Prompt chính:** Yêu cầu hoàn thiện bảng phân rã WBS từ SRS/SDD thay vì viện dẫn Figma; loại bỏ từ ngữ hành chính "chủ trì"; ánh xạ ca sử dụng (Use Cases) và đồng bộ trạng thái trong `PLAN.MD`.
+- **Đầu ra AI được sử dụng:** Khung bảng phân chia công việc, phân rã chi tiết trách nhiệm của hai sinh viên, ma trận ánh xạ Use Case và cập nhật tiến độ trong kế hoạch nộp đồ án.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt thông tin đề tài chính thức (GVHD ThS. Nguyễn Minh Đạo, MSSV hai thành viên), tỷ lệ đóng góp 50% - 50%; phân chia các mô-đun kỹ thuật (Dương: Kiến trúc, Auth, Catalog, AI, Cart/Hold, GHN Preview; Tâm: MoMo Sandbox, GHN COD, Order Lifecycle, Dispute, Wallet/Payout); rà soát loại bỏ triệt để từ "chủ trì" thay bằng "phụ trách".
+- **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; kiểm tra thực tế giao diện và tính năng qua 14 ảnh audit chụp bằng agent browser; kiểm chứng bộ 75/75 E2E integration test backend và Vitest frontend.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản nháp ban đầu của AI viện dẫn nguồn phân rã từ các phân hệ Figma (vi phạm quy trình kỹ nghệ phần mềm chuẩn vì thiết kế UI không phải nguồn sinh ra WBS) và dùng từ ngữ "chủ trì" không sát ngữ cảnh sinh viên; người dùng đã yêu cầu sửa lại để WBS phân rã trực tiếp từ SRS/SDD và dùng từ "phụ trách".
+- **Minh chứng:** PR #26, file `docs/submission_docs/LIST_TASK.MD` và `docs/submission_docs/PLAN.MD`.

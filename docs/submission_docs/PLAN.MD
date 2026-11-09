@@ -88,7 +88,7 @@ Hoàn thiện đầy đủ nội dung và minh chứng cho từng đầu mục n
 ## Theo dõi tiến độ
 
 - [x] Chốt toàn bộ các quyết định luồng ứng dụng tổng quát (`DECISIONS.md`).
-- [ ] Xác nhận đầu mối hai thành viên và vai trò cụ thể (`LIST_TASK.MD`).
+- [x] Xác nhận đầu mối hai thành viên, vai trò và phân rã chi tiết (`LIST_TASK.MD`).
 - [ ] Soạn và rà phiếu khảo sát Google Forms.
 - [ ] Thu thập và phân tích $\ge 30$ phản hồi khảo sát (`SURVEY_EVIDENCE.MD`).
 - [ ] Developer xác nhận mục tiêu/phạm vi; xin chữ ký GVHD (`COMMITMENT_STEP3.MD`).
