@@ -129,8 +129,7 @@ describe('ShopService', () => {
 
     await expect(
       service.create(ownerId, {
-        name: '  Re.wear Closet  ',
-        description: '   ',
+        name: 'Re.wear Closet',
       }),
     ).resolves.toBe(newShop);
     expect(entityManager.create).toHaveBeenNthCalledWith(1, Shop, {

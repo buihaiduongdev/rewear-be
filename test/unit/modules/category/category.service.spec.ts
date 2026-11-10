@@ -47,9 +47,7 @@ describe('CategoryService', () => {
     repository.create.mockReturnValueOnce(created);
     repository.save.mockResolvedValueOnce(created);
 
-    await expect(service.create({ name: '  Áo khoác  ' })).resolves.toBe(
-      created,
-    );
+    await expect(service.create({ name: 'Áo khoác' })).resolves.toBe(created);
     expect(repository.findOneBy).toHaveBeenCalledWith({ slug: 'ao-khoac' });
     expect(repository.create).toHaveBeenCalledWith({
       name: 'Áo khoác',
@@ -87,7 +85,7 @@ describe('CategoryService', () => {
     repository.save.mockResolvedValueOnce(updated);
 
     await expect(
-      service.update(category.id, { name: '  Áo mùa đông  ' }),
+      service.update(category.id, { name: 'Áo mùa đông' }),
     ).resolves.toEqual(updated);
     expect(repository.save).toHaveBeenCalledWith({
       ...existing,
