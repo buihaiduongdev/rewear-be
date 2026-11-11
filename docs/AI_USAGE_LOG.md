@@ -498,3 +498,16 @@
 - **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
 - **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
+
+### 2026-11-11 — Chuẩn hóa sanitization chuỗi đầu vào bằng trimmedTextSchema
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Giải quyết TODO còn sót lại từ đợt refactor validation PR #15; chuẩn hóa cơ chế trim và sanitization chuỗi đầu vào tại tầng Zod schema cho các module `category`, `shop`, `auth`, `user`, loại bỏ các lệnh `.trim()` thủ công phân tán trong tầng service.
+- **Prompt chính:** Rà soát comment //TODO trong CategoryService; refactor toàn bộ các module có vấn đề tương tự để chuyển việc trim chuỗi lên tầng schema validation và chuẩn bị PR cô lập.
+- **Đầu ra AI được sử dụng:** Áp dụng `trimmedTextSchema` cho `createCategorySchema`, `updateCategorySchema`, `createShopSchema`, `updateShopSchema`, `registerSchema`, `updateProfileSchema`; loại bỏ các lời gọi `.trim()` thủ công trong `category.service.ts`, `shop.service.ts`, `user.service.ts`; cập nhật và bổ sung unit test case trong `request-input.schema.spec.ts`, `category.service.spec.ts`, `shop.service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng phạm vi chỉ cô lập vấn đề trim chuỗi vào 1 PR riêng biệt; giữ lại quy trình slugification trong CategoryService và email normalization trong UserService; review và xác nhận toàn bộ diff code/test.
+- **Cách kiểm chứng:** Chạy `pnpm check` (pass 0 lỗi Oxlint, Prettier, TypeScript, Nest build); chạy `pnpm test` pass 17/17 suites (120/120 tests); chạy `pnpm test:e2e` pass; `git diff --check` pass.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu test mock trong `shop.service.spec.ts` truyền `description: null` không tương thích với type suy ra từ `optionalInput` (`string | undefined`), đã sửa lại omit description để thỏa mãn strict TypeScript.
+- **Minh chứng:** Branch `refactor/standardize-input-trim`, commit `1af5f84` và PR refactor validation trên GitHub.
+
