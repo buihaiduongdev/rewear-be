@@ -509,5 +509,5 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Định hướng phạm vi chỉ cô lập vấn đề trim chuỗi vào 1 PR riêng biệt; giữ lại quy trình slugification trong CategoryService và email normalization trong UserService; review và xác nhận toàn bộ diff code/test.
 - **Cách kiểm chứng:** Chạy `pnpm check` (pass 0 lỗi Oxlint, Prettier, TypeScript, Nest build); chạy `pnpm test` pass 17/17 suites (120/120 tests); chạy `pnpm test:e2e` pass; `git diff --check` pass.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu test mock trong `shop.service.spec.ts` truyền `description: null` không tương thích với type suy ra từ `optionalInput` (`string | undefined`), đã sửa lại omit description để thỏa mãn strict TypeScript.
-- **Minh chứng:** Branch `refactor/standardize-input-trim`, commit `1af5f84` và PR refactor validation trên GitHub.
+- **Minh chứng:** PR #27, branch refactor/standardize-input-trim, commit 1af5f84 và fa62550.
 
