@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-import path from 'node:path';
 
 import {
   BadRequestException,
@@ -15,7 +14,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
 import request from 'supertest';
-import { DataSource } from 'typeorm';
+import type { DataSource } from 'typeorm';
 
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
@@ -40,10 +39,11 @@ import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-const testUrl = process.env.PRODUCT_TEST_DATABASE_URL;
-const suite = testUrl ? describe : describe.skip;
+import type { IntegrationDatabase } from '../support/database';
+import { createIntegrationDatabase } from '../support/database';
 
-suite('Product lifecycle (real PostgreSQL)', () => {
+describe('Product lifecycle (real PostgreSQL)', () => {
+  let database: IntegrationDatabase;
   let db: DataSource;
   let app: INestApplication;
   let products: ProductService;
@@ -62,21 +62,8 @@ suite('Product lifecycle (real PostgreSQL)', () => {
   };
 
   beforeAll(async () => {
-    const url = new URL(testUrl!);
-    if (
-      !['127.0.0.1', 'localhost'].includes(url.hostname) ||
-      url.pathname !== '/rewear_product_test'
-    ) {
-      throw new Error(
-        'Product tests require a dedicated local rewear_product_test database',
-      );
-    }
-    db = await new DataSource({
-      type: 'postgres',
-      url: testUrl,
-      synchronize: true,
-      entities: [path.join(__dirname, '../src/modules/**/*.entity.ts')],
-    }).initialize();
+    database = await createIntegrationDatabase();
+    db = database.dataSource;
     products = new ProductService(
       db.getRepository(Product),
       db.getRepository(Category),
@@ -145,7 +132,7 @@ suite('Product lifecycle (real PostgreSQL)', () => {
 
   afterAll(async () => {
     await app?.close();
-    if (db?.isInitialized) await db.destroy();
+    await database?.destroy();
   });
 
   async function draft() {

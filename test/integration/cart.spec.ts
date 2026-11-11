@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-import path from 'node:path';
 
 import {
   ConflictException,
@@ -13,9 +12,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { Client } from 'pg';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
+import type { DataSource } from 'typeorm';
 
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
@@ -39,13 +37,12 @@ import {
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 
-const testUrl = process.env.CART_TEST_DATABASE_URL;
-const suite = testUrl ? describe : describe.skip;
+import type { IntegrationDatabase } from '../support/database';
+import { createIntegrationDatabase } from '../support/database';
 
-suite('Cart (real HTTP/module/PostgreSQL)', () => {
-  const schema = `cart_test_${randomUUID().replaceAll('-', '')}`;
+describe('Cart (real HTTP/module/PostgreSQL)', () => {
+  let database: IntegrationDatabase;
   let db: DataSource;
-  let admin: Client;
   let app: INestApplication;
   let service: CartService;
   let factory: MarketplaceFactory;
@@ -59,25 +56,8 @@ suite('Cart (real HTTP/module/PostgreSQL)', () => {
   let counter = 0;
 
   beforeAll(async () => {
-    const url = new URL(testUrl!);
-    if (
-      !['127.0.0.1', 'localhost'].includes(url.hostname) ||
-      url.pathname !== '/rewear_cart_test'
-    ) {
-      throw new Error(
-        'Cart tests require a dedicated local rewear_cart_test database',
-      );
-    }
-    admin = new Client({ connectionString: testUrl });
-    await admin.connect();
-    await admin.query(`CREATE SCHEMA "${schema}"`);
-    db = await new DataSource({
-      type: 'postgres',
-      url: testUrl,
-      schema,
-      synchronize: true,
-      entities: [path.join(__dirname, '../src/modules/**/*.entity.ts')],
-    }).initialize();
+    database = await createIntegrationDatabase();
+    db = database.dataSource;
     const module = await Test.createTestingModule({
       imports: [
         TypeOrmModule.forRootAsync({
@@ -136,11 +116,7 @@ suite('Cart (real HTTP/module/PostgreSQL)', () => {
 
   afterAll(async () => {
     await app?.close();
-    if (db?.isInitialized) await db.destroy();
-    if (admin) {
-      await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-      await admin.end();
-    }
+    await database?.destroy();
   });
 
   async function product(

@@ -21,19 +21,11 @@ docker compose up -d --wait db
 ```
 
 The server listens at `127.0.0.1:5432`, with username/password
-`postgres`/`postgres`. It creates `rewear` for development and
-`rewear_pickup_test` for pickup integration tests. Data persists in the
-`postgres_data` volume across container restarts. The init SQL runs only when
-the volume is first created.
+`postgres`/`postgres`. It creates only the development database `rewear`.
+Data persists in the `postgres_data` volume across container restarts.
 
 If port 5432 is already in use, run `LOCAL_DB_PORT=55432 docker compose up -d --wait db`
-and use port 55432 in connection URLs. To run the pickup suite against the
-default port:
-
-```bash
-PICKUP_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rewear_pickup_test \
-  pnpm test:e2e --runInBand --runTestsByPath test/pickup-location.e2e-spec.ts
-```
+and use port 55432 in the backend connection configuration.
 
 Stop the server with `docker compose down`; its volume is retained.
 The local server uses connections without TLS. Set `DB_SSL=false` in `.env`
@@ -56,15 +48,50 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 ## Run tests
 
 ```bash
-# unit tests
- pnpm run test
+# unit tests (no PostgreSQL required)
+ pnpm test:unit --runInBand
 
-# e2e tests
- pnpm run test:e2e
+# unit and integration tests (test PostgreSQL required)
+ pnpm test --runInBand
+
+# integration tests only
+ pnpm test:integration
 
 # test coverage
  pnpm run test:cov
 ```
+
+CI creates a disposable PostgreSQL 16 service with database `rewear_test`,
+sets `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` and `DB_SSL`,
+and runs every unit and integration suite through `pnpm test --runInBand`.
+Each database suite creates a unique schema, synchronizes its entities, then
+drops that schema during cleanup. This project currently uses schema
+synchronization rather than a migration-based test setup.
+
+For a local integration run, use a separate disposable server:
+
+```bash
+docker run --rm -d --name rewear-test-db \
+  -e POSTGRES_USER=rewear_test -e POSTGRES_PASSWORD=rewear_test \
+  -e POSTGRES_DB=rewear_test -p 127.0.0.1:55432:5432 \
+  postgres:16-alpine
+
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec rewear-test-db pg_isready -U rewear_test -d rewear_test
+
+DB_HOST=127.0.0.1 DB_PORT=55432 DB_USERNAME=rewear_test \
+DB_PASSWORD=rewear_test DB_NAME=rewear_test DB_SSL=false \
+  pnpm test --runInBand
+
+docker stop rewear-test-db
+```
+
+Tests read the explicit `DB_*` environment variables; they do not load `.env`
+or fall back to `DATABASE_URL`. Database tests require a local server and a
+database name matching `rewear*_test`. Missing configuration or an unavailable
+database fails the run instead of skipping suites. Never point them at the
+development database. `pnpm test:seed` uses this same configuration to run only
+the marketplace seed integration suite.
 
 Copy `.env.example` to `.env` and configure the JWT secrets, Google OAuth client
 ID, SMTP server, and frontend URL before starting the authentication endpoints.
@@ -127,11 +154,13 @@ output and documents the existing `{ statusCode, message, data }` envelope and
 ISO date strings. This refactor does not change database entities or business
 state transitions.
 
-`pnpm test --runInBand` runs unit checks. `pnpm test:e2e --runInBand` boots real
-controllers and the validation/serialization pipeline with mocked persistence;
-it checks request rejection, coercion, login ordering, HTTP status, response
-filtering and generated OpenAPI. It does not prove PostgreSQL or external-service
-integration. The HTTP contract suite also writes a temporary OpenAPI snapshot
+`test/integration/request-validation.spec.ts` boots real controllers and the
+validation/serialization pipeline with mocked persistence. It checks request
+rejection, coercion, login ordering, HTTP status, response filtering and generated
+OpenAPI. The product, cart, checkout, pickup and seed suites exercise real
+PostgreSQL; authentication identities and external storage/shipping adapters are
+replaced with test fixtures. These are backend integration tests rather than
+full frontend-to-backend E2E tests. The HTTP contract suite writes an OpenAPI snapshot
 to `/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
 
 ## Product drafts and moderation

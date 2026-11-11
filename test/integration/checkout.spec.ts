@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 
 import { UnauthorizedException } from '@nestjs/common';
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
@@ -7,9 +6,8 @@ import { APP_PIPE } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { Client } from 'pg';
 import request from 'supertest';
-import { DataSource } from 'typeorm';
+import type { DataSource } from 'typeorm';
 
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
@@ -31,12 +29,12 @@ import { PickupLocation } from '@/modules/shipping/entities/pickup-location.enti
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 
-const testUrl = process.env.CHECKOUT_TEST_DATABASE_URL;
-const suite = testUrl ? describe : describe.skip;
-suite('Checkout HTTP and PostgreSQL', () => {
-  const schema = `checkout_test_${randomUUID().replaceAll('-', '')}`;
+import type { IntegrationDatabase } from '../support/database';
+import { createIntegrationDatabase } from '../support/database';
+
+describe('Checkout HTTP and PostgreSQL', () => {
+  let database: IntegrationDatabase;
   let db: DataSource;
-  let admin: Client;
   let app: INestApplication;
   let service: CheckoutService;
   let cart: CartService;
@@ -58,22 +56,8 @@ suite('Checkout HTTP and PostgreSQL', () => {
   let counter = 0;
 
   beforeAll(async () => {
-    const url = new URL(testUrl!);
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      url.pathname !== '/rewear_checkout_test'
-    )
-      throw new Error('Use dedicated local rewear_checkout_test database');
-    admin = new Client({ connectionString: testUrl });
-    await admin.connect();
-    await admin.query(`CREATE SCHEMA "${schema}"`);
-    db = await new DataSource({
-      type: 'postgres',
-      url: testUrl,
-      schema,
-      synchronize: true,
-      entities: [path.join(__dirname, '../src/modules/**/*.entity.ts')],
-    }).initialize();
+    database = await createIntegrationDatabase();
+    db = database.dataSource;
     const module = await Test.createTestingModule({
       imports: [
         TypeOrmModule.forRootAsync({
@@ -134,11 +118,7 @@ suite('Checkout HTTP and PostgreSQL', () => {
   });
   afterAll(async () => {
     await app?.close();
-    if (db?.isInitialized) await db.destroy();
-    if (admin) {
-      await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-      await admin.end();
-    }
+    await database?.destroy();
   });
   async function product(
     index = 0,

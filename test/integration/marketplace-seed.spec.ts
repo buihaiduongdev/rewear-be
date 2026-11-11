@@ -1,18 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 
 import * as argon2 from 'argon2';
-import { Client } from 'pg';
-import { DataSource } from 'typeorm';
+import { QueryFailedError } from 'typeorm';
+import type { DataSource } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { DEFAULT_SEED_PASSWORD } from '@/modules/database/seeds/catalog';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { seedMarketplace } from '@/modules/database/seeds/marketplace.seed';
-import {
-  validateSeedSchemaTarget,
-  validateSeedTarget,
-} from '@/modules/database/seeds/seed';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType } from '@/modules/media/enums';
 import { Product, ProductRevision } from '@/modules/product/entities';
@@ -22,39 +17,20 @@ import { findProductSchema, productSchema } from '@/modules/product/schemas';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
-const testUrl = process.env.SEED_TEST_DATABASE_URL;
-const suite = testUrl ? describe : describe.skip;
+import type { IntegrationDatabase } from '../support/database';
+import { createIntegrationDatabase } from '../support/database';
 
-suite('Marketplace seed (real PostgreSQL)', () => {
-  const schema = `seed_test_${randomUUID().replaceAll('-', '')}`;
-  let admin: Client;
+describe('Marketplace seed (real PostgreSQL)', () => {
+  let database: IntegrationDatabase;
   let db: DataSource;
 
   beforeAll(async () => {
-    validateSeedTarget(testUrl, 'test');
-    validateSeedSchemaTarget(testUrl!);
-    if (!new URL(testUrl!).pathname.endsWith('_test'))
-      throw new Error(
-        'Seed integration tests require a dedicated _test database',
-      );
-    admin = new Client({ connectionString: testUrl });
-    await admin.connect();
-    await admin.query(`CREATE SCHEMA "${schema}"`);
-    db = await new DataSource({
-      type: 'postgres',
-      url: testUrl,
-      schema,
-      synchronize: true,
-      entities: [path.join(__dirname, '../src/modules/**/*.entity.ts')],
-    }).initialize();
+    database = await createIntegrationDatabase();
+    db = database.dataSource;
   });
 
   afterAll(async () => {
-    if (db?.isInitialized) await db.destroy();
-    if (admin) {
-      await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-      await admin.end();
-    }
+    await database?.destroy();
   });
 
   it('creates usable public inventory, management states, media and review evidence', async () => {
@@ -142,7 +118,7 @@ suite('Marketplace seed (real PostgreSQL)', () => {
     const usersBefore = await db.getRepository(User).count();
     await expect(
       seedMarketplace(db, { namespace: 'rollback' }),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(QueryFailedError);
     expect(await db.getRepository(User).count()).toBe(usersBefore);
     expect(
       await db
