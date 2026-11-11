@@ -86,11 +86,11 @@ export class ShopService {
     await this.assertOwner(shopId, currentUserId);
     const shop = await this.findById(shopId);
 
-    if (input.name !== undefined) shop.name = input.name;
-    if (input.description !== undefined) {
-      shop.description = input.description || null;
-    }
-    if (input.status !== undefined) shop.status = input.status;
+    this.shopRepository.merge(shop, {
+      ...input,
+      description:
+        input.description !== undefined ? input.description || null : undefined,
+    });
 
     return this.shopRepository.save(shop);
   }

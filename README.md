@@ -12,6 +12,34 @@ without rewriting framework dependencies.
  pnpm install
 ```
 
+## Local PostgreSQL
+
+From `rewear-be`, start PostgreSQL 16 and wait for it to become healthy:
+
+```bash
+docker compose up -d --wait db
+```
+
+The server listens at `127.0.0.1:5432`, with username/password
+`postgres`/`postgres`. It creates `rewear` for development and
+`rewear_pickup_test` for pickup integration tests. Data persists in the
+`postgres_data` volume across container restarts. The init SQL runs only when
+the volume is first created.
+
+If port 5432 is already in use, run `LOCAL_DB_PORT=55432 docker compose up -d --wait db`
+and use port 55432 in connection URLs. To run the pickup suite against the
+default port:
+
+```bash
+PICKUP_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/rewear_pickup_test \
+  pnpm test:e2e --runInBand --runTestsByPath test/pickup-location.e2e-spec.ts
+```
+
+Stop the server with `docker compose down`; its volume is retained.
+The local server uses connections without TLS. Set `DB_SSL=false` in `.env`
+when connecting the backend to it, as shown in `.env.example`. SSL remains
+enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS.
+
 ## Compile and run the project
 
 ```bash

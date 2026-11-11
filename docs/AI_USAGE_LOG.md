@@ -511,3 +511,14 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Dữ liệu mock test ban đầu trong `shop.service.spec.ts` truyền `description: null` không khớp với type `string | undefined`, đã sửa lại omit description để thỏa mãn TypeScript.
 - **Minh chứng:** PR #27, branch `refactor/standardize-input-trim`, commit `1af5f84`, `fa62550`, `9949b0c` và `09610a7`.
 
+### 2026-11-11 — Đồng bộ cập nhật entity bằng TypeORM merge và cấu hình DB local
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex, agent-browser, Docker PostgreSQL 16 và Jest.
+- **Mục đích và phạm vi:** Đồng bộ cách cập nhật Category, Shop, UserAddress và PickupLocation; bổ sung PostgreSQL local để kiểm chứng với dữ liệu thật.
+- **Prompt chính:** Rà soát gợi ý dùng TypeORM merge, giữ các xử lý nghiệp vụ riêng, sửa test chưa mô phỏng đúng undefined, bổ sung Compose và cấu hình SSL, chạy kiểm thử rồi chụp Swagger làm minh chứng cho PR.
+- **Đầu ra AI được sử dụng:** Refactor bốn service dùng repository/transaction manager merge; sửa mock và thêm regression cho partial update; bổ sung Compose, database test, DB_SSL và hướng dẫn chạy local.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện yêu cầu review lại gợi ý ban đầu, chọn kiểm chứng bằng DB thật và ảnh Swagger, khởi động DB/backend local. Codex thực hiện thay đổi, kiểm thử và chuẩn bị PR theo yêu cầu.
+- **Cách kiểm chứng:** `pnpm check`, `pnpm build`, 128 unit tests trong 18 suites và 108 HTTP/PostgreSQL E2E tests trong 6 suites đều pass; `docker compose config --quiet` và `git diff --check` pass. Sáu ca Swagger dùng JWT thật tại cổng 5001, kiểm tra lại dữ liệu lưu bằng PostgreSQL; ảnh ẩn khối cURL chứa Bearer token, giữ nguyên request body và server response.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Merge không phải danh sách trường được phép cập nhật vì vẫn nhận column ID và relation; schema validation mới giới hạn input. Mock Category dùng Object.assign chưa bỏ qua undefined, đã sửa và kiểm tra regression đỏ/xanh. Giải thích sửa giá luôn kích hoạt kiểm duyệt lại không đúng với sản phẩm ACTIVE/HIDDEN; giữ nguyên logic Product. Cổng 3001 thuộc Jurassik, đã dùng cổng 5001 của Rewear để chụp minh chứng.
+- **Minh chứng:** Branch `refactor/category-repository-merge`; PR và kho ảnh sẽ được liên kết sau khi tạo. PR dựa trên `refactor/standardize-input-trim` vì PR #27 chưa merge.
