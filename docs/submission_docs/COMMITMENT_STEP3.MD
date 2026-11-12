@@ -14,6 +14,7 @@
 ## 1. BỐI CẢNH VÀ MỤC TIÊU ĐỀ TÀI
 
 ### 1.1. Bối cảnh thực tế
+
 Thị trường quần áo đã qua sử dụng (Secondhand / Pre-loved Fashion) tại Việt Nam đang phát triển nhanh chóng nhưng giao dịch chủ yếu diễn ra phân tán qua mạng xã hội và các trang rao vặt tự do. Người dùng gặp nhiều rủi ro:
 - Món đồ là sản phẩm đơn chiếc (Unique Item - mỗi món chỉ có 1 chiếc duy nhất, số lượng tồn kho = 1), dễ phát sinh tranh chấp mua trùng khi có nhiều người cùng thanh toán (Race Condition / Overselling).
 - Tình trạng hàng hóa thực tế không khớp mô tả, thiếu sự minh bạch và không có cơ chế giữ tiền trung gian để bảo vệ người mua.
@@ -69,7 +70,9 @@ Nhóm cam kết hoàn thành $100\%$ các phân hệ kỹ thuật cốt lõi và
     - Hệ thống tương tác: Chat 1–1 Buyer–Shop kèm thẻ sản phẩm/đơn hàng, đánh giá Shop 1–5 sao, Wishlist, Follow shop và Thông báo in-app/Email.
 
 ### 2.2. Phạm vi không thực hiện (Out-of-Scope — Tránh dàn trải)
+
 Để tập trung tối đa vào độ ổn định, chất lượng mã nguồn và tính toàn vẹn của nghiệp vụ mua bán secondhand, nhóm thống nhất không thực hiện các hạng mục sau:
+
 - Không triển khai cổng thanh toán thẻ quốc tế trực tiếp (Visa/Mastercard qua Stripe) ngoài lãnh thổ Việt Nam; tập trung hoàn thiện MoMo Sandbox và GHN COD.
 - Không xây dựng ví điện tử đa năng cho phép nạp tiền/chuyển tiền tự do giữa các tài khoản; chỉ sử dụng Ví hoàn tiền (Refund-only Wallet) nhằm tuân thủ pháp lý tài chính.
 - Không xây dựng cơ chế đấu giá trực tiếp theo thời gian thực (Live Auction / Bidding).
@@ -82,13 +85,13 @@ Nhóm cam kết hoàn thành $100\%$ các phân hệ kỹ thuật cốt lõi và
 
 Theo yêu cầu Tiêu chuẩn Đánh giá TC1 (Mức 5) và TC2.2 của Rubric, nhóm sinh viên cam kết hoàn thành và kiểm chứng bộ 5 chỉ số định lượng sau đây từ Bước 3 cho đến khi bảo vệ trước Hội đồng:
 
-| Mã KPI | Tên chỉ số định lượng | Mô tả chi tiết & Công thức đo lường | Ngưỡng cam kết (Target) | Phương pháp & Bằng chứng kiểm chứng |
-|---|---|---|---|---|
-| **KPI-01** | **Tính chính xác và Toàn vẹn Tạm giữ hàng (Inventory Hold Concurrency)** | Đảm bảo tính nhất quán tuyệt đối về tồn kho hàng đơn chiếc khi có nhiều người mua cùng thanh toán; giải phóng tồn kho đúng thời hạn TTL. | • Tỷ lệ giữ hàng thành công chống race condition: **$100\%$**.<br>• Thời gian giữ hàng chuẩn xác: **$10\text{ phút} \pm 5\text{s}$**.<br>• Tồn kho quá hạn được giải phóng tự động: $\le 5\text{s}$ sau khi hết TTL. | Bộ E2E Integration Test `checkout.e2e-spec.ts` (kịch bản 2 người cùng giữ 1 sản phẩm) và kiểm thử tải đồng thời. |
-| **KPI-02** | **Hiệu năng & Thời gian phản hồi hệ thống (API Response Time & Performance)** | Tốc độ đáp ứng của các API nghiệp vụ trọng yếu (Catalog, Chi tiết món đồ, Giỏ hàng, Checkout, Tra cứu đơn) dưới tải truy cập. | • Thời gian phản hồi trung bình API cốt lõi: **$\le 200\text{ms}$** (ở phân vị $P95$).<br>• First Contentful Paint (FCP) phía giao diện Frontend: **$\le 1.5\text{s}$**.<br>• Tỷ lệ Uptime hệ thống: **$\ge 99.5\%$**. | Đo lường bằng Lighthouse Audit, k6 load testing report và NestJS logging interceptor. |
-| **KPI-03** | **Độ an toàn giao dịch, Ký quỹ Escrow & Hoàn tiền (Transaction & Escrow SLA)** | Độ tin cậy trong luồng tiền: Khớp trạng thái thanh toán MoMo/COD, tự động hoàn tiền ví nội bộ và thời gian bảo vệ người mua. | • Sai lệch trạng thái thanh toán MoMo/COD: **$0\%$**.<br>• Thời gian hoàn tiền tự động vào Ví hoàn tiền: **$\le 5\text{s}$**.<br>• Ký quỹ Escrow bảo vệ người mua chuẩn: **$72\text{ giờ}$** (đếm ngược chính xác $100\%$). | Bộ E2E Integration Test vòng đời đơn hàng, log tra soát thanh toán MoMo Sandbox và Database Audit Log. |
-| **KPI-04** | **Chất lượng mã nguồn, Kiểm thử tự động & An toàn thông tin (Code Quality & Security)** | Mức độ tuân thủ quy chuẩn lập trình, độ bao phủ kiểm thử và bảo mật mã nguồn không để lộ thông tin nhạy cảm. | • Độ bao phủ mã nguồn mô-đun cốt lõi (Code Coverage): **$\ge 70\%$**.<br>• Số lỗi linter trên 1000 dòng mã: **$0$**.<br>• Số issue Blocker/Critical từ phân tích tĩnh: **$0$**.<br>• Số secret/khóa API bị lộ (Gitleaks scan): **$0$**.<br>• Tỷ lệ test case tự động pass trên CI: **$100\%$**. | Báo cáo Jest/Vitest Coverage Report, kết quả chạy ESLint/TypeScript check, báo cáo quét bảo mật Gitleaks. |
-| **KPI-05** | **Khả dụng và Trải nghiệm người dùng thực nghiệm (Usability & User Acceptance)** | Mức độ dễ sử dụng và tính trực quan của nền tảng khi đưa vào thực nghiệm với người dùng thật thuộc nhóm đối tượng mục tiêu tại TP.HCM. | • Số người dùng thực tế tham gia nghiệm thu: **$\ge 10$ người**.<br>• Tỷ lệ hoàn thành trọn vẹn tác vụ (Task Completion Rate): **$\ge 90\%$**.<br>• Điểm đánh giá thang đo chuẩn hóa SUS (System Usability Scale): **$\ge 80/100$**.<br>• Số vòng cải tiến tính năng sau phản hồi: **$\ge 1$ vòng**. | Biên bản thực nghiệm người dùng, bảng câu hỏi SUS chuẩn hóa và tài liệu `UAT_USABILITY_REPORT.MD`. |
+| Mã KPI     | Tên chỉ số định lượng                                                                   | Mô tả chi tiết & Công thức đo lường                                                                                                    | Ngưỡng cam kết (Target)                                                                                                                                                                                                                                                                              | Phương pháp & Bằng chứng kiểm chứng                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **KPI-01** | **Tính chính xác và Toàn vẹn Giữ hàng nguyên tử (Inventory Atomic Hold)**               | Đảm bảo tính nhất quán tuyệt đối về tồn kho hàng độc bản khi có nhiều người mua cùng thanh toán; giải phóng tồn kho đúng thời hạn TTL. | • Tỷ lệ giữ hàng thành công chống race condition: **$100\%$**.<br>• Thời gian giữ hàng chuẩn xác: **$10\text{ phút} \pm 5\text{s}$**.<br>• Tồn kho quá hạn được giải phóng tự động: $\le 5\text{s}$ sau khi hết TTL.                                                                                 | Bộ HTTP E2E `test/e2e/rewear-commerce-flow.spec.ts` (luồng seller được duyệt, buyer checkout) và kiểm thử tải đồng thời. |
+| **KPI-02** | **Hiệu năng & Thời gian phản hồi hệ thống (API Response Time & Performance)**           | Tốc độ đáp ứng của các API nghiệp vụ trọng yếu (Catalog, Chi tiết món đồ, Giỏ hàng, Checkout, Tra cứu đơn) dưới tải truy cập.          | • Thời gian phản hồi trung bình API cốt lõi: **$\le 200\text{ms}$** (ở phân vị $P95$).<br>• First Contentful Paint (FCP) phía giao diện Frontend: **$\le 1.5\text{s}$**.<br>• Tỷ lệ Uptime hệ thống: **$\ge 99.5\%$**.                                                                               | Đo lường bằng Lighthouse Audit, k6 load testing report và NestJS logging interceptor.                                    |
+| **KPI-03** | **Độ an toàn giao dịch, Ký quỹ Escrow & Hoàn tiền (Transaction & Escrow SLA)**          | Độ tin cậy trong luồng tiền: Khớp trạng thái thanh toán MoMo/COD, tự động hoàn tiền ví nội bộ và thời gian bảo vệ người mua.           | • Sai lệch trạng thái thanh toán MoMo/COD: **$0\%$**.<br>• Thời gian hoàn tiền tự động vào Ví hoàn tiền: **$\le 5\text{s}$**.<br>• Ký quỹ Escrow bảo vệ người mua chuẩn: **$72\text{ giờ}$** (đếm ngược chính xác $100\%$).                                                                          | Bộ E2E Integration Test vòng đời đơn hàng, log tra soát thanh toán MoMo Sandbox và Database Audit Log.                   |
+| **KPI-04** | **Chất lượng mã nguồn, Kiểm thử tự động & An toàn thông tin (Code Quality & Security)** | Mức độ tuân thủ quy chuẩn lập trình, độ bao phủ kiểm thử và bảo mật mã nguồn không để lộ thông tin nhạy cảm.                           | • Độ bao phủ mã nguồn mô-đun cốt lõi (Code Coverage): **$\ge 70\%$**.<br>• Số lỗi linter trên 1000 dòng mã: **$0$**.<br>• Số issue Blocker/Critical từ phân tích tĩnh: **$0$**.<br>• Số secret/khóa API bị lộ (Gitleaks scan): **$0$**.<br>• Tỷ lệ test case tự động pass trên CI: **$100\%$**.      | Báo cáo Jest/Vitest Coverage Report, kết quả chạy ESLint/TypeScript check, báo cáo quét bảo mật Gitleaks.                |
+| **KPI-05** | **Khả dụng và Trải nghiệm người dùng thực nghiệm (Usability & User Acceptance)**        | Mức độ dễ sử dụng và tính trực quan của nền tảng khi đưa vào thực nghiệm với người dùng thật thuộc nhóm đối tượng mục tiêu tại TP.HCM. | • Số người dùng thực tế tham gia nghiệm thu: **$\ge 10$ người**.<br>• Tỷ lệ hoàn thành trọn vẹn tác vụ (Task Completion Rate): **$\ge 90\%$**.<br>• Điểm đánh giá thang đo chuẩn hóa SUS (System Usability Scale): **$\ge 80/100$**.<br>• Số vòng cải tiến tính năng sau phản hồi: **$\ge 1$ vòng**. | Biên bản thực nghiệm người dùng, bảng câu hỏi SUS chuẩn hóa và tài liệu `UAT_USABILITY_REPORT.MD`.                       |
 
 ---
 
@@ -114,9 +117,9 @@ Theo yêu cầu Tiêu chuẩn Đánh giá TC1 (Mức 5) và TC2.2 của Rubric, 
 
 ## 6. XÁC NHẬN VÀ KÝ DUYỆT BẢN CAM KẾT
 
-*TP. Hồ Chí Minh, ngày ...... tháng 11 năm 2026*
+_TP. Hồ Chí Minh, ngày ...... tháng 11 năm 2026_
 
-| Sinh viên thực hiện 1 | Sinh viên thực hiện 2 | Giảng viên hướng dẫn |
-|:---:|:---:|:---:|
-| *(Ký và ghi rõ họ tên)* | *(Ký và ghi rõ họ tên)* | *(Ký và ghi rõ họ tên)* |
+|                 Sinh viên thực hiện 1                 |                 Sinh viên thực hiện 2                 |           Giảng viên hướng dẫn           |
+| :---------------------------------------------------: | :---------------------------------------------------: | :--------------------------------------: |
+|                _(Ký và ghi rõ họ tên)_                |                _(Ký và ghi rõ họ tên)_                |         _(Ký và ghi rõ họ tên)_          |
 | <br><br><br><br>**Bùi Hải Dương**<br>MSSV: `23110197` | <br><br><br><br>**Bùi Thành Tâm**<br>MSSV: `23110310` | <br><br><br><br>**ThS. Nguyễn Minh Đạo** |

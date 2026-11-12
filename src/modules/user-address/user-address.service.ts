@@ -72,7 +72,7 @@ export class UserAddressService {
             input.wardCode ?? address.wardCode,
           )
         : {};
-    Object.assign(address, input, administrativeAddress);
+    this.userAddressRepository.merge(address, input, administrativeAddress);
 
     return input.isDefault === true
       ? this.saveAsDefault(userId, address)

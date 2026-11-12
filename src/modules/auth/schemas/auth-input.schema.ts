@@ -1,13 +1,16 @@
 import z from 'zod';
 
-import { emailSchema } from '@/common/schemas/request.schema';
+import {
+  emailSchema,
+  trimmedTextSchema,
+} from '@/common/schemas/request.schema';
 
 import { AuthProvider } from '../enums';
 
 export const registerSchema = z.strictObject({
   email: emailSchema,
   password: z.string().min(8).max(72),
-  fullName: z.string().trim().min(1).max(255),
+  fullName: trimmedTextSchema.min(1).max(255),
 });
 
 export const loginSchema = z.strictObject({
