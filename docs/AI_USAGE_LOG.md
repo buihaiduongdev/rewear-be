@@ -561,3 +561,8 @@
 - **Thay đổi:** Gộp kiểm tra hành vi database vào một suite commerce flow; tạo một E2E sản phẩm → duyệt → giỏ hàng → checkout; bỏ các HTTP suite nhỏ chia theo module và unit test chỉ kiểm tra cấu hình test DB. Giữ helper PostgreSQL dùng chung để kiểm tra cấu hình an toàn và reset schema test.
 - **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chọn luồng E2E seller đăng sản phẩm, admin duyệt, buyer checkout. Codex thêm integration service flow, dựng app Nest đầy đủ trong E2E và giản lược các test HTTP cũ.
 - **Kiểm chứng:** `pnpm check` pass; `pnpm test:unit` pass 18 suites/128 tests; `pnpm test:integration` pass 2 suites/6 tests; `pnpm test:e2e` pass 1 suite/1 test; `pnpm test` pass 21 suites/135 tests.
+
+### 2026-11-12 — Đặt tên rõ cho suite seed
+
+- **Thay đổi:** Đổi `marketplace-seed.spec.ts` thành `seed.spec.ts` và cập nhật tiêu đề, README cùng lệnh `pnpm test:seed`.
+- **Kiểm chứng:** `pnpm test:seed` pass 1 suite/4 tests; `pnpm check` pass.

@@ -20,7 +20,7 @@ import { User } from '@/modules/user/entities';
 import type { TestDatabase } from '../support/database';
 import { createTestDatabase } from '../support/database';
 
-describe('Marketplace seed (real PostgreSQL)', () => {
+describe('Seed data (real PostgreSQL)', () => {
   let database: TestDatabase;
   let db: DataSource;
 

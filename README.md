@@ -96,7 +96,7 @@ or fall back to `DATABASE_URL`. Database tests require a local server and a
 database name matching `rewear*_test`. Missing configuration or an unavailable
 database fails the run instead of skipping suites. Never point them at the
 development database. `pnpm test:seed` uses this same configuration to run only
-the marketplace seed integration suite.
+the seed integration suite.
 
 Copy `.env.example` to `.env` and configure the JWT secrets, Google OAuth client
 ID, SMTP server, and frontend URL before starting the authentication endpoints.

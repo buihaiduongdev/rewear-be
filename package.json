@@ -30,7 +30,7 @@
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest.js --runInBand",
     "seed": "ts-node -r tsconfig-paths/register src/modules/database/seeds/seed.ts",
-    "test:seed": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --runTestsByPath test/integration/marketplace-seed.spec.ts"
+    "test:seed": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --runTestsByPath test/integration/seed.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
@@ -90,7 +90,9 @@
     ],
     "rootDir": ".",
     "testRegex": "test/(unit|integration|e2e)/.*\\.spec\\.ts$",
-    "setupFiles": ["<rootDir>/test/setup-env.ts"],
+    "setupFiles": [
+      "<rootDir>/test/setup-env.ts"
+    ],
     "testTimeout": 30000,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
