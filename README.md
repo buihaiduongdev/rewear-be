@@ -51,11 +51,14 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 # unit tests (no PostgreSQL required)
  pnpm test:unit
 
-# unit and integration tests (test PostgreSQL required)
+# all tests (test PostgreSQL required)
  pnpm test
 
-# integration tests only
+# direct feature/database integration tests only
  pnpm test:integration
+
+# HTTP end-to-end tests only (test PostgreSQL required)
+ pnpm test:e2e
 
 # test coverage
  pnpm run test:cov
@@ -63,7 +66,7 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 
 CI creates a disposable PostgreSQL 16 service with database `rewear_test`,
 sets `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` and `DB_SSL`,
-and runs every unit and integration suite sequentially through `pnpm test`.
+and runs unit, integration and HTTP E2E suites sequentially through `pnpm test`.
 Each database suite resets the tables in the shared `public` schema before it
 runs. This test database is disposable and must not contain development data.
 This project currently uses schema synchronization rather than a
@@ -155,14 +158,13 @@ output and documents the existing `{ statusCode, message, data }` envelope and
 ISO date strings. This refactor does not change database entities or business
 state transitions.
 
-`test/integration/request-validation.spec.ts` boots real controllers and the
-validation/serialization pipeline with mocked persistence. It checks request
-rejection, coercion, login ordering, HTTP status, response filtering and generated
-OpenAPI. The product, cart, checkout, pickup and seed suites exercise real
-PostgreSQL; authentication identities and external storage/shipping adapters are
-replaced with test fixtures. These are backend integration tests rather than
-full frontend-to-backend E2E tests. The HTTP contract suite writes an OpenAPI snapshot
-to `/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
+HTTP request/response tests live in `test/e2e` and run with `pnpm test:e2e`.
+They exercise the Nest application pipeline; most use PostgreSQL, while the
+request-validation contract suite mocks persistence. Direct PostgreSQL feature
+integration tests live in `test/integration` and run with
+`pnpm test:integration`. See the README in each folder for suite coverage.
+The HTTP contract suite writes an OpenAPI snapshot to
+`/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
 
 ## Product drafts and moderation
 

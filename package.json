@@ -25,6 +25,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPatterns=test/unit",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPatterns=test/integration --runInBand",
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPatterns=test/e2e --runInBand",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest.js --runInBand",
@@ -88,7 +89,7 @@
       "ts"
     ],
     "rootDir": ".",
-    "testRegex": "test/(unit|integration)/.*\\.spec\\.ts$",
+    "testRegex": "test/(unit|integration|e2e)/.*\\.spec\\.ts$",
     "testTimeout": 30000,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"

@@ -547,3 +547,10 @@
 - **Mục đích:** Bỏ suite chỉ kiểm tra database helper và ghi lại phạm vi kiểm thử tính năng ở một file dễ xem.
 - **Thay đổi:** Xóa `database-isolation.spec.ts`; thêm `test/integration/README.md` mô tả sáu suite còn lại.
 - **Kiểm chứng:** `pnpm test` pass 25 suites/242 tests; `pnpm test:integration` pass 6 suites/108 tests; `pnpm check` pass.
+
+### 2026-11-12 — Tách kiểm thử PostgreSQL và HTTP E2E
+
+- **Mục đích:** Đặt các test gọi trực tiếp tầng feature/service vào integration; đặt test gửi request qua Nest HTTP vào E2E.
+- **Thay đổi:** Chuyển năm suite HTTP từ `test/integration` sang `test/e2e`, thêm `pnpm test:e2e`; giữ suite marketplace seed làm integration trực tiếp với PostgreSQL. CI vẫn chạy toàn bộ bằng `pnpm test`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chốt cách phân loại integration và HTTP E2E; Codex chuyển file không sửa assertion, cập nhật Jest discovery, tài liệu và CI command.
+- **Kiểm chứng:** `pnpm check` pass; `pnpm test:integration` pass 1 suite/4 tests; `pnpm test:e2e` pass 5 suites/104 tests; `pnpm test` pass 25 suites/242 tests.
