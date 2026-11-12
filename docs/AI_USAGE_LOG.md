@@ -498,3 +498,15 @@
 - **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
 - **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
+
+### 2026-11-12 — Đưa hồ sơ và cấu hình local lên PR để rà soát
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, Git và GitHub CLI.
+- **Mục đích và phạm vi:** Đưa nội dung đang nằm trong nhánh `audit` lên PR riêng để review, tách khỏi thay đổi pagination.
+- **Prompt chính:** Tách các tài liệu và cấu hình local đã khôi phục từ nhánh `audit` thành các phần dễ review và đưa lên PR.
+- **Đầu ra AI được sử dụng:** Khôi phục các file hồ sơ và cấu hình PostgreSQL theo commit `e82ad1c`; tách commit tài liệu và database.
+- **Phần tự làm hoặc đã chỉnh sửa:** Sinh viên yêu cầu tìm lại các file và đưa phần công việc trên nhánh riêng lên PR để review.
+- **Cách kiểm chứng:** Đối chiếu nội dung với nhánh `audit`; các thông tin khảo sát và xác nhận trong hồ sơ cần được kiểm tra với nguồn gốc.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu chỉ khôi phục một file thay vì toàn bộ thay đổi liên quan; đã đưa cả các phần còn lại vào PR riêng.
+- **Minh chứng:** Commit nguồn `e82ad1c`; PR review hồ sơ và cấu hình local.
