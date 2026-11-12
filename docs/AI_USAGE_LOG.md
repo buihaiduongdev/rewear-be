@@ -509,4 +509,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn giữ API `pageSize`, `sortBy`, `order` và các filter nghiệp vụ để không buộc frontend đổi theo refactor.
 - **Cách kiểm chứng:** `pnpm check` pass; `git diff --check` pass. Test ứng dụng được giao cho CI của PR.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thư viện giới hạn metadata trang theo tổng số trang; adapter giữ số trang người dùng yêu cầu để tương thích response cũ.
-- **Minh chứng:** Branch `refactor/nestjs-paginate`; PR sẽ được liên kết sau khi tạo.
+- **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`, commit `79199f9`.
