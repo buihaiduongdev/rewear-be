@@ -554,3 +554,10 @@
 - **Thay đổi:** Chuyển năm suite HTTP từ `test/integration` sang `test/e2e`, thêm `pnpm test:e2e`; giữ suite marketplace seed làm integration trực tiếp với PostgreSQL. CI vẫn chạy toàn bộ bằng `pnpm test`.
 - **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chốt cách phân loại integration và HTTP E2E; Codex chuyển file không sửa assertion, cập nhật Jest discovery, tài liệu và CI command.
 - **Kiểm chứng:** `pnpm check` pass; `pnpm test:integration` pass 1 suite/4 tests; `pnpm test:e2e` pass 5 suites/104 tests; `pnpm test` pass 25 suites/242 tests.
+
+### 2026-11-12 — Thu gọn integration và E2E theo luồng bán hàng
+
+- **Mục đích:** Giữ integration test đơn giản, tập trung vào service và PostgreSQL; chỉ giữ một E2E đại diện chạy qua toàn bộ `AppModule`.
+- **Thay đổi:** Gộp kiểm tra hành vi database vào một suite commerce flow; tạo một E2E sản phẩm → duyệt → giỏ hàng → checkout; bỏ các HTTP suite nhỏ chia theo module và unit test chỉ kiểm tra cấu hình test DB. Giữ helper PostgreSQL dùng chung để kiểm tra cấu hình an toàn và reset schema test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chọn luồng E2E seller đăng sản phẩm, admin duyệt, buyer checkout. Codex thêm integration service flow, dựng app Nest đầy đủ trong E2E và giản lược các test HTTP cũ.
+- **Kiểm chứng:** `pnpm check` pass; `pnpm test:unit` pass 18 suites/128 tests; `pnpm test:integration` pass 2 suites/6 tests; `pnpm test:e2e` pass 1 suite/1 test; `pnpm test` pass 21 suites/135 tests.

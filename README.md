@@ -51,7 +51,7 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 # unit tests (no PostgreSQL required)
  pnpm test:unit
 
-# all tests (test PostgreSQL required)
+# all unit, integration and end-to-end tests (test PostgreSQL required)
  pnpm test
 
 # direct feature/database integration tests only
@@ -66,7 +66,8 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 
 CI creates a disposable PostgreSQL 16 service with database `rewear_test`,
 sets `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` and `DB_SSL`,
-and runs unit, integration and HTTP E2E suites sequentially through `pnpm test`.
+and runs unit, integration and end-to-end suites sequentially through
+`pnpm test`.
 Each database suite resets the tables in the shared `public` schema before it
 runs. This test database is disposable and must not contain development data.
 This project currently uses schema synchronization rather than a
@@ -158,13 +159,10 @@ output and documents the existing `{ statusCode, message, data }` envelope and
 ISO date strings. This refactor does not change database entities or business
 state transitions.
 
-HTTP request/response tests live in `test/e2e` and run with `pnpm test:e2e`.
-They exercise the Nest application pipeline; most use PostgreSQL, while the
-request-validation contract suite mocks persistence. Direct PostgreSQL feature
-integration tests live in `test/integration` and run with
-`pnpm test:integration`. See the README in each folder for suite coverage.
-The HTTP contract suite writes an OpenAPI snapshot to
-`/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
+Direct service/PostgreSQL behavior tests live in `test/integration`. The small
+E2E suite in `test/e2e` boots the complete `AppModule` and checks the seller to
+buyer commerce flow through HTTP. Both commands are listed above; see the
+folder READMEs for current coverage.
 
 ## Product drafts and moderation
 

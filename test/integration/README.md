@@ -1,13 +1,12 @@
 # Integration tests
 
-Integration suites call the feature/service layer directly and verify its
-behavior against PostgreSQL. HTTP requests and responses belong in
-`test/e2e`. These tests do not test the database helper itself.
+Integration tests call feature services directly and verify real PostgreSQL
+behavior. They avoid the HTTP app, guards and request serialization.
 
-| File                       | What it covers                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| `marketplace-seed.spec.ts` | Marketplace seed data, reruns, rollback on conflicts and moderation of seeded products. |
+| File                       | What it covers                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `commerce-flow.spec.ts`    | Product review and publication, cart/checkout reservation, and pickup location persistence. |
+| `marketplace-seed.spec.ts` | Marketplace seed data, reruns, rollback on conflicts and moderation.                        |
 
-Run this suite with `pnpm test:integration`. The test helper resets entity
-tables before it runs, so point it only at the disposable `rewear_test`
-database.
+Run with `pnpm test:integration`. The test database helper resets entity tables
+before each suite; use only the disposable `rewear_test` database.

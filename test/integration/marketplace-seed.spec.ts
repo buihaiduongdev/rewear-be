@@ -17,15 +17,15 @@ import { findProductSchema, productSchema } from '@/modules/product/schemas';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
-import type { IntegrationDatabase } from '../support/database';
-import { createIntegrationDatabase } from '../support/database';
+import type { TestDatabase } from '../support/database';
+import { createTestDatabase } from '../support/database';
 
 describe('Marketplace seed (real PostgreSQL)', () => {
-  let database: IntegrationDatabase;
+  let database: TestDatabase;
   let db: DataSource;
 
   beforeAll(async () => {
-    database = await createIntegrationDatabase();
+    database = await createTestDatabase();
     db = database.dataSource;
   });
 

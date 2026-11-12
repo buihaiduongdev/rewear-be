@@ -90,6 +90,7 @@
     ],
     "rootDir": ".",
     "testRegex": "test/(unit|integration|e2e)/.*\\.spec\\.ts$",
+    "setupFiles": ["<rootDir>/test/setup-env.ts"],
     "testTimeout": 30000,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"

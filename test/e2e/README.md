@@ -1,16 +1,9 @@
-# HTTP end-to-end tests
+# End-to-end tests
 
-These suites send requests through the Nest HTTP application and check the
-observable API behavior. Most connect to PostgreSQL; request-validation checks
-the HTTP pipeline with persistence mocked.
+`rewear-commerce-flow.spec.ts` starts the full Nest `AppModule` and exercises a
+single buyer/seller journey through HTTP: create a product, upload its images,
+submit and approve it, add it to a cart, and hold it at checkout. PostgreSQL is
+real; the auth guard and object-storage provider use test fixtures.
 
-| File                         | What it covers                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `cart.spec.ts`               | Authentication, cart operations, seller ownership, listing availability, grouping and concurrent requests. |
-| `checkout.spec.ts`           | Reservations, checkout snapshots, shipping quotes, cancellation, expiry and concurrent requests.           |
-| `pickup-location.spec.ts`    | Personal/shop pickup APIs, authorization, request validation, privacy and database constraints.            |
-| `product-lifecycle.spec.ts`  | Product APIs for drafts, media, submission, moderation, revisions and concurrent changes.                  |
-| `request-validation.spec.ts` | HTTP validation, response serialization, auth inputs and generated OpenAPI; persistence is mocked.         |
-
-Run these with `pnpm test:e2e`. They are also included in the full `pnpm test`
-run and in CI.
+Run with `pnpm test:e2e`. Keep this suite focused on a few complete app flows;
+put detailed service behavior in `test/integration` or unit tests.

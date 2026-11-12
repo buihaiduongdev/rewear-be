@@ -4,13 +4,13 @@ import { DataSource } from 'typeorm';
 
 import { databaseSchema } from '@/modules/config/schemas/database.schema';
 
-export interface IntegrationDatabase {
+export interface TestDatabase {
   dataSource: DataSource;
   schema: string;
   destroy(): Promise<void>;
 }
 
-export function getIntegrationDatabaseConfig(
+export function getTestDatabaseConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ) {
   if (
@@ -18,7 +18,7 @@ export function getIntegrationDatabaseConfig(
     !/^rewear[a-z0-9_]*_test$/.test(environment.DB_NAME)
   ) {
     throw new Error(
-      'Set DB_NAME explicitly to a dedicated rewear*_test database for integration tests',
+      'Set DB_NAME explicitly to a dedicated rewear*_test database for tests',
     );
   }
   const config = databaseSchema.omit({ url: true }).parse({
@@ -31,13 +31,13 @@ export function getIntegrationDatabaseConfig(
     ssl: environment.DB_SSL,
   });
   if (!['localhost', '127.0.0.1', '::1'].includes(config.host)) {
-    throw new Error('Integration tests require a local PostgreSQL server');
+    throw new Error('Database tests require a local PostgreSQL server');
   }
   return config;
 }
 
-export async function createIntegrationDatabase(): Promise<IntegrationDatabase> {
-  const config = getIntegrationDatabaseConfig();
+export async function createTestDatabase(): Promise<TestDatabase> {
+  const config = getTestDatabaseConfig();
   const schema = 'public';
   const dataSource = new DataSource({
     ...config,
