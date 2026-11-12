@@ -49,10 +49,10 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 
 ```bash
 # unit tests (no PostgreSQL required)
- pnpm test:unit --runInBand
+ pnpm test:unit
 
 # unit and integration tests (test PostgreSQL required)
- pnpm test --runInBand
+ pnpm test
 
 # integration tests only
  pnpm test:integration
@@ -63,10 +63,11 @@ enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS
 
 CI creates a disposable PostgreSQL 16 service with database `rewear_test`,
 sets `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` and `DB_SSL`,
-and runs every unit and integration suite through `pnpm test --runInBand`.
-Each database suite creates a unique schema, synchronizes its entities, then
-drops that schema during cleanup. This project currently uses schema
-synchronization rather than a migration-based test setup.
+and runs every unit and integration suite sequentially through `pnpm test`.
+Each database suite resets the tables in the shared `public` schema before it
+runs. This test database is disposable and must not contain development data.
+This project currently uses schema synchronization rather than a
+migration-based test setup.
 
 For a local integration run, use a separate disposable server:
 
@@ -81,7 +82,7 @@ docker exec rewear-test-db pg_isready -U rewear_test -d rewear_test
 
 DB_HOST=127.0.0.1 DB_PORT=55432 DB_USERNAME=rewear_test \
 DB_PASSWORD=rewear_test DB_NAME=rewear_test DB_SSL=false \
-  pnpm test --runInBand
+  pnpm test
 
 docker stop rewear-test-db
 ```

@@ -1,46 +1,31 @@
+import { AuthProvider } from '@/modules/auth/enums';
+import { User } from '@/modules/user/entities';
+
 import type { IntegrationDatabase } from '../support/database';
 import { createIntegrationDatabase } from '../support/database';
 
-describe('integration database isolation', () => {
+describe('shared integration database', () => {
   const databases: IntegrationDatabase[] = [];
 
   afterAll(async () => {
     for (const database of databases) await database.destroy();
   });
 
-  it('isolates schema resets and removes only the schema owned by the suite', async () => {
+  it('resets test tables before each suite while using the same schema', async () => {
     const first = await createIntegrationDatabase();
     databases.push(first);
+    await first.dataSource.getRepository(User).save({
+      email: 'leftover@example.com',
+      fullName: 'Leftover fixture',
+      provider: AuthProvider.CREDENTIALS,
+      password: null,
+      providerAccountId: null,
+    });
+    await first.destroy();
+
     const second = await createIntegrationDatabase();
     databases.push(second);
-    const firstSchema = first.schema;
-    const secondSchema = second.schema;
-    expect(firstSchema).not.toBe(secondSchema);
-
-    await second.dataSource.query(
-      `CREATE TABLE "${secondSchema}".isolation_probe (value integer)`,
-    );
-    await second.dataSource.query(
-      `INSERT INTO "${secondSchema}".isolation_probe VALUES (42)`,
-    );
-    await first.dataSource.synchronize(true);
-    expect(
-      await second.dataSource.query(
-        `SELECT value FROM "${secondSchema}".isolation_probe`,
-      ),
-    ).toEqual([{ value: 42 }]);
-
-    await first.destroy();
-    expect(
-      await second.dataSource.query(
-        'SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1',
-        [firstSchema],
-      ),
-    ).toEqual([]);
-    expect(
-      await second.dataSource.query(
-        `SELECT value FROM "${secondSchema}".isolation_probe`,
-      ),
-    ).toEqual([{ value: 42 }]);
+    expect(second.schema).toBe(first.schema);
+    expect(await second.dataSource.getRepository(User).count()).toBe(0);
   });
 });

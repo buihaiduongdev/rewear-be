@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
-import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 
 import { databaseSchema } from '@/modules/config/schemas/database.schema';
@@ -40,52 +38,26 @@ export function getIntegrationDatabaseConfig(
 
 export async function createIntegrationDatabase(): Promise<IntegrationDatabase> {
   const config = getIntegrationDatabaseConfig();
-  const schema = `integration_${randomUUID().replaceAll('-', '')}`;
-  const admin = new Client({
-    host: config.host,
-    port: config.port,
-    user: config.username,
-    password: config.password,
-    database: config.database,
-    ssl: config.ssl,
-    connectionTimeoutMillis: 5000,
-  });
+  const schema = 'public';
   const dataSource = new DataSource({
     ...config,
-    schema,
-    synchronize: true,
+    synchronize: false,
     entities: [path.join(__dirname, '../../src/modules/**/*.entity.ts')],
     connectTimeoutMS: 5000,
   });
-  let schemaCreated = false;
   try {
-    await admin.connect();
-    await admin.query(`CREATE SCHEMA "${schema}"`);
-    schemaCreated = true;
     await dataSource.initialize();
+    await dataSource.synchronize(true);
   } catch (error) {
-    try {
-      if (dataSource.isInitialized) await dataSource.destroy();
-      if (schemaCreated) await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
-    } finally {
-      await admin.end();
-    }
+    if (dataSource.isInitialized) await dataSource.destroy();
     throw error;
   }
 
-  let destroyed = false;
   return {
     dataSource,
     schema,
     async destroy() {
-      if (destroyed) return;
-      try {
-        if (dataSource.isInitialized) await dataSource.destroy();
-        await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-      } finally {
-        destroyed = true;
-        await admin.end();
-      }
+      if (dataSource.isInitialized) await dataSource.destroy();
     },
   };
 }

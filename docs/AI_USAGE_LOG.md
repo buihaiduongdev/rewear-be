@@ -534,3 +534,9 @@
 - **Cách kiểm chứng:** `pnpm check` pass; `pnpm test --runInBand` pass 26 suites, 243 tests (134 unit và 109 integration), không skip. Bảy suite integration cũng pass khi chạy hai worker. Thiếu cấu hình hoặc DB không chạy đều làm test fail với zero skip; kiểm tra sau chạy không còn schema integration. Compose config và git diff check pass. [CI run 43000166332](https://github.com/buihaiduongdev/rewear-be/actions/runs/43000166332) pass đủ 26 suites và 243 tests, đã đối chiếu log.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** CI trước đó xanh nhưng 79 test PostgreSQL bị skip do không có URL kết nối; 108 integration/E2E test trước đây chỉ đã được chạy đầy đủ ở local. Đã thay skip gate bằng cấu hình bắt buộc và PostgreSQL service trong CI. Sau đổi tên file, Oxlint nhận diện thêm các suite và chưa nhận Supertest expect; đã cấu hình assertion tương ứng và làm rõ kiểu lỗi database trong hai bài test.
 - **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), branch `refactor/category-repository-merge`; commit `330cb14`; [báo cáo kiểm chứng cập nhật](https://github.com/buihaiduongdev/rewear-review-assets/blob/71bf7d7677cdf6e9e6b07b48f827acbab9717fa9/be/pr-28/report.md); `test/support/database.ts`, `test/integration/database-isolation.spec.ts`, `.github/workflows/ci.yml` và README.
+
+### 2026-11-12 — Dùng chung schema cho integration test
+
+- **Mục đích:** Đơn giản hóa setup test theo góp ý: mọi suite PostgreSQL dùng cùng database/schema và chạy tuần tự.
+- **Thay đổi:** `pnpm test` mặc định dùng `--runInBand`; helper reset các bảng trong schema `public` trước mỗi suite. README và CI phản ánh cách chạy này.
+- **Kiểm chứng:** Trên PostgreSQL 16 tạm riêng, `pnpm test` pass 26 suites/243 tests. Thời gian Jest báo 8.298 giây; không suite nào bị skip.
