@@ -503,8 +503,8 @@
 
 - **Người thực hiện:** Bùi Hải Dương.
 - **Công cụ:** Codex, `nestjs-paginate` 16.0.1, pnpm.
-- **Mục đích và phạm vi:** Dùng thư viện pagination như demo2 cho danh sách user và product, giảm phần tự viết.
-- **Prompt chính:** Áp dụng `nestjs-paginate` cho Rewear và đưa thay đổi lên PR refactor riêng.
+- **Mục đích và phạm vi:** Thay phần phân trang tự viết cho danh sách user và product bằng thư viện, giữ hợp đồng API Rewear hiện tại.
+- **Prompt chính:** Rà soát pagination hiện tại, dùng `nestjs-paginate` để giảm logic tự viết và giữ query/response hiện tại.
 - **Đầu ra AI được sử dụng:** Thay logic `skip/take/count` tự viết bằng thư viện; thêm adapter nhỏ để giữ response `items/meta` và query hiện tại.
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn giữ API `pageSize`, `sortBy`, `order` và các filter nghiệp vụ để không buộc frontend đổi theo refactor.
 - **Cách kiểm chứng:** `pnpm check` pass; `git diff --check` pass. Test ứng dụng được giao cho CI của PR.
