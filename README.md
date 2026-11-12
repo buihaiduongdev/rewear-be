@@ -12,6 +12,26 @@ without rewriting framework dependencies.
  pnpm install
 ```
 
+## Local PostgreSQL
+
+From `rewear-be`, start PostgreSQL 16 and wait for it to become healthy:
+
+```bash
+docker compose up -d --wait db
+```
+
+The server listens at `127.0.0.1:5432`, with username/password
+`postgres`/`postgres`. It creates only the development database `rewear`.
+Data persists in the `postgres_data` volume across container restarts.
+
+If port 5432 is already in use, run `LOCAL_DB_PORT=55432 docker compose up -d --wait db`
+and use port 55432 in the backend connection configuration.
+
+Stop the server with `docker compose down`; its volume is retained.
+The local server uses connections without TLS. Set `DB_SSL=false` in `.env`
+when connecting the backend to it, as shown in `.env.example`. SSL remains
+enabled when `DB_SSL` is omitted; use `DB_SSL=true` for servers that require TLS.
+
 ## Compile and run the project
 
 ```bash
@@ -28,15 +48,55 @@ without rewriting framework dependencies.
 ## Run tests
 
 ```bash
-# unit tests
- pnpm run test
+# unit tests (no PostgreSQL required)
+ pnpm test:unit
 
-# e2e tests
- pnpm run test:e2e
+# all unit, integration and end-to-end tests (test PostgreSQL required)
+ pnpm test
+
+# direct feature/database integration tests only
+ pnpm test:integration
+
+# HTTP end-to-end tests only (test PostgreSQL required)
+ pnpm test:e2e
 
 # test coverage
  pnpm run test:cov
 ```
+
+CI creates a disposable PostgreSQL 16 service with database `rewear_test`,
+sets `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` and `DB_SSL`,
+and runs unit, integration and end-to-end suites sequentially through
+`pnpm test`.
+Each database suite resets the tables in the shared `public` schema before it
+runs. This test database is disposable and must not contain development data.
+This project currently uses schema synchronization rather than a
+migration-based test setup.
+
+For a local integration run, use a separate disposable server:
+
+```bash
+docker run --rm -d --name rewear-test-db \
+  -e POSTGRES_USER=rewear_test -e POSTGRES_PASSWORD=rewear_test \
+  -e POSTGRES_DB=rewear_test -p 127.0.0.1:55432:5432 \
+  postgres:16-alpine
+
+# Wait until this reports that PostgreSQL is accepting connections.
+docker exec rewear-test-db pg_isready -U rewear_test -d rewear_test
+
+DB_HOST=127.0.0.1 DB_PORT=55432 DB_USERNAME=rewear_test \
+DB_PASSWORD=rewear_test DB_NAME=rewear_test DB_SSL=false \
+  pnpm test
+
+docker stop rewear-test-db
+```
+
+Tests read the explicit `DB_*` environment variables; they do not load `.env`
+or fall back to `DATABASE_URL`. Database tests require a local server and a
+database name matching `rewear*_test`. Missing configuration or an unavailable
+database fails the run instead of skipping suites. Never point them at the
+development database. `pnpm test:seed` uses this same configuration to run only
+the seed integration suite.
 
 Copy `.env.example` to `.env` and configure the JWT secrets, Google OAuth client
 ID, SMTP server, and frontend URL before starting the authentication endpoints.
@@ -98,12 +158,9 @@ output and documents the existing `{ statusCode, message, data }` envelope and
 ISO date strings. This refactor does not change database entities or business
 state transitions.
 
-`pnpm test --runInBand` runs unit checks. `pnpm test:e2e --runInBand` boots real
-controllers and the validation/serialization pipeline with mocked persistence;
-it checks request rejection, coercion, login ordering, HTTP status, response
-filtering and generated OpenAPI. It does not prove PostgreSQL or external-service
-integration. The HTTP contract suite also writes a temporary OpenAPI snapshot
-to `/tmp/rewear-standard-schema-openapi.json` for local client-generation checks.
+Integration tests call services directly against PostgreSQL. The E2E suite
+boots the complete `AppModule` and checks the seller-to-buyer commerce flow
+through HTTP. Use the commands above to run either group.
 
 ## Product drafts and moderation
 

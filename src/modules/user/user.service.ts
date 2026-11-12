@@ -41,7 +41,7 @@ export class UserService {
     const user = this.userRepository.create({
       email: this.normalizeEmail(input.email),
       password: await argon2.hash(input.password),
-      fullName: input.fullName.trim(),
+      fullName: input.fullName,
       provider: AuthProvider.CREDENTIALS,
       providerAccountId: null,
       role: UserRole.USER,
@@ -56,7 +56,7 @@ export class UserService {
       this.userRepository.create({
         email: this.normalizeEmail(input.email),
         password: await argon2.hash(input.password),
-        fullName: input.fullName.trim(),
+        fullName: input.fullName,
         provider: AuthProvider.CREDENTIALS,
         providerAccountId: null,
         role: input.role ?? UserRole.USER,
@@ -129,7 +129,7 @@ export class UserService {
       user.email = this.normalizeEmail(input.email);
     }
     if (input.password) user.password = await argon2.hash(input.password);
-    if (input.fullName) user.fullName = input.fullName.trim();
+    if (input.fullName) user.fullName = input.fullName;
     if (input.role) user.role = input.role;
     if (input.status) user.status = input.status;
     return this.userRepository.save(user);
@@ -137,7 +137,7 @@ export class UserService {
 
   async updateProfile(id: string, input: UpdateProfileInput): Promise<User> {
     const user = await this.findById(id);
-    user.fullName = input.fullName.trim();
+    user.fullName = input.fullName;
     return this.userRepository.save(user);
   }
 

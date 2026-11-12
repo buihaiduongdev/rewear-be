@@ -32,7 +32,7 @@ describe('UserAddressService', () => {
   const repository: jest.Mocked<
     Pick<
       Repository<UserAddress>,
-      'find' | 'findOneBy' | 'create' | 'save' | 'remove'
+      'find' | 'findOneBy' | 'create' | 'save' | 'remove' | 'merge'
     >
   > = {
     find: jest.fn(),
@@ -40,6 +40,7 @@ describe('UserAddressService', () => {
     create: jest.fn(),
     save: jest.fn(),
     remove: jest.fn(),
+    merge: jest.fn(),
   };
   const manager: jest.Mocked<Pick<EntityManager, 'update' | 'save'>> = {
     update: jest.fn(),
@@ -57,6 +58,17 @@ describe('UserAddressService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    repository.merge.mockImplementation((entity, ...sources) => {
+      for (const source of sources) {
+        Object.assign(
+          entity,
+          Object.fromEntries(
+            Object.entries(source).filter(([, value]) => value !== undefined),
+          ),
+        );
+      }
+      return entity;
+    });
   });
 
   it('lists only the current user addresses with the default first', async () => {

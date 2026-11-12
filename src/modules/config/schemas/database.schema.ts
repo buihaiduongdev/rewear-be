@@ -8,6 +8,10 @@ export const databaseSchema = z.object({
   username: z.string().min(1).default('postgres'),
   password: z.string().default('postgres'),
   database: z.string().min(1).default('rewear'),
+  ssl: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 
 export type TDatabaseConfig = z.infer<typeof databaseSchema>;

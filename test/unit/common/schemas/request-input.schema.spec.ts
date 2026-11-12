@@ -30,6 +30,7 @@ import {
 } from '@/modules/user-address/schemas/user-address-input.schema';
 import {
   createUserSchema,
+  updateProfileSchema,
   updateUserSchema,
 } from '@/modules/user/schemas/user-input.schema';
 
@@ -46,6 +47,15 @@ describe('Request schema compatibility', () => {
       );
     },
   );
+
+  it('trims profile full name before validating length', () => {
+    expect(updateProfileSchema.parse({ fullName: '  An  ' }).fullName).toBe(
+      'An',
+    );
+    expect(updateProfileSchema.safeParse({ fullName: '   ' }).success).toBe(
+      false,
+    );
+  });
 
   const id = '598745cf-8764-499a-ad43-e6223713ee90';
   const product = {
@@ -196,11 +206,32 @@ describe('Request schema compatibility', () => {
     ).toBe(false);
   });
 
-  it('retains shop name validation before service-level trimming', () => {
-    expect(createShopSchema.safeParse({ name: '   ' }).success).toBe(false);
-    expect(createShopSchema.parse({ name: '  Closet  ' }).name).toBe(
-      '  Closet  ',
-    );
+  it.each([createShopSchema, updateShopSchema])(
+    'normalizes shop name with trimmedTextSchema and rejects whitespace-only',
+    (schema) => {
+      expect(schema.safeParse({ name: '   ' }).success).toBe(false);
+      expect(schema.parse({ name: '  Closet  ' }).name).toBe('Closet');
+    },
+  );
+
+  it.each([createCategorySchema, updateCategorySchema])(
+    'normalizes category name with trimmedTextSchema and rejects whitespace-only',
+    (schema) => {
+      expect(schema.safeParse({ name: '   ' }).success).toBe(false);
+      expect(schema.parse({ name: '  Áo khoác  ' }).name).toBe('Áo khoác');
+    },
+  );
+
+  it('normalizes shop description and handles empty or null values', () => {
+    expect(
+      createShopSchema.parse({
+        name: 'Closet',
+        description: '  Secondhand items  ',
+      }).description,
+    ).toBe('Secondhand items');
+    expect(
+      createShopSchema.parse({ name: 'Closet', description: null }).description,
+    ).toBeUndefined();
   });
 
   it('validates login field types while strategies retain provider-specific credential checks', () => {

@@ -1,12 +1,16 @@
 import z from 'zod';
 
-import { optionalInput, uuidSchema } from '@/common/schemas/request.schema';
+import {
+  optionalInput,
+  trimmedTextSchema,
+  uuidSchema,
+} from '@/common/schemas/request.schema';
 
 import { ShopMemberStatus, ShopStatus } from '../enums';
 
 export const createShopSchema = z.strictObject({
-  name: z.string().min(1).max(100).regex(/\S/),
-  description: optionalInput(z.string().max(1000)),
+  name: trimmedTextSchema.min(1).max(100),
+  description: optionalInput(trimmedTextSchema.max(1000)),
 });
 
 export const updateShopSchema = createShopSchema.partial().extend({

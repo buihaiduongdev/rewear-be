@@ -1,15 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "unicorn",
-    "oxc",
-    "jest"
-  ],
+  "plugins": ["typescript", "unicorn", "oxc", "jest"],
   "categories": {
     "correctness": "error"
   },
-  "rules": {},
+  "rules": {
+    "jest/expect-expect": [
+      "error",
+      { "assertFunctionNames": ["expect", "request.**.expect"] }
+    ]
+  },
   "env": {
     "builtin": true,
     "node": true,

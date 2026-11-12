@@ -52,11 +52,12 @@ describe('ShopService', () => {
   };
 
   const shopRepository: jest.Mocked<
-    Pick<Repository<Shop>, 'find' | 'findOneBy' | 'save'>
+    Pick<Repository<Shop>, 'find' | 'findOneBy' | 'save' | 'merge'>
   > = {
     find: jest.fn(),
     findOneBy: jest.fn(),
     save: jest.fn(),
+    merge: jest.fn(),
   };
   const memberRepository: jest.Mocked<
     Pick<
@@ -89,6 +90,17 @@ describe('ShopService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    shopRepository.merge.mockImplementation((entity, ...sources) => {
+      for (const source of sources) {
+        Object.assign(
+          entity,
+          Object.fromEntries(
+            Object.entries(source).filter(([, value]) => value !== undefined),
+          ),
+        );
+      }
+      return entity;
+    });
   });
 
   it('lists only active shops in newest-first order', async () => {
@@ -129,8 +141,7 @@ describe('ShopService', () => {
 
     await expect(
       service.create(ownerId, {
-        name: '  Re.wear Closet  ',
-        description: '   ',
+        name: 'Re.wear Closet',
       }),
     ).resolves.toBe(newShop);
     expect(entityManager.create).toHaveBeenNthCalledWith(1, Shop, {
@@ -154,6 +165,34 @@ describe('ShopService', () => {
       service.update(shop.id, staffUserId, { name: 'New name' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(shopRepository.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [undefined, 'Existing description'],
+    ['', null],
+    ['New description', 'New description'],
+  ])('updates a shop with description %p', async (description, expected) => {
+    const existing = { ...shop, description: 'Existing description' };
+    shopRepository.findOneBy
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(existing);
+    memberRepository.findOneBy.mockResolvedValueOnce(ownerMembership);
+    shopRepository.save.mockImplementationOnce(
+      async (entity) => entity as Shop,
+    );
+
+    await expect(
+      service.update(shop.id, ownerId, {
+        name: 'Updated shop',
+        description,
+        status: ShopStatus.INACTIVE,
+      }),
+    ).resolves.toMatchObject({
+      name: 'Updated shop',
+      description: expected,
+      status: ShopStatus.INACTIVE,
+    });
+    expect(shopRepository.save).toHaveBeenCalledWith(existing);
   });
 
   it('rejects adding a user who is already a shop member', async () => {

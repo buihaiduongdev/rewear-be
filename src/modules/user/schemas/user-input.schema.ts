@@ -1,6 +1,9 @@
 import z from 'zod';
 
-import { optionalInput } from '@/common/schemas/request.schema';
+import {
+  optionalInput,
+  trimmedTextSchema,
+} from '@/common/schemas/request.schema';
 import { registerSchema } from '@/modules/auth/schemas/auth-input.schema';
 
 import { UserRole, UserStatus } from '../enums';
@@ -17,7 +20,7 @@ export const updateUserSchema = createUserSchema.partial().extend({
 });
 
 export const updateProfileSchema = z.strictObject({
-  fullName: z.string().min(1).max(255),
+  fullName: trimmedTextSchema.min(1).max(255),
 });
 
 export type CreateUserInput = z.output<typeof createUserSchema>;
