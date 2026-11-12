@@ -11,7 +11,7 @@ export const dbOptions: DataSourceOptions = {
   ...databaseConfig(),
   entities: [path.join(__dirname, '..', '**', '*.entity.{js,ts}')],
   synchronize: true,
-  ssl: true,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };
 
 export const AppDataSource = new DataSource({

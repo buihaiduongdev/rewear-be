@@ -507,6 +507,6 @@
 - **Prompt chính:** Tách các tài liệu và cấu hình local đã khôi phục từ nhánh `audit` thành các phần dễ review và đưa lên PR.
 - **Đầu ra AI được sử dụng:** Khôi phục các file hồ sơ và cấu hình PostgreSQL theo commit `e82ad1c`; tách commit tài liệu và database.
 - **Phần tự làm hoặc đã chỉnh sửa:** Sinh viên yêu cầu tìm lại các file và đưa phần công việc trên nhánh riêng lên PR để review.
-- **Cách kiểm chứng:** Đối chiếu nội dung với nhánh `audit`; các thông tin khảo sát và xác nhận trong hồ sơ cần được kiểm tra với nguồn gốc.
+- **Cách kiểm chứng:** Đối chiếu với nhánh `audit`; `pnpm check`, 115 unit test và 29 HTTP test pass; 79 test PostgreSQL bị skip. Kết nối PostgreSQL tạm với `DB_SSL=false` thành công. Các thông tin khảo sát và xác nhận cần được đối chiếu với nguồn gốc.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu chỉ khôi phục một file thay vì toàn bộ thay đổi liên quan; đã đưa cả các phần còn lại vào PR riêng.
 - **Minh chứng:** Commit nguồn `e82ad1c`; PR review hồ sơ và cấu hình local.
