@@ -6,9 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as argon2 from 'argon2';
+import { paginate, type PaginateQuery } from 'nestjs-paginate';
 import { Repository } from 'typeorm';
 
-import { OrmFilterBuilder, paginate } from '@/common/pagination';
+import { PAGINATION_DEFAULT } from '@/common/constants';
+import { OrmFilterBuilder, toPaginatedResult } from '@/common/pagination';
 import type { IPaginatedResult } from '@/common/pagination';
 import { AuthProvider } from '@/modules/auth/enums';
 import type { RegisterInput } from '@/modules/auth/schemas/auth-input.schema';
@@ -77,14 +79,20 @@ export class UserService {
       .equal('user.role', query.role)
       .equal('user.status', query.status);
 
-    return paginate(builder, query, {
-      defaultSort: 'user.createdAt',
-      allowedSorts: {
-        createdAt: 'user.createdAt',
-        email: 'user.email',
-        fullName: 'user.fullName',
-      },
+    const sortBy = query.sortBy ?? 'createdAt';
+    const paginateQuery: PaginateQuery = {
+      page: query.page,
+      limit: query.pageSize,
+      sortBy: [[sortBy, query.order]],
+      path: '',
+    };
+    const result = await paginate(paginateQuery, builder, {
+      sortableColumns: ['createdAt', 'email', 'fullName'],
+      defaultSortBy: [['createdAt', 'DESC']],
+      defaultLimit: PAGINATION_DEFAULT.PAGE_SIZE,
+      maxLimit: PAGINATION_DEFAULT.PAGE_SIZE_MAX,
     });
+    return toPaginatedResult(result, query.page);
   }
 
   async findById(id: string): Promise<User> {

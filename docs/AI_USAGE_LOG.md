@@ -498,3 +498,15 @@
 - **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
 - **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
+
+### 2026-11-12 — Dùng nestjs-paginate cho phân trang Rewear
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, `nestjs-paginate` 16.0.1, pnpm.
+- **Mục đích và phạm vi:** Dùng thư viện pagination như demo2 cho danh sách user và product, giảm phần tự viết.
+- **Prompt chính:** Áp dụng `nestjs-paginate` cho Rewear và đưa thay đổi lên PR refactor riêng.
+- **Đầu ra AI được sử dụng:** Thay logic `skip/take/count` tự viết bằng thư viện; thêm adapter nhỏ để giữ response `items/meta` và query hiện tại.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn giữ API `pageSize`, `sortBy`, `order` và các filter nghiệp vụ để không buộc frontend đổi theo refactor.
+- **Cách kiểm chứng:** `pnpm check` pass; `git diff --check` pass. Test ứng dụng được giao cho CI của PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thư viện giới hạn metadata trang theo tổng số trang; adapter giữ số trang người dùng yêu cầu để tương thích response cũ.
+- **Minh chứng:** Branch `refactor/nestjs-paginate`; PR sẽ được liên kết sau khi tạo.

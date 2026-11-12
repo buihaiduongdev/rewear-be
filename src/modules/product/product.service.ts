@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { paginate, type PaginateQuery } from 'nestjs-paginate';
 import {
   Brackets,
   DataSource,
@@ -18,7 +19,9 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
-import { IPaginatedResult, paginate } from '@/common/pagination';
+import { PAGINATION_DEFAULT } from '@/common/constants';
+import { toPaginatedResult } from '@/common/pagination';
+import type { IPaginatedResult } from '@/common/pagination';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType } from '@/modules/media/enums';
@@ -46,6 +49,8 @@ const PRODUCT_RELATIONS = {
   seller: true,
   shop: true,
 } as const;
+
+const PRODUCT_SORTABLE_COLUMNS = ['createdAt', 'price', 'publishedAt'] as const;
 
 @Injectable()
 export class ProductService {
@@ -760,16 +765,25 @@ export class ProductService {
     query: FindProductQuery | FindMyProductQuery,
     published = false,
   ): Promise<IPaginatedResult<Product>> {
-    const result = await paginate(queryBuilder, query, {
-      allowedSorts: {
-        createdAt: 'product.createdAt',
-        price: 'product.price',
-        publishedAt: 'product.publishedAt',
-      },
-      defaultSort: 'product.createdAt',
+    const sortBy =
+      PRODUCT_SORTABLE_COLUMNS.find((column) => column === query.sortBy) ??
+      'createdAt';
+    const paginateQuery: PaginateQuery = {
+      page: query.page,
+      limit: query.pageSize,
+      sortBy: [[sortBy, query.order]],
+      // Keep Rewear's existing items/meta response without generated links.
+      path: '',
+    };
+    const result = await paginate(paginateQuery, queryBuilder, {
+      sortableColumns: [...PRODUCT_SORTABLE_COLUMNS],
+      defaultSortBy: [['createdAt', 'DESC']],
+      defaultLimit: PAGINATION_DEFAULT.PAGE_SIZE,
+      maxLimit: PAGINATION_DEFAULT.PAGE_SIZE_MAX,
     });
-    await this.loadMedia(result.items, published);
-    return result;
+    const paginatedResult = toPaginatedResult(result, query.page);
+    await this.loadMedia(paginatedResult.items, published);
+    return paginatedResult;
   }
 
   private async findManagedProduct(id: string): Promise<Product> {
