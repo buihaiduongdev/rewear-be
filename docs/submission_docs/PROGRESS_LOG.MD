@@ -110,3 +110,20 @@ Trích xuất trực tiếp từ Cổng Quản lý Đề tài Khoa CNTT — Trư
   * Lập kế hoạch phân công công việc (`LIST_TASK.MD`) và cam kết sản phẩm Bước 3 (`COMMITMENT_STEP3.MD`).
 * **AI hỗ trợ:** ChatGPT (GPT-6) — Hỗ trợ tổng hợp danh mục file nộp, cấu trúc decision log và kế hoạch chuẩn bị hồ sơ.
 * **Sinh viên đã sửa:** Phản biện và trực tiếp lựa chọn phương án nghiệp vụ; chuẩn hóa mô hình shop sở hữu đơn lẻ; bảo đảm toàn bộ nội dung khớp với mã nguồn thực tế.
+
+### Tuần 9 — Bản nháp báo cáo (08/11–12/11/2026)
+
+* **Nội dung báo cáo:**
+  * Sắp xếp lại tài liệu kỹ thuật trong repository, lưu trữ các đặc tả cũ và cập nhật trang chỉ dẫn.
+  * Rà soát và thống nhất cách xử lý dữ liệu đầu vào, cập nhật thông tin danh mục, cửa hàng và địa chỉ để mã nguồn dễ bảo trì hơn.
+  * Tổ chức lại unit, integration và E2E; cấu hình PostgreSQL cho kiểm thử và CI. Kiểm tra luồng từ đăng sản phẩm, duyệt đến giỏ hàng và checkout.
+  * Chuyển phân trang danh sách sản phẩm và người dùng sang thư viện chung, hỗ trợ tìm kiếm, sắp xếp và lọc.
+
+  Các thay đổi backend đã được đưa lên PR để review, chưa merge. Vướng mắc hiện tại là frontend cần cập nhật theo contract phân trang mới; CI của PR phân trang chưa cấp PostgreSQL nên các test database được chạy local.
+
+  Thay đổi thiết kế kỹ thuật trong tuần là chuyển API phân trang sang contract của thư viện để thống nhất cách tìm kiếm, lọc và sắp xếp. Công việc tiếp theo là xử lý góp ý trên PR, cập nhật frontend và tiếp tục kiểm chứng các tích hợp liên quan.
+* **AI hỗ trợ:** Codex, Antigravity và agent-browser.
+* **Prompt:** Rà soát và đơn giản hóa cách xử lý dữ liệu, phân trang trong backend. Tổ chức lại kiểm thử, chạy với PostgreSQL và chuẩn bị PR cho các thay đổi.
+* **AI tạo ra:** AI hỗ trợ chỉnh sửa mã nguồn, cấu hình kiểm thử và tài liệu; chạy kiểm tra và tổng hợp kết quả để đưa lên PR.
+* **SV đã sửa:** Sinh viên lựa chọn phạm vi thay đổi, kiểm tra và điều chỉnh các đề xuất của AI; thống nhất cách tổ chức kiểm thử theo hành vi và luồng đặt hàng.
+* **Nộp và xác nhận GVHD:** Chưa xác minh.
