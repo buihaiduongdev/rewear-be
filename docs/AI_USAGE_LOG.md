@@ -539,4 +539,5 @@
 
 - **Mục đích:** Đơn giản hóa setup test theo góp ý: mọi suite PostgreSQL dùng cùng database/schema và chạy tuần tự.
 - **Thay đổi:** `pnpm test` mặc định dùng `--runInBand`; helper reset các bảng trong schema `public` trước mỗi suite. README và CI phản ánh cách chạy này.
-- **Kiểm chứng:** Trên PostgreSQL 16 tạm riêng, `pnpm test` pass 26 suites/243 tests. Thời gian Jest báo 8.298 giây; không suite nào bị skip.
+- **Kiểm chứng:** Trên PostgreSQL 16 tạm riêng, `pnpm test` pass 26 suites/243 tests trong 8.298 giây; không suite nào bị skip. [CI run 43148462584](https://github.com/buihaiduongdev/rewear-be/actions/runs/43148462584) pass 26 suites/243 tests trong 21.891 giây.
+- **Minh chứng:** [Báo cáo cập nhật](https://github.com/buihaiduongdev/rewear-review-assets/blob/0574efc031da2f6a3503820870e9dda84a740cf6/be/pr-28/report.md), PR #28, commit `472dacb`.
