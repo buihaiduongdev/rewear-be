@@ -511,62 +511,26 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Dữ liệu mock test ban đầu trong `shop.service.spec.ts` truyền `description: null` không khớp với type `string | undefined`, đã sửa lại omit description để thỏa mãn TypeScript.
 - **Minh chứng:** PR #27, branch `refactor/standardize-input-trim`, commit `1af5f84`, `fa62550`, `9949b0c` và `09610a7`.
 
-### 2026-11-11 — Đồng bộ cập nhật entity bằng TypeORM merge và cấu hình DB local
+### 2026-11-11 — Cập nhật entity và kiểm chứng API
 
-- **Người thực hiện:** Bùi Hải Dương
-- **Công cụ:** Codex, agent-browser, Docker PostgreSQL 16 và Jest.
-- **Mục đích và phạm vi:** Đồng bộ cách cập nhật Category, Shop, UserAddress và PickupLocation; bổ sung PostgreSQL local để kiểm chứng với dữ liệu thật.
-- **Prompt chính:** Rà soát gợi ý dùng TypeORM merge, giữ các xử lý nghiệp vụ riêng, sửa test chưa mô phỏng đúng undefined, bổ sung Compose và cấu hình SSL, chạy kiểm thử rồi chụp Swagger làm minh chứng cho PR.
-- **Đầu ra AI được sử dụng:** Refactor bốn service dùng repository/transaction manager merge; sửa mock và thêm regression cho partial update; bổ sung Compose, database test, DB_SSL và hướng dẫn chạy local.
-- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện yêu cầu review lại gợi ý ban đầu, chọn kiểm chứng bằng DB thật và ảnh Swagger, khởi động DB/backend local. Codex thực hiện thay đổi, kiểm thử và chuẩn bị PR theo yêu cầu.
-- **Cách kiểm chứng:** `pnpm check`, `pnpm build`, 128 unit tests trong 18 suites và 108 HTTP/PostgreSQL E2E tests trong 6 suites đều pass; `docker compose config --quiet` và `git diff --check` pass. Sáu ca Swagger dùng JWT thật tại cổng 5001, kiểm tra lại dữ liệu lưu bằng PostgreSQL; ảnh ẩn khối cURL chứa Bearer token, giữ nguyên request body và server response.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Merge không phải danh sách trường được phép cập nhật vì vẫn nhận column ID và relation; schema validation mới giới hạn input. Mock Category dùng Object.assign chưa bỏ qua undefined, đã sửa và kiểm tra regression đỏ/xanh. Giải thích sửa giá luôn kích hoạt kiểm duyệt lại không đúng với sản phẩm ACTIVE/HIDDEN; giữ nguyên logic Product. Cổng 3001 thuộc Jurassik, đã dùng cổng 5001 của Rewear để chụp minh chứng.
-- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), branch `refactor/category-repository-merge`, commit ứng dụng `f953047`; [báo cáo và 6 ảnh Swagger](https://github.com/buihaiduongdev/rewear-review-assets/blob/dc731d1009c13ac763a33215af896aa3f7fb3b20/be/pr-28/report.md). PR dựa trên `refactor/standardize-input-trim` vì PR #27 chưa merge.
+- **AI hỗ trợ:** Refactor cập nhật Category, Shop, UserAddress, PickupLocation bằng TypeORM `merge`; bổ sung Compose/DB SSL và regression tests.
+- **Người thực hiện:** Yêu cầu review gợi ý merge, giữ logic nghiệp vụ riêng và chạy PostgreSQL/backend local.
+- **Kiểm chứng:** `pnpm check`; 18 unit suites/128 tests; 6 ca Swagger thật (5 happy path, 1 edge case), đối chiếu dữ liệu PostgreSQL và dọn fixture.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), branch `refactor/category-repository-merge`; [báo cáo và ảnh](https://github.com/buihaiduongdev/rewear-review-assets/blob/384a198a5424bec8eddabd1fff3f59f52a8c8d62/be/pr-28/report.md).
 
-### 2026-11-11 — Chuẩn hóa integration test và chạy PostgreSQL thật trong CI
+### 2026-11-11 — Cấu hình PostgreSQL cho test và CI
 
-- **Người thực hiện:** Bùi Hải Dương
-- **Công cụ:** Codex, Graphify, Docker PostgreSQL 16 và Jest.
-- **Mục đích và phạm vi:** Áp dụng cách setup integration test của demo2 cho Rewear, tách database test khỏi Compose dev và bảo đảm CI thực sự chạy các bài kiểm thử PostgreSQL.
-- **Prompt chính:** Đối chiếu setup test và CI của demo2; thống nhất tên integration test, dùng cấu hình DB chung, để CI tạo PostgreSQL tạm và báo lỗi khi thiếu cấu hình thay vì bỏ qua test.
-- **Đầu ra AI được sử dụng:** Chuyển các suite sang `test/integration`, dùng helper tạo/dọn schema riêng trên một database test, bổ sung service PostgreSQL và DB_* trong CI; thêm lệnh test unit/integration; bỏ init.sql và cấu hình E2E cũ; cập nhật tài liệu và test cô lập schema.
-- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chỉ ra mẫu setup demo2 và yêu cầu áp dụng cho Rewear. Codex đọc Graphify cùng code gốc, giữ nguyên các ca kiểm thử nghiệp vụ, thay setup và kiểm chứng bằng PostgreSQL tạm riêng.
-- **Cách kiểm chứng:** `pnpm check` pass; `pnpm test --runInBand` pass 26 suites, 243 tests (134 unit và 109 integration), không skip. Bảy suite integration cũng pass khi chạy hai worker. Thiếu cấu hình hoặc DB không chạy đều làm test fail với zero skip; kiểm tra sau chạy không còn schema integration. Compose config và git diff check pass. [CI run 43000166332](https://github.com/buihaiduongdev/rewear-be/actions/runs/43000166332) pass đủ 26 suites và 243 tests, đã đối chiếu log.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** CI trước đó xanh nhưng 79 test PostgreSQL bị skip do không có URL kết nối; 108 integration/E2E test trước đây chỉ đã được chạy đầy đủ ở local. Đã thay skip gate bằng cấu hình bắt buộc và PostgreSQL service trong CI. Sau đổi tên file, Oxlint nhận diện thêm các suite và chưa nhận Supertest expect; đã cấu hình assertion tương ứng và làm rõ kiểu lỗi database trong hai bài test.
-- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), branch `refactor/category-repository-merge`; commit `330cb14`; [báo cáo kiểm chứng cập nhật](https://github.com/buihaiduongdev/rewear-review-assets/blob/71bf7d7677cdf6e9e6b07b48f827acbab9717fa9/be/pr-28/report.md); `test/support/database.ts`, `test/integration/database-isolation.spec.ts`, `.github/workflows/ci.yml` và README.
+- **AI hỗ trợ:** Đưa test DB vào `test/support/database.ts`; helper yêu cầu DB local có tên `rewear*_test`, dựng schema và đóng kết nối. CI dựng PostgreSQL riêng và truyền cấu hình `DB_*`.
+- **Người thực hiện:** Đối chiếu cách setup của demo2 và chọn dùng chung một DB test để dễ đọc.
+- **Kiểm chứng:** Thiếu cấu hình hoặc DB không sẵn sàng làm test fail; không bỏ qua test DB. CI chạy đủ test với PostgreSQL.
 
-### 2026-11-12 — Dùng chung schema cho integration test
+### 2026-11-12 — Thu gọn test theo hành vi tính năng
 
-- **Mục đích:** Đơn giản hóa setup test theo góp ý: mọi suite PostgreSQL dùng cùng database/schema và chạy tuần tự.
-- **Thay đổi:** `pnpm test` mặc định dùng `--runInBand`; helper reset các bảng trong schema `public` trước mỗi suite. README và CI phản ánh cách chạy này.
-- **Kiểm chứng:** Trên PostgreSQL 16 tạm riêng, `pnpm test` pass 26 suites/243 tests trong 8.298 giây; không suite nào bị skip. [CI run 43148462584](https://github.com/buihaiduongdev/rewear-be/actions/runs/43148462584) pass 26 suites/243 tests trong 21.891 giây.
-- **Minh chứng:** [Báo cáo cập nhật](https://github.com/buihaiduongdev/rewear-review-assets/blob/0574efc031da2f6a3503820870e9dda84a740cf6/be/pr-28/report.md), PR #28, commit `472dacb`.
+- **AI hỗ trợ:** Giữ unit tests, hai integration suites gọi service trực tiếp với PostgreSQL và một E2E chạy `AppModule` qua luồng đăng sản phẩm → duyệt → giỏ hàng/checkout. Đổi tên suite seed thành `seed.spec.ts`.
+- **Người thực hiện:** Chọn chỉ giữ một E2E lớn đại diện cho luồng bán hàng; integration tập trung vào hành vi, không kiểm tra helper.
+- **Kiểm chứng:** 18 unit suites/128 tests, 2 integration suites/6 tests, 1 E2E suite/1 test; CI pass tổng 21 suites/135 tests: [run 43172406224](https://github.com/buihaiduongdev/rewear-be/actions/runs/43172406224).
 
-### 2026-11-12 — Giữ integration test tập trung vào tính năng
+### 2026-11-12 — Rút gọn tài liệu kiểm thử
 
-- **Mục đích:** Bỏ suite chỉ kiểm tra database helper và ghi lại phạm vi kiểm thử tính năng ở một file dễ xem.
-- **Thay đổi:** Xóa `database-isolation.spec.ts`; thêm `test/integration/README.md` mô tả sáu suite còn lại.
-- **Kiểm chứng:** `pnpm test` pass 25 suites/242 tests; `pnpm test:integration` pass 6 suites/108 tests; `pnpm check` pass.
-
-### 2026-11-12 — Tách kiểm thử PostgreSQL và HTTP E2E
-
-- **Mục đích:** Đặt các test gọi trực tiếp tầng feature/service vào integration; đặt test gửi request qua Nest HTTP vào E2E.
-- **Thay đổi:** Chuyển năm suite HTTP từ `test/integration` sang `test/e2e`, thêm `pnpm test:e2e`; giữ suite marketplace seed làm integration trực tiếp với PostgreSQL. CI vẫn chạy toàn bộ bằng `pnpm test`.
-- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chốt cách phân loại integration và HTTP E2E; Codex chuyển file không sửa assertion, cập nhật Jest discovery, tài liệu và CI command.
-- **Kiểm chứng:** `pnpm check` pass; `pnpm test:integration` pass 1 suite/4 tests; `pnpm test:e2e` pass 5 suites/104 tests; `pnpm test` pass 25 suites/242 tests.
-
-### 2026-11-12 — Thu gọn integration và E2E theo luồng bán hàng
-
-- **Mục đích:** Giữ integration test đơn giản, tập trung vào service và PostgreSQL; chỉ giữ một E2E đại diện chạy qua toàn bộ `AppModule`.
-- **Thay đổi:** Gộp kiểm tra hành vi database vào một suite commerce flow; tạo một E2E sản phẩm → duyệt → giỏ hàng → checkout; bỏ các HTTP suite nhỏ chia theo module và unit test chỉ kiểm tra cấu hình test DB. Giữ helper PostgreSQL dùng chung để kiểm tra cấu hình an toàn và reset schema test.
-- **Phần tự làm hoặc đã chỉnh sửa:** Người thực hiện chọn luồng E2E seller đăng sản phẩm, admin duyệt, buyer checkout. Codex thêm integration service flow, dựng app Nest đầy đủ trong E2E và giản lược các test HTTP cũ.
-- **Kiểm chứng:** `pnpm check` pass; `pnpm test:unit` pass 18 suites/128 tests; `pnpm test:integration` pass 2 suites/6 tests; `pnpm test:e2e` pass 1 suite/1 test; `pnpm test` pass 21 suites/135 tests.
-
-### 2026-11-12 — Đặt tên rõ cho suite seed
-
-- **Thay đổi:** Đổi `marketplace-seed.spec.ts` thành `seed.spec.ts` và cập nhật tiêu đề, README cùng lệnh `pnpm test:seed`.
-- **Kiểm chứng:** `pnpm test:seed` pass 1 suite/4 tests; `pnpm check` pass.
-
-### 2026-11-12 — Bỏ README chi tiết khỏi thư mục test
-
-- **Thay đổi:** Xóa README riêng trong `test/integration` và `test/e2e`; giữ mô tả ngắn về hai nhóm test trong README gốc.
+- **AI hỗ trợ:** Xóa README riêng trong `test/integration` và `test/e2e`; để hướng dẫn ngắn ở README gốc và gom ảnh Swagger thành hai nhóm Happy path/Edge case.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28) và [report ảnh](https://github.com/buihaiduongdev/rewear-review-assets/blob/384a198a5424bec8eddabd1fff3f59f52a8c8d62/be/pr-28/report.md).
