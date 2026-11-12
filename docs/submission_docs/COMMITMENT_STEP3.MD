@@ -16,14 +16,12 @@
 ### 1.1. Bối cảnh thực tế
 
 Thị trường quần áo đã qua sử dụng (Secondhand / Pre-loved Fashion) tại Việt Nam đang phát triển nhanh chóng nhưng giao dịch chủ yếu diễn ra phân tán qua mạng xã hội và các trang rao vặt tự do. Người dùng gặp nhiều rủi ro:
-
-- Món đồ là sản phẩm độc bản (Unique Item - mỗi sản phẩm chỉ có số lượng tồn kho $1$), dễ phát sinh tranh chấp mua trùng khi có nhiều người cùng thanh toán (Race Condition / Overselling).
+- Món đồ là sản phẩm đơn chiếc (Unique Item - mỗi món chỉ có 1 chiếc duy nhất, số lượng tồn kho = 1), dễ phát sinh tranh chấp mua trùng khi có nhiều người cùng thanh toán (Race Condition / Overselling).
 - Tình trạng hàng hóa thực tế không khớp mô tả, thiếu sự minh bạch và không có cơ chế giữ tiền trung gian để bảo vệ người mua.
 - Người bán nhỏ lẻ gặp khó khăn trong việc quản lý kho hàng, đóng gói theo chuẩn kích thước và tự động kết nối các hãng vận chuyển chuyên nghiệp.
 
 ### 1.2. Mục tiêu sản phẩm Re.wear
-
-Xây dựng nền tảng thương mại điện tử chuyên biệt cho quần áo thời trang secondhand, giải quyết trọn vẹn chu trình mua bán từ đăng tin, đóng gói, giữ hàng nguyên tử, vận chuyển liên tỉnh đến thanh toán, ký quỹ bảo vệ người mua và xử lý khiếu nại.
+Xây dựng nền tảng thương mại điện tử chuyên biệt cho quần áo thời trang secondhand, giải quyết trọn vẹn chu trình mua bán từ đăng tin, đóng gói, tạm giữ hàng chống mua trùng, vận chuyển liên tỉnh đến thanh toán, ký quỹ bảo vệ người mua và xử lý khiếu nại.
 
 ---
 
@@ -44,9 +42,9 @@ Nhóm cam kết hoàn thành $100\%$ các phân hệ kỹ thuật cốt lõi và
    - Danh mục thời trang phẳng 1 cấp, bộ lọc tìm kiếm đa tiêu chí (giá, size, màu, tình trạng).
    - Tích hợp Gemini AI hỗ trợ gợi ý mô tả sản phẩm tự động từ thông tin form.
    - Cơ chế kiểm duyệt tin đăng và tự động ẩn tin chờ duyệt lại khi người bán chỉnh sửa giá/mô tả.
-4. **Giỏ hàng & Khóa giữ hàng nguyên tử 10 phút (FEAT-04)**:
-   - Giỏ hàng kiểm tra tính độc bản của sản phẩm theo từng shop.
-   - Khóa giữ hàng nguyên tử (Atomic Hold) trong 10 phút chống tranh chấp mua đồng thời (Race Condition), tự động giải phóng tồn kho khi hết hạn phiên.
+4. **Giỏ hàng & Tạm giữ hàng 10 phút (FEAT-04)**:
+   - Giỏ hàng kiểm tra tính khả dụng của từng món đồ đơn chiếc theo từng shop.
+   - Cơ chế tạm giữ hàng trong 10 phút chống tranh chấp mua đồng thời (Race Condition), tự động giải phóng tồn kho khi hết hạn phiên.
 5. **Đóng gói quy chuẩn & Báo giá vận chuyển GHN Preview (FEAT-05)**:
    - Quản lý quy chuẩn kích thước/khối lượng kiện hàng theo phân loại trang phục.
    - Thiết lập địa chỉ kho lấy hàng riêng cho từng shop người bán.
@@ -103,7 +101,7 @@ Theo yêu cầu Tiêu chuẩn Đánh giá TC1 (Mức 5) và TC2.2 của Rubric, 
    - Sản phẩm cam kết được triển khai trên môi trường **Staging công khai** (hoặc Production) có thể truy cập qua Internet, kết nối cơ sở dữ liệu đám mây và cấu hình đầy đủ biến môi trường.
    - Sẵn sàng cung cấp tài khoản mẫu (Buyer, Seller Shop Owner, Admin) để Hội đồng chấm và Giảng viên phản biện trực tiếp thao tác.
 2. **Kịch bản Demo trực tiếp:**
-   - Thực hiện demo trực tiếp toàn bộ chu trình nghiệp vụ (End-to-End Flow): Đăng nhập $\to$ Đăng sản phẩm với Gemini AI $\to$ Thêm giỏ hàng $\to$ Giữ hàng nguyên tử 10 phút $\to$ Tính phí ship GHN $\to$ Thanh toán MoMo / COD $\to$ Giao hàng $\to$ Ký quỹ Escrow 72h $\to$ Xác nhận đơn hoặc mở khiếu nại trả hàng $\to$ Hoàn tiền ví nội bộ.
+   - Thực hiện demo trực tiếp toàn bộ chu trình nghiệp vụ (End-to-End Flow): Đăng nhập $\to$ Đăng sản phẩm với Gemini AI $\to$ Thêm giỏ hàng $\to$ Tạm giữ hàng 10 phút $\to$ Tính phí ship GHN $\to$ Thanh toán MoMo / COD $\to$ Giao hàng $\to$ Ký quỹ Escrow 72h $\to$ Xác nhận đơn hoặc mở khiếu nại trả hàng $\to$ Hoàn tiền ví nội bộ.
    - Cam kết **$0$ lỗi chặn (Zero Blocker/Crash)** trong quá trình bảo vệ.
 
 ---
@@ -111,7 +109,7 @@ Theo yêu cầu Tiêu chuẩn Đánh giá TC1 (Mức 5) và TC2.2 của Rubric, 
 ## 5. CAM KẾT ĐÓNG GÓP VÀ TRÁCH NHIỆM THÀNH VIÊN
 
 - Hai sinh viên cam kết chia đều khối lượng công việc và trách nhiệm với tỷ lệ **50% — 50%**.
-- Sinh viên **Bùi Hải Dương** phụ trách: Kiến trúc hệ thống, Quản lý tài khoản & Sổ địa chỉ 3 cấp, Catalog & Gemini AI, Giỏ hàng & Giữ hàng nguyên tử 10 phút, Quản lý đóng gói & GHN Sandbox Preview; Soạn thảo đặc tả SRS/SDD và Kế hoạch kiểm thử chất lượng.
+- Sinh viên **Bùi Hải Dương** phụ trách: Kiến trúc hệ thống, Quản lý tài khoản & Sổ địa chỉ 3 cấp, Catalog & Gemini AI, Giỏ hàng & Tạm giữ hàng 10 phút, Quản lý đóng gói & GHN Sandbox Preview; Soạn thảo đặc tả SRS/SDD và Kế hoạch kiểm thử chất lượng.
 - Sinh viên **Bùi Thành Tâm** phụ trách: Thanh toán MoMo Sandbox & Tra soát giao dịch, Giao hàng thu hộ COD & Đối soát GHN, Vòng đời đơn hàng 9 trạng thái & Ký quỹ Escrow 72h, Khiếu nại trả hàng & Admin Case phân xử, Ví hoàn tiền & Rút tiền Vendor; Thiết kế 28 biểu đồ PlantUML, Khảo sát người dùng và Thực nghiệm UAT.
 - Mọi kết quả công việc đều được minh chứng bằng mã nguồn, kiểm thử tự động và commit lịch sử trên GitHub repository.
 

@@ -21,7 +21,7 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
 | **FEAT-01** | **Kiến trúc & Nền tảng hệ thống** | Setup NestJS Clean Architecture, Zod Config, PostgreSQL TypeORM, Swagger, Rate Limiter, Seeding, Base UI Foundations. | System Core | **Dương** | Tâm | 10% | Đã xong | BE PR #17, #18; `DatabaseModule` |
 | **FEAT-02** | **Tài khoản, Sổ địa chỉ & Shop RBAC** | JWT Auth, Session Next.js, Sổ địa chỉ 3 cấp (Tỉnh/Huyện/Xã), Onboarding tạo shop, Phân quyền Shop RBAC (Owner, Manager, Staff). | UC-04, UC-05, CSH01, CSH02 | **Dương** | Tâm | 10% | Đã xong | BE PR #17; FE PR #1, #2, #3; PR #26 |
 | **FEAT-03** | **Sản phẩm, Danh mục & Gemini AI** | Trang chủ Marketplace, Catalog, Danh mục phẳng 1 cấp, Bộ lọc đa tiêu chí, Gemini AI gợi ý mô tả từ text, Ẩn tin duyệt lại khi sửa. | UC-01, UC-02, UC-03, UC-16, UC-24 | **Dương** | Tâm | 10% | Đã xong | `feat/ai-storage-infras`, FE PR #4, PR #26 |
-| **FEAT-04** | **Giỏ hàng & Giữ hàng 10 phút** | Giỏ hàng kiểm tra tồn kho độc bản, Checkout đa shop, Giữ hàng nguyên tử 10 phút chống race condition, Snapshot địa chỉ. | UC-08, UC-09 | **Dương** | Tâm | 10% | Đã xong | BE PR #19, #20; FE PR #5, #6, #7 |
+| **FEAT-04** | **Giỏ hàng & Giữ hàng 10 phút** | Giỏ hàng kiểm tra tính khả dụng món đồ đơn chiếc, Checkout đa shop, Tạm giữ hàng 10 phút chống race condition, Snapshot địa chỉ. | UC-08, UC-09 | **Dương** | Tâm | 10% | Đã xong | BE PR #19, #20; FE PR #5, #6, #7 |
 | **FEAT-05** | **Đóng gói & Vận chuyển GHN Preview** | Quản lý quy chuẩn kiện hàng theo loại trang phục, Kho lấy hàng riêng của Shop, Báo giá cước GHN Sandbox theo từng kiện seller. | UC-09, UC-19 | **Dương** | Tâm | 10% | Đã xong | BE PR #21, #22, #23; FE PR #9, #10, #11 |
 | **FEAT-06** | **Thanh toán MoMo Sandbox** | Tích hợp MoMo (Create Payment, Callback IPN, Tra soát Query định kỳ trước khi hết 10p giữ hàng), Hoàn tiền online nếu quá hạn. | UC-10 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `PaymentModule` |
 | **FEAT-07** | **Giao hàng thu hộ COD & Vận đơn GHN** | Vận đơn GHN COD Sandbox, Seller xác nhận 24h, Xử lý hủy đơn và phí ship 2 chiều, Đối soát tiền COD sàn và nhà vận chuyển. | UC-10, UC-19 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `ShippingModule` |
@@ -73,10 +73,10 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
    - Tích hợp Google Gemini AI (`GeminiService`) hỗ trợ người bán tự động gợi ý mô tả sản phẩm hấp dẫn từ các trường text form đã nhập.
    - Cơ chế kiểm duyệt tin đăng: tự động ẩn tin chuyển trạng thái chờ Admin duyệt lại khi người bán cập nhật nội dung hoặc giá cả.
 
-4. **Giỏ hàng & Đặt giữ hàng nguyên tử 10 phút (FEAT-04)**:
+4. **Giỏ hàng & Tạm giữ hàng 10 phút (FEAT-04)**:
    - Xây dựng Giỏ hàng (Cart) kiểm tra tính hợp lệ và tự động loại bỏ món hàng không còn khả dụng khi có người khác mua.
    - Thiết kế cơ chế Checkout đa người bán: gom nhiều shop vào một phiên thanh toán duy nhất với chung một địa chỉ nhận hàng.
-   - Cơ chế Đặt giữ hàng nguyên tử 10 phút (Idempotent 10-minute hold reservation) giải quyết triệt để race condition mua trùng món hàng 2hand độc bản.
+   - Cơ chế Tạm giữ hàng 10 phút (Idempotent 10-minute hold reservation) giải quyết triệt để race condition mua trùng món đồ đơn chiếc (tồn kho = 1).
    - Lưu trữ snapshot địa chỉ giao hàng và thông tin sản phẩm bất biến tại thời điểm đặt đơn.
 
 5. **Đóng gói & Báo giá vận chuyển GHN Preview (FEAT-05)**:
