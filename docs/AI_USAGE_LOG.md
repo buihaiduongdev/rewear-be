@@ -511,3 +511,50 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Dữ liệu mock test ban đầu trong `shop.service.spec.ts` truyền `description: null` không khớp với type `string | undefined`, đã sửa lại omit description để thỏa mãn TypeScript.
 - **Minh chứng:** PR #27, branch `refactor/standardize-input-trim`, commit `1af5f84`, `fa62550`, `9949b0c` và `09610a7`.
 
+### 2026-11-11 — Cập nhật entity và kiểm chứng API
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, agent-browser, Docker PostgreSQL 16.
+- **Mục đích và phạm vi:** Chuẩn hóa cập nhật Category, Shop, UserAddress, PickupLocation và kiểm chứng API với PostgreSQL.
+- **Prompt chính:** Review gợi ý TypeORM `merge`, giữ logic nghiệp vụ riêng, chạy app và chụp Swagger làm bằng chứng.
+- **Đầu ra AI được sử dụng:** Refactor cập nhật entity; bổ sung regression test, Compose và cấu hình DB SSL.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn phạm vi refactor và yêu cầu kiểm thử bằng DB thật; khởi động DB/backend local.
+- **Cách kiểm chứng:** `pnpm check`; 18 unit suites/128 tests; 6 ca Swagger (5 happy path, 1 edge case), đối chiếu dữ liệu PostgreSQL và dọn fixture.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** `merge` không tự giới hạn field; giữ schema validation để chặn field ngoài API. Đề xuất ban đầu về kiểm duyệt khi sửa giá không đúng nên giữ nguyên logic Product.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28); [report và ảnh](https://github.com/buihaiduongdev/rewear-review-assets/blob/384a198a5424bec8eddabd1fff3f59f52a8c8d62/be/pr-28/report.md).
+
+### 2026-11-11 — Cấu hình PostgreSQL cho test và CI
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, Graphify, Docker PostgreSQL 16.
+- **Mục đích và phạm vi:** Bảo đảm test PostgreSQL chạy thật ở local và CI, tách DB test khỏi Compose dev.
+- **Prompt chính:** Đối chiếu setup demo2, dùng một DB test chung, để CI dựng PostgreSQL và fail khi thiếu cấu hình.
+- **Đầu ra AI được sử dụng:** Thêm `test/support/database.ts`, cấu hình DB CI và các lệnh test; helper chỉ nhận DB local tên `rewear*_test`, dựng lại schema và đóng kết nối.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách dùng chung DB test để dễ đọc; yêu cầu bỏ cơ chế skip khi thiếu DB.
+- **Cách kiểm chứng:** Test fail khi thiếu cấu hình hoặc PostgreSQL không chạy; CI chạy đủ unit và test DB, không skip.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bộ test cũ có thể báo xanh trong khi bỏ qua test PostgreSQL; thay skip gate bằng cấu hình bắt buộc và PostgreSQL service.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), `.github/workflows/ci.yml`, `test/support/database.ts`.
+
+### 2026-11-12 — Thu gọn test theo hành vi tính năng
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, Jest, PostgreSQL 16.
+- **Mục đích và phạm vi:** Tập trung integration vào hành vi service và giữ một E2E đại diện cho luồng bán hàng.
+- **Prompt chính:** Integration chỉ kiểm tra hành vi; HTTP dành cho E2E; chọn luồng đăng sản phẩm → duyệt → mua qua giỏ hàng/checkout.
+- **Đầu ra AI được sử dụng:** Hai integration suites gọi service trực tiếp; một E2E chạy `AppModule`; đổi tên `marketplace-seed.spec.ts` thành `seed.spec.ts`; xóa test chỉ kiểm tra helper.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt phạm vi test và luồng E2E; yêu cầu cấu trúc đơn giản, dễ đọc.
+- **Cách kiểm chứng:** 18 unit suites/128 tests, 2 integration suites/6 tests, 1 E2E suite/1 test; CI pass tổng 21 suites/135 tests: [run 43172406224](https://github.com/buihaiduongdev/rewear-be/actions/runs/43172406224).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Suite kiểm tra helper và các HTTP suite nhỏ theo module không phù hợp mục tiêu; đã bỏ/gộp chúng vào luồng feature và E2E.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), `test/integration/commerce-flow.spec.ts`, `test/integration/seed.spec.ts`, `test/e2e/rewear-commerce-flow.spec.ts`.
+
+### 2026-11-12 — Rút gọn tài liệu kiểm thử
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, GitHub CLI.
+- **Mục đích và phạm vi:** Giảm nội dung lặp trong tài liệu test và phần minh chứng của PR.
+- **Prompt chính:** Không cần README chi tiết trong từng thư mục test; nhóm kết quả Swagger thành Happy path và Edge case.
+- **Đầu ra AI được sử dụng:** Xóa README riêng trong `test/integration` và `test/e2e`; cập nhật README gốc, report ảnh và PR thành hai nhóm kết quả.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách trình bày ngắn và yêu cầu giữ hướng dẫn tổng quát ở README gốc.
+- **Cách kiểm chứng:** `git diff --check`; kiểm tra lại cấu trúc folder ảnh và nội dung PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Các link README test đã xóa còn xuất hiện trong PR; thay bằng một link AI Usage Log.
+- **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), [report ảnh](https://github.com/buihaiduongdev/rewear-review-assets/blob/384a198a5424bec8eddabd1fff3f59f52a8c8d62/be/pr-28/report.md).

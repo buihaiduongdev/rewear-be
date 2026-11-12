@@ -16,12 +16,16 @@ describe('CategoryService', () => {
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
   const repository: jest.Mocked<
-    Pick<Repository<Category>, 'find' | 'findOneBy' | 'create' | 'save'>
+    Pick<
+      Repository<Category>,
+      'find' | 'findOneBy' | 'create' | 'save' | 'merge'
+    >
   > = {
     find: jest.fn(),
     findOneBy: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    merge: jest.fn(),
   };
   const service = new CategoryService(
     repository as unknown as Repository<Category>,
@@ -29,6 +33,17 @@ describe('CategoryService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    repository.merge.mockImplementation((entity, ...sources) => {
+      for (const source of sources) {
+        Object.assign(
+          entity,
+          Object.fromEntries(
+            Object.entries(source).filter(([, value]) => value !== undefined),
+          ),
+        );
+      }
+      return entity;
+    });
   });
 
   it('lists active categories in name order', async () => {
@@ -87,10 +102,49 @@ describe('CategoryService', () => {
     await expect(
       service.update(category.id, { name: 'Áo mùa đông' }),
     ).resolves.toEqual(updated);
+    expect(repository.merge).toHaveBeenCalledWith(existing, {
+      name: 'Áo mùa đông',
+    });
     expect(repository.save).toHaveBeenCalledWith({
       ...existing,
       name: 'Áo mùa đông',
       slug: 'ao-khoac',
+    });
+  });
+
+  it('updates the slug when provided and asserts slug availability', async () => {
+    const existing = { ...category };
+    const updated = { ...existing, slug: 'ao-am' };
+    repository.findOneBy
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(null);
+    repository.save.mockResolvedValueOnce(updated);
+
+    await expect(
+      service.update(category.id, { slug: '  Áo Ấm  ' }),
+    ).resolves.toEqual(updated);
+    expect(repository.merge).toHaveBeenCalledWith(existing, { slug: 'ao-am' });
+    expect(repository.save).toHaveBeenCalledWith(updated);
+  });
+
+  it('preserves omitted values while applying false and empty measurements', async () => {
+    const existing = { ...category, requiredMeasurements: ['chest' as const] };
+    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.save.mockImplementationOnce(
+      async (entity) => entity as Category,
+    );
+
+    await expect(
+      service.update(category.id, {
+        name: undefined,
+        isActive: false,
+        requiredMeasurements: [],
+      }),
+    ).resolves.toMatchObject({
+      name: category.name,
+      slug: category.slug,
+      isActive: false,
+      requiredMeasurements: [],
     });
   });
 

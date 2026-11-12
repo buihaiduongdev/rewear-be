@@ -58,7 +58,9 @@ export class PickupLocationService {
           userId: shopId ? null : userId,
           shopId: shopId ?? null,
         });
-      Object.assign(location, input, address, { countryCode: 'VN' });
+      manager.merge<PickupLocation>(PickupLocation, location, input, address, {
+        countryCode: 'VN',
+      });
       return { location: await manager.save(PickupLocation, location) };
     });
   }

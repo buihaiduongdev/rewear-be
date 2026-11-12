@@ -12,6 +12,26 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rewear_test
+          POSTGRES_PASSWORD: rewear_test
+          POSTGRES_DB: rewear_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rewear_test -d rewear_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_TYPE: postgres
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: rewear_test
+      DB_PASSWORD: rewear_test
+      DB_NAME: rewear_test
+      DB_SSL: 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -29,5 +49,4 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm build
-      - run: pnpm test --runInBand
-      - run: pnpm test:e2e --runInBand
+      - run: pnpm test

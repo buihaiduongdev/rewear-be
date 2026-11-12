@@ -55,17 +55,19 @@ export class CategoryService {
   async update(id: string, input: UpdateCategoryInput): Promise<Category> {
     const category = await this.findById(id);
 
-    if (input.name !== undefined) category.name = input.name;
+    let slug: string | undefined;
     if (input.slug !== undefined) {
-      const slug = this.normalizeSlug(input.slug);
+      slug = this.normalizeSlug(input.slug);
       if (slug !== category.slug) {
         await this.assertSlugAvailable(slug, id);
-        category.slug = slug;
       }
     }
-    if (input.requiredMeasurements !== undefined)
-      category.requiredMeasurements = input.requiredMeasurements;
-    if (input.isActive !== undefined) category.isActive = input.isActive;
+
+    const { slug: _ignored, ...rest } = input;
+    this.categoryRepository.merge(category, {
+      ...rest,
+      ...(slug !== undefined ? { slug } : {}),
+    });
 
     return this.categoryRepository.save(category);
   }

@@ -7,3 +7,6 @@ coverage/
 .DS_Store
 .husky/_/
 .tmp/
+graphify-out/
+docs/superpowers/
+
