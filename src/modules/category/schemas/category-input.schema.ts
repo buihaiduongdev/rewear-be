@@ -1,13 +1,15 @@
 import z from 'zod';
 
 import { requiredMeasurementsSchema } from '@/common/schemas/measurements.schema';
-import { optionalInput } from '@/common/schemas/request.schema';
+import {
+  optionalInput,
+  trimmedTextSchema,
+} from '@/common/schemas/request.schema';
 
 export const createCategorySchema = z.strictObject({
-  name: z.string().min(1).max(100).regex(/\S/),
+  name: trimmedTextSchema.min(1).max(100),
   slug: optionalInput(
-    z
-      .string()
+    trimmedTextSchema
       .min(1)
       .max(120)
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),

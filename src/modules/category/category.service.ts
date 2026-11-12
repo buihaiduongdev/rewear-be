@@ -38,7 +38,7 @@ export class CategoryService {
   }
 
   async create(input: CreateCategoryInput): Promise<Category> {
-    const name = input.name.trim();
+    const name = input.name;
     const slug = this.normalizeSlug(input.slug ?? name);
     await this.assertSlugAvailable(slug);
 
@@ -55,7 +55,7 @@ export class CategoryService {
   async update(id: string, input: UpdateCategoryInput): Promise<Category> {
     const category = await this.findById(id);
 
-    if (input.name !== undefined) category.name = input.name.trim();
+    if (input.name !== undefined) category.name = input.name;
     if (input.slug !== undefined) {
       const slug = this.normalizeSlug(input.slug);
       if (slug !== category.slug) {

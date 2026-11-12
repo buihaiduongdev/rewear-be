@@ -60,8 +60,8 @@ export class ShopService {
       const shop = await manager.save(
         Shop,
         manager.create(Shop, {
-          name: input.name.trim(),
-          description: input.description?.trim() || null,
+          name: input.name,
+          description: input.description || null,
           status: ShopStatus.ACTIVE,
         }),
       );
@@ -86,9 +86,9 @@ export class ShopService {
     await this.assertOwner(shopId, currentUserId);
     const shop = await this.findById(shopId);
 
-    if (input.name !== undefined) shop.name = input.name.trim();
+    if (input.name !== undefined) shop.name = input.name;
     if (input.description !== undefined) {
-      shop.description = input.description.trim() || null;
+      shop.description = input.description || null;
     }
     if (input.status !== undefined) shop.status = input.status;
 

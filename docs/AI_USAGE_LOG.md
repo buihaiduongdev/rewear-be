@@ -498,3 +498,16 @@
 - **Cách kiểm chứng:** `git diff --check` pass 0 lỗi; đối chiếu các ngưỡng metric với rubric chính thức tại `rubric.txt` (Mục 5).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện sai lệch.
 - **Minh chứng:** File `docs/submission_docs/COMMITMENT_STEP3.MD`.
+
+### 2026-11-11 — Chuẩn hóa sanitization chuỗi đầu vào bằng trimmedTextSchema
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Chuẩn hóa việc xử lý khoảng trắng (trim) chuỗi đầu vào lên tầng Zod schema cho các module Category, Shop, Auth và User; loại bỏ các lệnh `.trim()` thủ công trong service và bổ sung test kiểm tra.
+- **Prompt chính:** Rà soát TODO trong CategoryService, chuyển việc trim chuỗi lên tầng schema validation dùng trimmedTextSchema cho các module liên quan, cập nhật test và tạo PR riêng cho phần này.
+- **Đầu ra AI được sử dụng:** Áp dụng `trimmedTextSchema` vào `category-input.schema.ts`, `shop-input.schema.ts`, `auth-input.schema.ts`, `user-input.schema.ts`; bỏ các lệnh `.trim()` thủ công trong `category.service.ts`, `shop.service.ts`, `user.service.ts`; cập nhật và thêm test case trong `request-input.schema.spec.ts`, `category.service.spec.ts`, `shop.service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng phạm vi chỉ cô lập vấn đề trim chuỗi vào một PR riêng; giữ nguyên hàm tạo slug trong CategoryService và chuẩn hóa email trong UserService; review và chạy test kiểm tra.
+- **Cách kiểm chứng:** Chạy `pnpm check` pass 100%, `pnpm test` pass 17/17 suites (120/120 tests), `pnpm test:e2e` pass, `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Dữ liệu mock test ban đầu trong `shop.service.spec.ts` truyền `description: null` không khớp với type `string | undefined`, đã sửa lại omit description để thỏa mãn TypeScript.
+- **Minh chứng:** PR #27, branch `refactor/standardize-input-trim`, commit `1af5f84`, `fa62550`, `9949b0c` và `09610a7`.
+
