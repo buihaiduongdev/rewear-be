@@ -566,3 +566,7 @@
 
 - **Thay đổi:** Đổi `marketplace-seed.spec.ts` thành `seed.spec.ts` và cập nhật tiêu đề, README cùng lệnh `pnpm test:seed`.
 - **Kiểm chứng:** `pnpm test:seed` pass 1 suite/4 tests; `pnpm check` pass.
+
+### 2026-11-12 — Bỏ README chi tiết khỏi thư mục test
+
+- **Thay đổi:** Xóa README riêng trong `test/integration` và `test/e2e`; giữ mô tả ngắn về hai nhóm test trong README gốc.

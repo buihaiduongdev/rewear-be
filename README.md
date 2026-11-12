@@ -159,10 +159,9 @@ output and documents the existing `{ statusCode, message, data }` envelope and
 ISO date strings. This refactor does not change database entities or business
 state transitions.
 
-Direct service/PostgreSQL behavior tests live in `test/integration`. The small
-E2E suite in `test/e2e` boots the complete `AppModule` and checks the seller to
-buyer commerce flow through HTTP. Both commands are listed above; see the
-folder READMEs for current coverage.
+Integration tests call services directly against PostgreSQL. The E2E suite
+boots the complete `AppModule` and checks the seller-to-buyer commerce flow
+through HTTP. Use the commands above to run either group.
 
 ## Product drafts and moderation
 
