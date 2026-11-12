@@ -507,6 +507,6 @@
 - **Prompt chính:** Rà soát pagination hiện tại, dùng `nestjs-paginate` để giảm logic tự viết và giữ query/response hiện tại.
 - **Đầu ra AI được sử dụng:** Thay logic `skip/take/count` tự viết bằng thư viện; thêm adapter nhỏ để giữ response `items/meta` và query hiện tại.
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn giữ API `pageSize`, `sortBy`, `order` và các filter nghiệp vụ để không buộc frontend đổi theo refactor.
-- **Cách kiểm chứng:** `pnpm check` pass; `git diff --check` pass. Test ứng dụng được giao cho CI của PR.
+- **Cách kiểm chứng:** `pnpm check` và `git diff --check` pass; [CI run 43190988068](https://github.com/buihaiduongdev/rewear-be/actions/runs/43190988068) pass lint, build, unit, integration và E2E.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thư viện giới hạn metadata trang theo tổng số trang; adapter giữ số trang người dùng yêu cầu để tương thích response cũ.
 - **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`, commit `79199f9`.
