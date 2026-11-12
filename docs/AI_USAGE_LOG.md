@@ -503,10 +503,10 @@
 
 - **Người thực hiện:** Bùi Hải Dương.
 - **Công cụ:** Codex, `nestjs-paginate` 16.0.1, pnpm.
-- **Mục đích và phạm vi:** Thay phần phân trang tự viết cho danh sách user và product bằng thư viện, giữ hợp đồng API Rewear hiện tại.
-- **Prompt chính:** Rà soát pagination hiện tại, dùng `nestjs-paginate` để giảm logic tự viết và giữ query/response hiện tại.
-- **Đầu ra AI được sử dụng:** Thay logic `skip/take/count` tự viết bằng thư viện; thêm adapter nhỏ để giữ response `items/meta` và query hiện tại.
-- **Phần tự làm hoặc đã chỉnh sửa:** Chọn giữ API `pageSize`, `sortBy`, `order` và các filter nghiệp vụ để không buộc frontend đổi theo refactor.
-- **Cách kiểm chứng:** `pnpm check` và `git diff --check` pass; [CI run 43190988068](https://github.com/buihaiduongdev/rewear-be/actions/runs/43190988068) pass lint, build, unit, integration và E2E.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thư viện giới hạn metadata trang theo tổng số trang; adapter giữ số trang người dùng yêu cầu để tương thích response cũ.
-- **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`, commit `79199f9`.
+- **Mục đích và phạm vi:** Thay phần phân trang tự viết cho danh sách user và product bằng API của thư viện.
+- **Prompt chính:** Dùng đầy đủ `nestjs-paginate` cho danh sách user và product, bỏ các helper pagination tự viết.
+- **Đầu ra AI được sử dụng:** Dùng `@Paginate`, `PaginateQuery`, cấu hình tìm kiếm/lọc/sắp xếp và response `data/meta/links` của thư viện.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn dùng contract gốc của thư viện; các điều kiện phân quyền và trạng thái nghiệp vụ vẫn được áp dụng.
+- **Cách kiểm chứng:** `pnpm check` và `git diff --check` pass; 17 unit suites/115 tests và 6 E2E suites/104 tests pass, gồm PostgreSQL thật và contract HTTP.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản đầu còn adapter và contract pagination tự viết; đã chuyển sang API gốc của thư viện theo yêu cầu.
+- **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`.

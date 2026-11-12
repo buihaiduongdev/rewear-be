@@ -4,11 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { EPaginationOrder } from '@/common/constants';
+import type { PaginateQuery } from 'nestjs-paginate';
+
 import { AuthProvider } from '@/modules/auth/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
-import { FindUserQuery } from '@/modules/user/schemas';
 import { UserController } from '@/modules/user/user.controller';
 import type { UserService } from '@/modules/user/user.service';
 
@@ -17,6 +17,7 @@ jest.mock('@nestjs/swagger', () => ({
   ApiProperty: () => () => undefined,
   ApiPropertyOptional: () => () => undefined,
   ApiResponse: () => () => undefined,
+  ApiQuery: () => () => undefined,
   ApiTags: () => () => undefined,
   PartialType: (baseClass: new () => object) => class extends baseClass {},
 }));
@@ -102,22 +103,26 @@ describe('UserController', () => {
   });
 
   describe('GET /users', () => {
-    const query: FindUserQuery = {
+    const query: PaginateQuery = {
       page: 1,
-      pageSize: 20,
-      order: EPaginationOrder.DESC,
+      limit: 20,
+      sortBy: [['createdAt', 'DESC']],
       search: 'rewear',
+      path: '/users',
     };
     const result = {
-      items: [user],
+      data: [user],
       meta: {
-        page: 1,
-        pageSize: 20,
-        total: 1,
-        totalPage: 1,
-        hasNextPage: false,
-        hasPreviousPage: false,
+        itemsPerPage: 20,
+        totalItems: 1,
+        currentPage: 1,
+        totalPages: 1,
+        sortBy: [['createdAt', 'DESC']] as ['createdAt', 'DESC'][],
+        searchBy: ['fullName' as const],
+        search: 'rewear',
+        select: [],
       },
+      links: { current: '/users?page=1&limit=20' },
     };
 
     it('returns a paginated user list', async () => {

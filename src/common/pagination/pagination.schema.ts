@@ -1,40 +1,31 @@
 import z from 'zod';
 
-import { EPaginationOrder, PAGINATION_DEFAULT } from '@/common/constants';
-
-const queryNumber = z
-  .union([z.string().trim().regex(/^\d+$/), z.number()])
-  .transform((value) => Number(value));
-const positiveInteger = z.number().int().min(1);
-
-export const paginationQuerySchema = z.strictObject({
-  page: queryNumber.pipe(positiveInteger).default(PAGINATION_DEFAULT.PAGE),
-  pageSize: queryNumber
-    .pipe(positiveInteger.max(PAGINATION_DEFAULT.PAGE_SIZE_MAX))
-    .default(PAGINATION_DEFAULT.PAGE_SIZE),
-  order: z.enum(EPaginationOrder).default(EPaginationOrder.DESC),
-  sortBy: z.string().trim().optional(),
-  search: z
-    .string()
-    .trim()
-    .transform((value) => value.replace(/\s+/g, ' '))
-    .optional(),
-});
-
-export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
-
-export const paginationMetaSchema = z.object({
-  page: z.number().int().min(1),
-  pageSize: z.number().int().min(1),
-  total: z.number().int().min(0),
-  totalPage: z.number().int().min(0),
-  hasNextPage: z.boolean(),
-  hasPreviousPage: z.boolean(),
-});
-
+// Serialize the library response while filtering entity fields.
 export function paginatedSchema<T extends z.ZodType>(itemSchema: T) {
   return z.object({
-    items: z.array(itemSchema),
-    meta: paginationMetaSchema,
+    data: z.array(itemSchema),
+    meta: z.object({
+      itemsPerPage: z.number(),
+      totalItems: z.number().optional(),
+      currentPage: z.number().optional(),
+      totalPages: z.number().optional(),
+      sortBy: z.array(
+        z.tuple([z.union([z.string(), z.array(z.string())]), z.string()]),
+      ),
+      searchBy: z.array(z.string()).optional(),
+      search: z.string().optional(),
+      select: z.array(z.string()).optional(),
+      filter: z
+        .record(z.string(), z.union([z.string(), z.array(z.string())]))
+        .optional(),
+      cursor: z.string().optional(),
+    }),
+    links: z.object({
+      first: z.string().optional(),
+      previous: z.string().optional(),
+      current: z.string(),
+      next: z.string().optional(),
+      last: z.string().optional(),
+    }),
   });
 }

@@ -45,11 +45,11 @@ All endpoints use the `/api` prefix. Authentication routes are under
 `/api/auth`; administrators can manage users under `/api/users`, while an
 authenticated user can read and update `/api/users/me`.
 
-`GET /api/users` supports `page` (default 1), `pageSize` (default 10, maximum
-100), `order` (`ASC`/`DESC`, default `DESC`), `sortBy` (`createdAt`, `email`,
-`fullName`), `search` (name/email), `role`, and `status`. The response's `data`
-contains `{ items, meta }`; `meta` includes `page`, `pageSize`, `total`,
-`totalPage`, `hasNextPage`, and `hasPreviousPage`.
+`GET /api/users` and product listing endpoints use `nestjs-paginate`: use
+`page`, `limit` (default 10, maximum 100), `sortBy=createdAt:DESC`, `search`
+and filters such as `filter.role=$eq:USER` or `filter.price=$gte:100`. Their
+response `data` contains the library's `{ data, meta, links }` structure. See
+Swagger for the sortable and filterable fields of each endpoint.
 
 Vietnamese administrative divisions are exposed publicly through
 `GET /api/administrative-divisions/provinces` and
@@ -70,8 +70,7 @@ Controllers attach those schemas directly to `@Body({ schema })`,
 the same parameter metadata to generate OpenAPI. No DTO class or duplicated
 `ApiProperty` declarations are needed.
 
-Bodies reject unknown keys and do not coerce numeric or boolean strings. Query
-schemas retain numeric conversion and pagination defaults. PATCH schemas allow
+Bodies reject unknown keys and do not coerce numeric or boolean strings. Query schemas validate endpoint-specific inputs; pagination query parameters are handled by `nestjs-paginate`. PATCH schemas allow
 omitted fields without applying creation defaults. Explicit `null` clears
 nullable address/product text; `null` for legacy optional non-nullable inputs is
 treated as omitted. Product/address text retains the previous whitespace

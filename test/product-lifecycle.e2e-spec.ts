@@ -33,7 +33,7 @@ import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductController } from '@/modules/product/product.controller';
 import { ProductService } from '@/modules/product/product.service';
-import { findProductSchema, productSchema } from '@/modules/product/schemas';
+import { productSchema } from '@/modules/product/schemas';
 import { ShippingController } from '@/modules/shipping/shipping.controller';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
@@ -506,9 +506,9 @@ suite('Product lifecycle (real PostgreSQL)', () => {
       mediaCount: 3,
       coverUrl: expect.stringContaining('https://'),
     });
-    const list = await products.findAll(findProductSchema.parse({}));
-    expect(list.items).toHaveLength(1);
-    expect(list.items[0].mediaCount).toBe(3);
+    const list = await products.findAll({ path: '/products' });
+    expect(list.data).toHaveLength(1);
+    expect(list.data[0].mediaCount).toBe(3);
     expect(await products.findRevisions(product.id, seller.id)).toEqual([
       expect.objectContaining({ decision: 'APPROVED', reviewedById: admin.id }),
     ]);

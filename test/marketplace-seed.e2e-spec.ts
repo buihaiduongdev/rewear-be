@@ -18,9 +18,10 @@ import { MediaOwnerType } from '@/modules/media/enums';
 import { Product, ProductRevision } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
-import { findProductSchema, productSchema } from '@/modules/product/schemas';
+import { productSchema } from '@/modules/product/schemas';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserService } from '@/modules/user/user.service';
 
 const testUrl = process.env.SEED_TEST_DATABASE_URL;
 const suite = testUrl ? describe : describe.skip;
@@ -88,16 +89,38 @@ suite('Marketplace seed (real PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
     );
-    const result = await service.findAll(
-      findProductSchema.parse({ pageSize: 100 }),
-    );
-    expect(result.meta.total).toBe(30);
-    for (const product of result.items) {
+    const result = await service.findAll({ path: '/products', limit: 100 });
+    expect(result.meta.totalItems).toBe(30);
+    for (const product of result.data) {
       expect(product.status).toBe(ProductStatus.ACTIVE);
       expect(product.coverUrl).toMatch(/^https:\/\/images\.unsplash\.com\//);
       expect(product.mediaCount).toBe(3);
       expect(() => productSchema.parse(product)).not.toThrow();
     }
+    const categoryId = result.data[0].categoryId!;
+    const filtered = await service.findAll({
+      path: '/products',
+      limit: 2,
+      sortBy: [['price', 'ASC']],
+      filter: { categoryId: `$eq:${categoryId}`, price: '$gte:0' },
+    });
+    expect(filtered.data).toHaveLength(2);
+    expect(
+      filtered.data.every((product) => product.categoryId === categoryId),
+    ).toBe(true);
+    expect(filtered.data[0].price!).toBeLessThanOrEqual(
+      filtered.data[1].price!,
+    );
+    expect(filtered.meta.itemsPerPage).toBe(2);
+    expect(filtered.links.current).toContain('limit=2');
+
+    const users = await new UserService(db.getRepository(User)).findAll({
+      path: '/users',
+      search: 'Minh Anh',
+      filter: { role: '$eq:USER' },
+    });
+    expect(users.data.map((user) => user.fullName)).toEqual(['Minh Anh']);
+
     const draft = await db
       .getRepository(Product)
       .findOneByOrFail({ status: ProductStatus.DRAFT });

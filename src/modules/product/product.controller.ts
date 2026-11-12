@@ -7,30 +7,33 @@ import {
   Param,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import {
+  ApiPaginationQuery,
+  Paginate,
+  type Paginated,
+  type PaginateQuery,
+} from 'nestjs-paginate';
+
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
-import { IPaginatedResult } from '@/common/pagination';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { Product } from './entities';
+import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import { ProductService } from './product.service';
 import {
-  findMyProductSchema,
-  findProductSchema,
   moderateProductSchema,
   productListSchema,
   productRevisionListSchema,
   productSchema,
   suspendProductSchema,
 } from './schemas';
-import type { FindMyProductQuery, FindProductQuery } from './schemas';
 import {
   createProductSchema,
   updateProductSchema,
@@ -51,9 +54,8 @@ export class ProductController {
 
   @Get()
   @Serialize(productListSchema)
-  findAll(
-    @Query({ schema: findProductSchema }) query: FindProductQuery,
-  ): Promise<IPaginatedResult<Product>> {
+  @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
+  findAll(@Paginate() query: PaginateQuery): Promise<Paginated<Product>> {
     return this.productService.findAll(query);
   }
 
@@ -61,11 +63,11 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Serialize(productListSchema)
+  @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
   findMine(
     @CurrentUser() currentUser: User,
-    @Query({ schema: findMyProductSchema })
-    query: FindMyProductQuery,
-  ): Promise<IPaginatedResult<Product>> {
+    @Paginate() query: PaginateQuery,
+  ): Promise<Paginated<Product>> {
     return this.productService.findMine(currentUser.id, query);
   }
 
@@ -96,10 +98,8 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Serialize(productListSchema)
-  reviewQueue(
-    @CurrentUser() user: User,
-    @Query({ schema: findMyProductSchema }) query: FindMyProductQuery,
-  ) {
+  @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
+  reviewQueue(@CurrentUser() user: User, @Paginate() query: PaginateQuery) {
     return this.productService.findReviewQueue(query, user.id);
   }
 

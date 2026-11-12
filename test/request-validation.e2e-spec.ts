@@ -74,15 +74,15 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
   const products = {
     create: jest.fn(),
     findAll: jest.fn().mockResolvedValue({
-      items: [],
+      data: [],
       meta: {
-        page: 2,
-        pageSize: 3,
-        total: 0,
-        totalPage: 0,
-        hasNextPage: false,
-        hasPreviousPage: true,
+        itemsPerPage: 3,
+        totalItems: 0,
+        currentPage: 1,
+        totalPages: 0,
+        sortBy: [['price', 'ASC']],
       },
+      links: { current: '/api/products?page=1&limit=3' },
     }),
   };
   const addresses = { create: jest.fn() };
@@ -239,17 +239,25 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
     expect(result.body.data).not.toHaveProperty('internalSecret');
   });
 
-  it('coerces query numbers and defaults through the global native pipe', async () => {
+  it('parses pagination and filters through the library decorator', async () => {
     await request(app.getHttpServer())
-      .get('/api/products?page=2&pageSize=3&minPrice=0&maxPrice=100')
+      .get('/api/products')
+      .query({
+        page: '2',
+        limit: '3',
+        sortBy: 'price:ASC',
+        'filter.price': '$gte:100',
+      })
       .expect(200);
-    expect(products.findAll).toHaveBeenCalledWith({
-      page: 2,
-      pageSize: 3,
-      order: 'DESC',
-      minPrice: 0,
-      maxPrice: 100,
-    });
+    expect(products.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 2,
+        limit: 3,
+        sortBy: [['price', 'ASC']],
+        filter: { price: '$gte:100' },
+        path: expect.stringContaining('/api/products'),
+      }),
+    );
   });
 
   it('preserves an empty HTTP 204 response', async () => {
@@ -268,16 +276,6 @@ describe('Native request validation and OpenAPI (HTTP, mocked persistence)', () 
     expect(result.body.errors[0].path).toEqual(['mediaIds']);
     expect(result.body.message[0]).toContain('mediaIds:');
   });
-
-  it.each(['page=0', 'pageSize=101', 'minPrice=100&maxPrice=1', 'unknown=1'])(
-    'rejects invalid query %s',
-    async (query) => {
-      await request(app.getHttpServer())
-        .get('/api/products?' + query)
-        .expect(400);
-      expect(products.findAll).not.toHaveBeenCalled();
-    },
-  );
 
   it('validates UUID params before persistence', async () => {
     const result = await request(app.getHttpServer())
