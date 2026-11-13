@@ -22,18 +22,18 @@ describe('Marketplace seed factories', () => {
 
   it('supports explicit overrides without modifying later factory output', () => {
     const factory = new MarketplaceFactory();
-    const source = {
+    const relations = {
       categoryId: factory.id('category:0'),
       shopId: factory.id('shop:0'),
     };
     expect(
-      factory.product(0, source, {
+      factory.product(0, relations, {
         condition: ProductCondition.FAIR,
         price: 250000,
       }).price,
     ).toBe(250000);
-    expect(factory.product(0, source).price).toBe(120000);
-    expect(factory.product(0, source).shopId).toBe(source.shopId);
+    expect(factory.product(0, relations).price).toBe(120000);
+    expect(factory.product(0, relations).shopId).toBe(relations.shopId);
     expect(factory.mediaLink(0, 0).role).toBe('COVER');
     expect(factory.mediaLink(0, 1).role).toBe('GALLERY');
   });

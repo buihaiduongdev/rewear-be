@@ -108,7 +108,7 @@ export class MarketplaceFactory {
 
   product(
     index: number,
-    source: { categoryId: string; shopId: string },
+    relations: { categoryId: string; shopId: string },
     overrides: Partial<Product> = {},
   ): Product {
     const item = SEED_CATEGORIES[index % SEED_CATEGORIES.length];
@@ -116,7 +116,7 @@ export class MarketplaceFactory {
       new Product(),
       this.base(`product:${index}`),
       {
-        ...source,
+        ...relations,
         title: `${item.title} ${Math.floor(index / SEED_CATEGORIES.length) + 1}`,
         description:
           'Demo listing for development and end-to-end testing. Please see the photos and measurements before choosing your next piece.',
