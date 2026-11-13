@@ -24,8 +24,7 @@ describe('Marketplace seed factories', () => {
     const factory = new MarketplaceFactory();
     const source = {
       categoryId: factory.id('category:0'),
-      sellerUserId: factory.id('user:5'),
-      shopId: null,
+      shopId: factory.id('shop:0'),
     };
     expect(
       factory.product(0, source, {
@@ -34,7 +33,7 @@ describe('Marketplace seed factories', () => {
       }).price,
     ).toBe(250000);
     expect(factory.product(0, source).price).toBe(120000);
-    expect(factory.product(0, source).shopId).toBeNull();
+    expect(factory.product(0, source).shopId).toBe(source.shopId);
     expect(factory.mediaLink(0, 0).role).toBe('COVER');
     expect(factory.mediaLink(0, 1).role).toBe('GALLERY');
   });

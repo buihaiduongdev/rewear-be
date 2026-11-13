@@ -6,7 +6,8 @@ import { CartModule } from '@/modules/cart';
 
 import { CheckoutController } from './checkout.controller';
 import { CheckoutService } from './checkout.service';
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import { CheckoutShippingQuote } from './entities/shipping-quote.entity';
 import { ShippingQuoteService } from './shipping-quote.service';
 

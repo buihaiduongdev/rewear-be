@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-
+import { EntityNotFoundError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
@@ -32,11 +31,18 @@ describe('UserAddressService', () => {
   const repository: jest.Mocked<
     Pick<
       Repository<UserAddress>,
-      'find' | 'findOneBy' | 'create' | 'save' | 'remove' | 'merge'
+      | 'find'
+      | 'findOneBy'
+      | 'findOneByOrFail'
+      | 'create'
+      | 'save'
+      | 'remove'
+      | 'merge'
     >
   > = {
     find: jest.fn(),
     findOneBy: jest.fn(),
+    findOneByOrFail: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
     remove: jest.fn(),
@@ -82,12 +88,14 @@ describe('UserAddressService', () => {
   });
 
   it('does not return an address outside the current user scope', async () => {
-    repository.findOneBy.mockResolvedValueOnce(null);
+    repository.findOneByOrFail.mockRejectedValueOnce(
+      new EntityNotFoundError(UserAddress, { id: address.id, userId }),
+    );
 
     await expect(service.findOne(userId, address.id)).rejects.toBeInstanceOf(
-      NotFoundException,
+      EntityNotFoundError,
     );
-    expect(repository.findOneBy).toHaveBeenCalledWith({
+    expect(repository.findOneByOrFail).toHaveBeenCalledWith({
       id: address.id,
       userId,
     });
@@ -152,7 +160,7 @@ describe('UserAddressService', () => {
 
   it('updates only an address owned by the current user', async () => {
     const existing = { ...address };
-    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
     repository.save.mockResolvedValueOnce({
       ...existing,
       recipientName: 'Trần Văn B',
@@ -161,7 +169,7 @@ describe('UserAddressService', () => {
     await expect(
       service.update(userId, address.id, { recipientName: 'Trần Văn B' }),
     ).resolves.toMatchObject({ recipientName: 'Trần Văn B' });
-    expect(repository.findOneBy).toHaveBeenCalledWith({
+    expect(repository.findOneByOrFail).toHaveBeenCalledWith({
       id: address.id,
       userId,
     });
@@ -173,7 +181,7 @@ describe('UserAddressService', () => {
 
   it('refreshes canonical names when an administrative code changes', async () => {
     const existing = { ...address };
-    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
     repository.save.mockResolvedValueOnce(existing);
 
     await expect(
@@ -190,7 +198,7 @@ describe('UserAddressService', () => {
   });
 
   it('deletes only an address owned by the current user', async () => {
-    repository.findOneBy.mockResolvedValueOnce(address);
+    repository.findOneByOrFail.mockResolvedValueOnce(address);
     repository.remove.mockResolvedValueOnce(address);
 
     await expect(service.remove(userId, address.id)).resolves.toBeUndefined();

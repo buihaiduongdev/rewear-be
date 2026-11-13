@@ -108,9 +108,7 @@ export class MarketplaceFactory {
 
   product(
     index: number,
-    source:
-      | { categoryId: string; shopId: string; sellerUserId: null }
-      | { categoryId: string; sellerUserId: string; shopId: null },
+    source: { categoryId: string; shopId: string },
     overrides: Partial<Product> = {},
   ): Product {
     const item = SEED_CATEGORIES[index % SEED_CATEGORIES.length];

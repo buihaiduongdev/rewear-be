@@ -581,3 +581,15 @@
 - **Cách kiểm chứng:** Sau khi cập nhật theo `main`, `pnpm check` pass; 21 suites/135 tests pass với PostgreSQL thật, gồm kiểm tra phân trang trực tiếp và qua HTTP.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản đầu còn adapter và contract pagination tự viết; đã chuyển sang API gốc của thư viện theo yêu cầu.
 - **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`.
+
+### 2026-11-13 — Chuẩn hóa xử lý dữ liệu và luồng bán hàng theo shop
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, TypeORM, Zod, PostgreSQL.
+- **Mục đích và phạm vi:** Đơn giản hóa xử lý entity, chuẩn hóa slug danh mục và thống nhất sản phẩm, giỏ hàng, checkout, địa chỉ lấy hàng theo shop.
+- **Prompt chính:** Rà soát cách tìm entity, chuyển việc sinh slug danh mục sang schema, tách entity và type cho dễ đọc; yêu cầu sản phẩm luôn thuộc shop và cập nhật các luồng liên quan.
+- **Đầu ra AI được sử dụng:** Refactor các service, schema, entity, seed và test; chuyển checkout và báo phí sang dùng shop.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quy tắc bắt buộc có shop, slug tự cập nhật theo tên và cho phép reset database dev khi thay đổi cấu trúc.
+- **Cách kiểm chứng:** Chạy `pnpm check`, test unit, integration và E2E với PostgreSQL; kiểm tra `git diff --check`.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất giữ slug ổn định và tạo thư mục type cho một type đơn lẻ; đã điều chỉnh theo quy tắc nghiệp vụ và phạm vi sử dụng.
+- **Minh chứng:** Nhánh `audit2`; PR sẽ được cập nhật sau khi tạo.

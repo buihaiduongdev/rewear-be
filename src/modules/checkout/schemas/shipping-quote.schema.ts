@@ -14,8 +14,7 @@ export const quoteReasonSchema = z.enum([
 ]);
 export const quoteOrderSchema = z.object({
   orderId: z.uuid(),
-  sourceType: z.enum(['USER', 'SHOP']),
-  sourceId: z.uuid(),
+  shopId: z.uuid(),
   parcel: resolvedShippingPackageSchema.nullable(),
   parcelCount: z.literal(1),
   itemCount: z.number().int().positive(),

@@ -18,7 +18,6 @@ import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
 import { MediaService } from './media.service';
-import type { ProductMediaView } from './media.service';
 import {
   mediaListSchema,
   mediaSchema,
@@ -36,6 +35,7 @@ import type {
   ReorderMediaInput,
   UpdateMediaMetadataInput,
 } from './schemas/media-input.schema';
+import type { ProductMediaView } from './types/product-media.type';
 
 @ApiTags('Product media')
 @Controller('products/:productId/media')

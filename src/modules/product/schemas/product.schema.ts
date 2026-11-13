@@ -10,8 +10,7 @@ import { defectSchema, measurementsSchema } from './product-input.schema';
 export const productSchema = z.object({
   id: z.uuid(),
   categoryId: z.uuid().nullable(),
-  sellerUserId: z.uuid().nullable(),
-  shopId: z.uuid().nullable(),
+  shopId: z.uuid(),
   title: z.string().nullable(),
   description: z.string().nullable(),
   condition: z.enum(ProductCondition).nullable(),
@@ -40,18 +39,10 @@ export const productSchema = z.object({
       slug: z.string(),
     })
     .nullable(),
-  seller: z
-    .object({
-      id: z.uuid(),
-      fullName: z.string(),
-    })
-    .nullable(),
-  shop: z
-    .object({
-      id: z.uuid(),
-      name: z.string(),
-    })
-    .nullable(),
+  shop: z.object({
+    id: z.uuid(),
+    name: z.string(),
+  }),
 });
 
 export const productListSchema = paginatedSchema(productSchema);

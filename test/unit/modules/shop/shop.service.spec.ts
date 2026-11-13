@@ -1,9 +1,6 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 
+import { EntityNotFoundError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -52,28 +49,39 @@ describe('ShopService', () => {
   };
 
   const shopRepository: jest.Mocked<
-    Pick<Repository<Shop>, 'find' | 'findOneBy' | 'save' | 'merge'>
+    Pick<
+      Repository<Shop>,
+      'find' | 'findOneBy' | 'findOneByOrFail' | 'save' | 'merge'
+    >
   > = {
     find: jest.fn(),
     findOneBy: jest.fn(),
+    findOneByOrFail: jest.fn(),
     save: jest.fn(),
     merge: jest.fn(),
   };
   const memberRepository: jest.Mocked<
     Pick<
       Repository<ShopMember>,
-      'find' | 'findOne' | 'findOneBy' | 'create' | 'save'
+      | 'find'
+      | 'findOneOrFail'
+      | 'findOneBy'
+      | 'findOneByOrFail'
+      | 'create'
+      | 'save'
     >
   > = {
     find: jest.fn(),
-    findOne: jest.fn(),
+    findOneOrFail: jest.fn(),
     findOneBy: jest.fn(),
+    findOneByOrFail: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
   };
-  const userRepository: jest.Mocked<Pick<Repository<User>, 'findOneBy'>> = {
-    findOneBy: jest.fn(),
-  };
+  const userRepository: jest.Mocked<Pick<Repository<User>, 'findOneByOrFail'>> =
+    {
+      findOneByOrFail: jest.fn(),
+    };
   const entityManager = {
     create: jest.fn(),
     save: jest.fn(),
@@ -114,12 +122,14 @@ describe('ShopService', () => {
   });
 
   it('does not expose an inactive shop through the public lookup', async () => {
-    shopRepository.findOneBy.mockResolvedValueOnce(null);
+    shopRepository.findOneByOrFail.mockRejectedValueOnce(
+      new EntityNotFoundError(Shop, { id: shop.id }),
+    );
 
     await expect(service.findOne(shop.id)).rejects.toBeInstanceOf(
-      NotFoundException,
+      EntityNotFoundError,
     );
-    expect(shopRepository.findOneBy).toHaveBeenCalledWith({
+    expect(shopRepository.findOneByOrFail).toHaveBeenCalledWith({
       id: shop.id,
       status: ShopStatus.ACTIVE,
     });
@@ -158,7 +168,7 @@ describe('ShopService', () => {
   });
 
   it('requires an active owner membership before updating a shop', async () => {
-    shopRepository.findOneBy.mockResolvedValueOnce(shop);
+    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
     memberRepository.findOneBy.mockResolvedValueOnce(null);
 
     await expect(
@@ -173,7 +183,7 @@ describe('ShopService', () => {
     ['New description', 'New description'],
   ])('updates a shop with description %p', async (description, expected) => {
     const existing = { ...shop, description: 'Existing description' };
-    shopRepository.findOneBy
+    shopRepository.findOneByOrFail
       .mockResolvedValueOnce(existing)
       .mockResolvedValueOnce(existing);
     memberRepository.findOneBy.mockResolvedValueOnce(ownerMembership);
@@ -196,11 +206,11 @@ describe('ShopService', () => {
   });
 
   it('rejects adding a user who is already a shop member', async () => {
-    shopRepository.findOneBy.mockResolvedValueOnce(shop);
+    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
     memberRepository.findOneBy
       .mockResolvedValueOnce(ownerMembership)
       .mockResolvedValueOnce(staffMembership);
-    userRepository.findOneBy.mockResolvedValueOnce(staffMembership.user);
+    userRepository.findOneByOrFail.mockResolvedValueOnce(staffMembership.user);
 
     await expect(
       service.addStaff(shop.id, ownerId, { userId: staffUserId }),
@@ -210,29 +220,28 @@ describe('ShopService', () => {
 
   it('adds staff and reloads the member with safe user details', async () => {
     const unsavedStaff = { ...staffMembership, user: undefined as never };
-    shopRepository.findOneBy.mockResolvedValueOnce(shop);
+    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
     memberRepository.findOneBy
       .mockResolvedValueOnce(ownerMembership)
       .mockResolvedValueOnce(null);
-    userRepository.findOneBy.mockResolvedValueOnce(staffMembership.user);
+    userRepository.findOneByOrFail.mockResolvedValueOnce(staffMembership.user);
     memberRepository.create.mockReturnValueOnce(unsavedStaff);
     memberRepository.save.mockResolvedValueOnce(unsavedStaff);
-    memberRepository.findOne.mockResolvedValueOnce(staffMembership);
+    memberRepository.findOneOrFail.mockResolvedValueOnce(staffMembership);
 
     await expect(
       service.addStaff(shop.id, ownerId, { userId: staffUserId }),
     ).resolves.toBe(staffMembership);
-    expect(memberRepository.findOne).toHaveBeenCalledWith({
+    expect(memberRepository.findOneOrFail).toHaveBeenCalledWith({
       where: { id: staffMembership.id, shopId: shop.id },
       relations: { user: true },
     });
   });
 
   it('does not allow the owner membership to be disabled as staff', async () => {
-    shopRepository.findOneBy.mockResolvedValueOnce(shop);
-    memberRepository.findOneBy
-      .mockResolvedValueOnce(ownerMembership)
-      .mockResolvedValueOnce(ownerMembership);
+    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
+    memberRepository.findOneBy.mockResolvedValueOnce(ownerMembership);
+    memberRepository.findOneByOrFail.mockResolvedValueOnce(ownerMembership);
 
     await expect(
       service.updateStaff(shop.id, ownerMembership.id, ownerId, {

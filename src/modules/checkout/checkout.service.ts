@@ -2,7 +2,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
@@ -17,12 +16,12 @@ import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
-import { User } from '@/modules/user/entities';
 
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
-import type { CheckoutAddress } from './entities/checkout.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import type { CreateCheckoutInput } from './schemas/checkout.schema';
 import { effectiveShippingQuote } from './shipping-quote.state';
+import type { CheckoutAddress } from './types/checkout.type';
 
 @Injectable()
 export class CheckoutService implements OnModuleInit, OnModuleDestroy {
@@ -83,11 +82,10 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         }
         return this.view(manager, previous);
       }
-      const address = await manager.findOne(UserAddress, {
+      const address = await manager.findOneOrFail(UserAddress, {
         where: { id: input.addressId, userId: buyerId },
         lock: { mode: 'pessimistic_read' },
       });
-      if (!address) throw new NotFoundException('Delivery address not found');
       const snapshot: CheckoutAddress = {
         recipientName: address.recipientName,
         phone: address.phone,
@@ -123,18 +121,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         ),
       ].sort()) {
         await manager.findOne(Shop, {
-          where: { id },
-          lock: { mode: 'pessimistic_read' },
-        });
-      }
-      for (const id of [
-        ...new Set(
-          products
-            .map((p) => p.sellerUserId)
-            .filter((id): id is string => !!id),
-        ),
-      ].sort()) {
-        await manager.findOne(User, {
           where: { id },
           lock: { mode: 'pessimistic_read' },
         });
@@ -179,13 +165,12 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        const key = `${source.type}:${source.id}`;
+        const key = source.id;
         let order = groups.get(key);
         if (!order) {
           order = manager.create(CheckoutOrder, {
-            sourceType: source.type,
-            sourceId: source.id,
-            sourceName: source.name,
+            shopId: source.id,
+            shopName: source.name,
             address: snapshot,
             items: [],
             subtotal: 0,
@@ -248,8 +233,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       await this.expireDue(manager);
-      const checkout = await manager.findOneBy(Checkout, { id, buyerId });
-      if (!checkout) throw new NotFoundException('Checkout not found');
+      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
       return this.view(manager, checkout);
     });
   }
@@ -258,8 +242,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       await this.expireDue(manager);
-      const checkout = await manager.findOneBy(Checkout, { id, buyerId });
-      if (!checkout) throw new NotFoundException('Checkout not found');
+      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
       if (checkout.status === 'HELD')
         await this.release(manager, checkout, 'CANCELLED');
       return this.view(manager, checkout);

@@ -31,8 +31,13 @@ describe('Product lifecycle boundaries', () => {
     },
   );
 
-  it('allows an incomplete draft but forbids seller-controlled lifecycle fields', () => {
-    expect(createProductSchema.parse({})).toEqual({});
+  it('requires a shop for a draft and forbids seller-controlled lifecycle fields', () => {
+    expect(createProductSchema.safeParse({}).success).toBe(false);
+    expect(
+      createProductSchema.parse({
+        shopId: '7ecf9b7f-fcd2-4ab2-8768-c17773433b68',
+      }),
+    ).toEqual({ shopId: '7ecf9b7f-fcd2-4ab2-8768-c17773433b68' });
     expect(createProductSchema.safeParse({ revision: 10 }).success).toBe(false);
     expect(
       updateProductStatusSchema.safeParse({ status: 'SOLD' }).success,

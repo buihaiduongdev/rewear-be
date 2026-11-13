@@ -1,9 +1,14 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 
+import { EntityNotFoundError } from 'typeorm';
 import type { Repository } from 'typeorm';
 
 import { CategoryService } from '@/modules/category/category.service';
 import { Category } from '@/modules/category/entities';
+import {
+  createCategorySchema,
+  updateCategorySchema,
+} from '@/modules/category/schemas/category-input.schema';
 
 describe('CategoryService', () => {
   const category: Category = {
@@ -18,11 +23,12 @@ describe('CategoryService', () => {
   const repository: jest.Mocked<
     Pick<
       Repository<Category>,
-      'find' | 'findOneBy' | 'create' | 'save' | 'merge'
+      'find' | 'findOneBy' | 'findOneByOrFail' | 'create' | 'save' | 'merge'
     >
   > = {
     find: jest.fn(),
     findOneBy: jest.fn(),
+    findOneByOrFail: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
     merge: jest.fn(),
@@ -62,7 +68,9 @@ describe('CategoryService', () => {
     repository.create.mockReturnValueOnce(created);
     repository.save.mockResolvedValueOnce(created);
 
-    await expect(service.create({ name: 'Áo khoác' })).resolves.toBe(created);
+    await expect(
+      service.create(createCategorySchema.parse({ name: 'Áo khoác' })),
+    ).resolves.toBe(created);
     expect(repository.findOneBy).toHaveBeenCalledWith({ slug: 'ao-khoac' });
     expect(repository.create).toHaveBeenCalledWith({
       name: 'Áo khoác',
@@ -75,61 +83,71 @@ describe('CategoryService', () => {
   it('rejects a duplicate slug', async () => {
     repository.findOneBy.mockResolvedValueOnce(category);
 
-    await expect(service.create({ name: 'Áo khoác' })).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.create(createCategorySchema.parse({ name: 'Áo khoác' })),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('does not expose an inactive category through the public lookup', async () => {
-    repository.findOneBy.mockResolvedValueOnce(null);
+    repository.findOneByOrFail.mockRejectedValueOnce(
+      new EntityNotFoundError(Category, { id: category.id }),
+    );
 
     await expect(service.findOne(category.id)).rejects.toBeInstanceOf(
-      NotFoundException,
+      EntityNotFoundError,
     );
-    expect(repository.findOneBy).toHaveBeenCalledWith({
+    expect(repository.findOneByOrFail).toHaveBeenCalledWith({
       id: category.id,
       isActive: true,
     });
   });
 
-  it('updates the name without changing the stable slug', async () => {
+  it('updates the slug when the name changes', async () => {
     const existing = { ...category };
-    const updated = { ...existing, name: 'Áo mùa đông' };
-    repository.findOneBy.mockResolvedValueOnce(existing);
+    const updated = { ...existing, name: 'Áo mùa đông', slug: 'ao-mua-dong' };
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
+    repository.findOneBy.mockResolvedValueOnce(null);
     repository.save.mockResolvedValueOnce(updated);
 
     await expect(
-      service.update(category.id, { name: 'Áo mùa đông' }),
+      service.update(
+        category.id,
+        updateCategorySchema.parse({ name: 'Áo mùa đông' }),
+      ),
     ).resolves.toEqual(updated);
     expect(repository.merge).toHaveBeenCalledWith(existing, {
       name: 'Áo mùa đông',
+      slug: 'ao-mua-dong',
     });
     expect(repository.save).toHaveBeenCalledWith({
       ...existing,
       name: 'Áo mùa đông',
-      slug: 'ao-khoac',
+      slug: 'ao-mua-dong',
     });
   });
 
-  it('updates the slug when provided and asserts slug availability', async () => {
+  it('rejects a generated slug that belongs to another category', async () => {
     const existing = { ...category };
-    const updated = { ...existing, slug: 'ao-am' };
-    repository.findOneBy
-      .mockResolvedValueOnce(existing)
-      .mockResolvedValueOnce(null);
-    repository.save.mockResolvedValueOnce(updated);
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
+    repository.findOneBy.mockResolvedValueOnce({
+      ...category,
+      id: 'another-id',
+      slug: 'ao-am',
+    });
 
     await expect(
-      service.update(category.id, { slug: '  Áo Ấm  ' }),
-    ).resolves.toEqual(updated);
-    expect(repository.merge).toHaveBeenCalledWith(existing, { slug: 'ao-am' });
-    expect(repository.save).toHaveBeenCalledWith(updated);
+      service.update(
+        category.id,
+        updateCategorySchema.parse({ name: 'Áo Ấm' }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('preserves omitted values while applying false and empty measurements', async () => {
     const existing = { ...category, requiredMeasurements: ['chest' as const] };
-    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
     repository.save.mockImplementationOnce(
       async (entity) => entity as Category,
     );
@@ -150,7 +168,7 @@ describe('CategoryService', () => {
 
   it('soft deletes a category by marking it inactive', async () => {
     const existing = { ...category };
-    repository.findOneBy.mockResolvedValueOnce(existing);
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
     repository.save.mockResolvedValueOnce({ ...existing, isActive: false });
 
     await expect(service.remove(category.id)).resolves.toBeUndefined();

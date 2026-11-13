@@ -1,17 +1,11 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 
 import type { ShippingQuoteResult } from '../schemas/shipping-quote.schema';
+import type { QuoteInputSnapshot } from '../types/shipping-quote.type';
 import { Checkout } from './checkout.entity';
 
-export type QuoteInputSnapshot = {
-  orderId: string;
-  pickupId: string | null;
-  pickupUpdatedAt: string | null;
-  input: CarrierQuoteInput | null;
-};
 @Entity('checkout_shipping_quotes')
 @Index('IDX_checkout_shipping_quotes_checkout', ['checkoutId'])
 export class CheckoutShippingQuote extends BaseEntity {

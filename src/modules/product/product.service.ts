@@ -5,13 +5,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { paginate, type Paginated, type PaginateQuery } from 'nestjs-paginate';
 import {
-  Brackets,
   DataSource,
   EntityManager,
   In,
@@ -41,12 +39,6 @@ import type {
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
 
-const PRODUCT_RELATIONS = {
-  category: true,
-  seller: true,
-  shop: true,
-} as const;
-
 @Injectable()
 export class ProductService {
   constructor(
@@ -66,13 +58,9 @@ export class ProductService {
       .where('product.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('product.approvedRevision = product.revision')
       .andWhere('category.isActive = true')
-      .andWhere('(product.shopId IS NULL OR shop.status = :shopStatus)', {
+      .andWhere('shop.status = :shopStatus', {
         shopStatus: ShopStatus.ACTIVE,
-      })
-      .andWhere(
-        '(product.sellerUserId IS NULL OR seller.status = :userStatus)',
-        { userStatus: UserStatus.ACTIVE },
-      );
+      });
     return this.paginateProducts(queryBuilder, query, true);
   }
 
@@ -90,16 +78,8 @@ export class ProductService {
     });
     const ownedShopIds = ownedShops.map(({ shopId }) => shopId);
     const queryBuilder = this.createProductQueryBuilder().where(
-      new Brackets((scope) => {
-        scope.where('product.sellerUserId = :currentUserId', {
-          currentUserId,
-        });
-        if (ownedShopIds.length > 0) {
-          scope.orWhere('product.shopId IN (:...ownedShopIds)', {
-            ownedShopIds,
-          });
-        }
-      }),
+      ownedShopIds.length ? 'product.shopId IN (:...ownedShopIds)' : '1 = 0',
+      ownedShopIds.length ? { ownedShopIds } : {},
     );
     return this.paginateProducts(queryBuilder, query);
   }
@@ -112,15 +92,10 @@ export class ProductService {
       })
       .andWhere('product.approvedRevision = product.revision')
       .andWhere('category.isActive = true')
-      .andWhere('(product.shopId IS NULL OR shop.status = :shopStatus)', {
+      .andWhere('shop.status = :shopStatus', {
         shopStatus: ShopStatus.ACTIVE,
       })
-      .andWhere(
-        '(product.sellerUserId IS NULL OR seller.status = :userStatus)',
-        { userStatus: UserStatus.ACTIVE },
-      )
-      .getOne();
-    if (!product) throw new NotFoundException('Product not found');
+      .getOneOrFail();
     await this.loadMedia([product], true);
     return product;
   }
@@ -139,13 +114,11 @@ export class ProductService {
     input: CreateProductInput,
   ): Promise<Product> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
-    if (input.shopId)
-      await this.assertActiveShopOwner(input.shopId, currentUserId);
+    await this.assertActiveShopOwner(input.shopId, currentUserId);
     const product = await this.productRepository.save(
       this.productRepository.create({
         categoryId: input.categoryId ?? null,
-        sellerUserId: input.shopId ? null : currentUserId,
-        shopId: input.shopId ?? null,
+        shopId: input.shopId,
         title: this.normalizeOptionalText(input.title),
         description: this.normalizeOptionalText(input.description),
         condition: input.condition ?? null,
@@ -332,7 +305,6 @@ export class ProductService {
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      await this.assertPersonalListingLimit(manager, product);
       const links = await this.getMedia(manager, id);
       const revision = await manager.save(
         ProductRevision,
@@ -515,40 +487,11 @@ export class ProductService {
     }
   }
 
-  private async lockProduct(
-    manager: EntityManager,
-    id: string,
-  ): Promise<Product> {
-    const product = await manager.findOne(Product, {
+  private lockProduct(manager: EntityManager, id: string): Promise<Product> {
+    return manager.findOneOrFail(Product, {
       where: { id },
       lock: { mode: 'pessimistic_write' },
     });
-    if (!product) throw new NotFoundException('Product not found');
-    return product;
-  }
-
-  private async assertPersonalListingLimit(
-    manager: EntityManager,
-    product: Product,
-  ): Promise<void> {
-    if (!product.sellerUserId) return;
-    await manager.findOneOrFail(User, {
-      where: { id: product.sellerUserId },
-      lock: { mode: 'pessimistic_write' },
-    });
-    const count = await manager.countBy(Product, {
-      sellerUserId: product.sellerUserId,
-      status: In([
-        ProductStatus.PENDING_REVIEW,
-        ProductStatus.ACTIVE,
-        ProductStatus.HIDDEN,
-        ProductStatus.HELD,
-      ]),
-    });
-    if (count >= 50)
-      throw new ConflictException(
-        'Personal sellers may have at most 50 live listings',
-      );
   }
 
   private async validateForPublication(
@@ -580,7 +523,7 @@ export class ProductService {
         'Required category measurements are missing',
       );
     }
-    if (product.shopId) await this.assertActiveShop(product.shopId, manager);
+    await this.assertActiveShop(product.shopId, manager);
     const links = await this.getMedia(manager, product.id);
     if (links.length < 3 || !links.some((link) => link.role === 'COVER')) {
       throw new BadRequestException(
@@ -687,7 +630,6 @@ export class ProductService {
     return this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.seller', 'seller')
       .leftJoinAndSelect('product.shop', 'shop');
   }
 
@@ -706,11 +648,10 @@ export class ProductService {
   }
 
   private async findManagedProduct(id: string): Promise<Product> {
-    const product = await this.productRepository.findOne({
+    const product = await this.productRepository.findOneOrFail({
       where: { id },
-      relations: PRODUCT_RELATIONS,
+      relations: { category: true, shop: true },
     });
-    if (!product) throw new NotFoundException('Product not found');
     await this.loadMedia([product]);
     return product;
   }
@@ -720,23 +661,16 @@ export class ProductService {
     currentUserId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    if (product.sellerUserId === currentUserId) return;
-    if (product.shopId) {
-      await this.assertOwner(product.shopId, currentUserId, manager);
-      return;
-    }
-    throw new ForbiddenException('Product owner access required');
+    await this.assertOwner(product.shopId, currentUserId, manager);
   }
 
-  private async assertActiveCategory(
+  private assertActiveCategory(
     categoryId: string,
     manager?: EntityManager,
   ): Promise<Category> {
-    const category = await (
+    return (
       manager?.getRepository(Category) ?? this.categoryRepository
-    ).findOneBy({ id: categoryId, isActive: true });
-    if (!category) throw new NotFoundException('Category not found');
-    return category;
+    ).findOneByOrFail({ id: categoryId, isActive: true });
   }
 
   private async assertActiveShopOwner(
@@ -754,8 +688,7 @@ export class ProductService {
   ): Promise<void> {
     const shop = await (
       manager?.getRepository(Shop) ?? this.shopRepository
-    ).findOneBy({ id: shopId });
-    if (!shop) throw new NotFoundException('Shop not found');
+    ).findOneByOrFail({ id: shopId });
     if (shop.status !== ShopStatus.ACTIVE) {
       throw new BadRequestException('Shop is not active');
     }

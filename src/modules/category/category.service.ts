@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Not, Repository } from 'typeorm';
@@ -28,18 +23,15 @@ export class CategoryService {
     });
   }
 
-  async findOne(id: string): Promise<Category> {
-    const category = await this.categoryRepository.findOneBy({
+  findOne(id: string): Promise<Category> {
+    return this.categoryRepository.findOneByOrFail({
       id,
       isActive: true,
     });
-    if (!category) throw new NotFoundException('Category not found');
-    return category;
   }
 
   async create(input: CreateCategoryInput): Promise<Category> {
-    const name = input.name;
-    const slug = this.normalizeSlug(input.slug ?? name);
+    const { name, slug } = input;
     await this.assertSlugAvailable(slug);
 
     return this.categoryRepository.save(
@@ -53,36 +45,22 @@ export class CategoryService {
   }
 
   async update(id: string, input: UpdateCategoryInput): Promise<Category> {
-    const category = await this.findById(id);
+    const category = await this.categoryRepository.findOneByOrFail({ id });
 
-    let slug: string | undefined;
-    if (input.slug !== undefined) {
-      slug = this.normalizeSlug(input.slug);
-      if (slug !== category.slug) {
-        await this.assertSlugAvailable(slug, id);
-      }
+    if (input.slug !== undefined && input.slug !== category.slug) {
+      await this.assertSlugAvailable(input.slug, id);
     }
 
-    const { slug: _ignored, ...rest } = input;
-    this.categoryRepository.merge(category, {
-      ...rest,
-      ...(slug !== undefined ? { slug } : {}),
-    });
+    this.categoryRepository.merge(category, input);
 
     return this.categoryRepository.save(category);
   }
 
   async remove(id: string): Promise<void> {
-    const category = await this.findById(id);
+    const category = await this.categoryRepository.findOneByOrFail({ id });
     if (!category.isActive) return;
     category.isActive = false;
     await this.categoryRepository.save(category);
-  }
-
-  private async findById(id: string): Promise<Category> {
-    const category = await this.categoryRepository.findOneBy({ id });
-    if (!category) throw new NotFoundException('Category not found');
-    return category;
   }
 
   private async assertSlugAvailable(
@@ -93,24 +71,5 @@ export class CategoryService {
     if (await this.categoryRepository.findOneBy(where)) {
       throw new ConflictException('Category slug already exists');
     }
-  }
-
-  private normalizeSlug(value: string): string {
-    const slug = value
-      .trim()
-      .toLowerCase()
-      .replace(/đ/g, 'd')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-
-    if (!slug) throw new BadRequestException('Category slug is invalid');
-    if (slug.length > 120) {
-      throw new BadRequestException(
-        'Category slug must not exceed 120 characters',
-      );
-    }
-    return slug;
   }
 }

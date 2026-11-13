@@ -18,7 +18,6 @@ const cartProductSchema = z.object({
   coverUrl: z.url().nullable(),
 });
 const cartSourceSchema = z.object({
-  type: z.enum(['USER', 'SHOP']),
   id: z.uuid(),
   name: z.string(),
 });

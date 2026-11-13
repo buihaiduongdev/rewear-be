@@ -5,25 +5,22 @@ import { EntityManager } from 'typeorm';
 import { aggregateParcel } from '@/common/schemas/shipping-package.schema';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import { CheckoutShippingQuote } from './entities/shipping-quote.entity';
-import type { QuoteInputSnapshot } from './entities/shipping-quote.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import type {
   QuoteOrder,
   ShippingQuoteResult,
 } from './schemas/shipping-quote.schema';
+import type { QuoteInputSnapshot } from './types/shipping-quote.type';
 
 export async function quoteInputs(
   manager: EntityManager,
   checkout: Checkout,
   orders: CheckoutOrder[],
 ) {
-  const scopes = orders.map((order) =>
-    order.sourceType === 'USER'
-      ? { userId: order.sourceId }
-      : { shopId: order.sourceId },
-  );
+  const scopes = orders.map((order) => ({ shopId: order.shopId }));
   const pickups = scopes.length
     ? await manager.find(PickupLocation, {
         where: scopes,
@@ -33,15 +30,10 @@ export async function quoteInputs(
   const inputs: QuoteInputSnapshot[] = [];
   const results: QuoteOrder[] = [];
   for (const order of orders) {
-    const pickup = pickups.find((p) =>
-      order.sourceType === 'USER'
-        ? p.userId === order.sourceId
-        : p.shopId === order.sourceId,
-    );
+    const pickup = pickups.find((p) => p.shopId === order.shopId);
     const row: QuoteOrder = {
       orderId: order.id,
-      sourceType: order.sourceType,
-      sourceId: order.sourceId,
+      shopId: order.shopId,
       parcel: null,
       parcelCount: 1,
       itemCount: order.items.length,

@@ -1,16 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import { CheckoutShippingQuote } from './entities/shipping-quote.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import {
@@ -28,11 +25,10 @@ export class ShippingQuoteService {
   ) {}
   async refresh(buyerId: string, checkoutId: string) {
     const prepared = await this.db.transaction(async (manager) => {
-      const checkout = await manager.findOne(Checkout, {
+      const checkout = await manager.findOneOrFail(Checkout, {
         where: { id: checkoutId, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!checkout) throw new NotFoundException('Checkout not found');
       const now = await databaseNow(manager);
       if (
         checkout.status !== 'HELD' ||
@@ -128,11 +124,10 @@ export class ShippingQuoteService {
       );
     }
     return this.db.transaction(async (manager) => {
-      const checkout = await manager.findOne(Checkout, {
+      const checkout = await manager.findOneOrFail(Checkout, {
         where: { id: checkoutId, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!checkout) throw new NotFoundException('Checkout not found');
       const orders = await manager.find(CheckoutOrder, {
         where: { checkoutId },
         order: { id: 'ASC' },

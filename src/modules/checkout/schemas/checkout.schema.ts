@@ -42,9 +42,8 @@ export const checkoutSchema = z.object({
   orders: z.array(
     z.object({
       id: z.uuid(),
-      sourceType: z.enum(['USER', 'SHOP']),
-      sourceId: z.uuid(),
-      sourceName: z.string(),
+      shopId: z.uuid(),
+      shopName: z.string(),
       address: addressSchema,
       items: z.array(
         z.object({

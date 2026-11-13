@@ -2,7 +2,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -38,13 +37,11 @@ export class ShopService {
     });
   }
 
-  async findOne(id: string): Promise<Shop> {
-    const shop = await this.shopRepository.findOneBy({
+  findOne(id: string): Promise<Shop> {
+    return this.shopRepository.findOneByOrFail({
       id,
       status: ShopStatus.ACTIVE,
     });
-    if (!shop) throw new NotFoundException('Shop not found');
-    return shop;
   }
 
   findMyMemberships(userId: string): Promise<ShopMember[]> {
@@ -84,7 +81,7 @@ export class ShopService {
     input: UpdateShopInput,
   ): Promise<Shop> {
     await this.assertOwner(shopId, currentUserId);
-    const shop = await this.findById(shopId);
+    const shop = await this.shopRepository.findOneByOrFail({ id: shopId });
 
     this.shopRepository.merge(shop, {
       ...input,
@@ -113,9 +110,7 @@ export class ShopService {
     input: AddShopStaffInput,
   ): Promise<ShopMember> {
     await this.assertOwner(shopId, currentUserId);
-    if (!(await this.userRepository.findOneBy({ id: input.userId }))) {
-      throw new NotFoundException('User not found');
-    }
+    await this.userRepository.findOneByOrFail({ id: input.userId });
     if (
       await this.shopMemberRepository.findOneBy({
         shopId,
@@ -143,11 +138,10 @@ export class ShopService {
     input: UpdateShopStaffInput,
   ): Promise<ShopMember> {
     await this.assertOwner(shopId, currentUserId);
-    const member = await this.shopMemberRepository.findOneBy({
+    const member = await this.shopMemberRepository.findOneByOrFail({
       id: memberId,
       shopId,
     });
-    if (!member) throw new NotFoundException('Shop member not found');
     if (member.memberRole !== ShopMemberRole.STAFF) {
       throw new ForbiddenException('Shop owner membership cannot be changed');
     }
@@ -158,9 +152,7 @@ export class ShopService {
   }
 
   private async assertOwner(shopId: string, userId: string): Promise<void> {
-    if (!(await this.shopRepository.findOneBy({ id: shopId }))) {
-      throw new NotFoundException('Shop not found');
-    }
+    await this.shopRepository.findOneByOrFail({ id: shopId });
     const owner = await this.shopMemberRepository.findOneBy({
       shopId,
       userId,
@@ -170,21 +162,13 @@ export class ShopService {
     if (!owner) throw new ForbiddenException('Shop owner access required');
   }
 
-  private async findById(id: string): Promise<Shop> {
-    const shop = await this.shopRepository.findOneBy({ id });
-    if (!shop) throw new NotFoundException('Shop not found');
-    return shop;
-  }
-
-  private async findMemberWithUser(
+  private findMemberWithUser(
     shopId: string,
     memberId: string,
   ): Promise<ShopMember> {
-    const member = await this.shopMemberRepository.findOne({
+    return this.shopMemberRepository.findOneOrFail({
       where: { id: memberId, shopId },
       relations: { user: true },
     });
-    if (!member) throw new NotFoundException('Shop member not found');
-    return member;
   }
 }
