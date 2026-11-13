@@ -321,6 +321,12 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect(quote.body.data.orders[0].shopId).toBe(shop.id);
     expect(quote.body.data.orders[0]).not.toHaveProperty('sourceType');
+    await db.getRepository(Shop).update(shop.id, { name: 'Tên shop mới' });
+    const updatedCheckout = await request(server)
+      .get(`/api/checkouts/${checkedOut.body.data.id}`)
+      .set('x-test-user', buyer.id)
+      .expect(200);
+    expect(updatedCheckout.body.data.orders[0].shopName).toBe('Tên shop mới');
     expect(
       (await db.getRepository(Product).findOneByOrFail({ id: productId }))
         .status,

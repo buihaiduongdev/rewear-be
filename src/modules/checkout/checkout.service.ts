@@ -170,7 +170,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         if (!order) {
           order = manager.create(CheckoutOrder, {
             shopId: source.id,
-            shopName: source.name,
             address: snapshot,
             items: [],
             subtotal: 0,
@@ -283,11 +282,12 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
   private async view(manager: EntityManager, checkout: Checkout) {
     const orders = await manager.find(CheckoutOrder, {
       where: { checkoutId: checkout.id },
+      relations: { shop: true },
       order: { id: 'ASC' },
     });
     return {
       ...checkout,
-      orders,
+      orders: orders.map((order) => ({ ...order, shopName: order.shop.name })),
       shippingQuote: await effectiveShippingQuote(manager, checkout, orders),
       subtotal: orders.reduce((total, order) => total + order.subtotal, 0),
       currency: 'VND' as const,

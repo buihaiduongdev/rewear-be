@@ -19,8 +19,6 @@ export class CheckoutOrder extends BaseEntity {
   @ManyToOne(() => Shop, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'shopId' })
   shop: Shop;
-  @Column({ length: 255 })
-  shopName: string;
   @Column('jsonb')
   address: CheckoutAddress;
   @Column('jsonb')
