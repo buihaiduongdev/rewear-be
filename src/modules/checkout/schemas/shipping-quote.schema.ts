@@ -24,20 +24,11 @@ export const quoteOrderSchema = z.object({
   estimatedDeliveryAt: z.string().nullable(),
 });
 export const shippingQuoteSchema = z.object({
-  id: z.uuid(),
-  status: z.enum([
-    'FETCHING',
-    'READY',
-    'PARTIAL',
-    'UNAVAILABLE',
-    'EXPIRED',
-    'INVALIDATED',
-  ]),
+  status: z.enum(['READY', 'PARTIAL', 'UNAVAILABLE']),
   environment: z.literal('SANDBOX'),
   carrier: z.literal('GHN'),
   parcelMethod: z.literal('BOUNDING_STACK_V1'),
   quotedAt: z.string(),
-  expiresAt: z.string(),
   orders: z.array(quoteOrderSchema),
   totalShippingFee: z.number().int().nonnegative().nullable(),
   grandTotal: z.number().int().nonnegative().nullable(),

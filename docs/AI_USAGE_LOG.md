@@ -588,8 +588,8 @@
 - **Công cụ:** Codex, TypeORM, Zod, PostgreSQL.
 - **Mục đích và phạm vi:** Đơn giản hóa xử lý entity, chuẩn hóa slug danh mục và thống nhất sản phẩm, giỏ hàng, checkout, địa chỉ lấy hàng theo shop.
 - **Prompt chính:** Rà soát cách tìm entity, chuyển việc sinh slug danh mục sang schema, tách entity và type cho dễ đọc; yêu cầu sản phẩm luôn thuộc shop và cập nhật các luồng liên quan.
-- **Đầu ra AI được sử dụng:** Refactor các service, schema, entity, seed và test; chuyển checkout và báo phí sang dùng shop.
-- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quy tắc bắt buộc có shop, slug tự cập nhật theo tên, hiển thị tên shop hiện tại trong checkout và cho phép reset database dev khi thay đổi cấu trúc.
+- **Đầu ra AI được sử dụng:** Refactor các service, schema, entity, seed và test; chuyển checkout sang dùng shop và tính phí vận chuyển trực tiếp mỗi lần yêu cầu.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quy tắc bắt buộc có shop, slug theo tên, dùng tên shop hiện tại và bỏ lưu báo giá vận chuyển tạm trong database.
 - **Cách kiểm chứng:** Chạy `pnpm check`, test unit, integration và E2E với PostgreSQL; kiểm tra `git diff --check`.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất giữ slug ổn định và tạo thư mục type cho một type đơn lẻ; đã điều chỉnh theo quy tắc nghiệp vụ và phạm vi sử dụng.
 - **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32), nhánh `audit2`.

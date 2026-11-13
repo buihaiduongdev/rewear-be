@@ -22,8 +22,6 @@ export class Checkout extends BaseEntity {
   requestId: string;
   @Column('uuid')
   addressId: string;
-  @Column({ type: 'uuid', nullable: true })
-  activeShippingQuoteId: string | null;
   @Column('jsonb')
   requestedProductIds: string[];
   @Column('jsonb')
