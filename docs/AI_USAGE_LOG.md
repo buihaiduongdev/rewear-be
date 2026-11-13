@@ -592,4 +592,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Chốt quy tắc bắt buộc có shop, slug tự cập nhật theo tên và cho phép reset database dev khi thay đổi cấu trúc.
 - **Cách kiểm chứng:** Chạy `pnpm check`, test unit, integration và E2E với PostgreSQL; kiểm tra `git diff --check`.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất giữ slug ổn định và tạo thư mục type cho một type đơn lẻ; đã điều chỉnh theo quy tắc nghiệp vụ và phạm vi sử dụng.
-- **Minh chứng:** Nhánh `audit2`; PR sẽ được cập nhật sau khi tạo.
+- **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32), nhánh `audit2`.
