@@ -7,7 +7,7 @@ import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
-import { Product } from '@/modules/product/entities';
+import { Product, ProductRevision } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -106,8 +106,32 @@ describe('commerce behavior with PostgreSQL', () => {
 
     const pending = await products.submit(product.id, seller.id);
     expect(pending.status).toBe(ProductStatus.PENDING_REVIEW);
+    await expect(
+      products.update(product.id, seller.id, { title: 'Changed jacket' }),
+    ).rejects.toThrow('This product cannot be edited in its current state');
+    await expect(
+      products.cancelSubmission(product.id, buyer.id),
+    ).rejects.toThrow('Shop owner access required');
+    const cancelled = await products.cancelSubmission(product.id, seller.id);
+    expect(cancelled.status).toBe(ProductStatus.DRAFT);
+    expect(
+      (
+        await db.getRepository(ProductRevision).findOneByOrFail({
+          productId: product.id,
+          revision: pending.revision,
+        })
+      ).decision,
+    ).toBe('CANCELLED');
+    await expect(
+      products.moderate(product.id, admin.id, {
+        revision: pending.revision,
+        decision: 'APPROVE',
+      }),
+    ).rejects.toThrow('The submitted revision is no longer current');
+    const resubmitted = await products.submit(product.id, seller.id);
+    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
     const published = await products.moderate(product.id, admin.id, {
-      revision: pending.revision,
+      revision: resubmitted.revision,
       decision: 'APPROVE',
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);

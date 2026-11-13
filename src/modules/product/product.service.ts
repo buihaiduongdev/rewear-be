@@ -158,6 +158,7 @@ export class ProductService {
         ProductStatus.HELD,
         ProductStatus.SOLD,
         ProductStatus.SUSPENDED,
+        ProductStatus.PENDING_REVIEW,
       ].includes(product.status)
     ) {
       throw new ConflictException(
@@ -171,11 +172,6 @@ export class ProductService {
     product: Product,
   ): Promise<void> {
     this.assertEditable(product);
-    await manager.update(
-      ProductRevision,
-      { productId: product.id, decision: 'PENDING' },
-      { decision: 'SUPERSEDED' },
-    );
     product.revision += 1;
     product.approvedRevision = null;
     product.status = ProductStatus.DRAFT;
@@ -260,7 +256,7 @@ export class ProductService {
         product.price = input.price;
         priceChanged = true;
       }
-      // Pending/rejected revisions include price; editing them invalidates that submission too.
+      // Changes to draft or rejected content require a new revision.
       if (
         contentChanged ||
         (priceChanged &&
@@ -358,6 +354,28 @@ export class ProductService {
         ),
       );
       product.status = ProductStatus.PENDING_REVIEW;
+      await manager.save(Product, product);
+    });
+    return this.findManagedProduct(id);
+  }
+
+  async cancelSubmission(id: string, userId: string): Promise<Product> {
+    await this.dataSource.transaction(async (manager) => {
+      const product = await this.lockForManagement(manager, id, userId);
+      if (product.status !== ProductStatus.PENDING_REVIEW) {
+        throw new ConflictException(
+          'Only a pending submission can be cancelled',
+        );
+      }
+      const revision = await manager.findOneByOrFail(ProductRevision, {
+        productId: id,
+        revision: product.revision,
+        decision: 'PENDING',
+      });
+      revision.decision = 'CANCELLED';
+      await manager.save(ProductRevision, revision);
+      product.revision += 1;
+      product.status = ProductStatus.DRAFT;
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);

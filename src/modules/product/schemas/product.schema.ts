@@ -53,7 +53,7 @@ export const productRevisionSchema = z.object({
   revision: z.number().int(),
   snapshot: z.record(z.string(), z.unknown()),
   submittedById: z.uuid(),
-  decision: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED']),
+  decision: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
   reviewedById: z.uuid().nullable(),
   reason: z.string().nullable(),
   reviewedAt: dateTimeSchema.nullable(),

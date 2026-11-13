@@ -22,14 +22,16 @@ describe('Product lifecycle boundaries', () => {
     {} as DataSource,
   );
 
-  it.each([ProductStatus.HELD, ProductStatus.SOLD, ProductStatus.SUSPENDED])(
-    'blocks edits while %s',
-    (status) => {
-      expect(() =>
-        service.assertEditable(Object.assign(new Product(), { status })),
-      ).toThrow(ConflictException);
-    },
-  );
+  it.each([
+    ProductStatus.HELD,
+    ProductStatus.SOLD,
+    ProductStatus.SUSPENDED,
+    ProductStatus.PENDING_REVIEW,
+  ])('blocks edits while %s', (status) => {
+    expect(() =>
+      service.assertEditable(Object.assign(new Product(), { status })),
+    ).toThrow(ConflictException);
+  });
 
   it('requires a shop for a draft and forbids seller-controlled lifecycle fields', () => {
     expect(createProductSchema.safeParse({}).success).toBe(false);

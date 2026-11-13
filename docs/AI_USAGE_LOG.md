@@ -593,3 +593,15 @@
 - **Cách kiểm chứng:** Chạy `pnpm check`, test unit, integration và E2E với PostgreSQL; kiểm tra `git diff --check`.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất giữ slug ổn định và tạo thư mục type cho một type đơn lẻ; đã điều chỉnh theo quy tắc nghiệp vụ và phạm vi sử dụng.
 - **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32), nhánh `audit2`.
+
+### 2026-11-14 — Đơn giản hóa luồng gửi duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Yêu cầu người bán hủy yêu cầu duyệt trước khi sửa sản phẩm đang chờ.
+- **Prompt chính:** Đơn giản hóa luồng duyệt sản phẩm, cho phép hủy yêu cầu đang chờ trước khi chỉnh sửa và gửi lại.
+- **Đầu ra AI được sử dụng:** Bổ sung API hủy yêu cầu; chặn sửa nội dung, ảnh khi chờ duyệt và cập nhật kiểm thử.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách hủy yêu cầu duyệt trước khi sửa thay cho tự động thay thế bản cũ.
+- **Cách kiểm chứng:** `pnpm check` và 138 test với PostgreSQL, gồm kiểm tra hủy, gửi lại và từ chối duyệt phiên bản cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32).

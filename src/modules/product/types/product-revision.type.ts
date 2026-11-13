@@ -1,2 +1,2 @@
 export type RevisionDecision =
-  'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';

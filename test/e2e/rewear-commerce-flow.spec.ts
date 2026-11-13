@@ -273,10 +273,26 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect(submitted.body.data.status).toBe(ProductStatus.PENDING_REVIEW);
 
+    await request(server)
+      .patch(`/api/products/${productId}`)
+      .set('x-test-user', seller.id)
+      .send({ title: 'Edited while pending' })
+      .expect(409);
+    await request(server)
+      .post(`/api/products/${productId}/cancel-submission`)
+      .set('x-test-user', seller.id)
+      .send({})
+      .expect(200);
+    const resubmitted = await request(server)
+      .post(`/api/products/${productId}/submit`)
+      .set('x-test-user', seller.id)
+      .send({})
+      .expect(200);
+
     const approved = await request(server)
       .post(`/api/products/admin/${productId}/moderation`)
       .set('x-test-user', admin.id)
-      .send({ revision: submitted.body.data.revision, decision: 'APPROVE' })
+      .send({ revision: resubmitted.body.data.revision, decision: 'APPROVE' })
       .expect(200);
     expect(approved.body.data.status).toBe(ProductStatus.ACTIVE);
 
