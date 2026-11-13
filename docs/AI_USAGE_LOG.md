@@ -581,3 +581,15 @@
 - **Cách kiểm chứng:** Sau khi cập nhật theo `main`, `pnpm check` pass; 21 suites/135 tests pass với PostgreSQL thật, gồm kiểm tra phân trang trực tiếp và qua HTTP.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản đầu còn adapter và contract pagination tự viết; đã chuyển sang API gốc của thư viện theo yêu cầu.
 - **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`.
+
+### 2026-11-13 — Chốt nghiệp vụ phần Tâm và đồng bộ SLA hoàn ví
+
+- **Người thực hiện:** Bùi Thành Tâm.
+- **Công cụ:** Codex, GitHub plugin, Git, Node.js.
+- **Mục đích và phạm vi:** Ghi các lựa chọn nghiệp vụ của Tâm về thu hồi tiền ví cộng thừa, MoMo, định danh Owner, xu/hoa hồng, trả hàng, đánh giá Shop, rút tiền, chống spam và sự cố COD/GHN; đồng bộ KPI hoàn ví.
+- **Prompt chính:** Hỏi từng câu kèm quyết định cũ và bảng lựa chọn, tự lưu câu trả lời; trước khi đưa lên GitHub phải cập nhật remote mới nhất và kiểm tra xung đột, chỉ tạo PR không merge.
+- **Đầu ra AI được sử dụng:** Bổ sung 111 ID quyết định trong `DECISIONS.md`, cập nhật các quy tắc bị thay thế và danh sách còn mở; tách mục tiêu hoàn ví bình thường 5 giây khỏi SLA/cảnh báo 5 phút trong `COMMITMENT_STEP3.MD`.
+- **Phần người dùng quyết định:** Chọn từng phương án nghiệp vụ, gồm hoa hồng chung 3%, địa chỉ 3 cấp, chỉ số uy tín Shop không có điểm tổng hợp và kiểm tra ngân hàng thủ công khi chưa có API phù hợp. Đây là xác nhận nghiệp vụ, không phải xác nhận đã tự kiểm tra toàn bộ code hoặc đạt KPI.
+- **Cách kiểm chứng:** Đồng bộ local lên remote `main` tại `cf5e8ef` bằng các Git object kiểm tra đúng hash qua GitHub plugin do Git CLI không kết nối được cổng 443. `git diff --check` pass; kiểm tra 411 ID không trùng, giữ đủ 300 ID cũ và nguyên nội dung các quyết định mới đã lưu; đối chiếu KPI chỉ đổi nội dung vừa chốt, giữ sửa đổi upstream. Không chạy test sản phẩm vì PR chỉ sửa tài liệu; chưa kiểm chứng API MoMo/GHN hoặc hiệu năng hoàn tiền.
+- **Lỗi hoặc giới hạn đã phát hiện:** Mục còn mở vẫn nhắc một số câu đã trả lời, các nhóm dòng mới bị tách khỏi bảng Markdown, KPI 5 giây chưa phân biệt SLA 5 phút; đã chỉnh. Công thức chỉ số uy tín, dữ liệu địa chỉ 3 cấp và khả năng API thực tế còn phải đặc tả/kiểm chứng khi triển khai.
+- **Minh chứng:** Branch `docs/tam-business-decisions-2026-11-13`, `docs/submission_docs/DECISIONS.md`, `docs/submission_docs/COMMITMENT_STEP3.MD`.
