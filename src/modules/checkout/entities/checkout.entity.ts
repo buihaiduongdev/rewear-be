@@ -4,7 +4,7 @@ import { BaseEntity } from '@/common/entities';
 import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { User } from '@/modules/user/entities';
 
-export type CheckoutState = 'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED';
+export type CheckoutState = 'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED' | 'PAID';
 export type CheckoutAddress = {
   recipientName: string;
   phone: string;
