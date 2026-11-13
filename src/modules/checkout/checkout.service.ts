@@ -158,22 +158,21 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           });
           continue;
         }
-        const shop = entry.shop;
         const product = entry.item.product;
         const row = products.find((p) => p.id === productId)!;
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        let order = groups.get(shop.id);
+        let order = groups.get(entry.shop.id);
         if (!order) {
           order = manager.create(CheckoutOrder, {
-            shopId: shop.id,
+            shopId: entry.shop.id,
             address: snapshot,
             items: [],
             subtotal: 0,
             shippingFee: null,
           });
-          groups.set(shop.id, order);
+          groups.set(entry.shop.id, order);
         }
         order.items.push({
           shippingPackage: row.shippingPackage
