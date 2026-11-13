@@ -6,16 +6,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as argon2 from 'argon2';
+import { paginate, type Paginated, type PaginateQuery } from 'nestjs-paginate';
 import { Repository } from 'typeorm';
 
-import { OrmFilterBuilder, paginate } from '@/common/pagination';
-import type { IPaginatedResult } from '@/common/pagination';
 import { AuthProvider } from '@/modules/auth/enums';
 import type { RegisterInput } from '@/modules/auth/schemas/auth-input.schema';
 
 import { User } from './entities';
 import { UserRole, UserStatus } from './enums';
-import type { FindUserQuery } from './schemas';
+import { USER_PAGINATION_CONFIG } from './pagination.config';
 import type {
   CreateUserInput,
   UpdateProfileInput,
@@ -66,25 +65,8 @@ export class UserService {
     );
   }
 
-  async findAll(query: FindUserQuery): Promise<IPaginatedResult<User>> {
-    const builder = this.userRepository.createQueryBuilder('user');
-    OrmFilterBuilder.create(builder)
-      .andWhere(
-        '(user.fullName ILIKE :search OR user.email ILIKE :search)',
-        { search: `%${query.search}%` },
-        Boolean(query.search),
-      )
-      .equal('user.role', query.role)
-      .equal('user.status', query.status);
-
-    return paginate(builder, query, {
-      defaultSort: 'user.createdAt',
-      allowedSorts: {
-        createdAt: 'user.createdAt',
-        email: 'user.email',
-        fullName: 'user.fullName',
-      },
-    });
+  findAll(query: PaginateQuery): Promise<Paginated<User>> {
+    return paginate(query, this.userRepository, USER_PAGINATION_CONFIG);
   }
 
   async findById(id: string): Promise<User> {

@@ -569,3 +569,15 @@
 - **Cách kiểm chứng:** `git diff --check`; kiểm tra lại cấu trúc folder ảnh và nội dung PR.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Các link README test đã xóa còn xuất hiện trong PR; thay bằng một link AI Usage Log.
 - **Minh chứng:** [PR #28](https://github.com/buihaiduongdev/rewear-be/pull/28), [report ảnh](https://github.com/buihaiduongdev/rewear-review-assets/blob/384a198a5424bec8eddabd1fff3f59f52a8c8d62/be/pr-28/report.md).
+
+### 2026-11-12 — Dùng nestjs-paginate cho phân trang Rewear
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, `nestjs-paginate` 16.0.1, pnpm.
+- **Mục đích và phạm vi:** Thay phần phân trang tự viết cho danh sách user và product bằng API của thư viện.
+- **Prompt chính:** Dùng đầy đủ `nestjs-paginate` cho danh sách user và product, bỏ các helper pagination tự viết.
+- **Đầu ra AI được sử dụng:** Dùng `@Paginate`, `PaginateQuery`, cấu hình tìm kiếm/lọc/sắp xếp và response `data/meta/links` của thư viện.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn dùng contract gốc của thư viện; các điều kiện phân quyền và trạng thái nghiệp vụ vẫn được áp dụng.
+- **Cách kiểm chứng:** Sau khi cập nhật theo `main`, `pnpm check` pass; 21 suites/135 tests pass với PostgreSQL thật, gồm kiểm tra phân trang trực tiếp và qua HTTP.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản đầu còn adapter và contract pagination tự viết; đã chuyển sang API gốc của thư viện theo yêu cầu.
+- **Minh chứng:** [PR #29](https://github.com/buihaiduongdev/rewear-be/pull/29), branch `refactor/nestjs-paginate`.

@@ -8,20 +8,25 @@ import {
   Param,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import {
+  ApiPaginationQuery,
+  Paginate,
+  type Paginated,
+  type PaginateQuery,
+} from 'nestjs-paginate';
+
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
-import type { IPaginatedResult } from '@/common/pagination';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
 
 import { User } from './entities';
 import { UserRole } from './enums';
-import { findUserSchema, userListSchema, userSchema } from './schemas';
-import type { FindUserQuery } from './schemas';
+import { USER_PAGINATION_CONFIG } from './pagination.config';
+import { userListSchema, userSchema } from './schemas';
 import {
   createUserSchema,
   updateProfileSchema,
@@ -61,9 +66,8 @@ export class UserController {
 
   @Get()
   @Serialize(userListSchema)
-  findAll(
-    @Query({ schema: findUserSchema }) query: FindUserQuery,
-  ): Promise<IPaginatedResult<User>> {
+  @ApiPaginationQuery(USER_PAGINATION_CONFIG)
+  findAll(@Paginate() query: PaginateQuery): Promise<Paginated<User>> {
     return this.userService.findAll(query);
   }
 

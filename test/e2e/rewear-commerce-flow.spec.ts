@@ -173,6 +173,29 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect(approved.body.data.status).toBe(ProductStatus.ACTIVE);
 
+    const listing = await request(server)
+      .get('/api/products')
+      .query({
+        limit: '1',
+        sortBy: 'price:ASC',
+        search: 'Denim',
+        'filter.price': '$gte:200000',
+      })
+      .expect(200);
+    expect(listing.body.data.data).toEqual([
+      expect.objectContaining({
+        id: productId,
+        title: 'Denim jacket',
+        mediaCount: 3,
+      }),
+    ]);
+    expect(listing.body.data.meta).toMatchObject({
+      itemsPerPage: 1,
+      totalItems: 1,
+      sortBy: [['price', 'ASC']],
+    });
+    expect(listing.body.data.links.current).toContain('limit=1');
+
     await request(server)
       .put(`/api/cart/items/${productId}`)
       .set('x-test-user', buyer.id)

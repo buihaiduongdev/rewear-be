@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { paginate, type Paginated, type PaginateQuery } from 'nestjs-paginate';
 import {
   Brackets,
   DataSource,
@@ -18,7 +19,6 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
-import { IPaginatedResult, paginate } from '@/common/pagination';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType } from '@/modules/media/enums';
@@ -33,7 +33,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { Product, ProductRevision } from './entities';
 import { ProductStatus } from './enums';
-import { FindMyProductQuery, FindProductQuery } from './schemas';
+import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import type {
   CreateProductInput,
   ModerateProductInput,
@@ -61,7 +61,7 @@ export class ProductService {
     private readonly dataSource: DataSource,
   ) {}
 
-  findAll(query: FindProductQuery): Promise<IPaginatedResult<Product>> {
+  findAll(query: PaginateQuery): Promise<Paginated<Product>> {
     const queryBuilder = this.createProductQueryBuilder()
       .where('product.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('product.approvedRevision = product.revision')
@@ -73,14 +73,13 @@ export class ProductService {
         '(product.sellerUserId IS NULL OR seller.status = :userStatus)',
         { userStatus: UserStatus.ACTIVE },
       );
-    this.applyFilters(queryBuilder, query);
     return this.paginateProducts(queryBuilder, query, true);
   }
 
   async findMine(
     currentUserId: string,
-    query: FindMyProductQuery,
-  ): Promise<IPaginatedResult<Product>> {
+    query: PaginateQuery,
+  ): Promise<Paginated<Product>> {
     const ownedShops = await this.shopMemberRepository.find({
       where: {
         userId: currentUserId,
@@ -102,12 +101,6 @@ export class ProductService {
         }
       }),
     );
-    if (query.status) {
-      queryBuilder.andWhere('product.status = :status', {
-        status: query.status,
-      });
-    }
-    this.applyFilters(queryBuilder, query);
     return this.paginateProducts(queryBuilder, query);
   }
 
@@ -494,15 +487,16 @@ export class ProductService {
   }
 
   async findReviewQueue(
-    query: FindMyProductQuery,
+    query: PaginateQuery,
     adminId: string,
-  ): Promise<IPaginatedResult<Product>> {
+  ): Promise<Paginated<Product>> {
     await this.assertAdmin(this.dataSource.manager, adminId);
-    const builder = this.createProductQueryBuilder().where(
-      'product.status = :status',
-      { status: query.status ?? ProductStatus.PENDING_REVIEW },
-    );
-    this.applyFilters(builder, query);
+    const builder = this.createProductQueryBuilder();
+    if (!query.filter?.status) {
+      builder.where('product.status = :status', {
+        status: ProductStatus.PENDING_REVIEW,
+      });
+    }
     return this.paginateProducts(builder, query);
   }
 
@@ -697,78 +691,17 @@ export class ProductService {
       .leftJoinAndSelect('product.shop', 'shop');
   }
 
-  private applyFilters(
-    queryBuilder: SelectQueryBuilder<Product>,
-    query: FindProductQuery | FindMyProductQuery,
-  ): void {
-    if (query.categoryId) {
-      queryBuilder.andWhere('product.categoryId = :categoryId', {
-        categoryId: query.categoryId,
-      });
-    }
-    if (query.shopId) {
-      queryBuilder.andWhere('product.shopId = :shopId', {
-        shopId: query.shopId,
-      });
-    }
-    if (query.sellerUserId) {
-      queryBuilder.andWhere('product.sellerUserId = :sellerUserId', {
-        sellerUserId: query.sellerUserId,
-      });
-    }
-    for (const field of ['size', 'color', 'brand'] as const) {
-      if (query[field])
-        queryBuilder.andWhere(`LOWER(product.${field}) = LOWER(:${field})`, {
-          [field]: query[field],
-        });
-    }
-    if (query.condition) {
-      queryBuilder.andWhere('product.condition = :condition', {
-        condition: query.condition,
-      });
-    }
-    if (query.minPrice !== undefined) {
-      queryBuilder.andWhere('product.price >= :minPrice', {
-        minPrice: query.minPrice,
-      });
-    }
-    if (query.maxPrice !== undefined) {
-      queryBuilder.andWhere('product.price <= :maxPrice', {
-        maxPrice: query.maxPrice,
-      });
-    }
-    if (query.search) {
-      queryBuilder.andWhere(
-        new Brackets((search) => {
-          search
-            .where('product.title ILIKE :search', {
-              search: `%${query.search}%`,
-            })
-            .orWhere('product.description ILIKE :search', {
-              search: `%${query.search}%`,
-            })
-            .orWhere('product.brand ILIKE :search', {
-              search: `%${query.search}%`,
-            });
-        }),
-      );
-    }
-  }
-
   private async paginateProducts(
     queryBuilder: SelectQueryBuilder<Product>,
-    query: FindProductQuery | FindMyProductQuery,
+    query: PaginateQuery,
     published = false,
-  ): Promise<IPaginatedResult<Product>> {
-    const result = await paginate(queryBuilder, query, {
-      allowedSorts: {
-        createdAt: 'product.createdAt',
-        price: 'product.price',
-        publishedAt: 'product.publishedAt',
-      },
-      defaultSort: 'product.createdAt',
-    });
-    await this.loadMedia(result.items, published);
+  ): Promise<Paginated<Product>> {
+    const result = await paginate(
+      query,
+      queryBuilder,
+      PRODUCT_PAGINATION_CONFIG,
+    );
+    await this.loadMedia(result.data, published);
     return result;
   }
 
