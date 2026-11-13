@@ -145,34 +145,34 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       });
       const groups = new Map<string, CheckoutOrder>();
       for (const productId of productIds) {
-        const entry = saved.get(productId);
+        const cartEntry = saved.get(productId);
         if (
-          !entry ||
-          entry.item.availability !== 'AVAILABLE' ||
-          !entry.item.product ||
-          !entry.shop
+          !cartEntry ||
+          cartEntry.item.availability !== 'AVAILABLE' ||
+          !cartEntry.item.product ||
+          !cartEntry.shop
         ) {
           checkout.removedItems.push({
             productId,
-            reason: entry?.item.availability ?? 'NOT_IN_CART',
+            reason: cartEntry?.item.availability ?? 'NOT_IN_CART',
           });
           continue;
         }
-        const product = entry.item.product;
+        const product = cartEntry.item.product;
         const row = products.find((p) => p.id === productId)!;
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        let order = groups.get(entry.shop.id);
+        let order = groups.get(cartEntry.shop.id);
         if (!order) {
           order = manager.create(CheckoutOrder, {
-            shopId: entry.shop.id,
+            shopId: cartEntry.shop.id,
             address: snapshot,
             items: [],
             subtotal: 0,
             shippingFee: null,
           });
-          groups.set(entry.shop.id, order);
+          groups.set(cartEntry.shop.id, order);
         }
         order.items.push({
           shippingPackage: row.shippingPackage
