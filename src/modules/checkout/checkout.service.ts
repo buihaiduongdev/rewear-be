@@ -164,8 +164,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        const key = shop.id;
-        let order = groups.get(key);
+        let order = groups.get(shop.id);
         if (!order) {
           order = manager.create(CheckoutOrder, {
             shopId: shop.id,
@@ -174,7 +173,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
             subtotal: 0,
             shippingFee: null,
           });
-          groups.set(key, order);
+          groups.set(shop.id, order);
         }
         order.items.push({
           shippingPackage: row.shippingPackage
