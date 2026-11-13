@@ -303,11 +303,16 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     });
     expect(listing.body.data.links.current).toContain('limit=1');
 
-    await request(server)
+    const cart = await request(server)
       .put(`/api/cart/items/${productId}`)
       .set('x-test-user', buyer.id)
       .send({})
       .expect(200);
+    expect(cart.body.data.groups[0].shop).toMatchObject({
+      id: shop.id,
+      name: shop.name,
+    });
+    expect(cart.body.data.groups[0]).not.toHaveProperty('source');
 
     const checkedOut = await request(server)
       .post('/api/checkouts')

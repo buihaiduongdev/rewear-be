@@ -32,7 +32,7 @@ const DISPLAYABLE_STATES = [
 export class CartService {
   constructor(private readonly dataSource: DataSource) {}
 
-  // A consistent read keeps current content, source eligibility, images and totals
+  // A consistent read keeps current content, shop eligibility, images and totals
   // in the same DB snapshot. It does not reserve any product.
   findMine(userId: string): Promise<CartView> {
     return this.dataSource.transaction('REPEATABLE READ', (manager) =>
@@ -203,13 +203,13 @@ export class CartService {
             : product.status === ProductStatus.SOLD
               ? CartAvailability.SOLD
               : CartAvailability.AVAILABLE;
-      const source = displayable
+      const shop = displayable
         ? { id: product.shopId, name: product.shop.name }
         : null;
-      const key = source?.id ?? 'UNAVAILABLE';
+      const key = shop?.id ?? 'UNAVAILABLE';
       let group = groups.get(key);
       if (!group) {
-        group = { source, items: [] };
+        group = { shop, items: [] };
         groups.set(key, group);
       }
       group.items.push({

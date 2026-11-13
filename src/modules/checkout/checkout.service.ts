@@ -103,7 +103,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         order: { id: 'ASC' },
         lock: { mode: 'pessimistic_write' },
       });
-      // Keep source/category eligibility stable while taking the approved snapshot.
+      // Keep shop/category eligibility stable while taking the approved snapshot.
       for (const id of [
         ...new Set(
           products.map((p) => p.categoryId).filter((id): id is string => !!id),
@@ -128,7 +128,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       const saved = new Map(
         cartView.groups.flatMap((g) =>
           g.items.map(
-            (item) => [item.productId, { item, source: g.source }] as const,
+            (item) => [item.productId, { item, shop: g.shop }] as const,
           ),
         ),
       );
@@ -150,7 +150,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           !entry ||
           entry.item.availability !== 'AVAILABLE' ||
           !entry.item.product ||
-          !entry.source
+          !entry.shop
         ) {
           checkout.removedItems.push({
             productId,
@@ -158,17 +158,17 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           });
           continue;
         }
-        const source = entry.source;
+        const shop = entry.shop;
         const product = entry.item.product;
         const row = products.find((p) => p.id === productId)!;
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        const key = source.id;
+        const key = shop.id;
         let order = groups.get(key);
         if (!order) {
           order = manager.create(CheckoutOrder, {
-            shopId: source.id,
+            shopId: shop.id,
             address: snapshot,
             items: [],
             subtotal: 0,
