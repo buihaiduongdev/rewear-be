@@ -31,7 +31,7 @@ const addressSchema = z.object({
 });
 export const checkoutSchema = z.object({
   id: z.uuid(),
-  status: z.enum(['HELD', 'EMPTY', 'CANCELLED', 'EXPIRED']),
+  status: z.enum(['HELD', 'EMPTY', 'CANCELLED', 'EXPIRED', 'PAID']),
   expiresAt: dateTimeSchema.nullable(),
   holdSeconds: z.number().int(),
   removedItems: z.array(z.object({ productId: z.uuid(), reason: z.string() })),

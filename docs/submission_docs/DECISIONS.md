@@ -78,7 +78,7 @@ soạn hồ sơ nộp. Đây là ghi nhận trao đổi, không tự thay thế 
 | SHOP-MODEL-SESSION-01 | Đã chốt trong phiên | Mọi người bán, dù cá nhân hay doanh nghiệp/shop lớn, đều phải tạo shop và dùng chung mô hình code. Khác biệt tên gọi nghiệp vụ không tạo hai nguồn bán riêng; shop có thể chỉ có owner hoặc mời thêm staff tùy nhu cầu. Thay thế cách hiểu trước đó rằng tạo shop đồng nghĩa tài khoản doanh nghiệp. |
 | SHOP-VERIFY-SESSION-01 | Đã chốt trong phiên; làm rõ đối tượng xét duyệt | Admin xét duyệt đơn tạo shop; shop được duyệt mới được đăng bán. Không có bước admin duyệt riêng từng owner hoặc staff. |
 | SHOP-BANK-SESSION-01 | Đã chốt trong phiên | Bắt buộc khai báo tài khoản ngân hàng nhận tiền của Owner ngay trong đơn tạo shop. Không đợi đến lần rút tiền đầu tiên mới khai báo. |
-| SHOP-BANK-SESSION-02 | Đã chốt trong phiên | Shop có thể lưu nhiều tài khoản ngân hàng nhận tiền; thêm tài khoản mới bằng kiểm tra tự động qua API, không cần admin duyệt riêng. Chưa xác minh nhà cung cấp/API và mức kiểm tra số tài khoản, tên hoặc quyền sở hữu; không coi tích hợp này đã có trong code. |
+| SHOP-BANK-SESSION-02 | Đã cập nhật theo SHOP-BANK-MVP-01 | Shop có thể lưu nhiều tài khoản ngân hàng nhận tiền. Khi chưa có API phù hợp, MVP cho khai báo/kiểm tra định dạng và ghi Chưa xác minh; admin kiểm tra người nhận, lưu căn cứ trước chi. Thay yêu cầu bắt buộc kiểm tra tự động khi thêm tài khoản; adapter API là hướng bổ sung, không coi đã tích hợp. |
 | SHOP-BANK-SESSION-03 | Đã chốt trong phiên | Cho phép tài khoản ngân hàng nhận tiền khác tên Owner, miễn kiểm tra hợp lệ và Owner xác nhận sử dụng. Owner chịu trách nhiệm chọn đúng người nhận. |
 | SHOP-ROLE-SESSION-01 | Đã cập nhật; thay tên Shop Admin | Dùng các role dựng sẵn `OWNER`, `MANAGER`, `STAFF`. Owner là chủ sở hữu, đứng hồ sơ định danh/tài khoản nhận tiền và có toàn quyền trong shop. Manager và Staff hoạt động theo permission; Manager có thêm các permission quản lý shop so với Staff. Tiếp tục hỗ trợ role tùy chỉnh theo SHOP-RBAC-SESSION-03. |
 | SHOP-OWNER-SESSION-01 | Đã cập nhật; thay thế quyết định nhiều owner | Mỗi shop có một Owner duy nhất; có thể có nhiều Manager và Staff. |
@@ -116,9 +116,9 @@ không phải xác nhận code/API/DB đã triển khai hoặc đã nghiệm thu
 
 | ID | Quyết định |
 | --- | --- |
-| ACCOUNT-01 | Người dùng phải đăng ký seller và được admin duyệt trước khi được đăng bán cá nhân. |
-| ACCOUNT-02 | Chưa được duyệt seller thì chưa được tạo sản phẩm, kể cả bản nháp. |
-| SELLER-REG-01 | Đăng ký seller cá nhân bắt buộc cung cấp giấy tờ định danh để admin xét duyệt. |
+| ACCOUNT-01 | Theo SHOP-OWNER-KYC-01/SHOP-VERIFY-SESSION-01: người bán phải có Shop được admin duyệt; hồ sơ định danh Owner được xét trong đơn tạo Shop, không duyệt seller cá nhân riêng. Thay luồng đăng ký seller riêng trước đây. |
+| ACCOUNT-02 | Shop chưa được duyệt thì chưa được tạo sản phẩm, kể cả bản nháp; áp dụng yêu cầu duyệt tại ACCOUNT-01 thay trạng thái duyệt seller riêng cũ. |
+| SELLER-REG-01 | Bắt buộc cung cấp giấy tờ định danh Owner trong đơn tạo Shop để admin xét chung theo SHOP-OWNER-KYC-01; không yêu cầu bộ giấy tờ Owner cho Manager/Staff chỉ để tham gia Shop. |
 | SELLER-REG-02 | Chấp nhận CCCD/thẻ căn cước Việt Nam hoặc hộ chiếu. |
 | SELLER-REG-03 | Hồ sơ thông thường không bắt buộc selfie cầm giấy tờ, chỉ cần ảnh giấy tờ; ngoại lệ hồ sơ đáng ngờ theo SELLER-REG-21. |
 | SELLER-REG-04 | Với CCCD/thẻ căn cước, bắt buộc ảnh cả mặt trước và mặt sau. |
@@ -236,13 +236,14 @@ tiếp tục vi phạm sau ngày chuyển cấp bổ sung; không tự suy ra đ
 
 | ID | Quyết định |
 | --- | --- |
-| COMMISSION-01 | Seller cá nhân và shop có tỷ lệ riêng; tính trên tiền hàng trước giảm xu, không tính ship. |
+| COMMISSION-01 | Mọi Shop dùng chung tỷ lệ theo COMMISSION-04; tính trên tiền hàng trước giảm xu, không tính ship. Thay cách phân biệt tỷ lệ seller cá nhân/shop cũ theo mô hình Shop thống nhất. |
 | COMMISSION-02 | Giữ hàng hoàn một phần thì tính lại hoa hồng trên tiền hàng còn lại sau hoàn, theo tỷ lệ snapshot của giao dịch. |
 | COMMISSION-03 | Trả món và hoàn toàn bộ tiền hàng thì hủy toàn bộ hoa hồng món đó; món không hoàn giữ nguyên hoa hồng. |
-| COMMISSION-04 | Mức khởi tạo: seller cá nhân 5%, shop 3%. |
+| COMMISSION-04 | Mức khởi tạo chung cho mọi Shop là 3%, thay mức cũ seller cá nhân 5%/shop 3%; không cần phân loại cá nhân/doanh nghiệp chỉ để tính hoa hồng. |
 | COMMISSION-05 | Admin lên lịch thay đổi, thông báo trước. Tỷ lệ mới áp dụng checkout giữ hàng thành công từ thời điểm hiệu lực; lưu tỷ lệ khi giữ thành công, không hồi tố checkout cũ. |
 | COMMISSION-06 | Tăng hoa hồng phải báo trước tối thiểu 7 ngày liên tục. |
 | COMMISSION-07 | Giảm hoa hồng cũng phải báo trước tối thiểu 7 ngày liên tục; không áp dụng ngay hoặc sửa snapshot giao dịch cũ. |
+| COMMISSION-ROUND-01 | Tính hoa hồng riêng từng món theo tỷ lệ snapshot và làm tròn xuống đến đồng; tổng hoa hồng đơn bằng tổng phí từng món, sàn chịu phần lẻ. Khi giữ hàng hoàn một phần, tính lại theo cơ sở còn lại tại COMMISSION-02 và cùng cách làm tròn; hoàn toàn bộ món áp dụng COMMISSION-03. |
 | PAYMENT-FEE-01 | Sàn chịu phí cổng thanh toán; không thu thêm buyer hoặc khấu trừ seller. |
 
 ### Nguồn, thưởng và sử dụng xu
@@ -487,17 +488,143 @@ không phải quyết định người dùng hoặc bằng chứng chạy API):
 | WALLET-EXCESS-REVIEW-WINDOW-01 | Buyer có 7 ngày liên tục từ thông báo số tiền/giao dịch/căn cứ xác minh để gửi phản đối khoản phải hoàn trả. |
 | WALLET-EXCESS-REVIEW-SLA-01 | Admin xét phản đối trong 2 ngày làm việc: bỏ ngày nhận, hạn 17:00 ngày làm việc thứ hai theo giờ Việt Nam. Trong lúc xét vẫn dừng bù trừ. |
 | WALLET-EXCESS-REVIEW-COUNT-01 | Mỗi quyết định thu hồi được phản đối một lần, cần sai sót hoặc bằng chứng cụ thể; bổ sung khi admin yêu cầu trong cùng hồ sơ. Không thêm vòng xét lại mặc định. Admin vẫn sửa khi tự phát hiện sai, không giữ bút toán đã biết sai vì hết số lần phản đối. |
+| WALLET-EXCESS-PAYMENT-01 | Buyer được chủ động trả khoản tiền ví cộng thừa đã xác minh qua MoMo Sandbox, song song với bù trừ refund tương lai. Đây là thanh toán nghĩa vụ riêng, không phải nạp ví tự do; phải chống thu trùng giữa hai luồng. |
+| WALLET-EXCESS-PAYMENT-EXCESS-01 | Khi bù trừ đã thu đủ hoặc một phần rồi MoMo mới xác nhận thành công, giữ bút toán bù trừ và hoàn phần MoMo thu vượt về đúng nguồn MoMo. Chỉ hoàn phần dư, không thu hai lần cùng nghĩa vụ. |
+| WALLET-EXCESS-REVIEW-CANCEL-01 | Admin chấp nhận toàn bộ phản đối, xác nhận nghĩa vụ thu hồi sai: hủy nghĩa vụ và tự trả lại phần đã bù trừ vào ví, lưu lịch sử và thông báo buyer; không yêu cầu buyer gửi yêu cầu khác hoặc thêm bước admin duyệt trả riêng. |
+| WALLET-EXCESS-REVIEW-PARTIAL-01 | Admin chấp nhận một phần phản đối: điều chỉnh nghĩa vụ theo kết luận cuối, giữ phần đã thu hợp lệ và tự trả phần đã bù trừ vượt vào ví; nếu chưa thu đủ thì chỉ tiếp tục thu phần còn thiếu. Đủ nghĩa vụ sau điều chỉnh thì đóng khoản phải trả. |
+| WALLET-EXCESS-PAYMENT-PENDING-01 | MoMo đang xử lý/chưa rõ kết quả không làm dừng bù trừ từ refund mới; nếu MoMo sau đó thành công thì hoàn phần thu dư theo WALLET-EXCESS-PAYMENT-EXCESS-01. Không ghi đã trả khi chưa xác minh thành công. Nếu khoản nghĩa vụ đang được xét phản đối, vẫn tạm dừng bù trừ theo WALLET-EXCESS-REVIEW-HOLD-01. |
+| WALLET-EXCESS-PAYMENT-MIN-01 | Khoản buyer phải hoàn trả dưới ngưỡng tối thiểu của luồng MoMo tích hợp vẫn được ghi nhận, chờ bù trừ refund tương lai hoặc gộp các khoản đã xác minh của cùng buyer đến đủ ngưỡng. Không thu vượt nghĩa vụ để đủ ngưỡng; ngưỡng cụ thể cần xác minh API. |
+| WALLET-EXCESS-REFUND-PENDING-01 | Hoàn phần MoMo thu dư bị lỗi hoặc chưa rõ kết quả: hiển thị đang hoàn tiền, tự tra soát, chỉ thử lại khi xác định an toàn và cảnh báo admin nếu chưa giải quyết được. Buyer không phải yêu cầu lại; phải tránh hoàn trùng và chỉ báo thành công khi xác minh được. |
+| WALLET-EXCESS-REFUND-ALERT-01 | Cảnh báo admin ngay khi refund MoMo có lỗi xác định; nếu chỉ đang chờ hoặc chưa rõ kết quả thì cảnh báo sau 30 phút. Đây là mục tiêu phát hiện/chuyển xử lý của Rewear, không phải cam kết thời hạn MoMo hoàn tất. |
+| WALLET-EXCESS-REFUND-RESPONSE-01 | Admin tiếp nhận và cập nhật hướng xử lý trong 4 giờ liên tục từ cảnh báo refund MoMo, kể cả ngoài giờ/cuối tuần. Phản hồi nêu tình trạng, việc đã kiểm tra và mốc cập nhật tiếp; không đồng nghĩa phải hoàn tất hoàn tiền trong 4 giờ. |
+| WALLET-EXCESS-PURCHASE-01 | Buyer còn nghĩa vụ hoàn trả tiền ví cộng thừa đã xác minh vẫn được mua bình thường; hệ thống nhắc nghĩa vụ và tiếp tục thu qua MoMo/bù trừ theo quy tắc đã chốt. Không chặn checkout hoặc dùng ví chỉ vì còn nghĩa vụ này; vi phạm cố ý có bằng chứng được xử lý theo quy trình riêng, không mặc định từ khoản phải trả. |
+| WALLET-EXCESS-REVIEW-MOMO-REFUND-01 | Nghĩa vụ thu hồi bị xác nhận sai sau khi buyer đã trả MoMo: hủy nghĩa vụ và tự tạo yêu cầu hoàn phần MoMo đã thu về đúng nguồn MoMo, theo dõi đến khi xác minh thành công. Nếu thu bằng cả MoMo và bù trừ ví thì trả từng phần về đúng nguồn đã thu; áp dụng xử lý refund lỗi/chưa rõ kết quả và chống hoàn trùng. |
+| WALLET-EXCESS-REVIEW-PAYMENT-HOLD-01 | Trong lúc admin xét phản đối, khóa tạo thanh toán MoMo mới cho đúng khoản đang xét; mở lại nếu kết luận vẫn còn nghĩa vụ. Không ảnh hưởng quyền mua hàng bình thường hoặc nghĩa vụ khác. |
+| WALLET-EXCESS-REVIEW-INFLIGHT-01 | Giao dịch MoMo đã mở trước phản đối mà xác nhận thành công trong lúc xét: ghi nhận tiền thực thu và giữ chờ kết luận, không hủy phản đối. Kết luận không phải trả thì hoàn, còn phải trả thì dùng khoản này tất toán theo số tiền hợp lệ; không thu thêm phần đã được khoản tiền này bảo đảm trong lúc xét. |
+| WALLET-EXCESS-DUE-01 | Không đặt hạn bắt buộc tất toán khoản tiền ví cộng thừa; nhắc trên trang ví, cho chủ động trả MoMo và bù trừ refund tương lai. Không tự chặn mua vì nghĩa vụ này tồn tại lâu. |
+| WALLET-EXCESS-ALLOCATION-01 | Có nhiều nghĩa vụ đủ điều kiện bù trừ thì ưu tiên khoản được xác minh trước, hết khoản đó mới đến khoản kế tiếp. Bỏ qua khoản đang xét phản đối, không thu vượt số còn thiếu và ghi rõ refund được phân bổ vào từng khoản bao nhiêu. |
+| WALLET-EXCESS-REVIEW-OVERDUE-01 | Admin quá hạn 2 ngày làm việc chưa kết luận phản đối: tiếp tục dừng thu khoản đang xét, ghi nhận vi phạm SLA, thông báo buyer và cảnh báo người phụ trách admin để xử lý tiếp. Không tự chấp nhận hoặc bác phản đối chỉ vì quá hạn; buyer vẫn mua bình thường. |
+| WALLET-EXCESS-REVIEW-ESCALATION-01 | Người phụ trách admin cập nhật hướng xử lý trong 1 ngày làm việc từ cảnh báo quá hạn xét phản đối: bỏ ngày nhận, hạn 17:00 ngày làm việc kế tiếp. Nêu lý do chậm, người tiếp nhận và mốc cập nhật tiếp; đây là hạn cập nhật, không tự gia hạn hoặc thay thế SLA ra kết luận ban đầu. |
+| WALLET-EXCESS-REVIEW-WITHDRAW-01 | Buyer rút phản đối trước kết luận phải xác nhận rõ; đóng hồ sơ phản đối và khôi phục thu theo nghĩa vụ hiện tại. Khoản MoMo giữ chờ được dùng tất toán trước, chỉ thu thêm phần thiếu, không thu trùng. Admin vẫn sửa khi phát hiện nghĩa vụ sai sau đó. |
+| PAYMENT-MOMO-SCOPE-01 | MVP chỉ tích hợp ví MoMo Sandbox qua luồng thanh toán một lần, không bổ sung ATM hoặc phương thức con khác qua MoMo. COD và ví hoàn tiền Rewear giữ phạm vi đã chốt. Đây là phạm vi tích hợp, chưa xác nhận API đã triển khai hoặc kiểm thử thành công. |
+| PAYMENT-RETRY-01 | Lần MoMo trước đã xác minh thất bại và không thu tiền thì buyer được tạo lần thanh toán mới trong cùng checkout còn hạn. Theo dõi riêng từng lần và giữ nguyên deadline giữ hàng ban đầu. |
+| PAYMENT-UNKNOWN-01 | MoMo timeout/chưa rõ có thu tiền hay chưa thì tạm chặn tạo lần thanh toán mới và tra soát lần cũ. Chỉ mở lại khi xác minh thất bại/không thu tiền và checkout còn hạn; chờ tra soát không gia hạn giữ hàng. Tiền đến muộn áp dụng PAYMENT-LATE-01. |
+| PAYMENT-METHOD-SWITCH-01 | Sau khi MoMo đã xác minh thất bại và không thu tiền, buyer được đổi sang phương thức khác cho toàn bộ checkout còn hạn nếu đủ điều kiện. Kiểm tra lại tổng tiền và yêu cầu buyer xác nhận, không gia hạn deadline. Không đổi khi giao dịch trước chưa rõ kết quả. |
+| PAYMENT-DUPLICATE-01 | Nhiều lần MoMo của cùng checkout được xác minh thành công: giữ giao dịch đã dùng xác nhận checkout và tự hoàn toàn bộ lần thu dư về đúng nguồn MoMo; không tạo thêm đơn hoặc cộng tiền dư vào ví Rewear. Checkout hết hạn chưa ghi nhận thanh toán hợp lệ áp dụng PAYMENT-LATE-01. |
+| PAYMENT-AMOUNT-MISMATCH-01 | Xác minh MoMo thực thu khác tổng checkout thì không công nhận giao dịch đó thanh toán checkout; hoàn toàn bộ khoản đã thu về đúng nguồn MoMo và cảnh báo admin. Chỉ xác nhận thanh toán khi khớp số tiền và checkout còn hiệu lực, không gia hạn giữ hàng. |
+| PAYMENT-AMOUNT-MISMATCH-RETRY-01 | Sau khi giao dịch sai tiền đã được xác minh và tạo yêu cầu hoàn, buyer được thanh toán lại đúng tổng nếu checkout còn hạn, không phải chờ tiền hoàn về. Hiển thị rõ số tiền đang hoàn và yêu cầu buyer xác nhận trước khi tiếp tục; theo dõi riêng giao dịch mới và khoản hoàn cũ. |
+| PAYMENT-ATTEMPT-LIMIT-01 | Mỗi checkout tạo tối đa 3 lần thanh toán MoMo, tính cả lần đầu. Gửi lại cùng yêu cầu do mạng chậm không tính thành lần mới. Không tạo các lần thanh toán chưa rõ kết quả song song; vẫn theo dõi giao dịch/refund đang xử lý khi đạt giới hạn. |
+| PAYMENT-ATTEMPT-LIMIT-SWITCH-01 | Cả 3 lần MoMo đều đã xác minh thất bại và không thu tiền: chỉ khóa tạo MoMo mới cho checkout đó, vẫn cho đổi toàn bộ checkout sang ví Rewear hoặc COD nếu đủ điều kiện và còn hạn. Không tự nhả hàng hoặc gia hạn deadline chỉ vì đạt giới hạn. |
+| PAYMENT-CHECKOUT-CANCEL-PENDING-01 | Buyer được hủy checkout khi MoMo chưa rõ kết quả sau khi xác nhận cảnh báo; nhả hàng, tiếp tục tra soát giao dịch cũ. Xác minh đã thu tiền thì hoàn về đúng nguồn MoMo, không khôi phục checkout. Hủy checkout không đồng nghĩa đã hủy giao dịch tại MoMo; theo dõi đến kết quả cuối. |
+| PAYMENT-AMOUNT-RANGE-01 | Tổng checkout ngoài khoảng tiền luồng MoMo cho phép thì khóa lựa chọn MoMo và giải thích lý do; vẫn cho ví Rewear hoặc COD nếu đủ điều kiện. Muốn dùng MoMo thì buyer điều chỉnh giỏ và tạo checkout mới. Không làm tròn tăng tiền hoặc tự chia giao dịch; ngưỡng cụ thể cần xác minh API. |
+| PAYMENT-COIN-ADJUST-01 | Buyer được chủ động giảm số xu sử dụng để tổng cần thanh toán đạt ngưỡng MoMo; tính lại tổng và yêu cầu xác nhận, không gia hạn giữ hàng. Không tự giảm số xu thay buyer. |
+| PAYMENT-COIN-PENDING-LOCK-01 | Đã mở MoMo mà chưa rõ kết quả thì khóa thay đổi số xu, giữ nguyên số tiền checkout khớp giao dịch đang xử lý. Chỉ mở lại khi giao dịch cũ xác minh thất bại/không thu tiền và checkout còn hạn; buyer vẫn được hủy checkout theo PAYMENT-CHECKOUT-CANCEL-PENDING-01. |
+| PAYMENT-REFUND-OPERATIONS-01 | Refund MoMo do tiền đến muộn, checkout đã hủy, thu trùng hoặc thu sai số tiền dùng chung quy trình WALLET-EXCESS-REFUND-PENDING/ALERT/RESPONSE-01: tự tra soát/thử lại an toàn, chỉ báo hoàn tất khi xác minh, lỗi xác định cảnh báo ngay, chưa rõ kết quả cảnh báo sau 30 phút, admin phản hồi trong 4 giờ liên tục. Các mốc là mục tiêu vận hành Rewear, không phải thời hạn MoMo bảo đảm hoàn tất. |
+| SELLER-IDENTITY-ORDER-UNSHIPPED-01 | Owner bị kết luận giả mạo danh tính: hủy đơn của Shop đã thanh toán nhưng chưa bàn giao hãng vận chuyển và hoàn buyer theo quy tắc hủy đơn đã chốt. Áp dụng khi đã có kết luận, không phải mới nghi ngờ. |
+| SELLER-IDENTITY-ORDER-INTRANSIT-01 | Đơn đã bàn giao đang vận chuyển: yêu cầu hãng chặn giao/chuyển hoàn nếu còn khả thi, thông báo buyer và giữ khóa tiền seller. Chỉ ghi kết quả theo xác nhận thực tế của hãng; gửi yêu cầu không đồng nghĩa đã chặn/chuyển hoàn thành công. |
+| SELLER-IDENTITY-DELIVERY-CHOICE-01 | Hãng không chặn kịp và kiện vẫn đến: thông báo rủi ro, buyer được từ chối nhận hoặc giữ hàng. Từ chối vì tình huống này không bị tính lỗi COD; giữ hàng vẫn có quyền bảo vệ và khiếu nại. |
+| SELLER-IDENTITY-SHIPPING-COST-01 | Shop chịu chi phí vận chuyển thực tế đã xác minh phát sinh do dừng đơn vì Owner giả mạo; không thu buyer. Tách riêng chi phí do lỗi hãng hoặc hệ thống, không mặc định quy mọi chi phí cho Shop. |
+| SELLER-IDENTITY-FUND-PRIORITY-01 | Ưu tiên bảo đảm đủ khoản hoàn buyer trước khi thu cước Shop chịu. Cước lấy từ phần tiền Shop còn lại được phép sử dụng; thiếu ghi nghĩa vụ riêng. Không dùng khoản cần hoàn buyer trả cước hoặc giữ refund buyer chờ Shop trả phí. |
+| SELLER-IDENTITY-KEPT-ORDER-FUNDS-01 | Buyer chọn giữ hàng, đã hết 72 giờ và không còn tranh chấp: admin đối soát đơn và nghĩa vụ liên quan, xác định phần doanh thu hợp lệ được chuyển vào số dư Shop. Không mặc định tịch thu toàn bộ; quyền rút tiền được xét riêng. |
+| SELLER-IDENTITY-PAYOUT-01 | Tạm chặn rút tiền thông thường của Shop có Owner bị kết luận giả mạo. Admin xác minh người có quyền nhận và tài khoản nhận tiền trước khi chi trả phần đủ điều kiện; không tự coi tài khoản ngân hàng đã đăng ký là đủ căn cứ sau kết luận giả mạo. |
+| SELLER-IDENTITY-SHOP-RESTRICTION-01 | Dừng bán mới toàn Shop có Owner bị kết luận giả mạo. Manager/Staff không liên quan vẫn xử lý đơn cũ theo quyền, không được dùng vai trò khác để tiếp tục bán mới. Trách nhiệm cá nhân từng thành viên phải dựa trên bằng chứng riêng. |
+| SELLER-IDENTITY-OWNER-TRANSFER-01 | Không khôi phục Shop có Owner bị kết luận giả mạo bằng cách đổi Owner. Người không liên quan muốn bán phải đăng ký Shop mới và được duyệt riêng; nghĩa vụ và lịch sử Shop cũ vẫn giữ. Việc sửa kết luận giả mạo sai qua khiếu nại là trường hợp riêng còn cần chốt. |
+| SELLER-IDENTITY-APPEAL-WINDOW-01 | Khiếu nại kết luận giả mạo danh tính không giới hạn thời gian, nhưng phải nêu sai sót cụ thể hoặc bằng chứng mới. Đây là khiếu nại định danh, không thay thời hạn phản đối phí/tranh chấp đơn hàng. Số lần, xét trùng và quy trình xử lý cần chốt tiếp. |
+| SELLER-IDENTITY-APPEAL-SLA-01 | Admin xét khiếu nại định danh trong tối đa 5 ngày làm việc từ khi hồ sơ đủ thông tin và bằng chứng bắt buộc để tiếp nhận. Đây là mục tiêu quy trình, chưa xác nhận đã triển khai hoặc kiểm thử. |
+| SELLER-IDENTITY-APPEAL-SUPPLEMENT-CLOCK-01 | Yêu cầu bổ sung bằng chứng cần thiết phải nêu rõ cần gì và lý do. Tạm dừng đồng hồ xét khi gửi yêu cầu cụ thể; nhận đủ bổ sung thì tiếp tục thời gian còn lại của hạn 5 ngày, không bắt đầu lại toàn bộ hạn. |
+| SELLER-IDENTITY-APPEAL-SUPPLEMENT-WINDOW-01 | Người khiếu nại có 7 ngày liên tục từ yêu cầu để bổ sung. Quá hạn đóng hồ sơ vì thiếu bổ sung, vẫn được gửi lại khi đủ bằng chứng. Đóng vì thiếu bổ sung không đồng nghĩa đã xét và bác nội dung khiếu nại. |
+| SELLER-IDENTITY-APPEAL-REVIEWER-01 | Khiếu nại định danh do admin khác người ra kết luận ban đầu xét; người ra kết luận ban đầu cung cấp hồ sơ và giải trình, không tự quyết kết quả xét lại. |
+| SELLER-IDENTITY-APPEAL-RESTORE-01 | Xét lại xác nhận Owner không giả mạo: gỡ các hạn chế do kết luận sai và cho Shop cũ hoạt động lại nếu không còn hạn chế khác, lưu lịch sử đính chính. Không tự khôi phục đơn đã hủy hoặc tự thu lại tiền đã hoàn. Đây là sửa kết luận sai, khác việc đổi Owner để mở lại khi kết luận giả mạo còn hiệu lực. |
+| SELLER-IDENTITY-APPEAL-REPEAT-01 | Sau khi khiếu nại đã được xét và bác, chỉ tiếp nhận lại khi có bằng chứng mới hoặc chỉ ra sai sót cụ thể chưa được giải quyết. Nội dung lặp dẫn về kết quả cũ, không mở hồ sơ mới; giữ quyền gửi căn cứ mới không giới hạn thời gian. |
+| SELLER-IDENTITY-APPEAL-OVERDUE-01 | Quá SLA xét khiếu nại định danh: giữ các hạn chế hiện tại, ghi nhận vi phạm SLA, thông báo người khiếu nại và cảnh báo người phụ trách. Cập nhật hướng xử lý trong 1 ngày làm việc theo cách tính đã chốt ở WALLET-EXCESS-REVIEW-ESCALATION-01. Không tự chấp nhận hoặc bác khiếu nại do quá hạn. |
+| WALLET-COIN-COMBINE-01 | Buyer được dùng xu rồi trả toàn bộ phần còn lại bằng ví Rewear; kiểm tra số dư ví đủ tổng sau giảm xu, bao gồm phí ship. Không phải ghép ví với MoMo, không yêu cầu ví đủ tổng trước giảm xu. |
+| COIN-ALLOCATION-ORDER-01 | Phần xu buyer chọn dùng được phân bổ theo tỷ lệ tiền hàng từng Shop/order trong checkout, không phân bổ vào phí ship. Xác nhận lại quy tắc tỷ trọng của COIN-SESSION-02. |
+| COIN-ALLOCATION-ROUND-01 | Làm tròn xuống số xu phân bổ từng đơn, rồi chia xu dư lần lượt cho đơn có phần thập phân lớn nhất; bằng nhau dùng thứ tự đơn cố định để tính lại cùng kết quả. Tổng phân bổ đúng số xu đã chọn, không giữ xu lẻ. |
+| COIN-ALLOCATION-ITEM-01 | Trong mỗi order, chia xu theo tỷ lệ giá từng món, phần lẻ theo COIN-ALLOCATION-ROUND-01. Lưu cố định tại thanh toán; không phân bổ lại sang món khác khi có trả hàng. Dùng snapshot này đối chiếu tiền/xu từng món, không tự thay đổi quy tắc hoàn đã chốt. |
+| COIN-PROGRAM-REQUIRED-01 | Mọi lần admin cấp xu khuyến mại phải thuộc chương trình đã tạo, có lý do, đối tượng và ngân sách. Không cấp khuyến mại trực tiếp ngoài chương trình. Sửa bút toán cấp xu sai là luồng điều chỉnh riêng, không coi là cấp khuyến mại mới. |
+| COIN-PROGRAM-AUTHORITY-01 | Người có quyền quản lý chương trình được tự tạo và kích hoạt chương trình xu, không cần admin khác duyệt. Bắt buộc lưu lịch sử và áp dụng giới hạn ngân sách. |
+| COIN-PROGRAM-BUDGET-EXCEED-01 | Lượt cấp xu vượt ngân sách còn lại bị từ chối toàn bộ; báo ngân sách còn lại để admin điều chỉnh danh sách hoặc ngân sách và xác nhận lại. Không tự chọn người được nhận hoặc giảm mức cấp. |
+| COIN-PROGRAM-BUDGET-EDIT-01 | Cho tăng/giảm ngân sách chương trình đang hoạt động nhưng không thấp hơn số đã cấp và phần đang giữ cho lượt cấp đã xác nhận. Bắt buộc lý do và lịch sử; chỉ sửa phần chưa cam kết, không tự thu hồi xu đã cấp. |
+| COIN-PROGRAM-EXPIRY-IMMUTABLE-01 | Không sửa hạn sử dụng của xu đã cấp, kể cả gia hạn. Muốn hỗ trợ thêm thì cấp qua chương trình khác, không thay đổi khoản xu cũ; sửa bút toán cấp sai là luồng riêng. |
+| COIN-PROGRAM-RECIPIENT-LIMIT-01 | Mỗi tài khoản chỉ được nhận một lần trong cùng chương trình; chặn cấp trùng ở các đợt sau. Thử lại cùng yêu cầu do lỗi mạng không tạo thêm lần cấp. |
+| COIN-PROGRAM-STOP-01 | Dừng chương trình chỉ dừng cấp mới; xu đã cấp hợp lệ giữ nguyên giá trị và hạn sử dụng. Cấp sai/gian lận có bằng chứng xử lý theo luồng riêng, không dùng dừng chương trình để thu hồi quyền lợi hợp lệ. |
+| COIN-PROGRAM-MISTAKE-01 | Admin xác minh khoản cấp nhầm rồi thu phần xu cấp thừa còn khả dụng. Phần buyer đã dùng do sàn chịu nếu không có bằng chứng buyer gian lận; không tạo khoản nợ tiền/xu từ lỗi cấp khuyến mại này. Lưu sai sót và chi phí, gian lận xét riêng. |
+| COIN-PROGRAM-MISTAKE-HELD-01 | Xu cấp nhầm đang giữ cho checkout chưa thanh toán: không sửa/hủy checkout để thu hồi. Thanh toán thành công thì sàn chịu phần đã dùng; hủy/hết hạn thì thu hồi phần xu thừa được nhả trước khi trả về khả dụng, không tự thay đổi số tiền giao dịch MoMo đang xử lý. |
+| COIN-PROGRAM-BUDGET-BASIS-01 | Ngân sách chương trình là trần tổng xu đã cấp; xu hết hạn hoặc thu hồi không tự mở lại ngân sách. Muốn cấp thêm phải tăng ngân sách và ghi lý do. Báo cáo riêng xu đã cấp, đã dùng, hết hạn và thu hồi; chi phí thực dùng thống kê riêng. |
+| DISPUTE-MISSING-ITEM-EVIDENCE-01 | Tiếp nhận khiếu nại thiếu món không bắt buộc video unbox nếu buyer xác định món thiếu, có ảnh kiện/nhãn và các món đã nhận. Yêu cầu seller cung cấp bằng chứng đóng gói, đối chiếu thêm dữ liệu hãng nếu có. Tiếp nhận không đồng nghĩa chấp thuận refund. |
+| SELLER-PACKING-EVIDENCE-01 | Shop phải lưu ảnh thấy đủ các món và ảnh kiện đã đóng gắn với mã vận đơn cho mỗi kiện; video khuyến khích, không bắt buộc. Bằng chứng đóng gói phải đối chiếu với hồ sơ khác, không tự chứng minh buyer nhận đủ. |
+| SELLER-PACKING-UPLOAD-01 | Bắt buộc tải ảnh đóng gói lên Rewear trước khi xác nhận sẵn sàng bàn giao. Nếu hãng đã lấy hàng thực tế thì vẫn ghi nhận đúng trạng thái và đánh dấu thiếu bằng chứng; không tự kết luận Shop giao thiếu vì thiếu ảnh. |
+| DISPUTE-MISSING-ITEM-INCONCLUSIVE-01 | Hai bên hợp tác nhưng hết hạn vẫn không đủ căn cứ chứng minh thiếu món: không buộc Shop hoàn tiền, admin nêu rõ lý do và quyền yêu cầu xét lại theo quy tắc đã chốt khi có bằng chứng mới. Không mặc định gian lận; hai bên vẫn có thể tự nguyện thỏa thuận trong hồ sơ. |
+| DISPUTE-TRANSIT-DAMAGE-EVIDENCE-01 | Tiếp nhận hư hỏng vận chuyển với ảnh/video tình trạng kiện, nhãn vận đơn, phần hàng hỏng và mô tả lúc phát hiện; biên bản bưu tá nếu có, không bắt buộc video unbox hoặc biên bản tại lúc giao. Admin đối chiếu cách đóng gói/dữ liệu hãng trước khi quy trách nhiệm. |
+| RETURN-HANDOVER-WINDOW-01 | Buyer có 5 ngày liên tục để bàn giao kiện trả, từ khi quyết định trả hàng có hiệu lực cuối cùng và đã có hướng dẫn/nhãn trả hợp lệ. Đây là hạn bàn giao, không phải hạn hàng về tới Shop; chưa có cách trả hợp lệ do hệ thống/hãng thì chưa bắt đầu tính. |
+| RETURN-SELLER-FAULT-SHIPPING-01 | Seller giao sai hoặc có lỗi không mô tả: Shop chịu cước trả tiêu chuẩn thực tế đã xác minh, sàn tổ chức nhãn/lấy hàng để buyer không phải ứng phí. Dịch vụ thêm buyer tự chọn cần thỏa thuận riêng; không mặc định Shop chịu mọi chi phí tự phát sinh. |
+| RETURN-HANDOVER-EXPIRED-01 | Buyer không bàn giao trong hạn dù có cách trả hợp lệ và không có trở ngại được xác minh: thông báo hết hạn, đóng phần yêu cầu trả hàng hoàn tiền chưa thực hiện. Xử lý tiền theo kết luận/các vấn đề còn lại, không tự coi đã trả hoặc mở tiền khi còn vấn đề khác. |
+| RETURN-HANDOVER-OBSTACLE-01 | Buyer sẵn sàng trả đúng hạn nhưng có trở ngại hãng/hệ thống được xác minh: tạm dừng từ mốc trở ngại đã xác minh. Có cách trả hoạt động lại thì tiếp tục thời gian còn lại, tối thiểu 24 giờ để bàn giao. Buyer báo sự cố kèm căn cứ, admin đối chiếu lịch lấy/trạng thái hãng/trao đổi. |
+| RETURN-SELLER-INSPECTION-01 | Shop có 2 ngày làm việc từ mốc hãng giao kiện trả cho Shop đã xác minh để báo vấn đề hàng trả kèm bằng chứng. Hết hạn không phản đối thì điều kiện nhận hàng trả được đáp ứng; phản đối có bằng chứng chuyển admin xét, không tự cho Shop quyền bác refund. |
+| RETURN-INSPECTION-DISPUTE-SLA-01 | Shop phản đối kiện trả đúng hạn kèm bằng chứng thì admin xét trong 3 ngày làm việc; vụ phức tạp được gia hạn một lần, tối đa tổng 5 ngày, phải thông báo lý do. Đây là xét vấn đề mới về kiện trả, không tự mở lại kết luận lỗi hàng ban đầu. |
+| RETURN-BUYER-PACKING-EVIDENCE-01 | Buyer phải tải trước bàn giao ảnh món trả, phụ kiện liên quan và kiện đã đóng gắn với mã vận đơn trả; video khuyến khích. Thiếu ảnh ghi nhận thiếu bằng chứng, không tự chứng minh buyer trả sai. |
+| RETURN-SELLER-OBJECTION-EVIDENCE-01 | Shop báo nhận sai/thiếu hàng trả không bắt buộc video mở kiện; cần ảnh/video kiện, nhãn trả, hàng thực nhận và mô tả sai khác. Đối chiếu toàn bộ hồ sơ, video rõ là bằng chứng mạnh nhưng không tự quyết định Shop thắng. |
+| RETURN-SELLER-OBJECTION-INCONCLUSIVE-01 | Shop nhận kiện và phản đối đúng hạn nhưng đối chiếu vẫn không đủ căn cứ chứng minh buyer trả sai/thiếu: không chấp nhận phản đối và tiếp tục refund theo quyết định trả hàng có hiệu lực. Không giữ tiền vô thời hạn hoặc tự bồi hoàn Shop từ ngân sách sàn. |
+| RETURN-BUYER-FAULT-PARTIAL-01 | Xác minh buyer có lỗi với một phần hàng trả: xử lý riêng từng món, món trả đúng vẫn refund; admin điều chỉnh phần refund món có lỗi theo lỗi và thiệt hại đã xác minh. Không từ chối toàn kiện hoặc mặc định lỗi hãng chiều trả là lỗi buyer. |
+| RETURN-CARRIER-LOSS-BUYER-REFUND-01 | Buyer bàn giao trả đúng quy trình, tổn thất kiện trả được xác minh thuộc hãng: thực hiện refund theo quyết định, không chờ hãng bồi thường. Hồ sơ quyền lợi Shop xử lý riêng; không tự coi giao chậm là thất lạc. |
+| RETURN-CARRIER-COMPENSATION-01 | Sàn làm hồ sơ bồi thường kiện trả cho Shop, chỉ ghi nhận mức/điều kiện hãng xác nhận và chi phần đã thực nhận hoặc đối soát hợp lệ. Không tự ứng hoặc bảo đảm bù đủ giá bán; áp dụng nguyên tắc bồi thường hãng đã chốt, điều kiện thực tế phải xác minh/công bố. |
+| RETURN-SELLER-REFUSAL-01 | Shop từ chối kiện trả hợp lệ không có lý do chính đáng: admin xác minh, công nhận buyer hoàn thành nghĩa vụ trả, thực hiện refund và tổ chức xử lý kiện. Shop chịu chi phí tăng thêm do từ chối. Địa chỉ sai/giao sai người/kiện bất thường phải xét nguyên nhân riêng. |
+| RETURN-WAIVER-01 | Miễn trả khi Shop đồng ý hoặc admin xác minh hàng không an toàn/không phù hợp vận chuyển. Chỉ vì cước trả cao thì cần Shop đồng ý. Quyết định miễn trả vì an toàn phải nêu hướng dẫn xử lý hàng và bằng chứng thực hiện, không tự miễn chỉ vì buyer yêu cầu. |
+| REFUND-FUNDS-SHORTFALL-01 | Refund đã có hiệu lực cuối và đủ điều kiện nhưng tiền đang giữ của đơn không đủ: sàn ứng phần thiếu để hoàn đủ buyer, ghi khoản phải thu đúng bên chịu trách nhiệm. Không thu trùng hoặc trừ nguồn không liên quan. Đây là ứng refund buyer, không đồng nghĩa ứng doanh thu/bồi thường Shop. |
+| RATING-ELIGIBILITY-01 | Buyer được đánh giá Shop khi có ít nhất một đơn đã giao thành công được xác minh, kể cả sau đó có tranh chấp/trả hàng. Đơn hủy trước giao không tạo quyền đánh giá; báo cáo vi phạm là luồng riêng. |
+| RATING-EDIT-01 | Buyer được sửa đánh giá bất kỳ lúc nào, lưu lịch sử và thời điểm cập nhật; đánh giá gắn đơn đủ điều kiện làm căn cứ. Mở rộng quy tắc cũ chỉ cập nhật khi mua lại, không tạo thêm đánh giá cho cùng buyer/Shop. |
+| RATING-SHOP-REPLY-01 | Shop có một phản hồi công khai mỗi đánh giá, người có quyền riêng được sửa và lưu lịch sử; không mặc định mọi Staff đều có quyền. Buyer sửa đánh giá thì báo Shop, không tự xóa phản hồi. Không mở chuỗi bình luận qua lại. |
+| RATING-MODERATION-01 | Admin ẩn phần chữ/ảnh/video vi phạm, giữ sao nếu đánh giá từ giao dịch thật còn hợp lệ. Chỉ loại toàn bộ khỏi điểm khi xác minh không hợp lệ/gian lận, lưu lý do. Áp dụng kiểm duyệt nội dung tương tự cho phản hồi Shop; đánh giá thấp đơn thuần không phải lý do ẩn. Shop không tự sửa sao/xóa đánh giá buyer. |
+| RATING-DELETE-01 | Buyer không được tự xóa đánh giá, chỉ sửa hoặc nhờ admin ẩn khi có lý do. Không coi quyền sửa không giới hạn là quyền tự gỡ toàn bộ đánh giá. |
+| PAYOUT-CONCURRENCY-01 | Mỗi Shop chỉ có một yêu cầu rút tiền đang xử lý; phải kết thúc hoặc hủy hợp lệ trước khi tạo tiếp. Không gộp/thêm tiền vào yêu cầu hiện tại. |
+| PAYOUT-CANCEL-01 | Owner chỉ tự hủy yêu cầu còn Chờ xử lý; admin bắt đầu xử lý thì khóa hủy. Hủy hợp lệ nhả đúng tiền đã khóa về khả dụng, lưu lịch sử/thông báo. Chuyển khoản chưa rõ kết quả tiếp tục giữ tiền để đối soát. |
+| PAYOUT-SLA-01 | Yêu cầu rút hợp lệ phải được xử lý trong 2 ngày làm việc từ khi gửi với tài khoản hợp lệ và khóa số dư thành công. Hoàn thành là chuyển thành công đã xác minh hoặc từ chối có lý do, không chỉ đổi sang Đang xử lý. Sự cố ngân hàng chưa rõ kết quả phải thông báo riêng. |
+| PAYOUT-BANK-SNAPSHOT-01 | Lưu cố định thông tin tài khoản nhận đã chọn trong yêu cầu rút; sửa/xóa tài khoản hồ sơ hoặc đổi mặc định không đổi lệnh cũ. Muốn đổi đích nhận phải hủy hợp lệ và tạo lại. Tài khoản bị phát hiện không hợp lệ/rủi ro thì admin dừng chi có lý do, không chuyển chỉ vì đã snapshot. |
+| PAYOUT-TRANSFER-FAILED-01 | Xác minh ngân hàng chuyển thất bại, tiền chưa rời sàn và không có khoản chi đang treo: đánh dấu thất bại, ghi lý do, nhả tiền về khả dụng. Owner tạo yêu cầu mới sau khi sửa thông tin nếu cần; không tự đổi đích nhận hoặc tự chuyển lại lệnh cũ. Timeout chưa đủ căn cứ nhả tiền. |
+| PAYOUT-TRANSFER-FEE-01 | Sàn chịu phí chuyển khoản rút tiền, Shop nhận đủ số tiền yêu cầu rút; không phát sinh khấu trừ phí chuyển khoản ngoài các nghĩa vụ đã công bố. |
+| PAYOUT-OVERDUE-01 | Quá hạn 2 ngày làm việc chưa có kết quả cuối: ghi nhận quá SLA, thông báo Owner, cảnh báo người phụ trách và cập nhật hướng xử lý trong 1 ngày làm việc. Không tự hủy/nhả tiền khi đã bắt đầu chuyển hoặc chưa rõ kết quả. Lệnh còn Chờ xử lý vẫn được Owner tự hủy theo PAYOUT-CANCEL-01. |
+| PAYOUT-SUCCESS-EVIDENCE-01 | Admin xác nhận đã chi khi có kết quả giao dịch ngân hàng thành công, đối chiếu đúng số tiền và tài khoản nhận snapshot; lưu mã giao dịch, thời điểm, biên lai. Không bắt Owner xác nhận mới đóng lệnh. Owner báo chưa nhận thì mở sự cố đối soát riêng, không tự chuyển thêm lần nữa. |
+| SHOP-OWNER-KYC-01 | Hồ sơ định danh Owner nằm ngay trong đơn tạo Shop, áp dụng yêu cầu giấy tờ/tuổi/kiểm tra danh tính đã chốt để xét chung. Không có bước duyệt seller riêng; Manager/Staff không phải nộp bộ giấy tờ Owner chỉ để tham gia Shop. Làm rõ cách chuyển các quy tắc đăng ký seller cũ sang mô hình Shop thống nhất. |
+| CHECKOUT-CONCURRENCY-01 | Mỗi buyer chỉ có 1 checkout đang giữ hàng; muốn tạo mới phải hoàn tất, hủy hoặc chờ checkout cũ hết hạn. Đơn đã thanh toán và khoản refund đang xử lý không tính vào giới hạn. |
+| CHECKOUT-ABUSE-THRESHOLD-01 | 5 checkout khác nhau do buyer chủ động hủy trước thanh toán trong 1 giờ trượt kích hoạt hạn chế. Không tính lỗi hệ thống/seller, thanh toán thất bại hoặc gửi lại cùng yêu cầu. Ngưỡng không tự chứng minh gian lận. |
+| CHECKOUT-ABUSE-RESTRICTION-01 | Đạt ngưỡng thì chặn tạo checkout giữ hàng mới 30 phút, áp dụng bước checkout thay vì riêng MoMo để không đổi phương thức né chặn. Vẫn xem hàng, dùng giỏ, xử lý đơn cũ/refund/hỗ trợ. Hết hạn tự gỡ riêng hạn chế này. |
+| CHECKOUT-ABUSE-REPEAT-01 | Sau mở lại, mỗi đợt mới đủ ngưỡng tiếp tục chặn 30 phút, không tự tăng hình phạt. Không tính lại lượt đã dùng kích hoạt đợt trước. Lưu lịch sử; biện pháp khác hoặc phối hợp nhiều tài khoản/gây rối cần căn cứ qua luồng vi phạm riêng. |
+| COD-CANCEL-HANDOVER-CONFLICT-01 | Buyer đang yêu cầu hủy và Rewear chặn bàn giao nhưng hãng xác minh đã lấy kiện: ghi nhận đúng bàn giao thực tế, giữ hồ sơ yêu cầu hủy, chuyển admin và yêu cầu hãng chặn/chuyển hoàn nếu khả thi. Xét riêng trách nhiệm seller bàn giao trái lệnh, không tự quy phí buyer hoặc nhả hàng đang vận chuyển. |
+| SHIPPING-CREATE-UNKNOWN-01 | Tạo vận đơn GHN timeout/chưa rõ kết quả: tạm chặn tạo mới cùng kiện, tra cứu/đối soát yêu cầu cũ. Chỉ tạo lại khi xác định chưa có vận đơn hoặc hãng bảo đảm không tạo trùng. Cách tra cứu/chống trùng thực tế cần kiểm chứng API. |
+| SHIPPING-CREATE-INCIDENT-01 | Tạo vận đơn chưa rõ kết quả sau 30 phút từ yêu cầu đầu tiên thì cảnh báo/chuyển admin; cập nhật hướng xử lý trong 1 ngày làm việc, theo cách tính sự cố hủy vận đơn đã chốt. Thử lại không đặt lại đồng hồ; đây là mốc vận hành Rewear, không phải cam kết GHN. |
+| COD-COLLECTION-EXCESS-01 | Xác minh hãng thu COD thừa so với số chốt hợp lệ: sàn hoàn phần thừa vào ví buyer khi đủ căn cứ và đối soát khoản phải thu đúng bên gây sai. Chống hoàn trùng nếu hãng cũng trả trực tiếp; không chỉ dựa vào COD dự kiến/lời khai. |
+| COD-COLLECTION-SHORTFALL-01 | Hãng thu COD thiếu do lỗi hãng, buyer không thông đồng/cung cấp sai: không tự tạo nợ hoặc trừ ví buyer. Sàn mở hồ sơ đối soát hãng, chưa tự coi seller nhận đủ tiền; không mặc định sàn bù rồi đóng sự cố. Gian lận có bằng chứng xét riêng. |
+| WALLET-REFUND-PERFORMANCE-01 | Hoàn ví nội bộ trong 5 giây là mục tiêu khi hệ thống hoạt động bình thường; 5 phút là SLA vận hành và mốc cảnh báo theo WALLET-REFUND-SLA/OVERDUE-01. Đo/báo cáo riêng hai chỉ số, từ khi đủ điều kiện thực hiện; không áp sang thời gian MoMo hoàn tiền hoặc coi code đã đáp ứng. |
+| SHOP-REPUTATION-MVP-01 | MVP hiển thị sao đánh giá và chỉ số thực tế của Shop: số đơn hoàn tất, tỷ lệ hủy do lỗi Shop, tỷ lệ tranh chấp kết luận Shop có lỗi. Chưa có điểm uy tín tổng hợp/huy hiệu. Công thức mẫu số, khoảng thời gian và xử lý ít dữ liệu cần đặc tả trước triển khai chỉ số, không tự coi đã được chốt. |
+| ADDRESS-MVP-LEVELS-01 | Xác nhận chọn địa chỉ 3 cấp Tỉnh/Thành, Quận/Huyện, Phường/Xã cho MVP theo docs, thay hướng code hiện tại 2 cấp. Cần điều chỉnh code/dữ liệu/giao diện và xác minh nguồn danh mục/mã địa chỉ GHN; chưa xác nhận dữ liệu hoặc ánh xạ thực tế đã sẵn sàng. |
+| SHOP-BANK-MVP-01 | Khi chưa có API xác minh tài khoản phù hợp: cho khai báo, kiểm tra định dạng và ghi Chưa xác minh. Admin kiểm tra thông tin người nhận, lưu căn cứ trước lần chi; không gắn nhãn đã xác minh tự động hoặc coi kiểm tra định dạng là xác minh tài khoản. Giữ thiết kế adapter để bổ sung API sau. |
 
 ### Câu còn treo và việc cần hỏi tiếp
 
-- **Câu đang chờ trả lời:** buyer có được chủ động trả khoản tiền ví cộng thừa
-  đã xác định qua MoMo không? Các lựa chọn là trả MoMo song song với bù trừ
-  refund tương lai, chỉ bù refund, hoặc trả thủ công qua admin. Chưa có lựa chọn;
-  không coi đề xuất A của assistant là quyết định.
-- **Câu 29 chưa trả lời:** order đã thanh toán nhưng chưa bàn giao khi seller
-  bị kết luận giả mạo sẽ hủy/refund, tạm dừng xét hay tiếp tục giao? Đơn đang
-  vận chuyển và số dư của tài khoản bị kết luận giả mạo cũng chưa chốt.
-- **Tích hợp MoMo:** phạm vi chỉ ví hay thêm ATM chưa được chọn trực tiếp.
+- **Ví cộng thừa:** đã chốt chủ động trả MoMo, xử lý thu trùng, tiếp tục bù trừ
+  khi MoMo chưa rõ kết quả và điều chỉnh sau phản đối tại nhóm WALLET-EXCESS.
+  Đã chốt khoản dưới ngưỡng, theo dõi refund MoMo lỗi/chưa rõ kết quả, cảnh báo,
+  phản hồi admin và quyền tiếp tục mua. Đã chốt hoàn về nguồn thu khi nghĩa vụ
+  sai, thanh toán trong lúc xét phản đối, không đặt hạn bắt buộc trả và thứ tự
+  bù trừ nhiều nghĩa vụ. Đã chốt xử lý xét quá SLA, hạn cập nhật sau cảnh báo
+  và rút phản đối. Đã hoàn tất lượt chốt luồng nghiệp vụ chính của nhóm này;
+  khả năng API, ngưỡng, tra soát và refund MoMo thực tế vẫn cần xác minh/test,
+  không coi các quyết định nghiệp vụ là minh chứng đã triển khai.
+- **Seller/Owner giả mạo:** câu 29 về đơn đã thanh toán chưa bàn giao đã chốt
+  hủy/refund; đơn đang vận chuyển yêu cầu chặn/chuyển hoàn, buyer được chọn nếu
+  không chặn kịp, Shop chịu cước thuộc trách nhiệm và ưu tiên tiền hoàn buyer.
+  Đã chốt đối soát doanh thu đơn buyer giữ hàng, xác minh người nhận trước chi
+  trả, dừng bán mới toàn Shop và không khôi phục bằng đổi Owner; người không
+  liên quan được xin Shop mới. Khiếu nại định danh không giới hạn thời gian;
+  đã chốt hạn xét 5 ngày làm việc, bổ sung trong 7 ngày liên tục/dừng đồng hồ,
+  admin khác xét và khôi phục khi kết luận sai; đã chốt xét gửi lặp và quá SLA.
+  Hoàn tất lượt chốt luồng chính xử lý giả mạo/khiếu nại định danh; còn cần
+  triển khai và test. Hồ sơ đăng ký seller riêng đã chuyển vào đơn tạo Shop
+  theo SHOP-OWNER-KYC-01, giữ yêu cầu giấy tờ và tuổi đã chốt.
+- **Tích hợp MoMo:** đã chọn chỉ ví Sandbox thanh toán một lần tại
+  PAYMENT-MOMO-SCOPE-01; đã chốt thử lại, chờ kết quả, đổi phương thức, thu trùng,
+  sai tiền, giới hạn số lần, hủy checkout khi chờ, ngoài ngưỡng, sửa xu và vận hành
+  refund. Đã hoàn tất lượt chốt luồng chính; không đồng nghĩa tích hợp đã chạy.
   PAYMENT-RECONCILE-02/03 là lịch mục tiêu chưa kiểm thử; phải xác minh giới hạn
   API, thời hạn giao dịch, thời điểm thực thu/callback, tiền đến muộn, retry và
   refund pending/lỗi, cùng số tiền ngoài ngưỡng của luồng đã chọn.
@@ -505,24 +632,36 @@ không phải quyết định người dùng hoặc bằng chứng chạy API):
   mô phỏng riêng và ghi rõ giới hạn. Chưa xác minh đầy đủ webhook, thay đổi/hủy/
   chặn giao, chuyển hoàn, đối soát và bồi thường qua backend. Không dùng lịch sử
   test công cụ hoặc delivered làm bằng chứng tiền đã thu/chuyển.
-- **COD và vận đơn:** tạo lỗi/chưa rõ/trùng; sửa kiện sau tạo, đổi điểm lấy hàng,
-  dữ liệu giao nhận sai thứ tự, thu COD sai số tiền và theo dõi đối soát chậm.
-  Cần xử lý trạng thái thực tế khi hãng đã lấy kiện ngoài thao tác trong Rewear.
+- **COD và vận đơn:** đã chốt tạo chưa rõ/trùng tại SHIPPING-CREATE, thu sai
+  số tiền tại COD-COLLECTION và bàn giao trái lệnh tại COD-CANCEL-HANDOVER.
+  Còn đặc tả sửa kiện sau tạo, đổi điểm lấy hàng, dữ liệu sai thứ tự và theo dõi
+  đối soát chậm dựa trên khả năng API thực tế.
 - **Cước và bồi thường:** xử lý admin quá SLA, sửa kết quả sau đó, phản đối mức
   bồi thường theo thời hạn hãng, hàng thất lạc tìm lại và refund chưa rõ/thất bại.
   Các nhóm đã chốt xem COD-CANCEL-FEE, COD-SELLER-FEE và COD-CARRIER.
 - **Chống lạm dụng:** đã chốt giới hạn và hạn chế COD trong nhóm COD-ABUSE.
   Còn mở kết quả khác của admin lần ba, tái phạm sau khi admin mở lại, vi phạm từ
-  order cũ lúc đang chặn và chống spam giỏ/checkout online. Uy tín/đánh giá riêng
-  seller cá nhân và shop chưa chốt; rate limiting không phải hệ thống uy tín.
-- **Tranh chấp/trả hàng:** nghĩa vụ bằng chứng theo loại vấn đề; hai bên đều
-  hợp tác nhưng không đủ căn cứ; người tiếp nhận chuyển cấp và sự cố tiếp tục
-  quá hạn; điều kiện miễn trả, vận chuyển trả hàng, chi phí và xử lý thiếu số dư.
+  order cũ lúc đang chặn. Chống spam checkout online đã chốt tại CHECKOUT-ABUSE;
+  đánh giá và chỉ số uy tín Shop đã chốt phạm vi tại RATING/SHOP-REPUTATION-MVP.
+  Công thức chỉ số uy tín còn cần đặc tả; rate limiting không phải hệ thống uy tín.
+- **Tranh chấp/trả hàng:** đã chốt bằng chứng thiếu món/hư hỏng, thiếu căn cứ,
+  đóng gói trả, hạn bàn giao/kiểm tra, phản đối kiện trả, miễn trả, lỗi hãng,
+  từ chối nhận và ứng refund thiếu số dư tại các nhóm DISPUTE/RETURN/REFUND.
+  Còn hoàn thiện các ngoại lệ chuyển cấp/quá hạn và chi tiết API khi triển khai.
   SLA ra quyết định không phải tổng thời gian giữ tiền vì còn xét lại/trả hàng.
-- **Ví và xu:** xử lý sau kết quả phản đối thu hồi tiền thừa; chủ động hoàn trả
-  đang là câu chờ; lỗi thu hồi/refund, chương trình/admin cấp xu, quyền/ngân sách,
-  phân bổ/làm tròn xu/hoa hồng và cách kết hợp ví với xu. Không tự đưa phương án
+- **Ví và xu:** đã chốt kết hợp ví sau giảm xu, phân bổ xu theo order/món và
+  làm tròn phần dư; cấp xu khuyến mại phải có chương trình. Chương trình/admin
+  cấp xu đã chốt quyền tạo/kích hoạt, ngân sách, hạn cố định, một lần
+  mỗi tài khoản, dừng cấp và sửa cấp nhầm. Hoàn tất lượt chốt luồng chính ví/xu;
+  hoa hồng chung 3% mọi Shop, tính riêng từng món và làm tròn xuống đã chốt tại
+  COMMISSION-04/ROUND-01. Còn đối chiếu giới hạn làm tròn khi triển khai. Không tự đưa phương án
   chưa hỏi vào quyết định đã chốt.
 - **Lịch:** ngày nghỉ bù, các biên thời gian chính xác và thông báo còn cần làm rõ.
-- Tiếp tục rà tài khoản, shop/staff, sản phẩm, rút tiền và hồ sơ đồ án. Survey,
+- **Rút tiền:** đã chốt một lệnh đang xử lý/Shop, hủy trước khi xử lý, hạn 2
+  ngày làm việc, snapshot ngân hàng, xác minh thành công/thất bại, phí sàn chịu
+  và cập nhật quá SLA tại PAYOUT. Ngân hàng MVP theo SHOP-BANK-MVP-01.
+- **Địa chỉ và KPI:** đã chọn 3 cấp theo ADDRESS-MVP-LEVELS-01; hoàn ví có
+  mục tiêu bình thường 5 giây và SLA/cảnh báo 5 phút, đo riêng theo
+  WALLET-REFUND-PERFORMANCE-01. Chưa coi code hoặc nguồn dữ liệu đã đáp ứng.
+- Tiếp tục rà chi tiết triển khai tài khoản, shop/staff, sản phẩm và hồ sơ đồ án. Survey,
   phân công/SRS/KPI và xác nhận GVHD còn mở như phiên trước.

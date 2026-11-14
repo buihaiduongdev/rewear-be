@@ -7,6 +7,7 @@ import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
+import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
 import { quoteInputs } from './shipping-quote.inputs';
 
 @Injectable()
@@ -16,7 +17,10 @@ export class ShippingQuoteService {
     private readonly carrier: GhnSandboxAdapter,
   ) {}
 
-  async refresh(buyerId: string, checkoutId: string) {
+  async refresh(
+    buyerId: string,
+    checkoutId: string,
+  ): Promise<ShippingQuoteResult> {
     const checkout = await this.db.getRepository(Checkout).findOneByOrFail({
       id: checkoutId,
       buyerId,

@@ -12,6 +12,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
 import { MediaModule } from './modules/media';
+import { PaymentModule } from './modules/payment/payment.module';
 import { ProductModule } from './modules/product';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
@@ -26,6 +27,7 @@ import { UserAddressModule } from './modules/user-address';
     CategoryModule,
     CartModule,
     CheckoutModule,
+    PaymentModule,
     ShopModule,
     ShippingModule,
     ProductModule,

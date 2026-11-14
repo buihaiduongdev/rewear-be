@@ -14,6 +14,6 @@ import { ShippingQuoteService } from './shipping-quote.service';
   imports: [CartModule, TypeOrmModule.forFeature([Checkout, CheckoutOrder])],
   controllers: [CheckoutController],
   providers: [CheckoutService, ShippingQuoteService, GhnSandboxAdapter],
-  exports: [CheckoutService],
+  exports: [CheckoutService, ShippingQuoteService],
 })
 export class CheckoutModule {}
