@@ -633,3 +633,15 @@
 - **Phần AI hỗ trợ:** Giải quyết conflict và giữ đủ log của hai người; cập nhật entity/type Shop, giữ PAID, lấy phí GHN mới trước transaction rồi xác minh tổng tiền và hold. Cùng requestId trả lại attempt cũ mà không phụ thuộc GHN.
 - **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
 - **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.
+
+### 2026-11-14 — Tính thông tin ảnh sản phẩm trong service
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Đưa xử lý ảnh bìa và số lượng ảnh ra khỏi entity sản phẩm.
+- **Prompt chính:** Chuyển việc tạo thông tin ảnh trong response từ entity sang service để dễ đọc.
+- **Đầu ra AI được sử dụng:** Tạo response sản phẩm cùng thông tin ảnh trong ProductService, giữ nguyên dữ liệu trả về API.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách để entity tập trung mô tả dữ liệu và xử lý response trong service.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; chạy riêng E2E.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/product-media-response`.
