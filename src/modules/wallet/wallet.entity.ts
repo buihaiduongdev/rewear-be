@@ -11,10 +11,13 @@ import { User } from '@/modules/user/entities';
   '"balance" >= 0 AND "balance" <= 9007199254740991',
 )
 export class WalletAccount extends BaseEntity {
-  @Column('uuid') userId: string;
+  @Column('uuid')
+  userId: string;
+
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'userId' })
   user: User;
+
   @Column('bigint', {
     default: 0,
     transformer: {
@@ -30,15 +33,23 @@ export class WalletAccount extends BaseEntity {
 @Index(['userId', 'createdAt'])
 @Check('CHK_wallet_credit_positive', '"amount" > 0')
 export class WalletCredit extends BaseEntity {
-  @Column('uuid') userId: string;
+  @Column('uuid')
+  userId: string;
+
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'userId' })
   user: User;
-  @Column('uuid') orderId: string;
+
+  @Column('uuid')
+  orderId: string;
+
   @ManyToOne(() => Order, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'orderId' })
   order: Order;
-  @Column('integer') amount: number;
+
+  @Column('integer')
+  amount: number;
+
   @Column({ type: 'varchar', length: 32, default: 'ORDER_CANCELLED' })
   reason: 'ORDER_CANCELLED';
 }

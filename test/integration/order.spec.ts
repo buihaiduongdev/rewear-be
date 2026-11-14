@@ -159,6 +159,23 @@ describe('paid order acceptance with PostgreSQL', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('rejects inconsistent monetary snapshots before any cancellation effects', async () => {
+    const f = await fixture();
+    await f.db
+      .getRepository(Order)
+      .update(f.order.id, { subtotal: -1, shippingFee: 230001 });
+    await expect(
+      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+    ).rejects.toThrow('Invalid order refund amount');
+    expect(
+      (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
+        .status,
+    ).toBe('pending');
+    expect((await new WalletService(f.db).mine(f.buyer.id, {})).balance).toBe(
+      0,
+    );
+  });
+
   it('accepts concurrently exactly once and rejects incompatible transitions', async () => {
     const f = await fixture();
     const results = await Promise.all([

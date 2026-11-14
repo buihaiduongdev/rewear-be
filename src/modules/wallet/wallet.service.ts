@@ -4,6 +4,9 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { Order } from '@/modules/order/order.entity';
 
+import { orderRefundSchema } from './schemas/wallet-refund.schema';
+import { walletBalanceSchema } from './schemas/wallet.schema';
+import type { WalletQueryInput } from './schemas/wallet.schema';
 import { WalletAccount, WalletCredit } from './wallet.entity';
 
 @Injectable()
@@ -14,12 +17,7 @@ export class WalletService {
   // state must commit together. No top-up or generic credit endpoint exists.
   async creditCancellation(manager: EntityManager, order: Order) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-    if (
-      !Number.isSafeInteger(order.total) ||
-      order.total < 0 ||
-      order.total > 2147483647 ||
-      order.total !== order.subtotal + order.shippingFee
-    )
+    if (!orderRefundSchema.safeParse(order).success)
       throw new ConflictException('Invalid order refund amount');
     if (order.total === 0) return null;
     const existing = await manager.findOneBy(WalletCredit, {
@@ -38,7 +36,7 @@ export class WalletService {
       balance: 0,
     });
     const balance = account.balance + order.total;
-    if (!Number.isSafeInteger(balance))
+    if (!walletBalanceSchema.safeParse(balance).success)
       throw new ConflictException('Wallet balance requires reconciliation');
     const credit = await manager.save(
       WalletCredit,
@@ -54,7 +52,7 @@ export class WalletService {
     return credit;
   }
 
-  mine(userId: string, input: { limit?: number; offset?: number }) {
+  mine(userId: string, input: WalletQueryInput) {
     return this.db.transaction('REPEATABLE READ', async (manager) => {
       const account = await manager.findOneBy(WalletAccount, { userId });
       const credits = await manager.find(WalletCredit, {
