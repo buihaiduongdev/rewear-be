@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
+import { ProductModerationStatus } from '../enums';
 import { Product } from './product.entity';
 
 @Entity('product_moderations')
@@ -14,8 +15,7 @@ export class ProductModeration extends BaseEntity {
   product: Product;
 
   @Column({ type: 'varchar', length: 20 })
-  status:
-    'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUSPENDED' | 'DRAFT';
+  status: ProductModerationStatus;
 
   @Column({ type: 'integer', default: 1 })
   version: number;

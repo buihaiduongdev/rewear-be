@@ -4,7 +4,10 @@ import type { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
@@ -142,10 +145,10 @@ export async function seedMarketplace(
           version: 1,
           status:
             status === ProductStatus.PENDING_REVIEW
-              ? 'PENDING'
+              ? ProductModerationStatus.PENDING
               : status === ProductStatus.REJECTED
-                ? 'REJECTED'
-                : 'APPROVED',
+                ? ProductModerationStatus.REJECTED
+                : ProductModerationStatus.APPROVED,
           reason:
             status === ProductStatus.REJECTED
               ? 'Demo rejection: add a clearer label photo.'

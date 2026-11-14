@@ -30,7 +30,7 @@ import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { Product, ProductModeration } from './entities';
-import { ProductStatus } from './enums';
+import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import type {
   CreateProductInput,
@@ -177,7 +177,7 @@ export class ProductService {
     await manager.update(
       ProductModeration,
       { productId: product.id },
-      { status: 'DRAFT', reason: null },
+      { status: ProductModerationStatus.DRAFT, reason: null },
     );
     product.status = ProductStatus.DRAFT;
     await manager.save(Product, product);
@@ -308,7 +308,7 @@ export class ProductService {
       });
       if (moderation) {
         moderation.version += 1;
-        moderation.status = 'PENDING';
+        moderation.status = ProductModerationStatus.PENDING;
         moderation.reason = null;
         await manager.save(ProductModeration, moderation);
       } else {
@@ -317,7 +317,7 @@ export class ProductService {
           manager.create(ProductModeration, {
             productId: id,
             version: 1,
-            status: 'PENDING',
+            status: ProductModerationStatus.PENDING,
             reason: null,
           }),
         );
@@ -339,7 +339,7 @@ export class ProductService {
       await manager.update(
         ProductModeration,
         { productId: id },
-        { status: 'CANCELLED' },
+        { status: ProductModerationStatus.CANCELLED },
       );
       product.status = ProductStatus.DRAFT;
       await manager.save(Product, product);
@@ -360,7 +360,7 @@ export class ProductService {
       });
       if (
         product.status !== ProductStatus.PENDING_REVIEW ||
-        moderation.status !== 'PENDING' ||
+        moderation.status !== ProductModerationStatus.PENDING ||
         moderation.version !== input.version
       ) {
         throw new ConflictException(
@@ -376,7 +376,10 @@ export class ProductService {
           throw new BadRequestException('A rejection reason is required');
         product.status = ProductStatus.REJECTED;
       }
-      moderation.status = input.decision === 'REJECT' ? 'REJECTED' : 'APPROVED';
+      moderation.status =
+        input.decision === 'REJECT'
+          ? ProductModerationStatus.REJECTED
+          : ProductModerationStatus.APPROVED;
       moderation.reason =
         input.decision === 'REJECT' ? input.reason!.trim() : null;
       await manager.save(ProductModeration, moderation);
@@ -405,7 +408,7 @@ export class ProductService {
       const moderation = await manager.findOneByOrFail(ProductModeration, {
         productId: id,
       });
-      moderation.status = 'SUSPENDED';
+      moderation.status = ProductModerationStatus.SUSPENDED;
       moderation.reason = reason.trim();
       await manager.save(ProductModeration, moderation);
       product.status = ProductStatus.SUSPENDED;

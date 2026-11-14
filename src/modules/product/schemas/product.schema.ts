@@ -4,7 +4,11 @@ import { paginatedSchema } from '@/common/pagination';
 import { dateTimeSchema } from '@/common/schemas';
 import { shippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
-import { ProductCondition, ProductStatus } from '../enums';
+import {
+  ProductCondition,
+  ProductModerationStatus,
+  ProductStatus,
+} from '../enums';
 import { defectSchema, measurementsSchema } from './product-input.schema';
 
 export const productSchema = z.object({
@@ -47,14 +51,7 @@ export const productListSchema = paginatedSchema(productSchema);
 
 export const productModerationSchema = z.object({
   productId: z.uuid(),
-  status: z.enum([
-    'DRAFT',
-    'PENDING',
-    'APPROVED',
-    'REJECTED',
-    'CANCELLED',
-    'SUSPENDED',
-  ]),
+  status: z.enum(ProductModerationStatus),
   version: z.number().int().positive(),
   reason: z.string().nullable(),
 });
