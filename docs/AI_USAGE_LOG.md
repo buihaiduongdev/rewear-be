@@ -644,4 +644,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách để entity tập trung mô tả dữ liệu và xử lý response trong service.
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; chạy riêng E2E.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Nhánh `refactor/product-media-response`.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34), nhánh `refactor/product-media-response`.
