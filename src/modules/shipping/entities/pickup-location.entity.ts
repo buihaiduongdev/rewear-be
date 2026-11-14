@@ -1,26 +1,13 @@
-import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import { Shop } from '@/modules/shop/entities';
-import { User } from '@/modules/user/entities';
 
 @Entity('pickup_locations')
-@Check(
-  'CHK_pickup_locations_source',
-  '("userId" IS NOT NULL AND "shopId" IS NULL) OR ("userId" IS NULL AND "shopId" IS NOT NULL)',
-)
-@Index('UQ_pickup_locations_user', ['userId'], { unique: true })
 @Index('UQ_pickup_locations_shop', ['shopId'], { unique: true })
 export class PickupLocation extends BaseEntity {
-  @Column({ type: 'uuid', nullable: true })
-  userId: string | null;
-
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userId' })
-  user: User;
-
-  @Column({ type: 'uuid', nullable: true })
-  shopId: string | null;
+  @Column('uuid')
+  shopId: string;
 
   @ManyToOne(() => Shop, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'shopId' })

@@ -23,7 +23,7 @@ export const defectSchema = z.strictObject({
 
 export const createProductSchema = z.strictObject({
   categoryId: optionalInput(uuidSchema).nullable().optional(),
-  shopId: optionalInput(uuidSchema),
+  shopId: uuidSchema,
   title: trimmedTextSchema.min(1).max(150).nullish(),
   description: trimmedTextSchema.max(5000).nullish(),
   condition: z.enum(ProductCondition).nullish(),

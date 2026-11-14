@@ -2,10 +2,8 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
+import type { RevisionDecision } from '../types/product-revision.type';
 import { Product } from './product.entity';
-
-export type RevisionDecision =
-  'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
 @Entity('product_revisions')
 @Index(['productId', 'revision'], { unique: true })

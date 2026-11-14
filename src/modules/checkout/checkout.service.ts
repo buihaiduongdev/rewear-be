@@ -2,7 +2,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
@@ -17,12 +16,11 @@ import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
-import { User } from '@/modules/user/entities';
 
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
-import type { CheckoutAddress } from './entities/checkout.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import type { CreateCheckoutInput } from './schemas/checkout.schema';
-import { effectiveShippingQuote } from './shipping-quote.state';
+import type { CheckoutAddress } from './types/checkout.type';
 
 @Injectable()
 export class CheckoutService implements OnModuleInit, OnModuleDestroy {
@@ -83,11 +81,10 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         }
         return this.view(manager, previous);
       }
-      const address = await manager.findOne(UserAddress, {
+      const address = await manager.findOneOrFail(UserAddress, {
         where: { id: input.addressId, userId: buyerId },
         lock: { mode: 'pessimistic_read' },
       });
-      if (!address) throw new NotFoundException('Delivery address not found');
       const snapshot: CheckoutAddress = {
         recipientName: address.recipientName,
         phone: address.phone,
@@ -106,7 +103,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         order: { id: 'ASC' },
         lock: { mode: 'pessimistic_write' },
       });
-      // Keep source/category eligibility stable while taking the approved snapshot.
+      // Keep shop/category eligibility stable while taking the approved snapshot.
       for (const id of [
         ...new Set(
           products.map((p) => p.categoryId).filter((id): id is string => !!id),
@@ -127,23 +124,11 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           lock: { mode: 'pessimistic_read' },
         });
       }
-      for (const id of [
-        ...new Set(
-          products
-            .map((p) => p.sellerUserId)
-            .filter((id): id is string => !!id),
-        ),
-      ].sort()) {
-        await manager.findOne(User, {
-          where: { id },
-          lock: { mode: 'pessimistic_read' },
-        });
-      }
       const cartView = await this.cart.readCart(manager, buyerId);
       const saved = new Map(
         cartView.groups.flatMap((g) =>
           g.items.map(
-            (item) => [item.productId, { item, source: g.source }] as const,
+            (item) => [item.productId, { item, shop: g.shop }] as const,
           ),
         ),
       );
@@ -160,38 +145,34 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       });
       const groups = new Map<string, CheckoutOrder>();
       for (const productId of productIds) {
-        const entry = saved.get(productId);
+        const cartEntry = saved.get(productId);
         if (
-          !entry ||
-          entry.item.availability !== 'AVAILABLE' ||
-          !entry.item.product ||
-          !entry.source
+          !cartEntry ||
+          cartEntry.item.availability !== 'AVAILABLE' ||
+          !cartEntry.item.product ||
+          !cartEntry.shop
         ) {
           checkout.removedItems.push({
             productId,
-            reason: entry?.item.availability ?? 'NOT_IN_CART',
+            reason: cartEntry?.item.availability ?? 'NOT_IN_CART',
           });
           continue;
         }
-        const source = entry.source;
-        const product = entry.item.product;
+        const product = cartEntry.item.product;
         const row = products.find((p) => p.id === productId)!;
         // Eligibility and held-state check occurred after acquiring the product write lock.
         if (row.reservationId)
           throw new ConflictException('Product reservation is inconsistent');
-        const key = `${source.type}:${source.id}`;
-        let order = groups.get(key);
+        let order = groups.get(cartEntry.shop.id);
         if (!order) {
           order = manager.create(CheckoutOrder, {
-            sourceType: source.type,
-            sourceId: source.id,
-            sourceName: source.name,
+            shopId: cartEntry.shop.id,
             address: snapshot,
             items: [],
             subtotal: 0,
             shippingFee: null,
           });
-          groups.set(key, order);
+          groups.set(cartEntry.shop.id, order);
         }
         order.items.push({
           shippingPackage: row.shippingPackage
@@ -248,8 +229,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       await this.expireDue(manager);
-      const checkout = await manager.findOneBy(Checkout, { id, buyerId });
-      if (!checkout) throw new NotFoundException('Checkout not found');
+      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
       return this.view(manager, checkout);
     });
   }
@@ -258,8 +238,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       await this.expireDue(manager);
-      const checkout = await manager.findOneBy(Checkout, { id, buyerId });
-      if (!checkout) throw new NotFoundException('Checkout not found');
+      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
       if (checkout.status === 'HELD')
         await this.release(manager, checkout, 'CANCELLED');
       return this.view(manager, checkout);
@@ -300,12 +279,12 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
   private async view(manager: EntityManager, checkout: Checkout) {
     const orders = await manager.find(CheckoutOrder, {
       where: { checkoutId: checkout.id },
+      relations: { shop: true },
       order: { id: 'ASC' },
     });
     return {
       ...checkout,
-      orders,
-      shippingQuote: await effectiveShippingQuote(manager, checkout, orders),
+      orders: orders.map((order) => ({ ...order, shopName: order.shop.name })),
       subtotal: orders.reduce((total, order) => total + order.subtotal, 0),
       currency: 'VND' as const,
       paymentReady: false as const,

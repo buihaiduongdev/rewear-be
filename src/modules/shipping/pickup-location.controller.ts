@@ -20,21 +20,6 @@ import type { SavePickupLocationInput } from './schemas/pickup-location.schema';
 export class PickupLocationController {
   constructor(private readonly pickup: PickupLocationService) {}
 
-  @Get('pickup-location')
-  @Serialize(pickupLocationResultSchema)
-  findPersonal(@CurrentUser() user: User) {
-    return this.pickup.read(user.id);
-  }
-
-  @Put('pickup-location')
-  @Serialize(pickupLocationResultSchema)
-  savePersonal(
-    @CurrentUser() user: User,
-    @Body({ schema: savePickupLocationSchema }) input: SavePickupLocationInput,
-  ) {
-    return this.pickup.save(user.id, input);
-  }
-
   @Get('shops/:shopId/pickup-location')
   @Serialize(pickupLocationResultSchema)
   findShop(

@@ -100,18 +100,9 @@ export async function seedMarketplace(
       index < productCount - privateStatuses.length
         ? ProductStatus.ACTIVE
         : privateStatuses[index - productCount + privateStatuses.length];
-    // Include both shop and individual inventory across several categories.
-    const source =
-      index % 4 === 3
-        ? {
-            shopId: null,
-            sellerUserId: users[5 + (Math.floor(index / 4) % 2)].id,
-          }
-        : {
-            shopId:
-              shops[Math.floor(index / categories.length) % shops.length].id,
-            sellerUserId: null,
-          };
+    const relations = {
+      shopId: shops[Math.floor(index / categories.length) % shops.length].id,
+    };
     const approved = [
       ProductStatus.ACTIVE,
       ProductStatus.HIDDEN,
@@ -120,7 +111,7 @@ export async function seedMarketplace(
     ].includes(status);
     const product = factory.product(
       index,
-      { ...source, categoryId: categories[index % categories.length].id },
+      { ...relations, categoryId: categories[index % categories.length].id },
       {
         status,
         approvedRevision: approved ? 1 : null,
@@ -145,9 +136,9 @@ export async function seedMarketplace(
       });
     }
     products.push(product);
-    const uploaderId =
-      source.sellerUserId ??
-      members.find((member) => member.shopId === source.shopId)!.userId;
+    const uploaderId = members.find(
+      (member) => member.shopId === relations.shopId,
+    )!.userId;
     const productMedia = Array.from({ length: 3 }, (_, slot) =>
       factory.media(index, slot, uploaderId),
     );

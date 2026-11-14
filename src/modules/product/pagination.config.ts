@@ -12,7 +12,6 @@ export const PRODUCT_PAGINATION_CONFIG: PaginateConfig<Product> = {
   filterableColumns: {
     categoryId: [FilterOperator.EQ],
     shopId: [FilterOperator.EQ],
-    sellerUserId: [FilterOperator.EQ],
     condition: [FilterOperator.EQ],
     status: [FilterOperator.EQ],
     size: [FilterOperator.ILIKE],

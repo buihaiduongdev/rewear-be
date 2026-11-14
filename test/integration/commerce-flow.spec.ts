@@ -7,7 +7,7 @@ import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
-import { Product } from '@/modules/product/entities';
+import { Product, ProductRevision } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -61,6 +61,11 @@ describe('commerce behavior with PostgreSQL', () => {
       isDefault: true,
     });
 
+    const shop = await db.getRepository(Shop).save(factory.shop(0));
+    await db
+      .getRepository(ShopMember)
+      .save(factory.shopMember(0, shop.id, seller.id));
+
     const products = new ProductService(
       db.getRepository(Product),
       db.getRepository(Category),
@@ -69,6 +74,7 @@ describe('commerce behavior with PostgreSQL', () => {
       db,
     );
     const product = await products.create(seller.id, {
+      shopId: shop.id,
       title: 'Denim jacket',
       description: 'A clean jacket in good condition',
       categoryId: category.id,
@@ -100,8 +106,32 @@ describe('commerce behavior with PostgreSQL', () => {
 
     const pending = await products.submit(product.id, seller.id);
     expect(pending.status).toBe(ProductStatus.PENDING_REVIEW);
+    await expect(
+      products.update(product.id, seller.id, { title: 'Changed jacket' }),
+    ).rejects.toThrow('This product cannot be edited in its current state');
+    await expect(
+      products.cancelSubmission(product.id, buyer.id),
+    ).rejects.toThrow('Shop owner access required');
+    const cancelled = await products.cancelSubmission(product.id, seller.id);
+    expect(cancelled.status).toBe(ProductStatus.DRAFT);
+    expect(
+      (
+        await db.getRepository(ProductRevision).findOneByOrFail({
+          productId: product.id,
+          revision: pending.revision,
+        })
+      ).decision,
+    ).toBe('CANCELLED');
+    await expect(
+      products.moderate(product.id, admin.id, {
+        revision: pending.revision,
+        decision: 'APPROVE',
+      }),
+    ).rejects.toThrow('The submitted revision is no longer current');
+    const resubmitted = await products.submit(product.id, seller.id);
+    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
     const published = await products.moderate(product.id, admin.id, {
-      revision: pending.revision,
+      revision: resubmitted.revision,
       decision: 'APPROVE',
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
@@ -121,6 +151,7 @@ describe('commerce behavior with PostgreSQL', () => {
     });
     expect(held.status).toBe('HELD');
     expect(held.orders).toHaveLength(1);
+    expect(held.orders[0].shopId).toBe(shop.id);
     expect(held.orders[0].items[0]).toMatchObject({
       productId: product.id,
       title: 'Denim jacket',
@@ -132,38 +163,49 @@ describe('commerce behavior with PostgreSQL', () => {
     ).toBe(ProductStatus.HELD);
   });
 
-  it('creates and updates one personal pickup location with canonical address names', async () => {
+  it('creates and updates one shop pickup location with canonical address names', async () => {
     const factory = new MarketplaceFactory('pickup-integration');
     const user = await db.getRepository(User).save(factory.user(1, 'unused'));
+    const shop = await db.getRepository(Shop).save(factory.shop(0));
+    await db
+      .getRepository(ShopMember)
+      .save(factory.shopMember(0, shop.id, user.id));
     const divisions = new AdministrativeDivisionService();
     const pickup = new PickupLocationService(db, divisions);
     const wardCode = divisions.findWardsByProvinceCode('01')[0].code;
 
-    const first = await pickup.save(user.id, {
-      contactName: 'Pickup contact',
-      phone: '0912345678',
-      addressLine1: '45 Test Street',
-      provinceCode: '01',
-      wardCode,
-    });
-    const updated = await pickup.save(user.id, {
-      contactName: 'Updated contact',
-      phone: '0912345678',
-      addressLine1: '45 Test Street',
-      provinceCode: '01',
-      wardCode,
-    });
+    const first = await pickup.save(
+      user.id,
+      {
+        contactName: 'Pickup contact',
+        phone: '0912345678',
+        addressLine1: '45 Test Street',
+        provinceCode: '01',
+        wardCode,
+      },
+      shop.id,
+    );
+    const updated = await pickup.save(
+      user.id,
+      {
+        contactName: 'Updated contact',
+        phone: '0912345678',
+        addressLine1: '45 Test Street',
+        provinceCode: '01',
+        wardCode,
+      },
+      shop.id,
+    );
 
     expect(updated.location.id).toBe(first.location.id);
     expect(updated.location).toMatchObject({
-      userId: user.id,
-      shopId: null,
+      shopId: shop.id,
       contactName: 'Updated contact',
       countryCode: 'VN',
       provinceName: divisions.resolveAddress('01', wardCode).provinceName,
     });
     expect(
-      await db.getRepository(PickupLocation).countBy({ userId: user.id }),
+      await db.getRepository(PickupLocation).countBy({ shopId: shop.id }),
     ).toBe(1);
   });
 });

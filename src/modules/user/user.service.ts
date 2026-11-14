@@ -69,10 +69,8 @@ export class UserService {
     return paginate(query, this.userRepository, USER_PAGINATION_CONFIG);
   }
 
-  async findById(id: string): Promise<User> {
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+  findById(id: string): Promise<User> {
+    return this.userRepository.findOneByOrFail({ id });
   }
 
   async findByEmail(email: string, withPassword = false): Promise<User | null> {
@@ -101,6 +99,7 @@ export class UserService {
     }
 
     const byEmail = await this.findByEmail(profile.email);
+    //TODO early return?
     if (byEmail) {
       if (!byEmail.providerAccountId) {
         byEmail.providerAccountId = profile.providerAccountId;
@@ -128,6 +127,7 @@ export class UserService {
       await this.assertEmailAvailable(input.email);
       user.email = this.normalizeEmail(input.email);
     }
+    //TODO sao ko dung merge nhi
     if (input.password) user.password = await argon2.hash(input.password);
     if (input.fullName) user.fullName = input.fullName;
     if (input.role) user.role = input.role;
@@ -152,6 +152,7 @@ export class UserService {
     }
   }
 
+  //TODO cai nay co schema trim o tang tren roi ma
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }

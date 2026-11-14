@@ -139,6 +139,18 @@ export class ProductController {
     return this.productService.submit(id, user.id);
   }
 
+  @Post(':id/cancel-submission')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Serialize(productSchema)
+  cancelSubmission(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.productService.cancelSubmission(id, user.id);
+  }
+
   @Post('admin/:id/moderation')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()

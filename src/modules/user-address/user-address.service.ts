@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, Repository } from 'typeorm';
@@ -27,10 +27,8 @@ export class UserAddressService {
     });
   }
 
-  async findOne(userId: string, id: string): Promise<UserAddress> {
-    const address = await this.userAddressRepository.findOneBy({ id, userId });
-    if (!address) throw new NotFoundException('User address not found');
-    return address;
+  findOne(userId: string, id: string): Promise<UserAddress> {
+    return this.userAddressRepository.findOneByOrFail({ id, userId });
   }
 
   async create(
