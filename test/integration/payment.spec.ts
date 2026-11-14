@@ -8,6 +8,7 @@ import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
+import { CodPolicy } from '@/modules/cod/cod.policy';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
@@ -335,6 +336,7 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       db,
       new OrderAccess(),
       new WalletService(db),
+      new CodPolicy(db),
     );
     await orders.expireDue();
     await service.applyResult(payment.id, capture);

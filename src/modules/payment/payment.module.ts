@@ -30,6 +30,6 @@ import { PaymentWorker } from './payment.worker';
       },
     },
   ],
-  exports: [PaymentService],
+  exports: [PaymentService, PaymentPricing],
 })
 export class PaymentModule {}

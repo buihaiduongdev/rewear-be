@@ -3,6 +3,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
+import { CodPolicy } from '@/modules/cod/cod.policy';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
@@ -21,6 +22,7 @@ export class OrderService {
     private readonly db: DataSource,
     private readonly access: OrderAccess,
     private readonly wallet: WalletService,
+    private readonly codPolicy: CodPolicy,
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {
@@ -82,6 +84,8 @@ export class OrderService {
       }
       order.status = 'preparing';
       order.acceptedAt = now;
+      if (order.paymentMethod === 'COD')
+        order.handoverBy = new Date(now.getTime() + 48 * 3600000);
       await manager.save(order);
       await manager.save(
         OrderEvent,
@@ -175,6 +179,59 @@ export class OrderService {
     return expired;
   }
 
+  async cancelCodPending(buyerId: string, id: string) {
+    const order = await this.db.transaction(async (manager) => {
+      await this.lock(manager);
+      const order = await manager.findOneByOrFail(Order, {
+        id,
+        buyerId,
+        paymentMethod: 'COD',
+      });
+      if (order.status === 'cancelled') return order;
+      if (order.status !== 'pending')
+        throw new ConflictException(
+          'Seller already confirmed; request cancellation instead',
+        );
+      const now = await this.now(manager);
+      const expired = order.sellerConfirmBy <= now;
+      await this.cancel(
+        manager,
+        order,
+        now,
+        expired ? 'SELLER_CONFIRM_TIMEOUT' : 'BUYER_CANCELLED',
+        expired ? null : buyerId,
+        expired ? null : 'Buyer changed their mind',
+      );
+      if (!expired)
+        await this.codPolicy.recordBuyerCancellation(manager, order, now);
+      return order;
+    });
+    return this.detail(this.db.manager, order);
+  }
+
+  // Shipment workflow calls this only after proving no booking exists or GHN
+  // confirms cancellation before any observed pickup, within the same lock/tx.
+  async cancelCodVerified(manager: EntityManager, order: Order, now: Date) {
+    if (
+      order.paymentMethod !== 'COD' ||
+      order.status !== 'preparing' ||
+      order.cancelState !== 'APPROVED'
+    )
+      throw new ConflictException(
+        'COD cancellation requires approval and safe carrier state',
+      );
+    await this.cancel(
+      manager,
+      order,
+      now,
+      'BUYER_CANCEL_APPROVED',
+      null,
+      order.cancelDecisionReason,
+    );
+    order.cancelState = 'CLOSED';
+    await manager.save(order);
+  }
+
   private async lock(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   }
@@ -192,7 +249,8 @@ export class OrderService {
     actorId: string | null,
     note: string | null,
   ) {
-    await this.wallet.creditCancellation(manager, order);
+    if (order.paymentMethod !== 'COD')
+      await this.wallet.creditCancellation(manager, order);
     order.stockReleaseReviewIds = await this.releaseStock(manager, order);
     order.status = 'cancelled';
     order.cancelledAt = now;
@@ -203,7 +261,14 @@ export class OrderService {
       OrderEvent,
       manager.create(OrderEvent, {
         orderId: order.id,
-        action: reason === 'SELLER_REJECTED' ? 'REJECTED' : 'EXPIRED',
+        action:
+          reason === 'SELLER_REJECTED'
+            ? 'REJECTED'
+            : reason === 'BUYER_CANCELLED'
+              ? 'BUYER_CANCELLED'
+              : reason === 'BUYER_CANCEL_APPROVED'
+                ? 'CANCEL_APPROVED'
+                : 'EXPIRED',
         actorId,
         reason: note,
         createdAt: now,
@@ -240,17 +305,21 @@ export class OrderService {
     const review: string[] = [];
     for (const id of ids) {
       const product = products.find((item) => item.id === id);
+      const codOwned =
+        order.paymentMethod === 'COD' &&
+        product?.reservedOrderId === order.id &&
+        product.status === ProductStatus.HELD;
       if (
         !product ||
-        product.soldOrderId !== order.id ||
+        (!codOwned && product.soldOrderId !== order.id) ||
         product.reservationId ||
         product.shopId !== order.shopId ||
-        product.status === ProductStatus.HELD
+        (!codOwned && product.status === ProductStatus.HELD)
       ) {
         review.push(id);
         continue;
       }
-      if (product.status === ProductStatus.SOLD) {
+      if (product.status === ProductStatus.SOLD || codOwned) {
         const item = order.items.find((item) => item.productId === id)!;
         const eligible =
           shop?.status === ShopStatus.ACTIVE &&
@@ -263,6 +332,7 @@ export class OrderService {
         product.heldUntil = null;
       }
       product.soldOrderId = null;
+      if (codOwned) product.reservedOrderId = null;
       await manager.save(product);
     }
     return review;

@@ -6,6 +6,7 @@ import { EntityNotFoundError } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { CodPolicy } from '@/modules/cod/cod.policy';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
@@ -30,6 +31,7 @@ describe('paid order acceptance with PostgreSQL', () => {
       database.dataSource,
       new OrderAccess(),
       new WalletService(database.dataSource),
+      new CodPolicy(database.dataSource),
     );
   });
   afterAll(async () => database?.destroy());

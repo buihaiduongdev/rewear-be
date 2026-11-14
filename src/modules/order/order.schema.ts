@@ -3,7 +3,7 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
-import { orderStates } from './order.type';
+import { orderEventActions, orderStates } from './order.type';
 
 export const orderListInputSchema = z.strictObject({
   status: z.enum(orderStates).optional(),
@@ -16,7 +16,21 @@ export const rejectOrderSchema = z.strictObject({
 export const acceptOrderSchema = z.strictObject({});
 export const orderSchema = z.object({
   id: z.uuid(),
-  paymentId: z.uuid(),
+  paymentId: z.uuid().nullable(),
+  paymentMethod: z.enum(['MOMO', 'COD']),
+  checkoutId: z.uuid().nullable(),
+  handoverBy: dateTimeSchema.nullable(),
+  handoverReviewRequired: z.boolean(),
+  deliveryObservedAt: dateTimeSchema.nullable(),
+  carrierReturnedAt: dateTimeSchema.nullable(),
+  cancelState: z
+    .enum(['PENDING', 'APPROVED', 'REJECTED', 'ADMIN_REVIEW', 'CLOSED'])
+    .nullable(),
+  cancelRequestedAt: dateTimeSchema.nullable(),
+  cancelRespondBy: dateTimeSchema.nullable(),
+  cancelReviewUntil: dateTimeSchema.nullable(),
+  cancelDecisionReason: z.string().nullable(),
+  cancelDecisionEvidence: z.string().nullable(),
   shopId: z.uuid(),
   shopName: z.string(),
   status: z.enum(orderStates),
@@ -27,7 +41,12 @@ export const orderSchema = z.object({
   acceptedAt: dateTimeSchema.nullable(),
   cancelledAt: dateTimeSchema.nullable(),
   cancellationReason: z
-    .enum(['SELLER_REJECTED', 'SELLER_CONFIRM_TIMEOUT'])
+    .enum([
+      'SELLER_REJECTED',
+      'SELLER_CONFIRM_TIMEOUT',
+      'BUYER_CANCELLED',
+      'BUYER_CANCEL_APPROVED',
+    ])
     .nullable(),
   cancellationNote: z.string().nullable(),
   address: z.record(z.string(), z.unknown()),
@@ -45,9 +64,11 @@ export const orderSchema = z.object({
     .array(
       z.object({
         id: z.uuid(),
-        action: z.enum(['PAID', 'ACCEPTED', 'REJECTED', 'EXPIRED']),
+        action: z.enum(orderEventActions),
         actorId: z.uuid().nullable(),
         reason: z.string().nullable(),
+        evidence: z.string().nullable(),
+        approved: z.boolean().nullable(),
         createdAt: dateTimeSchema,
       }),
     )

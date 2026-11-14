@@ -328,6 +328,8 @@ export class PaymentService {
             const order = await manager.save(
               manager.create(Order, {
                 checkoutOrderId,
+                checkoutId: checkout.id,
+                paymentMethod: 'MOMO',
                 paymentId: id,
                 buyerId: attempt.buyerId,
                 shopId,
