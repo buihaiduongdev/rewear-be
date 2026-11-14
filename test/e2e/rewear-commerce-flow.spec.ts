@@ -241,8 +241,10 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         price: 250000,
         measurements: {},
         shippingPackage: {
-          weight: { mode: 'CUSTOM', grams: 500 },
-          size: { mode: 'CUSTOM', lengthCm: 20, widthCm: 15, heightCm: 10 },
+          weightGrams: 500,
+          lengthCm: 20,
+          widthCm: 15,
+          heightCm: 10,
         },
       })
       .expect(201);
