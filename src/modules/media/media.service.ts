@@ -27,6 +27,7 @@ import type {
   ReorderMediaInput,
   UpdateMediaMetadataInput,
 } from './schemas/media-input.schema';
+import type { ProductMediaView } from './types/product-media.type';
 
 const MAX_PRODUCT_MEDIA = 10;
 const UUID_PATTERN =
@@ -38,19 +39,6 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   'image/png': 'png',
   'image/webp': 'webp',
 };
-
-export interface ProductMediaView {
-  id: string;
-  url: string;
-  mediaType: MediaType;
-  mimeType: string;
-  sizeBytes: number;
-  role: MediaRole;
-  angle: string | null;
-  sortOrder: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 @Injectable()
 export class MediaService {
@@ -94,7 +82,7 @@ export class MediaService {
         userId,
       );
       this.productService.assertEditable(product);
-      const link = await manager.findOne(MediaLink, {
+      const link = await manager.findOneOrFail(MediaLink, {
         where: {
           ownerType: MediaOwnerType.PRODUCT,
           ownerId: productId,
@@ -102,7 +90,6 @@ export class MediaService {
         },
         relations: { media: true },
       });
-      if (!link) throw new NotFoundException('Product media not found');
       if (link.angle !== input.angle) {
         await this.productService.markContentChanged(manager, product);
         link.angle = input.angle;

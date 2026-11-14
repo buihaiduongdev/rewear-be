@@ -155,6 +155,7 @@ function setup() {
     },
   };
   const service = new PaymentService(db, client, {
+    quote: async () => ({}),
     snapshot: async () => snapshot,
   });
   return { service, rows, checkout, client, calls: () => createCalls };

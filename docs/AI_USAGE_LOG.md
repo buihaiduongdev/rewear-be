@@ -603,3 +603,33 @@
 - **Kiểm chứng thực hiện:** Sau khi người dùng cài dependencies/PostgreSQL: typecheck, Nest build và 23 Jest suites/140 tests pass với DB local riêng `rewear_test` trên PostgreSQL 18; 22 test Node pass. Riêng 3 test payment integration kiểm tra IPN đồng thời/lặp, tiền sau hủy, sai số tiền và quyền truy cập buyer. Oxlint pass; format toàn repo pass với `--end-of-line auto` để giữ xuống dòng Windows, source thay đổi đã format bình thường; `git diff --check` pass. Có cảnh báo deprecation của pg về query chồng trên client, không có test fail; CI PostgreSQL 16 cần kết quả riêng. HTTP MoMo vẫn giả lập, chưa có credentials hoặc kiểm thử MoMo thật.
 - **Review và sửa lỗi:** Review độc lập phát hiện tên file entity không khớp glob TypeORM, thiếu nghĩa vụ refund cho transId thu thêm và race query trong lúc create làm mất payUrl. Đã đổi sang `payment.entity.ts`, lưu refund theo transId thực thu, giữ payUrl cho attempt chưa ngã ngũ và thêm regression test. Thêm test tránh báo REFUNDED khi còn nghĩa vụ khác, hoặc mở lại nghĩa vụ đã hoàn chỉ vì notification lặp.
 - **Giới hạn:** Chưa có credentials; chưa triển khai toàn bộ seller/order lifecycle, escrow/wallet/xu, notification/Admin UI. PR #32 chưa merge và thay contract báo phí; boundary `PaymentPricing.snapshot` cần thích ứng sau khi PR đó được chốt. Chi tiết tại `docs/payments/MOMO_SANDBOX.md`.
+### 2026-11-13 — Chuẩn hóa xử lý dữ liệu và luồng bán hàng theo shop
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, TypeORM, Zod, PostgreSQL.
+- **Mục đích và phạm vi:** Đơn giản hóa xử lý entity, chuẩn hóa slug danh mục và thống nhất sản phẩm, giỏ hàng, checkout, địa chỉ lấy hàng theo shop.
+- **Prompt chính:** Rà soát cách tìm entity, chuyển việc sinh slug danh mục sang schema, tách entity và type cho dễ đọc; yêu cầu sản phẩm luôn thuộc shop và cập nhật các luồng liên quan.
+- **Đầu ra AI được sử dụng:** Refactor các service, schema, entity, seed và test; chuyển checkout sang dùng shop và tính phí vận chuyển trực tiếp mỗi lần yêu cầu.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quy tắc bắt buộc có shop, slug theo tên, dùng tên shop hiện tại và bỏ lưu báo giá vận chuyển tạm trong database.
+- **Cách kiểm chứng:** Chạy `pnpm check`, test unit, integration và E2E với PostgreSQL; kiểm tra `git diff --check`.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất giữ slug ổn định và tạo thư mục type cho một type đơn lẻ; đã điều chỉnh theo quy tắc nghiệp vụ và phạm vi sử dụng.
+- **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32), nhánh `audit2`.
+
+### 2026-11-14 — Đơn giản hóa luồng gửi duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Yêu cầu người bán hủy yêu cầu duyệt trước khi sửa sản phẩm đang chờ.
+- **Prompt chính:** Đơn giản hóa luồng duyệt sản phẩm, cho phép hủy yêu cầu đang chờ trước khi chỉnh sửa và gửi lại.
+- **Đầu ra AI được sử dụng:** Bổ sung API hủy yêu cầu; chặn sửa nội dung, ảnh khi chờ duyệt và cập nhật kiểm thử.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách hủy yêu cầu duyệt trước khi sửa thay cho tự động thay thế bản cũ.
+- **Cách kiểm chứng:** `pnpm check` và 138 test với PostgreSQL, gồm kiểm tra hủy, gửi lại và từ chối duyệt phiên bản cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #32](https://github.com/buihaiduongdev/rewear-be/pull/32).
+
+### 2026-11-14 — Tích hợp PR #31 và #32 trước khi merge
+
+- **Người thực hiện:** Bùi Thành Tâm yêu cầu Codex ghép và merge cả hai PR.
+- **Phần AI hỗ trợ:** Giải quyết conflict và giữ đủ log của hai người; cập nhật entity/type Shop, giữ PAID, lấy phí GHN mới trước transaction rồi xác minh tổng tiền và hold. Cùng requestId trả lại attempt cũ mà không phụ thuộc GHN.
+- **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
+- **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.

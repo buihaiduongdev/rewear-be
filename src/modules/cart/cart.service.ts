@@ -2,7 +2,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
@@ -18,8 +17,6 @@ import {
   ShopMemberStatus,
   ShopStatus,
 } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserStatus } from '@/modules/user/enums';
 
 import { Cart, CartItem } from './entities';
 import { CartAvailability } from './enums/cart-availability.enum';
@@ -35,7 +32,7 @@ const DISPLAYABLE_STATES = [
 export class CartService {
   constructor(private readonly dataSource: DataSource) {}
 
-  // A consistent read keeps current content, source eligibility, images and totals
+  // A consistent read keeps current content, shop eligibility, images and totals
   // in the same DB snapshot. It does not reserve any product.
   findMine(userId: string): Promise<CartView> {
     return this.dataSource.transaction('REPEATABLE READ', (manager) =>
@@ -46,32 +43,26 @@ export class CartService {
   async add(userId: string, productId: string): Promise<CartView> {
     await this.dataSource.transaction(async (manager) => {
       // Short-lived read lock only: listing edits/reviews cannot cross this check.
-      const product = await manager.findOne(Product, {
+      const product = await manager.findOneOrFail(Product, {
         where: { id: productId },
         lock: { mode: 'pessimistic_read' },
       });
-      if (!product) throw new NotFoundException('Product not found');
       if (
-        product.sellerUserId === userId ||
-        (product.shopId &&
-          (await manager.existsBy(ShopMember, {
-            shopId: product.shopId,
-            userId,
-            memberRole: ShopMemberRole.OWNER,
-            status: ShopMemberStatus.ACTIVE,
-          })))
+        await manager.existsBy(ShopMember, {
+          shopId: product.shopId,
+          userId,
+          memberRole: ShopMemberRole.OWNER,
+          status: ShopMemberStatus.ACTIVE,
+        })
       )
         throw new ForbiddenException('Cannot add your own product to the cart');
 
       product.category = product.categoryId
         ? await manager.findOneBy(Category, { id: product.categoryId })
         : null;
-      product.seller = product.sellerUserId
-        ? await manager.findOneBy(User, { id: product.sellerUserId })
-        : null;
-      product.shop = product.shopId
-        ? await manager.findOneBy(Shop, { id: product.shopId })
-        : null;
+      product.shop = await manager.findOneByOrFail(Shop, {
+        id: product.shopId,
+      });
       const approved =
         product.approvedRevision !== null &&
         (await manager.existsBy(ProductRevision, {
@@ -125,9 +116,7 @@ export class CartService {
       product.price > 0 &&
       product.condition !== null &&
       product.category?.isActive === true &&
-      (product.shopId !== null
-        ? product.shop?.status === ShopStatus.ACTIVE
-        : product.seller?.status === UserStatus.ACTIVE)
+      product.shop?.status === ShopStatus.ACTIVE
     );
   }
 
@@ -145,7 +134,7 @@ export class CartService {
     if (!cart) return result;
     const items = await manager.find(CartItem, {
       where: { cartId: cart.id },
-      relations: { product: { category: true, seller: true, shop: true } },
+      relations: { product: { category: true, shop: true } },
       order: { createdAt: 'DESC', id: 'ASC' },
     });
     if (!items.length) return result;
@@ -204,9 +193,7 @@ export class CartService {
         product,
         approvedProducts.has(product.id),
       );
-      const own =
-        product.sellerUserId === userId ||
-        (product.shopId !== null && ownedShops.has(product.shopId));
+      const own = ownedShops.has(product.shopId);
       const availability = !displayable
         ? CartAvailability.UNAVAILABLE
         : own
@@ -216,23 +203,13 @@ export class CartService {
             : product.status === ProductStatus.SOLD
               ? CartAvailability.SOLD
               : CartAvailability.AVAILABLE;
-      const source = !displayable
-        ? null
-        : product.shopId
-          ? {
-              type: 'SHOP' as const,
-              id: product.shopId,
-              name: product.shop!.name,
-            }
-          : {
-              type: 'USER' as const,
-              id: product.sellerUserId!,
-              name: product.seller!.fullName,
-            };
-      const key = source ? `${source.type}:${source.id}` : 'UNAVAILABLE';
+      const shop = displayable
+        ? { id: product.shopId, name: product.shop.name }
+        : null;
+      const key = shop?.id ?? 'UNAVAILABLE';
       let group = groups.get(key);
       if (!group) {
-        group = { source, items: [] };
+        group = { shop, items: [] };
         groups.set(key, group);
       }
       group.items.push({

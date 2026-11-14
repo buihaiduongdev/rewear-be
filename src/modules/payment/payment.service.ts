@@ -55,6 +55,13 @@ export class PaymentService {
 
   async create(buyerId: string, checkoutId: string, requestId: string) {
     const gateway = this.gateway();
+    const existing = await this.db.getRepository(PaymentAttempt).findOneBy({
+      checkoutId,
+      buyerId,
+      requestId,
+    });
+    if (existing) return this.findMine(buyerId, existing.id);
+    const quote = await this.pricing.quote(buyerId, checkoutId);
     const prepared = await this.db.transaction(async (manager) => {
       const now = await this.lock(manager);
       const checkout = await manager.findOneByOrFail(Checkout, {
@@ -77,7 +84,7 @@ export class PaymentService {
         throw new ConflictException(
           'Resolve the previous payment or the three-attempt limit before trying again',
         );
-      const orders = await this.pricing.snapshot(manager, checkout);
+      const orders = await this.pricing.snapshot(manager, checkout, quote);
       const amount = orders.reduce(
         (sum, order) => sum + order.subtotal + order.shippingFee,
         0,

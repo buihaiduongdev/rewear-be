@@ -7,7 +7,6 @@ let quote;
 globalThis.__paymentPricingDependencies = {
   ConflictException: Error,
   CheckoutOrder: class {},
-  effectiveShippingQuote: async () => quote,
 };
 const source = (
   await readFile(
@@ -18,15 +17,14 @@ const source = (
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '');
 const { PaymentPricing } = await import(
-  `data:text/javascript;base64,${Buffer.from(`const { ConflictException, CheckoutOrder, effectiveShippingQuote } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`const { ConflictException, CheckoutOrder } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
 );
 
 test('pricing requires a current complete server quote and snapshots Shop money, address and items', async () => {
   const order = {
     id: 'order',
-    sourceType: 'SHOP',
-    sourceId: 'shop',
-    sourceName: 'Shop',
+    shopId: 'shop',
+    shop: { name: 'Shop' },
     subtotal: 200000,
     address: { recipientName: 'Buyer' },
     items: [{ productId: 'product', price: 200000 }],
@@ -36,25 +34,43 @@ test('pricing requires a current complete server quote and snapshots Shop money,
   quote = {
     status: 'READY',
     grandTotal: 230000,
-    orders: [{ orderId: 'order', status: 'QUOTED', fee: 30000 }],
+    quotedAt: new Date().toISOString(),
+    orders: [
+      { orderId: 'order', shopId: 'shop', status: 'QUOTED', fee: 30000 },
+    ],
   };
-  assert.deepEqual(await pricing.snapshot(manager, { id: 'checkout' }), [
-    {
-      checkoutOrderId: 'order',
-      shopId: 'shop',
-      shopName: 'Shop',
-      subtotal: 200000,
-      shippingFee: 30000,
-      address: order.address,
-      items: order.items,
-    },
-  ]);
+  const prepared = () => ({ checkoutId: 'checkout', quote });
+  assert.deepEqual(
+    await pricing.snapshot(manager, { id: 'checkout' }, prepared()),
+    [
+      {
+        checkoutOrderId: 'order',
+        shopId: 'shop',
+        shopName: 'Shop',
+        subtotal: 200000,
+        shippingFee: 30000,
+        address: order.address,
+        items: order.items,
+      },
+    ],
+  );
   quote.status = 'EXPIRED';
-  await assert.rejects(pricing.snapshot(manager, { id: 'checkout' }));
+  await assert.rejects(
+    pricing.snapshot(manager, { id: 'checkout' }, prepared()),
+  );
   quote.status = 'READY';
   quote.grandTotal = 1;
-  await assert.rejects(pricing.snapshot(manager, { id: 'checkout' }));
+  await assert.rejects(
+    pricing.snapshot(manager, { id: 'checkout' }, prepared()),
+  );
   quote.grandTotal = 230000;
-  order.sourceType = 'USER';
-  await assert.rejects(pricing.snapshot(manager, { id: 'checkout' }));
+  quote.orders[0].shopId = 'different-shop';
+  await assert.rejects(
+    pricing.snapshot(manager, { id: 'checkout' }, prepared()),
+  );
+  quote.orders[0].shopId = 'shop';
+  quote.quotedAt = new Date(Date.now() - 60000).toISOString();
+  await assert.rejects(
+    pricing.snapshot(manager, { id: 'checkout' }, prepared()),
+  );
 });

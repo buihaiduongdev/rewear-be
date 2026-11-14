@@ -1,24 +1,14 @@
-import { randomUUID } from 'node:crypto';
-
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 
-import { Checkout, CheckoutOrder } from './entities/checkout.entity';
-import { CheckoutShippingQuote } from './entities/shipping-quote.entity';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
-import {
-  databaseNow,
-  effectiveShippingQuote,
-  invalidateQuote,
-  quoteInputs,
-} from './shipping-quote.state';
+import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
+import { quoteInputs } from './shipping-quote.inputs';
 
 @Injectable()
 export class ShippingQuoteService {
@@ -26,142 +16,88 @@ export class ShippingQuoteService {
     private readonly db: DataSource,
     private readonly carrier: GhnSandboxAdapter,
   ) {}
-  async refresh(buyerId: string, checkoutId: string) {
-    const prepared = await this.db.transaction(async (manager) => {
-      const checkout = await manager.findOne(Checkout, {
-        where: { id: checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!checkout) throw new NotFoundException('Checkout not found');
-      const now = await databaseNow(manager);
-      if (
-        checkout.status !== 'HELD' ||
-        !checkout.expiresAt ||
-        checkout.expiresAt <= now
-      )
-        throw new ConflictException('An active reservation is required');
-      const orders = await manager.find(CheckoutOrder, {
-        where: { checkoutId },
-        order: { id: 'ASC' },
-      });
-      const context = await quoteInputs(manager, checkout, orders);
-      const existing = await effectiveShippingQuote(manager, checkout, orders);
-      if (
-        existing &&
-        (existing.status === 'READY' ||
-          (existing.status === 'FETCHING' &&
-            now.getTime() - new Date(existing.quotedAt).getTime() < 10000))
-      )
-        return { cached: existing };
-      const row = manager.create(CheckoutShippingQuote, {
-        checkoutId,
-        fingerprint: context.fingerprint,
-        inputs: context.inputs,
-      });
-      row.id = randomUUID();
-      row.result = {
-        id: row.id,
-        status: 'FETCHING',
-        environment: 'SANDBOX',
-        carrier: 'GHN',
-        parcelMethod: 'BOUNDING_STACK_V1',
-        quotedAt: now.toISOString(),
-        expiresAt: new Date(
-          Math.min(now.getTime() + 120000, checkout.expiresAt.getTime()),
-        ).toISOString(),
-        orders: context.results,
-        totalShippingFee: null,
-        grandTotal: null,
-        currency: 'VND',
-        paymentReady: false,
-      };
-      await manager.save(row);
-      checkout.activeShippingQuoteId = row.id;
-      await manager.save(checkout);
-      return { row };
+
+  async refresh(
+    buyerId: string,
+    checkoutId: string,
+  ): Promise<ShippingQuoteResult> {
+    const checkout = await this.db.getRepository(Checkout).findOneByOrFail({
+      id: checkoutId,
+      buyerId,
     });
-    if (prepared.cached) return prepared.cached;
-    const row = prepared.row!;
+    await this.assertActive(checkout);
+    const orders = await this.db.getRepository(CheckoutOrder).find({
+      where: { checkoutId },
+      order: { id: 'ASC' },
+    });
+    const { inputs, results } = await quoteInputs(this.db.manager, orders);
     const signal = AbortSignal.timeout(8000);
     let next = 0;
-    // Bounded concurrency and a shared total budget; no DB locks during HTTP.
     await Promise.all(
-      Array.from(
-        { length: Math.min(4, row.result.orders.length) },
-        async () => {
-          while (next < row.result.orders.length) {
-            const index = next++;
-            const order = row.result.orders[index];
-            if (order.reason) continue;
-            try {
-              const input = row.inputs[index].input;
-              if (!input) throw new Error('PICKUP_REQUIRED');
-              const response = await this.carrier.quote(input, signal);
-              order.status = 'QUOTED';
-              order.fee = response.fee;
-              order.estimatedDeliveryAt = response.estimatedDeliveryAt;
-            } catch (error) {
-              const reason = quoteReasonSchema.safeParse(
-                error instanceof Error ? error.message : '',
-              );
-              order.reason = reason.success
-                ? reason.data
-                : 'CARRIER_UNAVAILABLE';
-            }
+      Array.from({ length: Math.min(4, results.length) }, async () => {
+        while (next < results.length) {
+          const index = next++;
+          const order = results[index];
+          if (order.reason) continue;
+          try {
+            const input = inputs[index];
+            if (!input) throw new Error('PICKUP_REQUIRED');
+            const response = await this.carrier.quote(input, signal);
+            order.status = 'QUOTED';
+            order.fee = response.fee;
+            order.estimatedDeliveryAt = response.estimatedDeliveryAt;
+          } catch (error) {
+            const reason = quoteReasonSchema.safeParse(
+              error instanceof Error ? error.message : '',
+            );
+            order.reason = reason.success ? reason.data : 'CARRIER_UNAVAILABLE';
           }
-        },
-      ),
+        }
+      }),
     );
-    const quoted = row.result.orders.filter(
-      (order) => order.status === 'QUOTED',
-    );
-    row.result.status =
-      quoted.length === row.result.orders.length
+    const currentCheckout = await this.db
+      .getRepository(Checkout)
+      .findOneByOrFail({
+        id: checkoutId,
+        buyerId,
+      });
+    await this.assertActive(currentCheckout);
+    const quoted = results.filter((order) => order.status === 'QUOTED');
+    const status =
+      quoted.length === results.length
         ? 'READY'
         : quoted.length
           ? 'PARTIAL'
           : 'UNAVAILABLE';
-    if (row.result.status === 'READY') {
-      row.result.totalShippingFee = quoted.reduce(
-        (sum, order) => sum + order.fee!,
-        0,
-      );
-    }
-    return this.db.transaction(async (manager) => {
-      const checkout = await manager.findOne(Checkout, {
-        where: { id: checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!checkout) throw new NotFoundException('Checkout not found');
-      const orders = await manager.find(CheckoutOrder, {
-        where: { checkoutId },
-        order: { id: 'ASC' },
-      });
-      const now = await databaseNow(manager);
-      if (
-        checkout.activeShippingQuoteId !== row.id ||
-        checkout.status !== 'HELD' ||
-        !checkout.expiresAt ||
-        checkout.expiresAt <= now ||
-        new Date(row.result.expiresAt) <= now
-      ) {
-        row.result = invalidateQuote(
-          row.result,
-          checkout.expiresAt && checkout.expiresAt <= now
-            ? 'EXPIRED'
-            : 'INVALIDATED',
-        );
-      } else if (
-        (await quoteInputs(manager, checkout, orders)).fingerprint !==
-        row.fingerprint
-      )
-        row.result = invalidateQuote(row.result, 'INVALIDATED');
-      if (row.result.status === 'READY')
-        row.result.grandTotal =
-          orders.reduce((sum, order) => sum + order.subtotal, 0) +
-          row.result.totalShippingFee!;
-      await manager.save(CheckoutShippingQuote, row);
-      return row.result;
-    });
+    const totalShippingFee =
+      status === 'READY'
+        ? quoted.reduce((sum, order) => sum + order.fee!, 0)
+        : null;
+    return {
+      status,
+      environment: 'SANDBOX' as const,
+      carrier: 'GHN' as const,
+      parcelMethod: 'BOUNDING_STACK_V1' as const,
+      quotedAt: new Date().toISOString(),
+      orders: results,
+      totalShippingFee,
+      grandTotal:
+        totalShippingFee === null
+          ? null
+          : orders.reduce((sum, order) => sum + order.subtotal, 0) +
+            totalShippingFee,
+      currency: 'VND' as const,
+      paymentReady: false as const,
+    };
+  }
+
+  private async assertActive(checkout: Checkout) {
+    const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
+    if (
+      checkout.status !== 'HELD' ||
+      !checkout.expiresAt ||
+      checkout.expiresAt <= new Date(now)
+    )
+      throw new ConflictException('An active reservation is required');
   }
 }

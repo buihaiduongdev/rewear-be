@@ -17,11 +17,6 @@ const cartProductSchema = z.object({
   color: z.string().nullable(),
   coverUrl: z.url().nullable(),
 });
-const cartSourceSchema = z.object({
-  type: z.enum(['USER', 'SHOP']),
-  id: z.uuid(),
-  name: z.string(),
-});
 const cartItemSchema = z.object({
   productId: z.uuid(),
   addedAt: dateTimeSchema,
@@ -31,7 +26,7 @@ const cartItemSchema = z.object({
 export const cartSchema = z.object({
   groups: z.array(
     z.object({
-      source: cartSourceSchema.nullable(),
+      shop: z.object({ id: z.uuid(), name: z.string() }).nullable(),
       items: z.array(cartItemSchema),
     }),
   ),

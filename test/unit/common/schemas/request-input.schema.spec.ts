@@ -59,6 +59,7 @@ describe('Request schema compatibility', () => {
 
   const id = '598745cf-8764-499a-ad43-e6223713ee90';
   const product = {
+    shopId: id,
     categoryId: id,
     title: '  Áo   khoác  ',
     condition: ProductCondition.GOOD,
@@ -221,6 +222,32 @@ describe('Request schema compatibility', () => {
       expect(schema.parse({ name: '  Áo khoác  ' }).name).toBe('Áo khoác');
     },
   );
+
+  it('generates a category slug from the name and rejects client slugs', () => {
+    expect(createCategorySchema.parse({ name: '  Áo Đầm  ' })).toMatchObject({
+      name: 'Áo Đầm',
+      slug: 'ao-dam',
+    });
+    expect(
+      createCategorySchema.safeParse({ name: 'Áo Đầm', slug: 'ao-khoac' })
+        .success,
+    ).toBe(false);
+    expect(updateCategorySchema.safeParse({ slug: 'ao-khoac' }).success).toBe(
+      false,
+    );
+    expect(createCategorySchema.safeParse({ name: '!!!' }).success).toBe(false);
+  });
+
+  it('updates the slug when the category name changes', () => {
+    expect(updateCategorySchema.parse({ name: '  Áo Đầm  ' })).toEqual({
+      name: 'Áo Đầm',
+      slug: 'ao-dam',
+    });
+    expect(updateCategorySchema.parse({ isActive: false })).toEqual({
+      isActive: false,
+    });
+    expect(updateCategorySchema.safeParse({ name: '!!!' }).success).toBe(false);
+  });
 
   it('normalizes shop description and handles empty or null values', () => {
     expect(

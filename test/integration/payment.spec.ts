@@ -3,8 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { EntityNotFoundError } from 'typeorm';
 
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { Category } from '@/modules/category/entities';
+import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import {
   Order,
@@ -15,6 +18,7 @@ import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
@@ -25,13 +29,18 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
   let database: TestDatabase;
   let service: PaymentService;
   const client = { create: jest.fn(), query: jest.fn(), verifyIpn: jest.fn() };
-  const pricing = { snapshot: jest.fn() };
+  const carrier = { quote: jest.fn() };
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new PaymentService(
       database.dataSource,
       client as unknown as MomoSandboxClient,
-      pricing as unknown as PaymentPricing,
+      new PaymentPricing(
+        new ShippingQuoteService(
+          database.dataSource,
+          carrier as unknown as GhnSandboxAdapter,
+        ),
+      ),
     );
   });
   afterAll(async () => {
@@ -49,7 +58,7 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       .save(
         factory.product(
           0,
-          { categoryId: category.id, shopId: shop.id, sellerUserId: null },
+          { categoryId: category.id, shopId: shop.id },
           { status: ProductStatus.ACTIVE },
         ),
       );
@@ -82,28 +91,43 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       reservationId: checkout.id,
       heldUntil: checkout.expiresAt,
     });
-    pricing.snapshot.mockResolvedValue([
-      {
-        checkoutOrderId: randomUUID(),
-        shopId: shop.id,
-        shopName: shop.name,
-        subtotal: 200000,
-        shippingFee: 30000,
-        address,
-        items: [
-          {
-            productId: product.id,
-            title: 'Jacket',
-            price: 200000,
-            revision: 1,
-            size: null,
-            condition: 'GOOD',
-            coverUrl: null,
-            shippingPackage: null,
+    await db.getRepository(PickupLocation).save({
+      shopId: shop.id,
+      contactName: 'Shop owner',
+      phone: address.phone,
+      addressLine1: 'Pickup',
+      countryCode: 'VN',
+      provinceCode: '79',
+      provinceName: 'HCM',
+      wardCode: '1',
+      wardName: 'Ward',
+    });
+    await db.getRepository(CheckoutOrder).save({
+      checkoutId: checkout.id,
+      shopId: shop.id,
+      subtotal: 200000,
+      shippingFee: 30000,
+      address,
+      items: [
+        {
+          productId: product.id,
+          title: 'Jacket',
+          price: 200000,
+          revision: 1,
+          size: null,
+          condition: 'GOOD',
+          coverUrl: null,
+          shippingPackage: {
+            weightGrams: 500,
+            lengthCm: 30,
+            widthCm: 20,
+            heightCm: 5,
           },
-        ],
-      },
-    ]);
+        },
+      ],
+    });
+    carrier.quote.mockReset();
+    carrier.quote.mockResolvedValue({ fee: 30000, estimatedDeliveryAt: null });
     client.create.mockImplementation(
       async (input: {
         orderId: string;
@@ -116,7 +140,7 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       }),
     );
     client.verifyIpn.mockImplementation((value) => value);
-    return { db, buyer, product, checkout };
+    return { db, buyer, product, checkout, shop };
   }
 
   it('charges only server total and concurrent duplicate IPNs create one order and consume stock once', async () => {
@@ -225,6 +249,57 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
     ).toBe('REFUND_REQUIRED');
     expect(
       await db.getRepository(Order).countBy({ paymentId: payment.id }),
+    ).toBe(0);
+  });
+
+  it('uses freshly quoted fees and the current shop name, then replays without requiring GHN again', async () => {
+    const { db, buyer, checkout, shop } = await fixture();
+    await db.getRepository(Shop).update(shop.id, { name: 'Renamed Shop' });
+    carrier.quote.mockResolvedValue({ fee: 35000, estimatedDeliveryAt: null });
+    const requestId = randomUUID();
+    const payment = await service.create(buyer.id, checkout.id, requestId);
+    expect(payment.amount).toBe(235000);
+    const saved = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: payment.id });
+    expect(saved.orders[0].shopName).toBe('Renamed Shop');
+    carrier.quote.mockRejectedValue(new Error('CARRIER_UNAVAILABLE'));
+    expect((await service.create(buyer.id, checkout.id, requestId)).id).toBe(
+      payment.id,
+    );
+  });
+
+  it('does not create a payment when fresh shipping cannot be fully quoted', async () => {
+    const { db, buyer, checkout } = await fixture();
+    carrier.quote.mockRejectedValue(new Error('CARRIER_UNAVAILABLE'));
+    await expect(
+      service.create(buyer.id, checkout.id, randomUUID()),
+    ).rejects.toThrow('Refresh the shipping quote');
+    expect(
+      await db
+        .getRepository(PaymentAttempt)
+        .countBy({ checkoutId: checkout.id }),
+    ).toBe(0);
+  });
+
+  it('allows checkout cancellation during carrier HTTP and never charges the cancelled checkout', async () => {
+    const { db, buyer, checkout } = await fixture();
+    carrier.quote.mockImplementation(async () => {
+      // Acquiring the shared lifecycle lock here would deadlock if GHN HTTP
+      // were running inside the payment transaction.
+      await db.transaction(async (manager) => {
+        await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+        await manager.update(Checkout, checkout.id, { status: 'CANCELLED' });
+      });
+      return { fee: 30000, estimatedDeliveryAt: null };
+    });
+    await expect(
+      service.create(buyer.id, checkout.id, randomUUID()),
+    ).rejects.toThrow('An active reservation is required');
+    expect(
+      await db
+        .getRepository(PaymentAttempt)
+        .countBy({ checkoutId: checkout.id }),
     ).toBe(0);
   });
 });

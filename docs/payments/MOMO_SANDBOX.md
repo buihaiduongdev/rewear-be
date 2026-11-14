@@ -2,11 +2,15 @@
 
 ## Implemented path
 
-1. Create an authenticated checkout and obtain a READY server shipping quote.
+1. Create an authenticated checkout and preview shipping fees.
 2. `POST /api/checkouts/:id/payments/momo` with `{ "requestId": "<uuid>" }`.
-   The backend snapshots Shop orders and the full server total, then persists an
+   The backend obtains a fresh READY GHN quote outside the payment transaction,
+   rechecks the active hold and Shop stock, snapshots the full server total, then persists an
    attempt before calling MoMo. Never submit an amount, fee, credential or URL
    from the frontend. Reusing the same request ID returns the existing attempt.
+   A server quote older than 30 seconds or incomplete shipping results block a
+   new attempt. The amount returned with the attempt is authoritative; the
+   frontend must display it before opening MoMo. Fees can differ from a prior preview.
 3. Open the returned `payUrl`. This is not payment confirmation.
 4. A signed `POST /api/payments/momo/ipn` or server status query verifies payment.
    Settlement shares checkout's PostgreSQL lifecycle lock with cancellation and
@@ -60,7 +64,7 @@ do **not** prove PostgreSQL locking, transactions or Nest dependency injection.
 duplicate notifications. Run `pnpm check` and `pnpm test` with the dedicated
 local test database described in the root README before enabling Sandbox.
 After installing dependencies, TypeScript checking and Nest build passed; all
-23 Jest suites (140 tests) and 22 Node tests passed. The PostgreSQL payment suite
+23 Jest suites (140 tests) and 22 Node tests passed for the original payment slice. The PostgreSQL payment suite
 includes concurrent duplicate notifications, cancelled checkout success, wrong
 amount and buyer access isolation against a real dedicated local database. Oxlint passed. Prettier
 passed with `--end-of-line auto` for existing Windows checkouts; changed source
@@ -80,9 +84,6 @@ The following remain outside this first payment slice:
 - An operational end time for unknown payments: reconciliation continues rather
   than discarding unresolved money; provider limits and operator escalation still
   need Sandbox verification.
-- Adapting `PaymentPricing.snapshot` after unmerged PR #32 removes persisted
-  shipping quotes. The current implementation follows merged main, does not
-  merge #32 and does not accept the frontend's replacement quote as authority.
 - Current checkout's `paymentReady` remains the legacy display flag. Frontend
   integration and enabling the payment affordance require follow-up; do not infer
   this endpoint set is an end-to-end released UI.
@@ -98,3 +99,13 @@ The following remain outside this first payment slice:
 Result 0 is captured success. This implementation conservatively reconciles
 9000 authorization/other ambiguous results instead of fulfilling without a
 confirmed capture. Real Sandbox behavior for autoCapture must be checked.
+
+## PR #32 compatibility verification
+
+The combined Shop refactor and payment code passed typecheck, Nest build,
+Oxlint, formatting and 23 Jest suites / 146 tests on local PostgreSQL 18, plus
+22 Node tests. Payment integration now runs the real pricing and shipping
+services with mocked carrier HTTP: fresh fees/current Shop name, unavailable
+shipping, cancellation during quoting, idempotent replay and settlement are
+covered. The GHN request runs before the shared transaction lock. No local
+development database was reset and no live provider transaction was performed.

@@ -5,7 +5,7 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import type {
   CheckoutAddress,
   CheckoutItem,
-} from '@/modules/checkout/entities/checkout.entity';
+} from '@/modules/checkout/types/checkout.type';
 
 import type { AttemptState } from './payment.policy';
 
