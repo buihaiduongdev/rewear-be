@@ -23,6 +23,7 @@ import { UserRole } from '@/modules/user/enums';
 
 import { CodPolicy } from './cod.policy';
 import { CodService } from './cod.service';
+import type { CancelCodInput, PlaceCodInput } from './schemas/cod.schema';
 import {
   cancelCodSchema,
   codRestrictionsSchema,
@@ -46,7 +47,7 @@ export class CodController {
   place(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: placeCodSchema }) input: { expectedTotal: number },
+    @Body({ schema: placeCodSchema }) input: PlaceCodInput,
   ) {
     return this.cod.place(user.id, id, input.expectedTotal);
   }
@@ -57,7 +58,7 @@ export class CodController {
   cancel(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: cancelCodSchema }) _input: { reason: 'CHANGE_OF_MIND' },
+    @Body({ schema: cancelCodSchema }) _input: CancelCodInput,
   ) {
     return this.orders.cancelCodPending(user.id, id);
   }

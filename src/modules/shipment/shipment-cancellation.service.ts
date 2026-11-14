@@ -3,6 +3,12 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { OrderAccess } from '@/modules/order/order.access';
+import {
+  ORDER_CANCEL_STATE,
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/order.constants';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 
@@ -30,19 +36,26 @@ export class ShipmentCancellationService {
       const order = await manager.findOneByOrFail(Order, {
         id,
         buyerId,
-        paymentMethod: 'COD',
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
       });
       if (order.cancelRequestedAt) return order;
       const shipment = await manager.findOneBy(Shipment, { orderId: id });
-      if (order.status !== 'preparing' || shipment?.pickedObservedAt)
+      if (order.status !== ORDER_STATUS.PREPARING || shipment?.pickedObservedAt)
         throw new ConflictException(
           'Cancellation request is only available before handover',
         );
       const now = await this.now(manager);
-      order.cancelState = 'PENDING';
+      order.cancelState = ORDER_CANCEL_STATE.PENDING;
       order.cancelRequestedAt = now;
       order.cancelRespondBy = new Date(now.getTime() + 12 * 3600000);
-      await this.audit(manager, order, 'CANCEL_REQUESTED', buyerId, null, null);
+      await this.audit(
+        manager,
+        order,
+        ORDER_EVENT_ACTION.CANCEL_REQUESTED,
+        buyerId,
+        null,
+        null,
+      );
       return manager.save(order);
     });
   }
@@ -59,9 +72,9 @@ export class ShipmentCancellationService {
       const order = await manager.findOneByOrFail(Order, {
         id,
         shopId,
-        paymentMethod: 'COD',
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
       });
-      if (order.cancelState !== 'PENDING') return order;
+      if (order.cancelState !== ORDER_CANCEL_STATE.PENDING) return order;
       const now = await this.now(manager);
       const expired = !!(order.cancelRespondBy && order.cancelRespondBy <= now);
       order.cancelDecisionReason = expired
@@ -71,7 +84,7 @@ export class ShipmentCancellationService {
       await this.audit(
         manager,
         order,
-        'CANCEL_DECISION',
+        ORDER_EVENT_ACTION.CANCEL_DECISION,
         expired ? null : userId,
         order.cancelDecisionReason,
         order.cancelDecisionEvidence,
@@ -79,7 +92,7 @@ export class ShipmentCancellationService {
       );
       if (input.approve || expired) await this.approve(manager, order, now);
       else {
-        order.cancelState = 'REJECTED';
+        order.cancelState = ORDER_CANCEL_STATE.REJECTED;
         order.cancelReviewUntil = new Date(now.getTime() + 4 * 3600000);
         await manager.save(order);
       }
@@ -93,22 +106,22 @@ export class ShipmentCancellationService {
       const order = await manager.findOneByOrFail(Order, {
         id,
         buyerId,
-        paymentMethod: 'COD',
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
       });
-      if (order.cancelState === 'ADMIN_REVIEW') return order;
+      if (order.cancelState === ORDER_CANCEL_STATE.ADMIN_REVIEW) return order;
       const now = await this.now(manager);
       if (
-        order.cancelState !== 'REJECTED' ||
+        order.cancelState !== ORDER_CANCEL_STATE.REJECTED ||
         !order.cancelReviewUntil ||
         order.cancelReviewUntil <= now
       )
         throw new ConflictException('Cancellation review window has closed');
-      order.cancelState = 'ADMIN_REVIEW';
+      order.cancelState = ORDER_CANCEL_STATE.ADMIN_REVIEW;
       order.cancelDecisionReason = reason;
       await this.audit(
         manager,
         order,
-        'CANCEL_REVIEW_REQUESTED',
+        ORDER_EVENT_ACTION.CANCEL_REVIEW_REQUESTED,
         buyerId,
         reason,
         null,
@@ -126,9 +139,9 @@ export class ShipmentCancellationService {
       await this.lock(manager);
       const order = await manager.findOneByOrFail(Order, {
         id,
-        paymentMethod: 'COD',
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
       });
-      if (order.cancelState !== 'ADMIN_REVIEW')
+      if (order.cancelState !== ORDER_CANCEL_STATE.ADMIN_REVIEW)
         throw new ConflictException('No pending cancellation review');
       const now = await this.now(manager);
       order.cancelDecisionReason = input.reason;
@@ -136,7 +149,7 @@ export class ShipmentCancellationService {
       await this.audit(
         manager,
         order,
-        'CANCEL_REVIEW_DECIDED',
+        ORDER_EVENT_ACTION.CANCEL_REVIEW_DECIDED,
         adminId,
         input.reason,
         input.evidence,
@@ -144,7 +157,7 @@ export class ShipmentCancellationService {
       );
       if (input.approve) await this.approve(manager, order, now);
       else {
-        order.cancelState = 'REJECTED';
+        order.cancelState = ORDER_CANCEL_STATE.REJECTED;
         order.cancelReviewUntil = now;
         await manager.save(order);
       }
@@ -153,7 +166,7 @@ export class ShipmentCancellationService {
   }
 
   private async approve(manager: EntityManager, order: Order, now: Date) {
-    order.cancelState = 'APPROVED';
+    order.cancelState = ORDER_CANCEL_STATE.APPROVED;
     const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
     if (!shipment) {
       await this.orders.cancelCodVerified(manager, order, now);
@@ -197,8 +210,12 @@ export class ShipmentCancellationService {
     const due = await this.db
       .getRepository(Order)
       .createQueryBuilder('order')
-      .where('order.paymentMethod = :method', { method: 'COD' })
-      .andWhere('order.cancelState = :state', { state: 'PENDING' })
+      .where('order.paymentMethod = :method', {
+        method: ORDER_PAYMENT_METHOD.COD,
+      })
+      .andWhere('order.cancelState = :state', {
+        state: ORDER_CANCEL_STATE.PENDING,
+      })
       .andWhere('order.cancelRespondBy <= :now', { now: clock })
       .take(100)
       .getMany();
@@ -208,7 +225,7 @@ export class ShipmentCancellationService {
         const order = await manager.findOneByOrFail(Order, { id: item.id });
         const now = await this.now(manager);
         if (
-          order.cancelState === 'PENDING' &&
+          order.cancelState === ORDER_CANCEL_STATE.PENDING &&
           order.cancelRespondBy &&
           order.cancelRespondBy <= now
         ) {
@@ -216,7 +233,7 @@ export class ShipmentCancellationService {
           await this.audit(
             manager,
             order,
-            'CANCEL_DECISION',
+            ORDER_EVENT_ACTION.CANCEL_DECISION,
             null,
             order.cancelDecisionReason,
             null,
@@ -232,7 +249,11 @@ export class ShipmentCancellationService {
       .set({ handoverReviewRequired: true })
       .where(
         '"paymentMethod" = :method AND status = :status AND "handoverBy" <= :now AND "handoverReviewRequired" = false',
-        { method: 'COD', status: 'preparing', now: clock },
+        {
+          method: ORDER_PAYMENT_METHOD.COD,
+          status: ORDER_STATUS.PREPARING,
+          now: clock,
+        },
       )
       .execute();
   }

@@ -3,10 +3,16 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
-import { orderEventActions, orderStates } from './order.type';
+import {
+  ORDER_CANCEL_STATE,
+  ORDER_CANCELLATION_REASON,
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from './order.constants';
 
 export const orderListInputSchema = z.strictObject({
-  status: z.enum(orderStates).optional(),
+  status: z.enum(ORDER_STATUS).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
@@ -17,15 +23,13 @@ export const acceptOrderSchema = z.strictObject({});
 export const orderSchema = z.object({
   id: z.uuid(),
   paymentId: z.uuid().nullable(),
-  paymentMethod: z.enum(['MOMO', 'COD']),
+  paymentMethod: z.enum(ORDER_PAYMENT_METHOD),
   checkoutId: z.uuid().nullable(),
   handoverBy: dateTimeSchema.nullable(),
   handoverReviewRequired: z.boolean(),
   deliveryObservedAt: dateTimeSchema.nullable(),
   carrierReturnedAt: dateTimeSchema.nullable(),
-  cancelState: z
-    .enum(['PENDING', 'APPROVED', 'REJECTED', 'ADMIN_REVIEW', 'CLOSED'])
-    .nullable(),
+  cancelState: z.enum(ORDER_CANCEL_STATE).nullable(),
   cancelRequestedAt: dateTimeSchema.nullable(),
   cancelRespondBy: dateTimeSchema.nullable(),
   cancelReviewUntil: dateTimeSchema.nullable(),
@@ -33,21 +37,14 @@ export const orderSchema = z.object({
   cancelDecisionEvidence: z.string().nullable(),
   shopId: z.uuid(),
   shopName: z.string(),
-  status: z.enum(orderStates),
+  status: z.enum(ORDER_STATUS),
   subtotal: z.number().int(),
   shippingFee: z.number().int(),
   total: z.number().int(),
   sellerConfirmBy: dateTimeSchema,
   acceptedAt: dateTimeSchema.nullable(),
   cancelledAt: dateTimeSchema.nullable(),
-  cancellationReason: z
-    .enum([
-      'SELLER_REJECTED',
-      'SELLER_CONFIRM_TIMEOUT',
-      'BUYER_CANCELLED',
-      'BUYER_CANCEL_APPROVED',
-    ])
-    .nullable(),
+  cancellationReason: z.enum(ORDER_CANCELLATION_REASON).nullable(),
   cancellationNote: z.string().nullable(),
   address: z.record(z.string(), z.unknown()),
   items: z.array(z.record(z.string(), z.unknown())),
@@ -64,7 +61,7 @@ export const orderSchema = z.object({
     .array(
       z.object({
         id: z.uuid(),
-        action: z.enum(orderEventActions),
+        action: z.enum(ORDER_EVENT_ACTION),
         actorId: z.uuid().nullable(),
         reason: z.string().nullable(),
         evidence: z.string().nullable(),

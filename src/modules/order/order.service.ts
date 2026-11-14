@@ -12,6 +12,13 @@ import { WalletCredit } from '@/modules/wallet/wallet.entity';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { OrderAccess } from './order.access';
+import {
+  ORDER_CANCEL_STATE,
+  ORDER_CANCELLATION_REASON,
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from './order.constants';
 import { Order, OrderEvent } from './order.entity';
 import type { OrderListInput } from './order.type';
 
@@ -67,8 +74,9 @@ export class OrderService {
       await this.lock(manager);
       await this.access.assertManage(manager, userId, shopId, true);
       const order = await manager.findOneByOrFail(Order, { id, shopId });
-      if (order.status === 'preparing') return { order, expired: false };
-      if (order.status !== 'pending')
+      if (order.status === ORDER_STATUS.PREPARING)
+        return { order, expired: false };
+      if (order.status !== ORDER_STATUS.PENDING)
         throw new ConflictException('Order is no longer awaiting confirmation');
       const now = await this.now(manager);
       if (order.sellerConfirmBy <= now) {
@@ -76,22 +84,22 @@ export class OrderService {
           manager,
           order,
           now,
-          'SELLER_CONFIRM_TIMEOUT',
+          ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT,
           null,
           null,
         );
         return { order, expired: true };
       }
-      order.status = 'preparing';
+      order.status = ORDER_STATUS.PREPARING;
       order.acceptedAt = now;
-      if (order.paymentMethod === 'COD')
+      if (order.paymentMethod === ORDER_PAYMENT_METHOD.COD)
         order.handoverBy = new Date(now.getTime() + 48 * 3600000);
       await manager.save(order);
       await manager.save(
         OrderEvent,
         manager.create(OrderEvent, {
           orderId: id,
-          action: 'ACCEPTED',
+          action: ORDER_EVENT_ACTION.ACCEPTED,
           actorId: userId,
           reason: null,
           createdAt: now,
@@ -112,8 +120,8 @@ export class OrderService {
       await this.lock(manager);
       await this.access.assertManage(manager, userId, shopId, true);
       const order = await manager.findOneByOrFail(Order, { id, shopId });
-      if (order.status === 'cancelled') return order;
-      if (order.status !== 'pending')
+      if (order.status === ORDER_STATUS.CANCELLED) return order;
+      if (order.status !== ORDER_STATUS.PENDING)
         throw new ConflictException('Order is no longer awaiting confirmation');
       const now = await this.now(manager);
       const expired = order.sellerConfirmBy <= now;
@@ -121,7 +129,9 @@ export class OrderService {
         manager,
         order,
         now,
-        expired ? 'SELLER_CONFIRM_TIMEOUT' : 'SELLER_REJECTED',
+        expired
+          ? ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT
+          : ORDER_CANCELLATION_REASON.SELLER_REJECTED,
         expired ? null : userId,
         expired ? null : reason,
       );
@@ -135,7 +145,7 @@ export class OrderService {
     const due = await this.db
       .getRepository(Order)
       .createQueryBuilder('order')
-      .where('order.status = :status', { status: 'pending' })
+      .where('order.status = :status', { status: ORDER_STATUS.PENDING })
       .andWhere('order.sellerConfirmBy <= :now', { now: new Date(now) })
       .andWhere('(order.expiryRetryAt IS NULL OR order.expiryRetryAt <= :now)')
       .orderBy('order.sellerConfirmBy', 'ASC')
@@ -149,13 +159,16 @@ export class OrderService {
           await this.lock(manager);
           const order = await manager.findOneByOrFail(Order, { id: item.id });
           const now = await this.now(manager);
-          if (order.status !== 'pending' || order.sellerConfirmBy > now)
+          if (
+            order.status !== ORDER_STATUS.PENDING ||
+            order.sellerConfirmBy > now
+          )
             return 0;
           await this.cancel(
             manager,
             order,
             now,
-            'SELLER_CONFIRM_TIMEOUT',
+            ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT,
             null,
             null,
           );
@@ -167,7 +180,7 @@ export class OrderService {
         await this.db
           .getRepository(Order)
           .update(
-            { id: item.id, status: 'pending' },
+            { id: item.id, status: ORDER_STATUS.PENDING },
             { expiryRetryAt: new Date(Date.now() + 60000) },
           );
         this.logger.error({
@@ -185,10 +198,10 @@ export class OrderService {
       const order = await manager.findOneByOrFail(Order, {
         id,
         buyerId,
-        paymentMethod: 'COD',
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
       });
-      if (order.status === 'cancelled') return order;
-      if (order.status !== 'pending')
+      if (order.status === ORDER_STATUS.CANCELLED) return order;
+      if (order.status !== ORDER_STATUS.PENDING)
         throw new ConflictException(
           'Seller already confirmed; request cancellation instead',
         );
@@ -198,7 +211,9 @@ export class OrderService {
         manager,
         order,
         now,
-        expired ? 'SELLER_CONFIRM_TIMEOUT' : 'BUYER_CANCELLED',
+        expired
+          ? ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT
+          : ORDER_EVENT_ACTION.BUYER_CANCELLED,
         expired ? null : buyerId,
         expired ? null : 'Buyer changed their mind',
       );
@@ -213,9 +228,9 @@ export class OrderService {
   // confirms cancellation before any observed pickup, within the same lock/tx.
   async cancelCodVerified(manager: EntityManager, order: Order, now: Date) {
     if (
-      order.paymentMethod !== 'COD' ||
-      order.status !== 'preparing' ||
-      order.cancelState !== 'APPROVED'
+      order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
+      order.status !== ORDER_STATUS.PREPARING ||
+      order.cancelState !== ORDER_CANCEL_STATE.APPROVED
     )
       throw new ConflictException(
         'COD cancellation requires approval and safe carrier state',
@@ -224,11 +239,11 @@ export class OrderService {
       manager,
       order,
       now,
-      'BUYER_CANCEL_APPROVED',
+      ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED,
       null,
       order.cancelDecisionReason,
     );
-    order.cancelState = 'CLOSED';
+    order.cancelState = ORDER_CANCEL_STATE.CLOSED;
     await manager.save(order);
   }
 
@@ -249,10 +264,10 @@ export class OrderService {
     actorId: string | null,
     note: string | null,
   ) {
-    if (order.paymentMethod !== 'COD')
+    if (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD)
       await this.wallet.creditCancellation(manager, order);
     order.stockReleaseReviewIds = await this.releaseStock(manager, order);
-    order.status = 'cancelled';
+    order.status = ORDER_STATUS.CANCELLED;
     order.cancelledAt = now;
     order.cancellationReason = reason;
     order.cancellationNote = note;
@@ -262,13 +277,13 @@ export class OrderService {
       manager.create(OrderEvent, {
         orderId: order.id,
         action:
-          reason === 'SELLER_REJECTED'
-            ? 'REJECTED'
-            : reason === 'BUYER_CANCELLED'
-              ? 'BUYER_CANCELLED'
-              : reason === 'BUYER_CANCEL_APPROVED'
-                ? 'CANCEL_APPROVED'
-                : 'EXPIRED',
+          reason === ORDER_CANCELLATION_REASON.SELLER_REJECTED
+            ? ORDER_EVENT_ACTION.REJECTED
+            : reason === ORDER_CANCELLATION_REASON.BUYER_CANCELLED
+              ? ORDER_EVENT_ACTION.BUYER_CANCELLED
+              : reason === ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED
+                ? ORDER_EVENT_ACTION.CANCEL_APPROVED
+                : ORDER_EVENT_ACTION.EXPIRED,
         actorId,
         reason: note,
         createdAt: now,
@@ -306,7 +321,7 @@ export class OrderService {
     for (const id of ids) {
       const product = products.find((item) => item.id === id);
       const codOwned =
-        order.paymentMethod === 'COD' &&
+        order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
         product?.reservedOrderId === order.id &&
         product.status === ProductStatus.HELD;
       if (

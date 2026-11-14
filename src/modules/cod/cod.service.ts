@@ -5,6 +5,11 @@ import { DataSource, In } from 'typeorm';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import {
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/order.constants';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
@@ -26,7 +31,7 @@ export class CodService {
 
   async place(buyerId: string, checkoutId: string, expectedTotal: number) {
     const existing = await this.db.getRepository(Order).find({
-      where: { buyerId, checkoutId, paymentMethod: 'COD' },
+      where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
       order: { id: 'ASC' },
     });
     if (existing.length) {
@@ -40,7 +45,7 @@ export class CodService {
       // Another identical request can commit COD_PLACED while GHN quoting is
       // still running. Return its durable result instead of rejecting replay.
       const replay = await this.db.getRepository(Order).find({
-        where: { buyerId, checkoutId, paymentMethod: 'COD' },
+        where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
         order: { id: 'ASC' },
       });
       if (replay.length) {
@@ -56,7 +61,7 @@ export class CodService {
         buyerId,
       });
       const replay = await manager.find(Order, {
-        where: { buyerId, checkoutId, paymentMethod: 'COD' },
+        where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
         order: { id: 'ASC' },
       });
       if (replay.length) {
@@ -141,8 +146,8 @@ export class CodService {
             checkoutId,
             buyerId,
             paymentId: null,
-            paymentMethod: 'COD',
-            status: 'pending',
+            paymentMethod: ORDER_PAYMENT_METHOD.COD,
+            status: ORDER_STATUS.PENDING,
             total,
             sellerConfirmBy: new Date(now.getTime() + 86400000),
             commissionBasisPoints: 300,
@@ -152,7 +157,7 @@ export class CodService {
           OrderEvent,
           manager.create(OrderEvent, {
             orderId: order.id,
-            action: 'PLACED',
+            action: ORDER_EVENT_ACTION.PLACED,
             actorId: buyerId,
             reason: null,
             createdAt: now,

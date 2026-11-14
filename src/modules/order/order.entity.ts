@@ -7,7 +7,14 @@ import type {
 } from '@/modules/checkout/types/checkout.type';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 
-import type { OrderEventAction, OrderState } from './order.type';
+import { ORDER_PAYMENT_METHOD } from './order.constants';
+import type {
+  OrderCancellationReason,
+  OrderCancelState,
+  OrderEventAction,
+  OrderPaymentMethod,
+  OrderState,
+} from './order.type';
 
 @Entity('orders')
 @Index(['checkoutOrderId'], { unique: true })
@@ -29,8 +36,8 @@ export class Order extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   checkoutId: string | null;
 
-  @Column({ type: 'varchar', length: 10, default: 'MOMO' })
-  paymentMethod: 'MOMO' | 'COD';
+  @Column({ type: 'varchar', length: 10, default: ORDER_PAYMENT_METHOD.MOMO })
+  paymentMethod: OrderPaymentMethod;
 
   @Column({ type: 'timestamptz', nullable: true })
   handoverBy: Date | null;
@@ -45,8 +52,7 @@ export class Order extends BaseEntity {
   carrierReturnedAt: Date | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  cancelState:
-    'PENDING' | 'APPROVED' | 'REJECTED' | 'ADMIN_REVIEW' | 'CLOSED' | null;
+  cancelState: OrderCancelState | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   cancelRequestedAt: Date | null;
@@ -103,12 +109,7 @@ export class Order extends BaseEntity {
   cancelledAt: Date | null;
 
   @Column({ type: 'varchar', length: 30, nullable: true })
-  cancellationReason:
-    | 'SELLER_REJECTED'
-    | 'SELLER_CONFIRM_TIMEOUT'
-    | 'BUYER_CANCELLED'
-    | 'BUYER_CANCEL_APPROVED'
-    | null;
+  cancellationReason: OrderCancellationReason | null;
 
   @Column({ type: 'varchar', length: 1000, nullable: true })
   cancellationNote: string | null;

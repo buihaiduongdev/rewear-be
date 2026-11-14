@@ -2,6 +2,10 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, Not } from 'typeorm';
 
+import {
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/order.constants';
 import { Order } from '@/modules/order/order.entity';
 
 import { CodBuyerCancellation, CodRestriction } from './cod.entity';
@@ -32,12 +36,20 @@ export class CodPolicy {
     const orders = await manager.find(Order, {
       where: {
         buyerId,
-        paymentMethod: 'COD',
-        status: Not(In(['delivered', 'completed', 'cancelled'])),
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
+        status: Not(
+          In([
+            ORDER_STATUS.DELIVERED,
+            ORDER_STATUS.COMPLETED,
+            ORDER_STATUS.CANCELLED,
+          ]),
+        ),
       },
     });
     const active = orders.filter((order) => !order.carrierReturnedAt);
-    const pending = active.filter((order) => order.status === 'pending');
+    const pending = active.filter(
+      (order) => order.status === ORDER_STATUS.PENDING,
+    );
     const pendingCheckouts = new Set(pending.map((order) => order.checkoutId))
       .size;
     const activeCheckouts = new Set(active.map((order) => order.checkoutId))

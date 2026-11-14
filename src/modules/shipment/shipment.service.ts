@@ -11,8 +11,15 @@ import {
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { quoteInputs } from '@/modules/checkout/shipping-quote.inputs';
 import { OrderAccess } from '@/modules/order/order.access';
+import {
+  ORDER_CANCEL_STATE,
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/order.constants';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
+import type { OrderCancelState, OrderState } from '@/modules/order/order.type';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 
@@ -37,6 +44,21 @@ const returning = new Set([
   'return_fail',
   'returned',
 ]);
+const bookingBlockedCancelStates: readonly OrderCancelState[] = [
+  ORDER_CANCEL_STATE.PENDING,
+  ORDER_CANCEL_STATE.APPROVED,
+  ORDER_CANCEL_STATE.ADMIN_REVIEW,
+  ORDER_CANCEL_STATE.CLOSED,
+];
+const deliveryTerminalStatuses: readonly OrderState[] = [
+  ORDER_STATUS.CANCELLED,
+  ORDER_STATUS.COMPLETED,
+  ORDER_STATUS.DISPUTE,
+];
+const returnTerminalStatuses: readonly OrderState[] = [
+  ...deliveryTerminalStatuses,
+  ORDER_STATUS.DELIVERED,
+];
 
 @Injectable()
 export class ShipmentService {
@@ -58,11 +80,10 @@ export class ShipmentService {
 
   private assertBookable(order: Order, now: Date) {
     if (
-      order.status !== 'preparing' ||
-      ['PENDING', 'APPROVED', 'ADMIN_REVIEW', 'CLOSED'].includes(
-        order.cancelState ?? '',
-      ) ||
-      (order.cancelState === 'REJECTED' &&
+      order.status !== ORDER_STATUS.PREPARING ||
+      (order.cancelState &&
+        bookingBlockedCancelStates.includes(order.cancelState)) ||
+      (order.cancelState === ORDER_CANCEL_STATE.REJECTED &&
         order.cancelReviewUntil &&
         order.cancelReviewUntil > now)
     )
@@ -70,7 +91,7 @@ export class ShipmentService {
         'Order cannot be booked while cancellation or shipment is in progress',
       );
     if (
-      order.paymentMethod === 'COD' &&
+      order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
       (!order.handoverBy ||
         order.handoverBy <= now ||
         order.handoverReviewRequired)
@@ -117,7 +138,9 @@ export class ShipmentService {
     if (!prepared.order || !prepared.carrierInput || !prepared.clientId)
       throw new ConflictException('Shipment preparation failed');
     const codAmount =
-      prepared.order.paymentMethod === 'COD' ? prepared.order.total : 0;
+      prepared.order.paymentMethod === ORDER_PAYMENT_METHOD.COD
+        ? prepared.order.total
+        : 0;
     const payload = await this.carrier.prepare(
       prepared.carrierInput,
       codAmount,
@@ -274,10 +297,13 @@ export class ShipmentService {
         returning.has(snapshot.status)
       ) {
         row.pickedObservedAt ??= now;
-        if (order.cancelState && order.cancelState !== 'CLOSED')
+        if (
+          order.cancelState &&
+          order.cancelState !== ORDER_CANCEL_STATE.CLOSED
+        )
           row.reviewReason = 'PICKED_DURING_CANCELLATION';
         if (
-          order.paymentMethod === 'COD' &&
+          order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
           order.handoverBy &&
           now > order.handoverBy &&
           !order.deliveryObservedAt
@@ -286,13 +312,13 @@ export class ShipmentService {
       }
       if (
         snapshot.status === 'delivered' &&
-        !['cancelled', 'completed', 'dispute'].includes(order.status)
+        !deliveryTerminalStatuses.includes(order.status)
       ) {
-        order.status = 'delivered';
+        order.status = ORDER_STATUS.DELIVERED;
         order.deliveryObservedAt ??= now;
         // updated_date is not proven delivery event time; do not start 72h payout.
-        await this.event(manager, order.id, 'DELIVERED', now);
-        if (order.paymentMethod === 'COD') {
+        await this.event(manager, order.id, ORDER_EVENT_ACTION.DELIVERED, now);
+        if (order.paymentMethod === ORDER_PAYMENT_METHOD.COD) {
           for (const item of order.items)
             await manager.update(
               Product,
@@ -311,28 +337,26 @@ export class ShipmentService {
         }
       } else if (
         returning.has(snapshot.status) &&
-        !['delivered', 'completed', 'cancelled', 'dispute'].includes(
-          order.status,
-        )
+        !returnTerminalStatuses.includes(order.status)
       ) {
-        order.status = 'returns';
+        order.status = ORDER_STATUS.RETURNS;
         row.reviewReason ??= 'RETURN_REQUIRES_RECONCILIATION';
         if (snapshot.status === 'returned') order.carrierReturnedAt ??= now;
-        await this.event(manager, order.id, 'RETURNING', now);
+        await this.event(manager, order.id, ORDER_EVENT_ACTION.RETURNING, now);
       } else if (
         inTransit.has(snapshot.status) &&
-        order.status === 'preparing'
+        order.status === ORDER_STATUS.PREPARING
       ) {
-        order.status = 'shipping';
-        await this.event(manager, order.id, 'SHIPPING', now);
+        order.status = ORDER_STATUS.SHIPPING;
+        await this.event(manager, order.id, ORDER_EVENT_ACTION.SHIPPING, now);
       } else if (snapshot.status === 'cancel') {
         if (
           row.cancelRequestedAt &&
           !row.pickedObservedAt &&
           !row.codCollectedAt &&
           !row.carrierTransferredAt &&
-          order.paymentMethod === 'COD' &&
-          order.cancelState === 'APPROVED'
+          order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
+          order.cancelState === ORDER_CANCEL_STATE.APPROVED
         ) {
           await this.orders.cancelCodVerified(manager, order, now);
           row.state = 'CANCELLED';
@@ -353,7 +377,7 @@ export class ShipmentService {
       return (
         row.state === 'CANCEL_PENDING' &&
         !row.pickedObservedAt &&
-        order.cancelState === 'APPROVED'
+        order.cancelState === ORDER_CANCEL_STATE.APPROVED
       );
     });
   }
@@ -453,7 +477,7 @@ export class ShipmentService {
       .createQueryBuilder('order')
       .where(
         'order.handoverReviewRequired = true OR order.cancelState = :state',
-        { state: 'ADMIN_REVIEW' },
+        { state: ORDER_CANCEL_STATE.ADMIN_REVIEW },
       )
       .orderBy('order.createdAt', 'ASC')
       .take(100)
