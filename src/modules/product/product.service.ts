@@ -19,7 +19,7 @@ import {
 
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType } from '@/modules/media/enums';
+import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import {
   ShopMemberRole,
@@ -39,6 +39,8 @@ import type {
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
 
+type ProductView = Product & { coverUrl: string | null; mediaCount: number };
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -53,7 +55,7 @@ export class ProductService {
     private readonly dataSource: DataSource,
   ) {}
 
-  findAll(query: PaginateQuery): Promise<Paginated<Product>> {
+  findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
     const queryBuilder = this.createProductQueryBuilder()
       .where('product.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('product.approvedRevision = product.revision')
@@ -67,7 +69,7 @@ export class ProductService {
   async findMine(
     currentUserId: string,
     query: PaginateQuery,
-  ): Promise<Paginated<Product>> {
+  ): Promise<Paginated<ProductView>> {
     const ownedShops = await this.shopMemberRepository.find({
       where: {
         userId: currentUserId,
@@ -84,7 +86,7 @@ export class ProductService {
     return this.paginateProducts(queryBuilder, query);
   }
 
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: string): Promise<ProductView> {
     const product = await this.createProductQueryBuilder()
       .where('product.id = :id AND product.status = :status', {
         id,
@@ -96,14 +98,14 @@ export class ProductService {
         shopStatus: ShopStatus.ACTIVE,
       })
       .getOneOrFail();
-    await this.loadMedia([product], true);
-    return product;
+    const [view] = await this.loadMedia([product], true);
+    return view;
   }
 
   async findOneForManagement(
     id: string,
     currentUserId: string,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     const product = await this.findManagedProduct(id);
     await this.assertCanManage(product, currentUserId);
     return product;
@@ -112,7 +114,7 @@ export class ProductService {
   async create(
     currentUserId: string,
     input: CreateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
     await this.assertActiveShopOwner(input.shopId, currentUserId);
     const product = await this.productRepository.save(
@@ -182,7 +184,7 @@ export class ProductService {
     id: string,
     currentUserId: string,
     input: UpdateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, currentUserId);
       this.assertEditable(product);
@@ -274,7 +276,7 @@ export class ProductService {
     id: string,
     userId: string,
     input: UpdateProductStatusInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (
@@ -295,7 +297,7 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async submit(id: string, userId: string): Promise<Product> {
+  async submit(id: string, userId: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (product.status !== ProductStatus.DRAFT)
@@ -359,7 +361,7 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async cancelSubmission(id: string, userId: string): Promise<Product> {
+  async cancelSubmission(id: string, userId: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (product.status !== ProductStatus.PENDING_REVIEW) {
@@ -385,7 +387,7 @@ export class ProductService {
     id: string,
     adminId: string,
     input: ModerateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
@@ -424,7 +426,11 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async suspend(id: string, adminId: string, reason: string): Promise<Product> {
+  async suspend(
+    id: string,
+    adminId: string,
+    reason: string,
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
@@ -471,7 +477,7 @@ export class ProductService {
       .find({ where: { productId: id }, order: { revision: 'DESC' } });
   }
 
-  async findForReview(id: string, adminId: string): Promise<Product> {
+  async findForReview(id: string, adminId: string): Promise<ProductView> {
     await this.assertAdmin(this.dataSource.manager, adminId);
     return this.findManagedProduct(id);
   }
@@ -479,7 +485,7 @@ export class ProductService {
   async findReviewQueue(
     query: PaginateQuery,
     adminId: string,
-  ): Promise<Paginated<Product>> {
+  ): Promise<Paginated<ProductView>> {
     await this.assertAdmin(this.dataSource.manager, adminId);
     const builder = this.createProductQueryBuilder();
     if (!query.filter?.status) {
@@ -599,8 +605,8 @@ export class ProductService {
   private async loadMedia(
     products: Product[],
     published = false,
-  ): Promise<void> {
-    if (!products.length) return;
+  ): Promise<ProductView[]> {
+    if (!products.length) return [];
     const revisions = published
       ? await this.dataSource.getRepository(ProductRevision).find({
           where: products.map((product) => ({
@@ -614,8 +620,11 @@ export class ProductService {
       revisions.map((revision) => [revision.id, revision.productId]),
     );
     if (published && !revisions.length) {
-      for (const product of products) product.mediaLinks = [];
-      return;
+      return products.map((product) => ({
+        ...product,
+        coverUrl: null,
+        mediaCount: 0,
+      }));
     }
     const links = await this.dataSource.getRepository(MediaLink).find({
       where: {
@@ -640,8 +649,16 @@ export class ProductService {
       group.push(link);
       byProduct.set(productId, group);
     }
-    for (const product of products)
-      product.mediaLinks = byProduct.get(product.id) ?? [];
+    return products.map((product) => {
+      const mediaLinks = byProduct.get(product.id) ?? [];
+      return {
+        ...product,
+        coverUrl:
+          mediaLinks.find((link) => link.role === MediaRole.COVER)?.media.url ??
+          null,
+        mediaCount: mediaLinks.length,
+      };
+    });
   }
 
   private createProductQueryBuilder(): SelectQueryBuilder<Product> {
@@ -655,23 +672,23 @@ export class ProductService {
     queryBuilder: SelectQueryBuilder<Product>,
     query: PaginateQuery,
     published = false,
-  ): Promise<Paginated<Product>> {
+  ): Promise<Paginated<ProductView>> {
     const result = await paginate(
       query,
       queryBuilder,
       PRODUCT_PAGINATION_CONFIG,
     );
-    await this.loadMedia(result.data, published);
-    return result;
+    const data = await this.loadMedia(result.data, published);
+    return { ...result, data };
   }
 
-  private async findManagedProduct(id: string): Promise<Product> {
+  private async findManagedProduct(id: string): Promise<ProductView> {
     const product = await this.productRepository.findOneOrFail({
       where: { id },
       relations: { category: true, shop: true },
     });
-    await this.loadMedia([product]);
-    return product;
+    const [view] = await this.loadMedia([product]);
+    return view;
   }
 
   private async assertCanManage(
