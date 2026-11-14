@@ -9,7 +9,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
-import { Product, ProductRevision } from '@/modules/product/entities';
+import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import {
@@ -63,15 +63,8 @@ export class CartService {
       product.shop = await manager.findOneByOrFail(Shop, {
         id: product.shopId,
       });
-      const approved =
-        product.approvedRevision !== null &&
-        (await manager.existsBy(ProductRevision, {
-          productId,
-          revision: product.approvedRevision,
-          decision: 'APPROVED',
-        }));
       if (
-        !this.canDisplay(product, approved) ||
+        !this.canDisplay(product) ||
         product.status !== ProductStatus.ACTIVE
       ) {
         throw new ConflictException('Product is not available');
@@ -106,10 +99,8 @@ export class CartService {
         .delete({ cartId: cart.id, productId });
   }
 
-  private canDisplay(product: Product, approved: boolean): boolean {
+  private canDisplay(product: Product): boolean {
     return (
-      approved &&
-      product.approvedRevision === product.revision &&
       DISPLAYABLE_STATES.includes(product.status) &&
       !!product.title &&
       product.price !== null &&
@@ -147,52 +138,22 @@ export class CartService {
       select: { shopId: true },
     });
     const ownedShops = new Set(memberships.map((member) => member.shopId));
-    const candidates = items.filter(
-      ({ product }) =>
-        product.approvedRevision !== null &&
-        product.approvedRevision === product.revision &&
-        DISPLAYABLE_STATES.includes(product.status),
-    );
-    const revisions = candidates.length
-      ? await manager.find(ProductRevision, {
-          where: candidates.map(({ product }) => ({
-            productId: product.id,
-            revision: product.approvedRevision!,
-            decision: 'APPROVED' as const,
-          })),
-          select: { id: true, productId: true },
-        })
-      : [];
-    const approvedProducts = new Set(
-      revisions.map((revision) => revision.productId),
-    );
-    const productByRevision = new Map(
-      revisions.map((revision) => [revision.id, revision.productId]),
-    );
-    const covers = revisions.length
-      ? await manager.find(MediaLink, {
-          where: {
-            ownerType: MediaOwnerType.PRODUCT_REVISION,
-            ownerId: In(revisions.map((revision) => revision.id)),
-            role: MediaRole.COVER,
-          },
-          relations: { media: true },
-        })
-      : [];
+    const covers = await manager.find(MediaLink, {
+      where: {
+        ownerType: MediaOwnerType.PRODUCT,
+        ownerId: In(items.map(({ product }) => product.id)),
+        role: MediaRole.COVER,
+      },
+      relations: { media: true },
+    });
     const coverUrls = new Map(
-      covers.map((link) => [
-        productByRevision.get(link.ownerId)!,
-        link.media.url,
-      ]),
+      covers.map((link) => [link.ownerId, link.media.url]),
     );
     const groups = new Map<string, CartView['groups'][number]>();
 
     for (const item of items) {
       const product = item.product;
-      const displayable = this.canDisplay(
-        product,
-        approvedProducts.has(product.id),
-      );
+      const displayable = this.canDisplay(product);
       const own = ownedShops.has(product.shopId);
       const availability = !displayable
         ? CartAvailability.UNAVAILABLE

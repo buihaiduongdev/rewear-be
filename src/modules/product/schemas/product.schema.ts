@@ -23,7 +23,7 @@ export const productSchema = z.object({
   repairs: z.string().nullable(),
   defects: z.array(defectSchema),
   revision: z.number().int().positive(),
-  approvedRevision: z.number().int().positive().nullable(),
+  moderationReason: z.string().nullable(),
   coverUrl: z.url().nullable(),
   mediaCount: z.number().int().nonnegative(),
   status: z.enum(ProductStatus),
@@ -46,18 +46,3 @@ export const productSchema = z.object({
 });
 
 export const productListSchema = paginatedSchema(productSchema);
-
-export const productRevisionSchema = z.object({
-  id: z.uuid(),
-  productId: z.uuid(),
-  revision: z.number().int(),
-  snapshot: z.record(z.string(), z.unknown()),
-  submittedById: z.uuid(),
-  decision: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
-  reviewedById: z.uuid().nullable(),
-  reason: z.string().nullable(),
-  reviewedAt: dateTimeSchema.nullable(),
-  createdAt: dateTimeSchema,
-  updatedAt: dateTimeSchema,
-});
-export const productRevisionListSchema = z.array(productRevisionSchema);

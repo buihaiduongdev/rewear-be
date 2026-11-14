@@ -66,8 +66,8 @@ export class Product extends BaseEntity {
   @Column({ type: 'integer', default: 1 })
   revision: number;
 
-  @Column({ type: 'integer', nullable: true })
-  approvedRevision: number | null;
+  @Column({ type: 'text', nullable: true })
+  moderationReason: string | null;
 
   @Column({ type: 'enum', enum: ProductStatus, default: ProductStatus.DRAFT })
   status: ProductStatus;

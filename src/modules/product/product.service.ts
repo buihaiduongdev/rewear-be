@@ -29,7 +29,7 @@ import {
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { Product, ProductRevision } from './entities';
+import { Product } from './entities';
 import { ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import type {
@@ -56,14 +56,15 @@ export class ProductService {
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
-    const queryBuilder = this.createProductQueryBuilder()
-      .where('product.status = :status', { status: ProductStatus.ACTIVE })
-      .andWhere('product.approvedRevision = product.revision')
-      .andWhere('category.isActive = true')
-      .andWhere('shop.status = :shopStatus', {
-        shopStatus: ShopStatus.ACTIVE,
-      });
-    return this.paginateProducts(queryBuilder, query, true);
+    return this.dataSource.transaction('REPEATABLE READ', (manager) => {
+      const queryBuilder = this.createProductQueryBuilder(manager)
+        .where('product.status = :status', { status: ProductStatus.ACTIVE })
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        });
+      return this.paginateProducts(queryBuilder, query, manager);
+    });
   }
 
   async findMine(
@@ -87,19 +88,20 @@ export class ProductService {
   }
 
   async findOne(id: string): Promise<ProductView> {
-    const product = await this.createProductQueryBuilder()
-      .where('product.id = :id AND product.status = :status', {
-        id,
-        status: ProductStatus.ACTIVE,
-      })
-      .andWhere('product.approvedRevision = product.revision')
-      .andWhere('category.isActive = true')
-      .andWhere('shop.status = :shopStatus', {
-        shopStatus: ShopStatus.ACTIVE,
-      })
-      .getOneOrFail();
-    const [view] = await this.loadMedia([product], true);
-    return view;
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      const product = await this.createProductQueryBuilder(manager)
+        .where('product.id = :id AND product.status = :status', {
+          id,
+          status: ProductStatus.ACTIVE,
+        })
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        })
+        .getOneOrFail();
+      const [view] = await this.loadMedia([product], manager);
+      return view;
+    });
   }
 
   async findOneForManagement(
@@ -133,7 +135,7 @@ export class ProductService {
         repairs: this.normalizeOptionalText(input.repairs),
         defects: input.defects ?? [],
         revision: 1,
-        approvedRevision: null,
+        moderationReason: null,
         status: ProductStatus.DRAFT,
         publishedAt: null,
         heldUntil: null,
@@ -175,7 +177,7 @@ export class ProductService {
   ): Promise<void> {
     this.assertEditable(product);
     product.revision += 1;
-    product.approvedRevision = null;
+    product.moderationReason = null;
     product.status = ProductStatus.DRAFT;
     await manager.save(Product, product);
   }
@@ -280,10 +282,7 @@ export class ProductService {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (
-        ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-          product.status,
-        ) ||
-        product.approvedRevision !== product.revision
+        ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
       ) {
         throw new ConflictException(
           'Only an approved listing can be hidden or reactivated',
@@ -303,58 +302,7 @@ export class ProductService {
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      const links = await this.getMedia(manager, id);
-      const revision = await manager.save(
-        ProductRevision,
-        manager.create(ProductRevision, {
-          productId: id,
-          revision: product.revision,
-          submittedById: userId,
-          decision: 'PENDING',
-          reviewedById: null,
-          reviewedAt: null,
-          reason: null,
-          snapshot: {
-            categoryId: product.categoryId,
-            title: product.title,
-            description: product.description,
-            condition: product.condition,
-            size: product.size,
-            color: product.color,
-            brand: product.brand,
-            price: product.price,
-            measurements: product.measurements,
-            shippingPackage: product.shippingPackage,
-            repairs: product.repairs,
-            defects: product.defects,
-            media: links.map((link) => ({
-              mediaId: link.mediaId,
-              url: link.media.url,
-              storageKey: link.media.storageKey,
-              mimeType: link.media.mimeType,
-              eTag: link.media.eTag,
-              sizeBytes: link.media.sizeBytes,
-              role: link.role,
-              sortOrder: link.sortOrder,
-              angle: link.angle,
-            })),
-          },
-        }),
-      );
-      // Retain submitted evidence even when the seller later removes an image.
-      await manager.save(
-        MediaLink,
-        links.map((link) =>
-          manager.create(MediaLink, {
-            mediaId: link.mediaId,
-            ownerType: MediaOwnerType.PRODUCT_REVISION,
-            ownerId: revision.id,
-            role: link.role,
-            sortOrder: link.sortOrder,
-            angle: link.angle,
-          }),
-        ),
-      );
+      product.moderationReason = null;
       product.status = ProductStatus.PENDING_REVIEW;
       await manager.save(Product, product);
     });
@@ -369,13 +317,6 @@ export class ProductService {
           'Only a pending submission can be cancelled',
         );
       }
-      const revision = await manager.findOneByOrFail(ProductRevision, {
-        productId: id,
-        revision: product.revision,
-        decision: 'PENDING',
-      });
-      revision.decision = 'CANCELLED';
-      await manager.save(ProductRevision, revision);
       product.revision += 1;
       product.status = ProductStatus.DRAFT;
       await manager.save(Product, product);
@@ -399,28 +340,18 @@ export class ProductService {
           'The submitted revision is no longer current',
         );
       }
-      const revision = await manager.findOneByOrFail(ProductRevision, {
-        productId: id,
-        revision: input.revision,
-        decision: 'PENDING',
-      });
       if (input.decision === 'APPROVE') {
         await this.validateForPublication(manager, product);
         product.status = ProductStatus.ACTIVE;
-        product.approvedRevision = product.revision;
         product.publishedAt ??= new Date();
-        revision.decision = 'APPROVED';
       } else {
         if (!input.reason?.trim())
           throw new BadRequestException('A rejection reason is required');
         product.status = ProductStatus.REJECTED;
-        product.approvedRevision = null;
-        revision.decision = 'REJECTED';
+        product.moderationReason = null;
       }
-      revision.reviewedById = adminId;
-      revision.reviewedAt = new Date();
-      revision.reason = input.reason?.trim() ?? null;
-      await manager.save(ProductRevision, revision);
+      product.moderationReason =
+        input.decision === 'REJECT' ? input.reason!.trim() : null;
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
@@ -443,38 +374,12 @@ export class ProductService {
       }
       if (!reason.trim())
         throw new BadRequestException('A suspension reason is required');
-      // A separate audit event preserves the original approval decision.
       product.revision += 1;
-      await manager.save(
-        ProductRevision,
-        manager.create(ProductRevision, {
-          productId: id,
-          revision: product.revision,
-          submittedById: adminId,
-          snapshot: { action: 'SUSPEND' },
-          decision: 'REJECTED',
-          reviewedById: adminId,
-          reviewedAt: new Date(),
-          reason: reason.trim(),
-        }),
-      );
       product.status = ProductStatus.SUSPENDED;
-      product.approvedRevision = null;
+      product.moderationReason = reason.trim();
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
-  }
-
-  async findRevisions(
-    id: string,
-    userId: string,
-    admin = false,
-  ): Promise<ProductRevision[]> {
-    if (admin) await this.assertAdmin(this.dataSource.manager, userId);
-    else await this.findOneForManagement(id, userId);
-    return this.dataSource
-      .getRepository(ProductRevision)
-      .find({ where: { productId: id }, order: { revision: 'DESC' } });
   }
 
   async findForReview(id: string, adminId: string): Promise<ProductView> {
@@ -583,71 +488,44 @@ export class ProductService {
     });
   }
 
-  async findPublishedMedia(product: Product): Promise<MediaLink[]> {
-    const revision = await this.dataSource
-      .getRepository(ProductRevision)
-      .findOneBy({
-        productId: product.id,
-        revision: product.approvedRevision!,
-        decision: 'APPROVED',
-      });
-    if (!revision) return [];
-    return this.dataSource.getRepository(MediaLink).find({
-      where: {
-        ownerType: MediaOwnerType.PRODUCT_REVISION,
-        ownerId: revision.id,
-      },
-      relations: { media: true },
-      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+  findPublishedMedia(product: Product): Promise<MediaLink[]> {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      await this.createProductQueryBuilder(manager)
+        .where(
+          'product.id = :id AND product.status = :status AND product.revision = :revision',
+          {
+            id: product.id,
+            status: ProductStatus.ACTIVE,
+            revision: product.revision,
+          },
+        )
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        })
+        .getOneOrFail();
+      return this.getMedia(manager, product.id);
     });
   }
 
   private async loadMedia(
     products: Product[],
-    published = false,
+    manager = this.dataSource.manager,
   ): Promise<ProductView[]> {
     if (!products.length) return [];
-    const revisions = published
-      ? await this.dataSource.getRepository(ProductRevision).find({
-          where: products.map((product) => ({
-            productId: product.id,
-            revision: product.approvedRevision!,
-            decision: 'APPROVED' as const,
-          })),
-        })
-      : [];
-    const productByRevision = new Map(
-      revisions.map((revision) => [revision.id, revision.productId]),
-    );
-    if (published && !revisions.length) {
-      return products.map((product) => ({
-        ...product,
-        coverUrl: null,
-        mediaCount: 0,
-      }));
-    }
-    const links = await this.dataSource.getRepository(MediaLink).find({
+    const links = await manager.getRepository(MediaLink).find({
       where: {
-        ownerType: published
-          ? MediaOwnerType.PRODUCT_REVISION
-          : MediaOwnerType.PRODUCT,
-        ownerId: In(
-          published
-            ? revisions.map((revision) => revision.id)
-            : products.map((product) => product.id),
-        ),
+        ownerType: MediaOwnerType.PRODUCT,
+        ownerId: In(products.map((product) => product.id)),
       },
       relations: { media: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
     const byProduct = new Map<string, MediaLink[]>();
     for (const link of links) {
-      const productId = published
-        ? productByRevision.get(link.ownerId)!
-        : link.ownerId;
-      const group = byProduct.get(productId) ?? [];
+      const group = byProduct.get(link.ownerId) ?? [];
       group.push(link);
-      byProduct.set(productId, group);
+      byProduct.set(link.ownerId, group);
     }
     return products.map((product) => {
       const mediaLinks = byProduct.get(product.id) ?? [];
@@ -661,8 +539,10 @@ export class ProductService {
     });
   }
 
-  private createProductQueryBuilder(): SelectQueryBuilder<Product> {
-    return this.productRepository
+  private createProductQueryBuilder(
+    manager?: EntityManager,
+  ): SelectQueryBuilder<Product> {
+    return (manager?.getRepository(Product) ?? this.productRepository)
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.shop', 'shop');
@@ -671,14 +551,14 @@ export class ProductService {
   private async paginateProducts(
     queryBuilder: SelectQueryBuilder<Product>,
     query: PaginateQuery,
-    published = false,
+    manager?: EntityManager,
   ): Promise<Paginated<ProductView>> {
     const result = await paginate(
       query,
       queryBuilder,
       PRODUCT_PAGINATION_CONFIG,
     );
-    const data = await this.loadMedia(result.data, published);
+    const data = await this.loadMedia(result.data, manager);
     return { ...result, data };
   }
 

@@ -7,7 +7,7 @@ import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
-import { Product, ProductRevision } from '@/modules/product/entities';
+import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -114,24 +114,27 @@ describe('commerce behavior with PostgreSQL', () => {
     ).rejects.toThrow('Shop owner access required');
     const cancelled = await products.cancelSubmission(product.id, seller.id);
     expect(cancelled.status).toBe(ProductStatus.DRAFT);
-    expect(
-      (
-        await db.getRepository(ProductRevision).findOneByOrFail({
-          productId: product.id,
-          revision: pending.revision,
-        })
-      ).decision,
-    ).toBe('CANCELLED');
+    const resubmitted = await products.submit(product.id, seller.id);
+    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
     await expect(
       products.moderate(product.id, admin.id, {
         revision: pending.revision,
         decision: 'APPROVE',
       }),
     ).rejects.toThrow('The submitted revision is no longer current');
-    const resubmitted = await products.submit(product.id, seller.id);
-    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
-    const published = await products.moderate(product.id, admin.id, {
+    const rejected = await products.moderate(product.id, admin.id, {
       revision: resubmitted.revision,
+      decision: 'REJECT',
+      reason: 'Ảnh chưa rõ',
+    });
+    expect(rejected.moderationReason).toBe('Ảnh chưa rõ');
+    await products.update(product.id, seller.id, {
+      title: 'Denim jacket updated',
+    });
+    const finalSubmission = await products.submit(product.id, seller.id);
+    expect(finalSubmission.moderationReason).toBeNull();
+    const published = await products.moderate(product.id, admin.id, {
+      revision: finalSubmission.revision,
       decision: 'APPROVE',
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
@@ -154,7 +157,7 @@ describe('commerce behavior with PostgreSQL', () => {
     expect(held.orders[0].shopId).toBe(shop.id);
     expect(held.orders[0].items[0]).toMatchObject({
       productId: product.id,
-      title: 'Denim jacket',
+      title: 'Denim jacket updated',
       price: 250000,
     });
     expect(

@@ -645,3 +645,15 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; chạy riêng E2E.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34), nhánh `refactor/product-media-response`.
+
+### 2026-11-14 — Đơn giản hóa kiểm duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Bỏ lưu lịch sử snapshot kiểm duyệt, dùng nội dung và ảnh hiện tại của sản phẩm.
+- **Prompt chính:** Bỏ ProductRevision và snapshot; giữ số revision hiện có để tránh duyệt nhầm yêu cầu cũ.
+- **Đầu ra AI được sử dụng:** Cập nhật luồng duyệt, giỏ hàng, ảnh và seed; giữ lý do kiểm duyệt hiện tại trên sản phẩm.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn không lưu các phiên bản nội dung đã gửi duyệt; giữ quy tắc hủy trước khi sửa sản phẩm đang chờ duyệt.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; kiểm tra hủy, gửi lại và duyệt yêu cầu cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thiết kế snapshot ban đầu phức tạp hơn nhu cầu kiểm duyệt hiện tại.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).

@@ -4,7 +4,6 @@ export enum MediaType {
 
 export enum MediaOwnerType {
   PRODUCT = 'PRODUCT',
-  PRODUCT_REVISION = 'PRODUCT_REVISION',
 }
 
 export enum MediaRole {

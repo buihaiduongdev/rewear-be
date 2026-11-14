@@ -141,7 +141,7 @@ export class MarketplaceFactory {
         repairs: null,
         defects: [],
         revision: 1,
-        approvedRevision: 1,
+        moderationReason: null,
         status: ProductStatus.ACTIVE,
         publishedAt: new Date(this.now.getTime() - index * 60000),
         heldUntil: null,
