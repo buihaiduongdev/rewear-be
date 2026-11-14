@@ -3,7 +3,6 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { Category } from '@/modules/category/entities';
-import type { MediaLink } from '@/modules/media/entities';
 import { Shop } from '@/modules/shop/entities';
 
 import { ProductCondition, ProductStatus } from '../enums';
@@ -69,19 +68,6 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'integer', nullable: true })
   approvedRevision: number | null;
-
-  // Loaded in bulk by ProductService; never exposed as raw storage metadata.
-  mediaLinks?: MediaLink[];
-
-  get coverUrl(): string | null {
-    return (
-      this.mediaLinks?.find((link) => link.role === 'COVER')?.media.url ?? null
-    );
-  }
-
-  get mediaCount(): number {
-    return this.mediaLinks?.length ?? 0;
-  }
 
   @Column({ type: 'enum', enum: ProductStatus, default: ProductStatus.DRAFT })
   status: ProductStatus;
