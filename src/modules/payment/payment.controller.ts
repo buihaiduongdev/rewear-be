@@ -19,7 +19,6 @@ import {
   createPaymentSchema,
   momoIpnSchema,
   paymentViewSchema,
-  pendingOrdersSchema,
 } from './payment.schemas';
 import { PaymentService } from './payment.service';
 
@@ -62,14 +61,6 @@ export class PaymentController {
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
     return this.payments.reconcile(user.id, id);
-  }
-
-  @Get('orders/mine')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Serialize(pendingOrdersSchema)
-  orders(@CurrentUser() user: User) {
-    return this.payments.ordersMine(user.id);
   }
 
   @Post('payments/momo/ipn')

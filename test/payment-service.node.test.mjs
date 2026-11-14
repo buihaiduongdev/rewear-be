@@ -19,6 +19,7 @@ class CartItem {}
 class PaymentAttempt {}
 class PaymentRefund {}
 class Order {}
+class OrderEvent {}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
@@ -33,6 +34,7 @@ const deps = {
   PaymentAttempt,
   PaymentRefund,
   Order,
+  OrderEvent,
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,

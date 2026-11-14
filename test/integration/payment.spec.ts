@@ -9,8 +9,10 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
+import { OrderAccess } from '@/modules/order/order.access';
+import { Order } from '@/modules/order/order.entity';
+import { OrderService } from '@/modules/order/order.service';
 import {
-  Order,
   PaymentAttempt,
   PaymentRefund,
 } from '@/modules/payment/payment.entity';
@@ -21,6 +23,7 @@ import { ProductStatus } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
 import type { TestDatabase } from '../support/database';
@@ -178,6 +181,13 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       (await db.getRepository(Checkout).findOneByOrFail({ id: checkout.id }))
         .status,
     ).toBe('PAID');
+    const savedOrder = await db
+      .getRepository(Order)
+      .findOneByOrFail({ paymentId: payment.id });
+    expect(
+      (await db.getRepository(Product).findOneByOrFail({ id: product.id }))
+        .soldOrderId,
+    ).toBe(savedOrder.id);
     expect(
       (
         await db.getRepository(Order).findOneByOrFail({ paymentId: payment.id })
@@ -301,5 +311,48 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
         .getRepository(PaymentAttempt)
         .countBy({ checkoutId: checkout.id }),
     ).toBe(0);
+  });
+
+  it('never recreates an expired Shop order or refunds MoMo again when its successful capture is replayed', async () => {
+    const { db, buyer, checkout, product } = await fixture();
+    const payment = await service.create(buyer.id, checkout.id, randomUUID());
+    const capture = {
+      partnerCode: 'TEST',
+      orderId: payment.id,
+      requestId: payment.id,
+      amount: 230000,
+      transId: 777777,
+      resultCode: 0,
+    };
+    await service.applyResult(payment.id, capture);
+    const order = await db
+      .getRepository(Order)
+      .findOneByOrFail({ paymentId: payment.id });
+    await db
+      .getRepository(Order)
+      .update(order.id, { sellerConfirmBy: new Date(Date.now() - 1) });
+    const orders = new OrderService(
+      db,
+      new OrderAccess(),
+      new WalletService(db),
+    );
+    await orders.expireDue();
+    await service.applyResult(payment.id, capture);
+    expect(
+      await db.getRepository(Order).countBy({ paymentId: payment.id }),
+    ).toBe(1);
+    expect(
+      (await db.getRepository(Order).findOneByOrFail({ id: order.id })).status,
+    ).toBe('cancelled');
+    expect(
+      await db.getRepository(PaymentRefund).countBy({ paymentId: payment.id }),
+    ).toBe(0);
+    expect(
+      (await db.getRepository(Product).findOneByOrFail({ id: product.id }))
+        .status,
+    ).toBe(ProductStatus.ACTIVE);
+    expect((await new WalletService(db).mine(buyer.id, {})).balance).toBe(
+      230000,
+    );
   });
 });

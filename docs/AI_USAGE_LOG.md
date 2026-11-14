@@ -633,3 +633,12 @@
 - **Phần AI hỗ trợ:** Giải quyết conflict và giữ đủ log của hai người; cập nhật entity/type Shop, giữ PAID, lấy phí GHN mới trước transaction rồi xác minh tổng tiền và hold. Cùng requestId trả lại attempt cũ mà không phụ thuộc GHN.
 - **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
 - **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.
+
+### 2026-11-14 — Shop tiếp nhận đơn và hoàn ví khi hủy
+
+- **Người thực hiện:** Bùi Thành Tâm yêu cầu triển khai backend theo luồng đã chốt; Codex hỗ trợ code và kiểm thử.
+- **Phạm vi:** Buyer/Owner xem đơn; Owner xác nhận hoặc từ chối có lý do; tự hủy quá 24 giờ. Hủy riêng order và cộng đủ tiền hàng/phí ship vào ví Rewear trong cùng transaction với nhả hàng và lịch sử; không gọi refund MoMo cho nhánh này.
+- **Phần AI hỗ trợ:** Order/Wallet modules, API, worker, bút toán chống trùng, liên kết sản phẩm với đúng đơn đã bán và test. Dùng quyền Owner hiện có; chưa thay thế bằng RBAC tùy chỉnh hoặc tự cấp Staff.
+- **Kiểm chứng:** PostgreSQL local riêng `rewear_test`: 25 suites/158 tests pass; 22 Node tests pass. Bao gồm HTTP với JWT thật, quyền, cạnh tranh xác nhận/từ chối/quá hạn, deadline qua trong lúc chờ khóa membership, rollback trước/sau ghi tiền, lỗi một đơn không chặn đơn khác và IPN lặp sau hoàn ví. Review độc lập không có blocker; kết quả CI ghi riêng trong PR.
+- **Lỗi đã phát hiện và sửa:** Timestamp đọc trước khi chờ membership có thể cho xác nhận trễ; chuyển sang đọc clock DB sau chờ. Một refund lỗi có thể chặn batch quá hạn; thêm rollback riêng, backoff và tiếp tục đơn khác.
+- **Giới hạn:** Chưa có frontend, COD/vận đơn, quyết toán 72 giờ, thanh toán bằng ví/xu, notification/Admin sự cố hoặc kiểm thử provider thật. Hàng lịch sử thiếu liên kết đơn không tự mở bán; ghi danh sách cần đối soát. Không reset DB dev; schema vẫn theo cơ chế synchronize hiện có.

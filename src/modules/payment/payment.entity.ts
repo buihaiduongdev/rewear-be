@@ -42,28 +42,6 @@ export class PaymentAttempt extends BaseEntity {
   @Column({ type: 'timestamptz', nullable: true }) paidAt: Date | null;
 }
 
-@Entity('orders')
-@Index(['checkoutOrderId'], { unique: true })
-@Index(['buyerId', 'createdAt'])
-export class Order extends BaseEntity {
-  @Column('uuid') checkoutOrderId: string;
-  @Column('uuid') paymentId: string;
-  @ManyToOne(() => PaymentAttempt, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'paymentId' })
-  payment: PaymentAttempt;
-  @Column('uuid') buyerId: string;
-  @Column('uuid') shopId: string;
-  @Column({ length: 255 }) shopName: string;
-  @Column({ type: 'varchar', length: 24 }) status: 'pending';
-  @Column('integer') subtotal: number;
-  @Column('integer') shippingFee: number;
-  @Column('integer') total: number;
-  @Column('jsonb') address: CheckoutAddress;
-  @Column('jsonb') items: CheckoutItem[];
-  @Column({ type: 'integer', default: 300 }) commissionBasisPoints: number;
-  @Column('timestamptz') sellerConfirmBy: Date;
-}
-
 @Entity('payment_refunds')
 @Index(['paymentId'])
 @Index(['providerTransId'], { unique: true })

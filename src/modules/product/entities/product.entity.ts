@@ -98,4 +98,8 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   soldAt: Date | null;
+
+  @Index('IDX_products_sold_order')
+  @Column({ type: 'uuid', nullable: true })
+  soldOrderId: string | null;
 }
