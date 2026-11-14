@@ -633,3 +633,16 @@
 - **Phần AI hỗ trợ:** Giải quyết conflict và giữ đủ log của hai người; cập nhật entity/type Shop, giữ PAID, lấy phí GHN mới trước transaction rồi xác minh tổng tiền và hold. Cùng requestId trả lại attempt cũ mà không phụ thuộc GHN.
 - **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
 - **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.
+
+### 2026-11-14 — Đơn giản hóa cấu trúc thông số đóng gói vận chuyển (Shipping Package)
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash).
+- **Mục đích và phạm vi:** Đơn giản hóa schema đóng gói hàng hóa của sản phẩm từ cấu trúc lồng nhau (discriminated union RANGE/CUSTOM) thành schema phẳng gồm 4 trường số đo cố định.
+- **Prompt chính:** Rà soát và refactor shippingPackageSchema, bỏ phân loại RANGE/CUSTOM phức tạp ở backend, chuyển về schema phẳng nhận trực tiếp weightGrams, lengthCm, widthCm, heightCm; loại bỏ endpoint package-options không còn cần thiết và cập nhật toàn bộ test liên quan.
+- **Đầu ra AI được sử dụng:** Cập nhật `shippingPackageSchema`, thống nhất `ResolvedShippingPackage`, bỏ endpoint `GET /shipping/package-options` trong `ShippingController`, cập nhật unit test và E2E test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng giữ Zod validation chặt chẽ ở BE (giới hạn cân nặng, kích thước hợp lệ), chuyển trách nhiệm quản lý preset sang FE để tinh gọn backend.
+- **Cách kiểm chứng:** Chạy `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Nest build), `pnpm test:unit` pass 19 suites, 133 tests.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #35](https://github.com/buihaiduongdev/rewear-be/pull/35), branch `refactor/simplify-shipping-package`.
+
