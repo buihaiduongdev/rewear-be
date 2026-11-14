@@ -74,6 +74,7 @@ export class GhnSandboxAdapter {
           'Content-Type': 'application/json',
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        redirect: 'error',
         signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]),
       });
       if (!response.ok) throw new Error('CARRIER_REJECTED');
@@ -136,10 +137,10 @@ export class GhnSandboxAdapter {
     );
     return { province: province.name, ward: ward.name };
   }
-  async quote(
+  async buildPayload(
     input: CarrierQuoteInput,
     signal: AbortSignal,
-  ): Promise<{ fee: number; estimatedDeliveryAt: string | null }> {
+  ): Promise<Record<string, unknown>> {
     this.config();
     if (
       !Number.isSafeInteger(input.value) ||
@@ -192,6 +193,13 @@ export class GhnSandboxAdapter {
         },
       ],
     };
+    return payload;
+  }
+  async quote(
+    input: CarrierQuoteInput,
+    signal: AbortSignal,
+  ): Promise<{ fee: number; estimatedDeliveryAt: string | null }> {
+    const payload = await this.buildPayload(input, signal);
     const parsed = previewSchema.safeParse(
       await this.request('/v2/shipping-order/preview', signal, payload),
     );

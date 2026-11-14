@@ -1,6 +1,7 @@
 import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 
-export type CheckoutState = 'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED' | 'PAID';
+export type CheckoutState =
+  'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED' | 'PAID' | 'COD_PLACED';
 
 export type CheckoutAddress = {
   recipientName: string;

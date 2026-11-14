@@ -17,13 +17,14 @@ import type {
 } from '@/infrastructure/payment/momo-sandbox.client';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
 import { MOMO_CLIENT } from './payment.config';
-import { Order, PaymentAttempt, PaymentRefund } from './payment.entity';
+import { PaymentAttempt, PaymentRefund } from './payment.entity';
 import {
   canStartAttempt,
   captureDisposition,
@@ -188,12 +189,6 @@ export class PaymentService {
     };
   }
 
-  async ordersMine(buyerId: string) {
-    return this.db
-      .getRepository(Order)
-      .find({ where: { buyerId }, order: { createdAt: 'DESC' }, take: 100 });
-  }
-
   async ipn(body: MomoNotification) {
     let result: MomoNotification;
     try {
@@ -330,10 +325,11 @@ export class PaymentService {
               address,
               items,
             } = snapshot;
-            await manager.save(
-              Order,
+            const order = await manager.save(
               manager.create(Order, {
                 checkoutOrderId,
+                checkoutId: checkout.id,
+                paymentMethod: 'MOMO',
                 paymentId: id,
                 buyerId: attempt.buyerId,
                 shopId,
@@ -348,20 +344,32 @@ export class PaymentService {
                 sellerConfirmBy: new Date(now.getTime() + 86400000),
               }),
             );
+            await manager.save(
+              OrderEvent,
+              manager.create(OrderEvent, {
+                orderId: order.id,
+                action: 'PAID',
+                actorId: null,
+                reason: null,
+                createdAt: now,
+              }),
+            );
+            await manager.update(
+              Product,
+              {
+                id: In(items.map((item) => item.productId)),
+                reservationId: checkout.id,
+                status: ProductStatus.HELD,
+              },
+              {
+                status: ProductStatus.SOLD,
+                heldUntil: null,
+                reservationId: null,
+                soldOrderId: order.id,
+                soldAt: now,
+              },
+            );
           }
-          await manager.update(
-            Product,
-            {
-              id: In(expectedIds),
-              reservationId: checkout.id,
-              status: ProductStatus.HELD,
-            },
-            {
-              status: ProductStatus.SOLD,
-              heldUntil: null,
-              reservationId: null,
-            },
-          );
           checkout.status = 'PAID';
           await manager.save(checkout);
           const cart = await manager.findOneBy(Cart, {

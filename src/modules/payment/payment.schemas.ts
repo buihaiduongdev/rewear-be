@@ -41,18 +41,3 @@ export const momoIpnSchema = z.object({
   extraData: z.string().max(1000),
   signature: z.string().regex(/^[a-f0-9]{64}$/i),
 });
-export const pendingOrdersSchema = z.array(
-  z.object({
-    id: z.uuid(),
-    paymentId: z.uuid(),
-    shopId: z.uuid(),
-    shopName: z.string(),
-    status: z.literal('pending'),
-    subtotal: z.number().int(),
-    shippingFee: z.number().int(),
-    total: z.number().int(),
-    sellerConfirmBy: dateTimeSchema,
-    address: z.record(z.string(), z.unknown()),
-    items: z.array(z.record(z.string(), z.unknown())),
-  }),
-);

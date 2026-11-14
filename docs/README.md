@@ -1,5 +1,9 @@
 # Re.wear — Tổng quan Tài liệu Kỹ thuật
 
+API backend và phạm vi triển khai thực tế: [Shop tiếp nhận đơn](orders/SELLER_ACCEPTANCE.md),
+[COD và GHN Sandbox](orders/COD_GHN_SANDBOX.md), [MoMo Sandbox](payments/MOMO_SANDBOX.md).
+Các hướng dẫn này nêu rõ phần đã kiểm thử và nghiệp vụ còn phải triển khai.
+
 Nền tảng thương mại điện tử chuyên biệt cho quần áo thời trang đã qua sử dụng (Secondhand / Pre-loved Fashion), giải quyết bài toán hàng độc bản (Single Inventory), chống tranh chấp mua đồng thời (Race Condition), tích hợp vận chuyển đa kiện và ký quỹ bảo vệ giao dịch.
 
 - **Đề tài chính thức:** Xây dựng Hệ thống Website bán quần áo đã qua sử dụng

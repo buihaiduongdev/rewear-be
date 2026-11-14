@@ -9,11 +9,14 @@ import { AuthModule } from './modules/auth';
 import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
 import { CheckoutModule } from './modules/checkout/checkout.module';
+import { CodModule } from './modules/cod/cod.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DatabaseModule } from './modules/database';
 import { MediaModule } from './modules/media';
+import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ProductModule } from './modules/product';
+import { ShipmentModule } from './modules/shipment/shipment.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
 import { UserModule } from './modules/user';
@@ -28,8 +31,11 @@ import { UserAddressModule } from './modules/user-address';
     CartModule,
     CheckoutModule,
     PaymentModule,
+    OrderModule,
+    CodModule,
     ShopModule,
     ShippingModule,
+    ShipmentModule,
     ProductModule,
     MediaModule,
     UserModule,
