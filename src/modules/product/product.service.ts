@@ -29,7 +29,7 @@ import {
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { Product } from './entities';
+import { Product, ProductModeration } from './entities';
 import { ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import type {
@@ -134,8 +134,6 @@ export class ProductService {
         shippingPackage: input.shippingPackage ?? null,
         repairs: this.normalizeOptionalText(input.repairs),
         defects: input.defects ?? [],
-        revision: 1,
-        moderationReason: null,
         status: ProductStatus.DRAFT,
         publishedAt: null,
         heldUntil: null,
@@ -176,8 +174,11 @@ export class ProductService {
     product: Product,
   ): Promise<void> {
     this.assertEditable(product);
-    product.revision += 1;
-    product.moderationReason = null;
+    await manager.update(
+      ProductModeration,
+      { productId: product.id },
+      { status: 'DRAFT', reason: null },
+    );
     product.status = ProductStatus.DRAFT;
     await manager.save(Product, product);
   }
@@ -260,7 +261,7 @@ export class ProductService {
         product.price = input.price;
         priceChanged = true;
       }
-      // Changes to draft or rejected content require a new revision.
+      // Editing content moves the product back to draft.
       if (
         contentChanged ||
         (priceChanged &&
@@ -302,7 +303,25 @@ export class ProductService {
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      product.moderationReason = null;
+      const moderation = await manager.findOneBy(ProductModeration, {
+        productId: id,
+      });
+      if (moderation) {
+        moderation.version += 1;
+        moderation.status = 'PENDING';
+        moderation.reason = null;
+        await manager.save(ProductModeration, moderation);
+      } else {
+        await manager.save(
+          ProductModeration,
+          manager.create(ProductModeration, {
+            productId: id,
+            version: 1,
+            status: 'PENDING',
+            reason: null,
+          }),
+        );
+      }
       product.status = ProductStatus.PENDING_REVIEW;
       await manager.save(Product, product);
     });
@@ -317,7 +336,11 @@ export class ProductService {
           'Only a pending submission can be cancelled',
         );
       }
-      product.revision += 1;
+      await manager.update(
+        ProductModeration,
+        { productId: id },
+        { status: 'CANCELLED' },
+      );
       product.status = ProductStatus.DRAFT;
       await manager.save(Product, product);
     });
@@ -332,12 +355,16 @@ export class ProductService {
     await this.dataSource.transaction(async (manager) => {
       await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
+      const moderation = await manager.findOneByOrFail(ProductModeration, {
+        productId: id,
+      });
       if (
         product.status !== ProductStatus.PENDING_REVIEW ||
-        product.revision !== input.revision
+        moderation.status !== 'PENDING' ||
+        moderation.version !== input.version
       ) {
         throw new ConflictException(
-          'The submitted revision is no longer current',
+          'The submitted review is no longer current',
         );
       }
       if (input.decision === 'APPROVE') {
@@ -348,10 +375,11 @@ export class ProductService {
         if (!input.reason?.trim())
           throw new BadRequestException('A rejection reason is required');
         product.status = ProductStatus.REJECTED;
-        product.moderationReason = null;
       }
-      product.moderationReason =
+      moderation.status = input.decision === 'REJECT' ? 'REJECTED' : 'APPROVED';
+      moderation.reason =
         input.decision === 'REJECT' ? input.reason!.trim() : null;
+      await manager.save(ProductModeration, moderation);
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
@@ -374,16 +402,35 @@ export class ProductService {
       }
       if (!reason.trim())
         throw new BadRequestException('A suspension reason is required');
-      product.revision += 1;
+      const moderation = await manager.findOneByOrFail(ProductModeration, {
+        productId: id,
+      });
+      moderation.status = 'SUSPENDED';
+      moderation.reason = reason.trim();
+      await manager.save(ProductModeration, moderation);
       product.status = ProductStatus.SUSPENDED;
-      product.moderationReason = reason.trim();
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
   }
 
+  async findModeration(
+    id: string,
+    userId: string,
+    admin = false,
+  ): Promise<ProductModeration> {
+    if (admin) await this.assertAdmin(this.dataSource.manager, userId);
+    else await this.findOneForManagement(id, userId);
+    return this.dataSource
+      .getRepository(ProductModeration)
+      .findOneByOrFail({ productId: id });
+  }
+
   async findForReview(id: string, adminId: string): Promise<ProductView> {
     await this.assertAdmin(this.dataSource.manager, adminId);
+    await this.dataSource
+      .getRepository(ProductModeration)
+      .findOneByOrFail({ productId: id });
     return this.findManagedProduct(id);
   }
 
@@ -392,7 +439,11 @@ export class ProductService {
     adminId: string,
   ): Promise<Paginated<ProductView>> {
     await this.assertAdmin(this.dataSource.manager, adminId);
-    const builder = this.createProductQueryBuilder();
+    const builder = this.createProductQueryBuilder().innerJoin(
+      ProductModeration,
+      'moderation',
+      'moderation.productId = product.id',
+    );
     if (!query.filter?.status) {
       builder.where('product.status = :status', {
         status: ProductStatus.PENDING_REVIEW,
@@ -491,14 +542,10 @@ export class ProductService {
   findPublishedMedia(product: Product): Promise<MediaLink[]> {
     return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
       await this.createProductQueryBuilder(manager)
-        .where(
-          'product.id = :id AND product.status = :status AND product.revision = :revision',
-          {
-            id: product.id,
-            status: ProductStatus.ACTIVE,
-            revision: product.revision,
-          },
-        )
+        .where('product.id = :id AND product.status = :status', {
+          id: product.id,
+          status: ProductStatus.ACTIVE,
+        })
         .andWhere('category.isActive = true')
         .andWhere('shop.status = :shopStatus', {
           shopStatus: ShopStatus.ACTIVE,

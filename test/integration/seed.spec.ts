@@ -164,7 +164,7 @@ describe('Seed data (real PostgreSQL)', () => {
       db,
     );
     await service.moderate(pending.id, factory.id('user:0'), {
-      revision: 1,
+      version: 1,
       decision: 'APPROVE',
     });
     const published = await service.findOne(pending.id);

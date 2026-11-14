@@ -20,7 +20,6 @@ export type CheckoutItem = {
   productId: string;
   title: string;
   price: number;
-  revision: number;
   size: string | null;
   condition: string;
   coverUrl: string | null;

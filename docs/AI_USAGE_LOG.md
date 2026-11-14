@@ -657,3 +657,15 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; kiểm tra hủy, gửi lại và duyệt yêu cầu cũ.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thiết kế snapshot ban đầu phức tạp hơn nhu cầu kiểm duyệt hiện tại.
 - **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).
+
+### 2026-11-14 — Tách thông tin kiểm duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Lưu thông tin duyệt hiện tại trong một bản ghi riêng liên kết sản phẩm.
+- **Prompt chính:** Để moderation giữ productId và thông tin duyệt; Cart chỉ kiểm tra trạng thái sản phẩm, không truy vấn moderation.
+- **Đầu ra AI được sử dụng:** Thêm ProductModeration một-một, chuyển lý do và số lần gửi duyệt sang moderation; cập nhật luồng duyệt, checkout và test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt không lưu snapshot hay khóa ngoại moderation trên Product; cập nhật cùng bản ghi khi gửi duyệt lại.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL, gồm kiểm tra gửi lại và từ chối version cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất Cart truy vấn moderation; đã sửa theo hướng Cart chỉ dùng trạng thái sản phẩm.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).

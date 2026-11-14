@@ -3,7 +3,7 @@ import type { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
-import { Product } from '@/modules/product/entities';
+import { Product, ProductModeration } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -82,6 +82,7 @@ export async function seedMarketplace(
     factory.shopMember(index, shop.id, users[index + 2].id),
   );
   const products: Product[] = [];
+  const moderations: ProductModeration[] = [];
   const media: Media[] = [];
   const links: MediaLink[] = [];
   const privateStatuses = [
@@ -112,10 +113,6 @@ export async function seedMarketplace(
       { ...relations, categoryId: categories[index % categories.length].id },
       {
         status,
-        moderationReason:
-          status === ProductStatus.REJECTED
-            ? 'Demo rejection: add a clearer label photo.'
-            : null,
         publishedAt: approved
           ? new Date(factory.now.getTime() - index * 60000)
           : null,
@@ -137,6 +134,25 @@ export async function seedMarketplace(
       });
     }
     products.push(product);
+    if (status !== ProductStatus.DRAFT) {
+      moderations.push(
+        Object.assign(new ProductModeration(), {
+          id: factory.id(`moderation:${index}`),
+          productId: product.id,
+          version: 1,
+          status:
+            status === ProductStatus.PENDING_REVIEW
+              ? 'PENDING'
+              : status === ProductStatus.REJECTED
+                ? 'REJECTED'
+                : 'APPROVED',
+          reason:
+            status === ProductStatus.REJECTED
+              ? 'Demo rejection: add a clearer label photo.'
+              : null,
+        }),
+      );
+    }
     const uploaderId = members.find(
       (member) => member.shopId === relations.shopId,
     )!.userId;
@@ -159,6 +175,7 @@ export async function seedMarketplace(
     await insertMissing(manager, Shop, shops);
     await insertMissing(manager, ShopMember, members);
     await insertMissing(manager, Product, products);
+    await insertMissing(manager, ProductModeration, moderations);
     await insertMissing(manager, Media, media);
     await insertMissing(manager, MediaLink, links);
   });

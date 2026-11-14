@@ -45,7 +45,7 @@ export const updateProductStatusSchema = z.strictObject({
 });
 export const moderateProductSchema = z
   .strictObject({
-    revision: z.number().int().positive(),
+    version: z.number().int().positive(),
     decision: z.enum(['APPROVE', 'REJECT']),
     reason: trimmedTextSchema.min(1).max(2000).optional(),
   })

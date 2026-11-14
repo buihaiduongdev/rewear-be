@@ -51,19 +51,19 @@ describe('Product lifecycle boundaries', () => {
 
   it('requires a current revision and a nonblank rejection reason', () => {
     expect(
-      moderateProductSchema.safeParse({ revision: 1, decision: 'REJECT' })
+      moderateProductSchema.safeParse({ version: 1, decision: 'REJECT' })
         .success,
     ).toBe(false);
     expect(
       moderateProductSchema.safeParse({
-        revision: 1,
+        version: 1,
         decision: 'REJECT',
         reason: '   ',
       }).success,
     ).toBe(false);
     expect(
       moderateProductSchema.parse({
-        revision: 1,
+        version: 1,
         decision: 'REJECT',
         reason: ' Thiếu ảnh ',
       }).reason,

@@ -22,8 +22,6 @@ export const productSchema = z.object({
   shippingPackage: shippingPackageSchema.nullable().default(null),
   repairs: z.string().nullable(),
   defects: z.array(defectSchema),
-  revision: z.number().int().positive(),
-  moderationReason: z.string().nullable(),
   coverUrl: z.url().nullable(),
   mediaCount: z.number().int().nonnegative(),
   status: z.enum(ProductStatus),
@@ -46,3 +44,17 @@ export const productSchema = z.object({
 });
 
 export const productListSchema = paginatedSchema(productSchema);
+
+export const productModerationSchema = z.object({
+  productId: z.uuid(),
+  status: z.enum([
+    'DRAFT',
+    'PENDING',
+    'APPROVED',
+    'REJECTED',
+    'CANCELLED',
+    'SUSPENDED',
+  ]),
+  version: z.number().int().positive(),
+  reason: z.string().nullable(),
+});

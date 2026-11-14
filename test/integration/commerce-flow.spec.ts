@@ -106,6 +106,11 @@ describe('commerce behavior with PostgreSQL', () => {
 
     const pending = await products.submit(product.id, seller.id);
     expect(pending.status).toBe(ProductStatus.PENDING_REVIEW);
+    const firstReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
     await expect(
       products.update(product.id, seller.id, { title: 'Changed jacket' }),
     ).rejects.toThrow('This product cannot be edited in its current state');
@@ -114,27 +119,41 @@ describe('commerce behavior with PostgreSQL', () => {
     ).rejects.toThrow('Shop owner access required');
     const cancelled = await products.cancelSubmission(product.id, seller.id);
     expect(cancelled.status).toBe(ProductStatus.DRAFT);
-    const resubmitted = await products.submit(product.id, seller.id);
-    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
+    await products.submit(product.id, seller.id);
+    const secondReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
+    expect(secondReview.id).toBe(firstReview.id);
+    expect(secondReview.version).toBeGreaterThan(firstReview.version);
     await expect(
       products.moderate(product.id, admin.id, {
-        revision: pending.revision,
+        version: firstReview.version,
         decision: 'APPROVE',
       }),
-    ).rejects.toThrow('The submitted revision is no longer current');
+    ).rejects.toThrow('The submitted review is no longer current');
     const rejected = await products.moderate(product.id, admin.id, {
-      revision: resubmitted.revision,
+      version: secondReview.version,
       decision: 'REJECT',
       reason: 'Ảnh chưa rõ',
     });
-    expect(rejected.moderationReason).toBe('Ảnh chưa rõ');
+    expect(rejected.status).toBe(ProductStatus.REJECTED);
+    expect((await products.findModeration(product.id, seller.id)).reason).toBe(
+      'Ảnh chưa rõ',
+    );
     await products.update(product.id, seller.id, {
       title: 'Denim jacket updated',
     });
-    const finalSubmission = await products.submit(product.id, seller.id);
-    expect(finalSubmission.moderationReason).toBeNull();
+    await products.submit(product.id, seller.id);
+    const finalReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
+    expect(finalReview.reason).toBeNull();
     const published = await products.moderate(product.id, admin.id, {
-      revision: finalSubmission.revision,
+      version: finalReview.version,
       decision: 'APPROVE',
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
