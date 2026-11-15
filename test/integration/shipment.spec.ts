@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
@@ -18,6 +22,7 @@ import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
@@ -60,18 +65,32 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
 
   async function fixture() {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const [buyer, owner] = await db
-      .getRepository(User)
-      .save([factory.user(0, 'unused'), factory.user(1, 'unused')]);
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    const [buyer, owner] = await db.getRepository(User).save([
+      new UserFactory().build({
+        role: UserRole.ADMIN,
+        password: 'unused',
+      }),
+      new UserFactory().build({
+        role: UserRole.USER,
+        password: 'unused',
+      }),
+    ]);
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, owner.id));
-    const category = await db.getRepository(Category).save(factory.category(0));
-    const product = await db
-      .getRepository(Product)
-      .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+      .save(
+        new ShopMemberFactory().build({ shopId: shop.id, userId: owner.id }),
+      );
+    const category = await db
+      .getRepository(Category)
+      .save(new CategoryFactory().build());
+    const product = await db.getRepository(Product).save(
+      new ProductFactory().build({
+        shopId: shop.id,
+        categoryId: category.id,
+      }),
+    );
     await db.getRepository(ProductModeration).save({
       productId: product.id,
       status: ProductModerationStatus.APPROVED,

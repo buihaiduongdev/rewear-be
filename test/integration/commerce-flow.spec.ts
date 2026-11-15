@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
@@ -15,6 +18,7 @@ import { PickupLocationService } from '@/modules/shipping/pickup-location.servic
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 
 import type { TestDatabase } from '../support/database';
 import { createTestDatabase } from '../support/database';
@@ -33,17 +37,20 @@ describe('commerce behavior with PostgreSQL', () => {
   });
 
   it('publishes a reviewed product, adds it to a cart, then holds it at checkout', async () => {
-    const factory = new MarketplaceFactory('commerce-integration');
+    const userFactory = new UserFactory();
+    const categoryFactory = new CategoryFactory();
+    const shopFactory = new ShopFactory();
+    const memberFactory = new ShopMemberFactory();
     const [admin, seller, buyer] = await db
       .getRepository(User)
       .save([
-        factory.user(0, 'unused'),
-        factory.user(1, 'unused'),
-        factory.user(2, 'unused'),
+        userFactory.build({ role: UserRole.ADMIN }),
+        userFactory.build(),
+        userFactory.build(),
       ]);
     const category = await db
       .getRepository(Category)
-      .save(factory.category(0, { requiredMeasurements: [] }));
+      .save(categoryFactory.build({ requiredMeasurements: [] }));
     const address = await db.getRepository(UserAddress).save({
       userId: buyer.id,
       recipientName: 'Buyer',
@@ -61,10 +68,10 @@ describe('commerce behavior with PostgreSQL', () => {
       isDefault: true,
     });
 
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+    const shop = await db.getRepository(Shop).save(shopFactory.build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, seller.id));
+      .save(memberFactory.build({ shopId: shop.id, userId: seller.id }));
 
     const products = new ProductService(
       db.getRepository(Product),
@@ -186,12 +193,14 @@ describe('commerce behavior with PostgreSQL', () => {
   });
 
   it('creates and updates one shop pickup location with canonical address names', async () => {
-    const factory = new MarketplaceFactory('pickup-integration');
-    const user = await db.getRepository(User).save(factory.user(1, 'unused'));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+    const userFactory = new UserFactory();
+    const shopFactory = new ShopFactory();
+    const memberFactory = new ShopMemberFactory();
+    const user = await db.getRepository(User).save(userFactory.build());
+    const shop = await db.getRepository(Shop).save(shopFactory.build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, user.id));
+      .save(memberFactory.build({ shopId: shop.id, userId: user.id }));
     const divisions = new AdministrativeDivisionService();
     const pickup = new PickupLocationService(db, divisions);
     const wardCode = divisions.findWardsByProvinceCode('01')[0].code;

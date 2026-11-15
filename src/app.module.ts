@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
 import { createRequestValidationPipe } from './common/validation';
+import { DatabaseModule } from './database';
 import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
 import { CartModule } from './modules/cart';
@@ -11,7 +12,6 @@ import { CategoryModule } from './modules/category';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CodModule } from './modules/cod/cod.module';
 import { ConfigModule, ConfigService } from './modules/config';
-import { DatabaseModule } from './modules/database';
 import { MediaModule } from './modules/media';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';

@@ -4,10 +4,14 @@ import { ForbiddenException } from '@nestjs/common';
 
 import { EntityNotFoundError } from 'typeorm';
 
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
@@ -24,6 +28,7 @@ import {
   ShopStatus,
 } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
@@ -45,23 +50,37 @@ describe('paid order acceptance with PostgreSQL', () => {
 
   async function fixture() {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const [buyer, owner, stranger, staff] = await db
-      .getRepository(User)
-      .save([0, 1, 2, 3].map((index) => factory.user(index, 'unused')));
-    const category = await db.getRepository(Category).save(factory.category(0));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    const [buyer, owner, stranger, staff] = await db.getRepository(User).save(
+      [0, 1, 2, 3].map((index) =>
+        new UserFactory().build({
+          role: index === 0 ? UserRole.ADMIN : UserRole.USER,
+          password: 'unused',
+        }),
+      ),
+    );
+    const category = await db
+      .getRepository(Category)
+      .save(new CategoryFactory().build());
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
     const membership = await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, owner.id));
+      .save(
+        new ShopMemberFactory().build({ shopId: shop.id, userId: owner.id }),
+      );
     await db.getRepository(ShopMember).save(
-      factory.shopMember(1, shop.id, staff.id, {
+      new ShopMemberFactory().build({
+        shopId: shop.id,
+        userId: staff.id,
         memberRole: ShopMemberRole.STAFF,
       }),
     );
-    const product = await db
-      .getRepository(Product)
-      .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+    const product = await db.getRepository(Product).save(
+      new ProductFactory().build({
+        shopId: shop.id,
+        categoryId: category.id,
+      }),
+    );
     await db.getRepository(ProductModeration).save({
       productId: product.id,
       status: ProductModerationStatus.APPROVED,
@@ -220,7 +239,7 @@ describe('paid order acceptance with PostgreSQL', () => {
     const f = await fixture();
     const otherShop = await f.db
       .getRepository(Shop)
-      .save(new MarketplaceFactory(randomUUID()).shop(0));
+      .save(new ShopFactory().build());
     const sibling = await f.db.getRepository(Order).save({
       ...f.order,
       id: randomUUID(),

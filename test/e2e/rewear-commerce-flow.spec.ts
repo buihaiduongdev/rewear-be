@@ -11,18 +11,22 @@ import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { STORAGE_PROVIDER } from '@/infrastructure/storage/storage.interface';
 import type { IStorageProvider } from '@/infrastructure/storage/storage.interface';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { Category } from '@/modules/category/entities';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { UserStatus } from '@/modules/user/enums';
 
 import type { TestDatabase } from '../support/database';
@@ -101,18 +105,21 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     await app.init();
     db = app.get(DataSource);
 
-    const factory = new MarketplaceFactory('app-commerce-e2e');
+    const userFactory = new UserFactory();
+    const categoryFactory = new CategoryFactory();
+    const shopFactory = new ShopFactory();
+    const memberFactory = new ShopMemberFactory();
     [admin, seller, buyer] = await db
       .getRepository(User)
       .save([
-        factory.user(0, 'unused'),
-        factory.user(1, 'unused'),
-        factory.user(2, 'unused'),
+        userFactory.build({ role: UserRole.ADMIN }),
+        userFactory.build(),
+        userFactory.build(),
       ]);
-    shop = await db.getRepository(Shop).save(factory.shop(0));
+    shop = await db.getRepository(Shop).save(shopFactory.build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, seller.id));
+      .save(memberFactory.build({ shopId: shop.id, userId: seller.id }));
     await db.getRepository(PickupLocation).save({
       shopId: shop.id,
       contactName: 'Seller',
@@ -126,7 +133,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     });
     category = await db
       .getRepository(Category)
-      .save(factory.category(0, { requiredMeasurements: [] }));
+      .save(categoryFactory.build({ requiredMeasurements: [] }));
     address = await db.getRepository(UserAddress).save({
       userId: buyer.id,
       recipientName: 'Buyer',

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
@@ -11,6 +12,7 @@ import { FulfillmentCalendar } from '@/modules/shipment/late-handover.entity';
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase, TestDatabase } from '../support/database';
@@ -35,9 +37,14 @@ describe('Carrier incident resolution (PostgreSQL)', () => {
 
   async function fixture(at = new Date(Date.now() - 3600000)) {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const buyer = await db.getRepository(User).save(factory.user(0, 'unused'));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    const buyer = await db.getRepository(User).save(
+      new UserFactory().build({
+        role: UserRole.ADMIN,
+        password: 'unused',
+      }),
+    );
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
     const order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
       buyerId: buyer.id,

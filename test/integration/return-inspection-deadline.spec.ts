@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
@@ -12,6 +13,7 @@ import { ShipmentReturnInspection } from '@/modules/shipment/shipment-return-ins
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 
 import { createTestDatabase, TestDatabase } from '../support/database';
 
@@ -26,9 +28,14 @@ describe('Return inspection deadlines (PostgreSQL)', () => {
 
   async function fixture(returnedAt: Date, reviewReason: string | null = null) {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const buyer = await db.getRepository(User).save(factory.user(0, 'unused'));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    const buyer = await db.getRepository(User).save(
+      new UserFactory().build({
+        role: UserRole.ADMIN,
+        password: 'unused',
+      }),
+    );
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
     const order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
       buyerId: buyer.id,

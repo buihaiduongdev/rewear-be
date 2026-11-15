@@ -10,12 +10,16 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Order } from '@/modules/order/order.entity';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -29,6 +33,7 @@ import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 
 import { createTestDatabase } from '../support/database';
 
@@ -102,18 +107,30 @@ describe('COD to carrier and cancellation HTTP flow', () => {
       app
         .get(JwtService)
         .sign({ sub: user.id }, { secret: process.env.JWT_ACCESS_SECRET });
-    const factory = new MarketplaceFactory(randomUUID());
-    [admin, buyer, owner, stranger] = await db
-      .getRepository(User)
-      .save([0, 1, 2, 3].map((i) => factory.user(i, 'unused')));
-    shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    [admin, buyer, owner, stranger] = await db.getRepository(User).save(
+      [0, 1, 2, 3].map((i) =>
+        new UserFactory().build({
+          role: i === 0 ? UserRole.ADMIN : UserRole.USER,
+          password: 'unused',
+        }),
+      ),
+    );
+    shop = await db.getRepository(Shop).save(new ShopFactory().build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, owner.id));
-    const category = await db.getRepository(Category).save(factory.category(0));
-    const product = await db
-      .getRepository(Product)
-      .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+      .save(
+        new ShopMemberFactory().build({ shopId: shop.id, userId: owner.id }),
+      );
+    const category = await db
+      .getRepository(Category)
+      .save(new CategoryFactory().build());
+    const product = await db.getRepository(Product).save(
+      new ProductFactory().build({
+        shopId: shop.id,
+        categoryId: category.id,
+      }),
+    );
     await db.getRepository(ProductModeration).save({
       productId: product.id,
       status: ProductModerationStatus.APPROVED,

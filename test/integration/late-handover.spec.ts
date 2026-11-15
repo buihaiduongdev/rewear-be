@@ -1,7 +1,9 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
@@ -13,6 +15,7 @@ import { LateHandoverService } from '@/modules/shipment/late-handover.service';
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase, TestDatabase } from '../support/database';
@@ -40,14 +43,23 @@ describe('Late handover consent (PostgreSQL)', () => {
   afterAll(async () => database?.destroy());
   async function fixture() {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const [buyer, owner] = await db
-      .getRepository(User)
-      .save([factory.user(0, 'unused'), factory.user(1, 'unused')]);
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    const [buyer, owner] = await db.getRepository(User).save([
+      new UserFactory().build({
+        role: UserRole.ADMIN,
+        password: 'unused',
+      }),
+      new UserFactory().build({
+        role: UserRole.USER,
+        password: 'unused',
+      }),
+    ]);
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, owner.id));
+      .save(
+        new ShopMemberFactory().build({ shopId: shop.id, userId: owner.id }),
+      );
     const order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
       buyerId: buyer.id,

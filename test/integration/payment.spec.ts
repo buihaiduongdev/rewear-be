@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { EntityNotFoundError } from 'typeorm';
 
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { Category } from '@/modules/category/entities';
@@ -9,7 +13,6 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
@@ -27,6 +30,7 @@ import {
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
@@ -56,19 +60,24 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
 
   async function fixture() {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const buyer = await db.getRepository(User).save(factory.user(1, 'unused'));
-    const category = await db.getRepository(Category).save(factory.category(0));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
-    const product = await db
-      .getRepository(Product)
-      .save(
-        factory.product(
-          0,
-          { categoryId: category.id, shopId: shop.id },
-          { status: ProductStatus.ACTIVE },
-        ),
-      );
+
+    const buyer = await db.getRepository(User).save(
+      new UserFactory().build({
+        role: UserRole.USER,
+        password: 'unused',
+      }),
+    );
+    const category = await db
+      .getRepository(Category)
+      .save(new CategoryFactory().build());
+    const shop = await db.getRepository(Shop).save(new ShopFactory().build());
+    const product = await db.getRepository(Product).save(
+      new ProductFactory().build({
+        categoryId: category.id,
+        shopId: shop.id,
+        status: ProductStatus.ACTIVE,
+      }),
+    );
     await db.getRepository(ProductModeration).save({
       productId: product.id,
       status: ProductModerationStatus.APPROVED,

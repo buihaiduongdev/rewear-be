@@ -10,13 +10,16 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
+import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Order } from '@/modules/order/order.entity';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
+import { UserRole } from '@/modules/user/enums';
 
 import { createTestDatabase } from '../support/database';
 
@@ -47,14 +50,21 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
     const jwt = app.get(JwtService);
     token = (user) =>
       jwt.sign({ sub: user.id }, { secret: process.env.JWT_ACCESS_SECRET });
-    const factory = new MarketplaceFactory(randomUUID());
-    [buyer, owner, stranger] = await db
-      .getRepository(User)
-      .save([0, 1, 2].map((i) => factory.user(i, 'unused')));
-    shop = await db.getRepository(Shop).save(factory.shop(0));
+
+    [buyer, owner, stranger] = await db.getRepository(User).save(
+      [0, 1, 2].map((i) =>
+        new UserFactory().build({
+          role: i === 0 ? UserRole.ADMIN : UserRole.USER,
+          password: 'unused',
+        }),
+      ),
+    );
+    shop = await db.getRepository(Shop).save(new ShopFactory().build());
     await db
       .getRepository(ShopMember)
-      .save(factory.shopMember(0, shop.id, owner.id));
+      .save(
+        new ShopMemberFactory().build({ shopId: shop.id, userId: owner.id }),
+      );
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
