@@ -19,7 +19,7 @@ import {
 
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType } from '@/modules/media/enums';
+import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import {
   ShopMemberRole,
@@ -29,8 +29,8 @@ import {
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { Product, ProductRevision } from './entities';
-import { ProductStatus } from './enums';
+import { Product, ProductModeration } from './entities';
+import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import type {
   CreateProductInput,
@@ -38,6 +38,8 @@ import type {
   UpdateProductInput,
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
+
+type ProductView = Product & { coverUrl: string | null; mediaCount: number };
 
 @Injectable()
 export class ProductService {
@@ -53,21 +55,22 @@ export class ProductService {
     private readonly dataSource: DataSource,
   ) {}
 
-  findAll(query: PaginateQuery): Promise<Paginated<Product>> {
-    const queryBuilder = this.createProductQueryBuilder()
-      .where('product.status = :status', { status: ProductStatus.ACTIVE })
-      .andWhere('product.approvedRevision = product.revision')
-      .andWhere('category.isActive = true')
-      .andWhere('shop.status = :shopStatus', {
-        shopStatus: ShopStatus.ACTIVE,
-      });
-    return this.paginateProducts(queryBuilder, query, true);
+  findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
+    return this.dataSource.transaction('REPEATABLE READ', (manager) => {
+      const queryBuilder = this.createProductQueryBuilder(manager)
+        .where('product.status = :status', { status: ProductStatus.ACTIVE })
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        });
+      return this.paginateProducts(queryBuilder, query, manager);
+    });
   }
 
   async findMine(
     currentUserId: string,
     query: PaginateQuery,
-  ): Promise<Paginated<Product>> {
+  ): Promise<Paginated<ProductView>> {
     const ownedShops = await this.shopMemberRepository.find({
       where: {
         userId: currentUserId,
@@ -84,26 +87,27 @@ export class ProductService {
     return this.paginateProducts(queryBuilder, query);
   }
 
-  async findOne(id: string): Promise<Product> {
-    const product = await this.createProductQueryBuilder()
-      .where('product.id = :id AND product.status = :status', {
-        id,
-        status: ProductStatus.ACTIVE,
-      })
-      .andWhere('product.approvedRevision = product.revision')
-      .andWhere('category.isActive = true')
-      .andWhere('shop.status = :shopStatus', {
-        shopStatus: ShopStatus.ACTIVE,
-      })
-      .getOneOrFail();
-    await this.loadMedia([product], true);
-    return product;
+  async findOne(id: string): Promise<ProductView> {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      const product = await this.createProductQueryBuilder(manager)
+        .where('product.id = :id AND product.status = :status', {
+          id,
+          status: ProductStatus.ACTIVE,
+        })
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        })
+        .getOneOrFail();
+      const [view] = await this.loadMedia([product], manager);
+      return view;
+    });
   }
 
   async findOneForManagement(
     id: string,
     currentUserId: string,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     const product = await this.findManagedProduct(id);
     await this.assertCanManage(product, currentUserId);
     return product;
@@ -112,7 +116,7 @@ export class ProductService {
   async create(
     currentUserId: string,
     input: CreateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
     await this.assertActiveShopOwner(input.shopId, currentUserId);
     const product = await this.productRepository.save(
@@ -130,8 +134,6 @@ export class ProductService {
         shippingPackage: input.shippingPackage ?? null,
         repairs: this.normalizeOptionalText(input.repairs),
         defects: input.defects ?? [],
-        revision: 1,
-        approvedRevision: null,
         status: ProductStatus.DRAFT,
         publishedAt: null,
         heldUntil: null,
@@ -172,8 +174,11 @@ export class ProductService {
     product: Product,
   ): Promise<void> {
     this.assertEditable(product);
-    product.revision += 1;
-    product.approvedRevision = null;
+    await manager.update(
+      ProductModeration,
+      { productId: product.id },
+      { status: ProductModerationStatus.DRAFT, reason: null },
+    );
     product.status = ProductStatus.DRAFT;
     await manager.save(Product, product);
   }
@@ -182,7 +187,7 @@ export class ProductService {
     id: string,
     currentUserId: string,
     input: UpdateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, currentUserId);
       this.assertEditable(product);
@@ -256,7 +261,7 @@ export class ProductService {
         product.price = input.price;
         priceChanged = true;
       }
-      // Changes to draft or rejected content require a new revision.
+      // Editing content moves the product back to draft.
       if (
         contentChanged ||
         (priceChanged &&
@@ -274,14 +279,11 @@ export class ProductService {
     id: string,
     userId: string,
     input: UpdateProductStatusInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (
-        ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-          product.status,
-        ) ||
-        product.approvedRevision !== product.revision
+        ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
       ) {
         throw new ConflictException(
           'Only an approved listing can be hidden or reactivated',
@@ -295,71 +297,38 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async submit(id: string, userId: string): Promise<Product> {
+  async submit(id: string, userId: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      const links = await this.getMedia(manager, id);
-      const revision = await manager.save(
-        ProductRevision,
-        manager.create(ProductRevision, {
-          productId: id,
-          revision: product.revision,
-          submittedById: userId,
-          decision: 'PENDING',
-          reviewedById: null,
-          reviewedAt: null,
-          reason: null,
-          snapshot: {
-            categoryId: product.categoryId,
-            title: product.title,
-            description: product.description,
-            condition: product.condition,
-            size: product.size,
-            color: product.color,
-            brand: product.brand,
-            price: product.price,
-            measurements: product.measurements,
-            shippingPackage: product.shippingPackage,
-            repairs: product.repairs,
-            defects: product.defects,
-            media: links.map((link) => ({
-              mediaId: link.mediaId,
-              url: link.media.url,
-              storageKey: link.media.storageKey,
-              mimeType: link.media.mimeType,
-              eTag: link.media.eTag,
-              sizeBytes: link.media.sizeBytes,
-              role: link.role,
-              sortOrder: link.sortOrder,
-              angle: link.angle,
-            })),
-          },
-        }),
-      );
-      // Retain submitted evidence even when the seller later removes an image.
-      await manager.save(
-        MediaLink,
-        links.map((link) =>
-          manager.create(MediaLink, {
-            mediaId: link.mediaId,
-            ownerType: MediaOwnerType.PRODUCT_REVISION,
-            ownerId: revision.id,
-            role: link.role,
-            sortOrder: link.sortOrder,
-            angle: link.angle,
+      const moderation = await manager.findOneBy(ProductModeration, {
+        productId: id,
+      });
+      if (moderation) {
+        moderation.version += 1;
+        moderation.status = ProductModerationStatus.PENDING;
+        moderation.reason = null;
+        await manager.save(ProductModeration, moderation);
+      } else {
+        await manager.save(
+          ProductModeration,
+          manager.create(ProductModeration, {
+            productId: id,
+            version: 1,
+            status: ProductModerationStatus.PENDING,
+            reason: null,
           }),
-        ),
-      );
+        );
+      }
       product.status = ProductStatus.PENDING_REVIEW;
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
   }
 
-  async cancelSubmission(id: string, userId: string): Promise<Product> {
+  async cancelSubmission(id: string, userId: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       const product = await this.lockForManagement(manager, id, userId);
       if (product.status !== ProductStatus.PENDING_REVIEW) {
@@ -367,14 +336,11 @@ export class ProductService {
           'Only a pending submission can be cancelled',
         );
       }
-      const revision = await manager.findOneByOrFail(ProductRevision, {
-        productId: id,
-        revision: product.revision,
-        decision: 'PENDING',
-      });
-      revision.decision = 'CANCELLED';
-      await manager.save(ProductRevision, revision);
-      product.revision += 1;
+      await manager.update(
+        ProductModeration,
+        { productId: id },
+        { status: ProductModerationStatus.CANCELLED },
+      );
       product.status = ProductStatus.DRAFT;
       await manager.save(Product, product);
     });
@@ -385,46 +351,48 @@ export class ProductService {
     id: string,
     adminId: string,
     input: ModerateProductInput,
-  ): Promise<Product> {
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
+      const moderation = await manager.findOneByOrFail(ProductModeration, {
+        productId: id,
+      });
       if (
         product.status !== ProductStatus.PENDING_REVIEW ||
-        product.revision !== input.revision
+        moderation.status !== ProductModerationStatus.PENDING ||
+        moderation.version !== input.version
       ) {
         throw new ConflictException(
-          'The submitted revision is no longer current',
+          'The submitted review is no longer current',
         );
       }
-      const revision = await manager.findOneByOrFail(ProductRevision, {
-        productId: id,
-        revision: input.revision,
-        decision: 'PENDING',
-      });
       if (input.decision === 'APPROVE') {
         await this.validateForPublication(manager, product);
         product.status = ProductStatus.ACTIVE;
-        product.approvedRevision = product.revision;
         product.publishedAt ??= new Date();
-        revision.decision = 'APPROVED';
       } else {
         if (!input.reason?.trim())
           throw new BadRequestException('A rejection reason is required');
         product.status = ProductStatus.REJECTED;
-        product.approvedRevision = null;
-        revision.decision = 'REJECTED';
       }
-      revision.reviewedById = adminId;
-      revision.reviewedAt = new Date();
-      revision.reason = input.reason?.trim() ?? null;
-      await manager.save(ProductRevision, revision);
+      moderation.status =
+        input.decision === 'REJECT'
+          ? ProductModerationStatus.REJECTED
+          : ProductModerationStatus.APPROVED;
+      moderation.reason =
+        input.decision === 'REJECT' ? input.reason!.trim() : null;
+      await manager.save(ProductModeration, moderation);
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
   }
 
-  async suspend(id: string, adminId: string, reason: string): Promise<Product> {
+  async suspend(
+    id: string,
+    adminId: string,
+    reason: string,
+  ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
       await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
@@ -437,51 +405,48 @@ export class ProductService {
       }
       if (!reason.trim())
         throw new BadRequestException('A suspension reason is required');
-      // A separate audit event preserves the original approval decision.
-      product.revision += 1;
-      await manager.save(
-        ProductRevision,
-        manager.create(ProductRevision, {
-          productId: id,
-          revision: product.revision,
-          submittedById: adminId,
-          snapshot: { action: 'SUSPEND' },
-          decision: 'REJECTED',
-          reviewedById: adminId,
-          reviewedAt: new Date(),
-          reason: reason.trim(),
-        }),
-      );
+      const moderation = await manager.findOneByOrFail(ProductModeration, {
+        productId: id,
+      });
+      moderation.status = ProductModerationStatus.SUSPENDED;
+      moderation.reason = reason.trim();
+      await manager.save(ProductModeration, moderation);
       product.status = ProductStatus.SUSPENDED;
-      product.approvedRevision = null;
       await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
   }
 
-  async findRevisions(
+  async findModeration(
     id: string,
     userId: string,
     admin = false,
-  ): Promise<ProductRevision[]> {
+  ): Promise<ProductModeration> {
     if (admin) await this.assertAdmin(this.dataSource.manager, userId);
     else await this.findOneForManagement(id, userId);
     return this.dataSource
-      .getRepository(ProductRevision)
-      .find({ where: { productId: id }, order: { revision: 'DESC' } });
+      .getRepository(ProductModeration)
+      .findOneByOrFail({ productId: id });
   }
 
-  async findForReview(id: string, adminId: string): Promise<Product> {
+  async findForReview(id: string, adminId: string): Promise<ProductView> {
     await this.assertAdmin(this.dataSource.manager, adminId);
+    await this.dataSource
+      .getRepository(ProductModeration)
+      .findOneByOrFail({ productId: id });
     return this.findManagedProduct(id);
   }
 
   async findReviewQueue(
     query: PaginateQuery,
     adminId: string,
-  ): Promise<Paginated<Product>> {
+  ): Promise<Paginated<ProductView>> {
     await this.assertAdmin(this.dataSource.manager, adminId);
-    const builder = this.createProductQueryBuilder();
+    const builder = this.createProductQueryBuilder().innerJoin(
+      ProductModeration,
+      'moderation',
+      'moderation.productId = product.id',
+    );
     if (!query.filter?.status) {
       builder.where('product.status = :status', {
         status: ProductStatus.PENDING_REVIEW,
@@ -577,75 +542,57 @@ export class ProductService {
     });
   }
 
-  async findPublishedMedia(product: Product): Promise<MediaLink[]> {
-    const revision = await this.dataSource
-      .getRepository(ProductRevision)
-      .findOneBy({
-        productId: product.id,
-        revision: product.approvedRevision!,
-        decision: 'APPROVED',
-      });
-    if (!revision) return [];
-    return this.dataSource.getRepository(MediaLink).find({
-      where: {
-        ownerType: MediaOwnerType.PRODUCT_REVISION,
-        ownerId: revision.id,
-      },
-      relations: { media: true },
-      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+  findPublishedMedia(product: Product): Promise<MediaLink[]> {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      await this.createProductQueryBuilder(manager)
+        .where('product.id = :id AND product.status = :status', {
+          id: product.id,
+          status: ProductStatus.ACTIVE,
+        })
+        .andWhere('category.isActive = true')
+        .andWhere('shop.status = :shopStatus', {
+          shopStatus: ShopStatus.ACTIVE,
+        })
+        .getOneOrFail();
+      return this.getMedia(manager, product.id);
     });
   }
 
   private async loadMedia(
     products: Product[],
-    published = false,
-  ): Promise<void> {
-    if (!products.length) return;
-    const revisions = published
-      ? await this.dataSource.getRepository(ProductRevision).find({
-          where: products.map((product) => ({
-            productId: product.id,
-            revision: product.approvedRevision!,
-            decision: 'APPROVED' as const,
-          })),
-        })
-      : [];
-    const productByRevision = new Map(
-      revisions.map((revision) => [revision.id, revision.productId]),
-    );
-    if (published && !revisions.length) {
-      for (const product of products) product.mediaLinks = [];
-      return;
-    }
-    const links = await this.dataSource.getRepository(MediaLink).find({
+    manager = this.dataSource.manager,
+  ): Promise<ProductView[]> {
+    if (!products.length) return [];
+    const links = await manager.getRepository(MediaLink).find({
       where: {
-        ownerType: published
-          ? MediaOwnerType.PRODUCT_REVISION
-          : MediaOwnerType.PRODUCT,
-        ownerId: In(
-          published
-            ? revisions.map((revision) => revision.id)
-            : products.map((product) => product.id),
-        ),
+        ownerType: MediaOwnerType.PRODUCT,
+        ownerId: In(products.map((product) => product.id)),
       },
       relations: { media: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
     const byProduct = new Map<string, MediaLink[]>();
     for (const link of links) {
-      const productId = published
-        ? productByRevision.get(link.ownerId)!
-        : link.ownerId;
-      const group = byProduct.get(productId) ?? [];
+      const group = byProduct.get(link.ownerId) ?? [];
       group.push(link);
-      byProduct.set(productId, group);
+      byProduct.set(link.ownerId, group);
     }
-    for (const product of products)
-      product.mediaLinks = byProduct.get(product.id) ?? [];
+    return products.map((product) => {
+      const mediaLinks = byProduct.get(product.id) ?? [];
+      return {
+        ...product,
+        coverUrl:
+          mediaLinks.find((link) => link.role === MediaRole.COVER)?.media.url ??
+          null,
+        mediaCount: mediaLinks.length,
+      };
+    });
   }
 
-  private createProductQueryBuilder(): SelectQueryBuilder<Product> {
-    return this.productRepository
+  private createProductQueryBuilder(
+    manager?: EntityManager,
+  ): SelectQueryBuilder<Product> {
+    return (manager?.getRepository(Product) ?? this.productRepository)
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.shop', 'shop');
@@ -654,24 +601,24 @@ export class ProductService {
   private async paginateProducts(
     queryBuilder: SelectQueryBuilder<Product>,
     query: PaginateQuery,
-    published = false,
-  ): Promise<Paginated<Product>> {
+    manager?: EntityManager,
+  ): Promise<Paginated<ProductView>> {
     const result = await paginate(
       query,
       queryBuilder,
       PRODUCT_PAGINATION_CONFIG,
     );
-    await this.loadMedia(result.data, published);
-    return result;
+    const data = await this.loadMedia(result.data, manager);
+    return { ...result, data };
   }
 
-  private async findManagedProduct(id: string): Promise<Product> {
+  private async findManagedProduct(id: string): Promise<ProductView> {
     const product = await this.productRepository.findOneOrFail({
       where: { id },
       relations: { category: true, shop: true },
     });
-    await this.loadMedia([product]);
-    return product;
+    const [view] = await this.loadMedia([product]);
+    return view;
   }
 
   private async assertCanManage(

@@ -1,2 +1,2 @@
 export * from './product.entity';
-export * from './product-revision.entity';
+export * from './product-moderation.entity';

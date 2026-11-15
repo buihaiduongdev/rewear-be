@@ -241,8 +241,10 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         price: 250000,
         measurements: {},
         shippingPackage: {
-          weight: { mode: 'CUSTOM', grams: 500 },
-          size: { mode: 'CUSTOM', lengthCm: 20, widthCm: 15, heightCm: 10 },
+          weightGrams: 500,
+          lengthCm: 20,
+          widthCm: 15,
+          heightCm: 10,
         },
       })
       .expect(201);
@@ -283,16 +285,20 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .set('x-test-user', seller.id)
       .send({})
       .expect(200);
-    const resubmitted = await request(server)
+    await request(server)
       .post(`/api/products/${productId}/submit`)
       .set('x-test-user', seller.id)
       .send({})
       .expect(200);
 
+    const review = await request(server)
+      .get(`/api/products/admin/${productId}/moderation`)
+      .set('x-test-user', admin.id)
+      .expect(200);
     const approved = await request(server)
       .post(`/api/products/admin/${productId}/moderation`)
       .set('x-test-user', admin.id)
-      .send({ revision: resubmitted.body.data.revision, decision: 'APPROVE' })
+      .send({ version: review.body.data.version, decision: 'APPROVE' })
       .expect(200);
     expect(approved.body.data.status).toBe(ProductStatus.ACTIVE);
 

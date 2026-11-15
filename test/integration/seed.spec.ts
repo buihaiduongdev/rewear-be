@@ -10,7 +10,7 @@ import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketpla
 import { seedMarketplace } from '@/modules/database/seeds/marketplace.seed';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType } from '@/modules/media/enums';
-import { Product, ProductRevision } from '@/modules/product/entities';
+import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
 import { productSchema } from '@/modules/product/schemas';
@@ -44,13 +44,11 @@ describe('Seed data (real PostgreSQL)', () => {
       products: 36,
       activeProducts: 30,
       media: 108,
-      revisions: 35,
-      mediaLinks: 213,
+      mediaLinks: 108,
     });
     expect(await db.getRepository(Product).count()).toBe(36);
     expect(await db.getRepository(Media).count()).toBe(108);
-    expect(await db.getRepository(MediaLink).count()).toBe(213);
-    expect(await db.getRepository(ProductRevision).count()).toBe(35);
+    expect(await db.getRepository(MediaLink).count()).toBe(108);
     const buyer = await db.getRepository(User).findOneOrFail({
       where: { id: manifest.accounts[1].id },
       select: { id: true, password: true },
@@ -123,7 +121,7 @@ describe('Seed data (real PostgreSQL)', () => {
     );
     await Promise.all([seedMarketplace(db), seedMarketplace(db)]);
     expect(await db.getRepository(Product).count()).toBe(36);
-    expect(await db.getRepository(MediaLink).count()).toBe(213);
+    expect(await db.getRepository(MediaLink).count()).toBe(108);
     expect(
       (await db.getRepository(Product).findOneByOrFail({ id: productId }))
         .title,
@@ -166,12 +164,11 @@ describe('Seed data (real PostgreSQL)', () => {
       db,
     );
     await service.moderate(pending.id, factory.id('user:0'), {
-      revision: 1,
+      version: 1,
       decision: 'APPROVE',
     });
     const published = await service.findOne(pending.id);
     expect(published.status).toBe(ProductStatus.ACTIVE);
-    expect(published.approvedRevision).toBe(1);
     expect(published.mediaCount).toBe(3);
   });
 });

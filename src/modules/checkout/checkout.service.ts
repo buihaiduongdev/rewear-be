@@ -181,7 +181,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           productId,
           title: product.title,
           price: product.price,
-          revision: row.revision,
           size: product.size,
           condition: product.condition,
           coverUrl: product.coverUrl,

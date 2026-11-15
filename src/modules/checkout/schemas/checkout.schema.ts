@@ -57,7 +57,6 @@ export const checkoutSchema = z.object({
           productId: z.uuid(),
           title: z.string(),
           price: z.number().int(),
-          revision: z.number().int(),
           size: z.string().nullable(),
           condition: z.string(),
           coverUrl: z.string().nullable(),

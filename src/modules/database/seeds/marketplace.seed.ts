@@ -3,9 +3,11 @@ import type { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType } from '@/modules/media/enums';
-import { Product, ProductRevision } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
@@ -83,9 +85,9 @@ export async function seedMarketplace(
     factory.shopMember(index, shop.id, users[index + 2].id),
   );
   const products: Product[] = [];
+  const moderations: ProductModeration[] = [];
   const media: Media[] = [];
   const links: MediaLink[] = [];
-  const revisions: ProductRevision[] = [];
   const privateStatuses = [
     ProductStatus.DRAFT,
     ProductStatus.PENDING_REVIEW,
@@ -114,7 +116,6 @@ export async function seedMarketplace(
       { ...relations, categoryId: categories[index % categories.length].id },
       {
         status,
-        approvedRevision: approved ? 1 : null,
         publishedAt: approved
           ? new Date(factory.now.getTime() - index * 60000)
           : null,
@@ -136,6 +137,25 @@ export async function seedMarketplace(
       });
     }
     products.push(product);
+    if (status !== ProductStatus.DRAFT) {
+      moderations.push(
+        Object.assign(new ProductModeration(), {
+          id: factory.id(`moderation:${index}`),
+          productId: product.id,
+          version: 1,
+          status:
+            status === ProductStatus.PENDING_REVIEW
+              ? ProductModerationStatus.PENDING
+              : status === ProductStatus.REJECTED
+                ? ProductModerationStatus.REJECTED
+                : ProductModerationStatus.APPROVED,
+          reason:
+            status === ProductStatus.REJECTED
+              ? 'Demo rejection: add a clearer label photo.'
+              : null,
+        }),
+      );
+    }
     const uploaderId = members.find(
       (member) => member.shopId === relations.shopId,
     )!.userId;
@@ -147,63 +167,6 @@ export async function seedMarketplace(
     );
     media.push(...productMedia);
     links.push(...productLinks);
-    if (status !== ProductStatus.DRAFT) {
-      const revision = Object.assign(new ProductRevision(), {
-        id: factory.id(`revision:${index}:1`),
-        productId: product.id,
-        revision: 1,
-        submittedById: uploaderId,
-        decision: approved
-          ? 'APPROVED'
-          : status === ProductStatus.REJECTED
-            ? 'REJECTED'
-            : 'PENDING',
-        reviewedById:
-          status === ProductStatus.PENDING_REVIEW ? null : users[0].id,
-        reviewedAt:
-          status === ProductStatus.PENDING_REVIEW ? null : factory.now,
-        reason:
-          status === ProductStatus.REJECTED
-            ? 'Demo rejection: add a clearer label photo.'
-            : null,
-        createdAt: factory.now,
-        updatedAt: factory.now,
-        snapshot: {
-          categoryId: product.categoryId,
-          title: product.title,
-          description: product.description,
-          condition: product.condition,
-          size: product.size,
-          color: product.color,
-          brand: product.brand,
-          price: product.price,
-          measurements: product.measurements,
-          repairs: product.repairs,
-          defects: product.defects,
-          media: productMedia.map((image, slot) => ({
-            mediaId: image.id,
-            url: image.url,
-            storageKey: image.storageKey,
-            mimeType: image.mimeType,
-            sizeBytes: image.sizeBytes,
-            eTag: image.eTag,
-            role: productLinks[slot].role,
-            sortOrder: slot,
-            angle: productLinks[slot].angle,
-          })),
-        },
-      });
-      revisions.push(revision);
-      links.push(
-        ...productLinks.map((link, slot) =>
-          Object.assign(new MediaLink(), link, {
-            id: factory.id(`revision-link:${index}:${slot}`),
-            ownerType: MediaOwnerType.PRODUCT_REVISION,
-            ownerId: revision.id,
-          }),
-        ),
-      );
-    }
   }
 
   await dataSource.transaction(async (manager) => {
@@ -215,8 +178,8 @@ export async function seedMarketplace(
     await insertMissing(manager, Shop, shops);
     await insertMissing(manager, ShopMember, members);
     await insertMissing(manager, Product, products);
+    await insertMissing(manager, ProductModeration, moderations);
     await insertMissing(manager, Media, media);
-    await insertMissing(manager, ProductRevision, revisions);
     await insertMissing(manager, MediaLink, links);
   });
 
@@ -236,7 +199,6 @@ export async function seedMarketplace(
         ({ status }) => status === ProductStatus.ACTIVE,
       ).length,
       media: media.length,
-      revisions: revisions.length,
       mediaLinks: links.length,
     },
   };

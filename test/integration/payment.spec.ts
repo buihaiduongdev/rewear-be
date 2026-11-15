@@ -117,7 +117,6 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
           productId: product.id,
           title: 'Jacket',
           price: 200000,
-          revision: 1,
           size: null,
           condition: 'GOOD',
           coverUrl: null,

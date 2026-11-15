@@ -7,7 +7,7 @@ import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
-import { Product, ProductRevision } from '@/modules/product/entities';
+import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -106,6 +106,11 @@ describe('commerce behavior with PostgreSQL', () => {
 
     const pending = await products.submit(product.id, seller.id);
     expect(pending.status).toBe(ProductStatus.PENDING_REVIEW);
+    const firstReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
     await expect(
       products.update(product.id, seller.id, { title: 'Changed jacket' }),
     ).rejects.toThrow('This product cannot be edited in its current state');
@@ -114,24 +119,41 @@ describe('commerce behavior with PostgreSQL', () => {
     ).rejects.toThrow('Shop owner access required');
     const cancelled = await products.cancelSubmission(product.id, seller.id);
     expect(cancelled.status).toBe(ProductStatus.DRAFT);
-    expect(
-      (
-        await db.getRepository(ProductRevision).findOneByOrFail({
-          productId: product.id,
-          revision: pending.revision,
-        })
-      ).decision,
-    ).toBe('CANCELLED');
+    await products.submit(product.id, seller.id);
+    const secondReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
+    expect(secondReview.id).toBe(firstReview.id);
+    expect(secondReview.version).toBeGreaterThan(firstReview.version);
     await expect(
       products.moderate(product.id, admin.id, {
-        revision: pending.revision,
+        version: firstReview.version,
         decision: 'APPROVE',
       }),
-    ).rejects.toThrow('The submitted revision is no longer current');
-    const resubmitted = await products.submit(product.id, seller.id);
-    expect(resubmitted.revision).toBeGreaterThan(pending.revision);
+    ).rejects.toThrow('The submitted review is no longer current');
+    const rejected = await products.moderate(product.id, admin.id, {
+      version: secondReview.version,
+      decision: 'REJECT',
+      reason: 'Ảnh chưa rõ',
+    });
+    expect(rejected.status).toBe(ProductStatus.REJECTED);
+    expect((await products.findModeration(product.id, seller.id)).reason).toBe(
+      'Ảnh chưa rõ',
+    );
+    await products.update(product.id, seller.id, {
+      title: 'Denim jacket updated',
+    });
+    await products.submit(product.id, seller.id);
+    const finalReview = await products.findModeration(
+      product.id,
+      admin.id,
+      true,
+    );
+    expect(finalReview.reason).toBeNull();
     const published = await products.moderate(product.id, admin.id, {
-      revision: resubmitted.revision,
+      version: finalReview.version,
       decision: 'APPROVE',
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
@@ -154,7 +176,7 @@ describe('commerce behavior with PostgreSQL', () => {
     expect(held.orders[0].shopId).toBe(shop.id);
     expect(held.orders[0].items[0]).toMatchObject({
       productId: product.id,
-      title: 'Denim jacket',
+      title: 'Denim jacket updated',
       price: 250000,
     });
     expect(
