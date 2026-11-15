@@ -13,8 +13,11 @@ import {
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
@@ -96,6 +99,19 @@ export class CodService {
         order: { id: 'ASC' },
         lock: { mode: 'pessimistic_write' },
       });
+      const moderations = await manager.find(ProductModeration, {
+        where: { productId: In(ids) },
+        order: { productId: 'ASC' },
+        lock: { mode: 'pessimistic_read' },
+      });
+      const approvedIds = new Set(
+        moderations
+          .filter(
+            (moderation) =>
+              moderation.status === ProductModerationStatus.APPROVED,
+          )
+          .map((moderation) => moderation.productId),
+      );
       for (const categoryId of [
         ...new Set(
           products.flatMap((product) =>
@@ -129,7 +145,7 @@ export class CodService {
             product.status !== ProductStatus.HELD ||
             product.reservationId !== checkout.id ||
             !product.categoryId ||
-            product.approvedRevision !== product.revision,
+            !approvedIds.has(product.id),
         )
       )
         throw new ConflictException('Checkout stock is no longer reserved');

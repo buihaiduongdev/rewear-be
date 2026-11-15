@@ -1,0 +1,11 @@
+export const HANDOVER_STATE = {
+  REVIEW: 'REVIEW',
+  OFFERED: 'OFFERED',
+  CONSENTED: 'CONSENTED',
+  CANCEL_PENDING: 'CANCEL_PENDING',
+  RETURN_PENDING: 'RETURN_PENDING',
+  CLOSED: 'CLOSED',
+} as const;
+export type HandoverState =
+  (typeof HANDOVER_STATE)[keyof typeof HANDOVER_STATE];
+export const HOUR_MS = 3600000;

@@ -248,8 +248,14 @@ export class ShipmentService {
     try {
       let snapshot = await this.carrier.query(id);
       const cancellation = await this.apply(id, snapshot);
-      if (cancellation && snapshot.status !== 'cancel') {
-        await this.carrier.cancel(snapshot.orderCode);
+      if (
+        cancellation &&
+        snapshot.status !== 'cancel' &&
+        snapshot.status !== 'returned'
+      ) {
+        if (cancellation === 'return')
+          await this.carrier.requestReturn(snapshot.orderCode);
+        else await this.carrier.cancel(snapshot.orderCode);
         snapshot = await this.carrier.query(id);
         await this.apply(id, snapshot);
       }
@@ -297,6 +303,13 @@ export class ShipmentService {
         returning.has(snapshot.status)
       ) {
         row.pickedObservedAt ??= now;
+        if (
+          row.cancelRequestedAt &&
+          order.cancelState === ORDER_CANCEL_STATE.APPROVED
+        ) {
+          row.returnRequestedAt ??= now;
+          row.reviewReason = 'PICKED_DURING_CANCELLATION';
+        }
         if (
           order.cancelState &&
           order.cancelState !== ORDER_CANCEL_STATE.CLOSED
@@ -374,11 +387,16 @@ export class ShipmentService {
         row.reviewReason ??= 'CANCELLATION_UNRESOLVED_30_MINUTES';
       await manager.save(order);
       await manager.save(row);
-      return (
-        row.state === 'CANCEL_PENDING' &&
-        !row.pickedObservedAt &&
-        order.cancelState === ORDER_CANCEL_STATE.APPROVED
-      );
+      return row.returnRequestedAt &&
+        !row.codCollectedAt &&
+        !row.carrierTransferredAt &&
+        snapshot.status !== 'delivered'
+        ? 'return'
+        : row.state === 'CANCEL_PENDING' &&
+            !row.pickedObservedAt &&
+            order.cancelState === ORDER_CANCEL_STATE.APPROVED
+          ? 'cancel'
+          : false;
     });
   }
 

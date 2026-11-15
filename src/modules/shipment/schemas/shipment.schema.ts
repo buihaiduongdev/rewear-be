@@ -41,6 +41,10 @@ export const shipmentViewSchema = z.object({
   carrierTransferredAt: dateTimeSchema.nullable(),
   reviewReason: z.string().nullable(),
   cancelRequestedAt: dateTimeSchema.nullable(),
+  returnRequestedAt: dateTimeSchema.nullable(),
+  returnInspectionBy: dateTimeSchema.nullable(),
+  returnInspectionCalendarMissing: z.boolean(),
+  returnInspectionOverdue: z.boolean(),
   parcel: shipmentCreateSchema.shape.parcel.unwrap(),
   quotedParcel: shipmentCreateSchema.shape.parcel.unwrap(),
 });

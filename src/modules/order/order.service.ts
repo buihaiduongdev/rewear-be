@@ -4,8 +4,13 @@ import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/cod.policy';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
+import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/shipment.constants';
+import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WalletCredit } from '@/modules/wallet/wallet.entity';
@@ -247,6 +252,42 @@ export class OrderService {
     await manager.save(order);
   }
 
+  // Caller holds the commerce lock and has recorded a physical inspection.
+  async releaseCodReturnedVerified(
+    manager: EntityManager,
+    order: Order,
+    now: Date,
+    condition: 'SELLABLE' | 'DAMAGED',
+  ) {
+    const shipment = await manager.findOne(Shipment, {
+      where: { orderId: order.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (
+      order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
+      order.status !== ORDER_STATUS.RETURNS ||
+      !order.carrierReturnedAt ||
+      order.deliveryObservedAt ||
+      order.cancelState === ORDER_CANCEL_STATE.ADMIN_REVIEW ||
+      shipment?.providerStatus !== 'returned' ||
+      shipment.codCollectedAt ||
+      shipment.carrierTransferredAt ||
+      (shipment.reviewReason &&
+        UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason))
+    )
+      throw new ConflictException('Verified uncollected COD return required');
+    order.stockReleaseReviewIds = await this.releaseStock(
+      manager,
+      order,
+      condition === 'SELLABLE',
+    );
+    order.status = ORDER_STATUS.CANCELLED;
+    order.cancelledAt = now;
+    order.cancellationReason = ORDER_CANCELLATION_REASON.CARRIER_RETURNED;
+    order.cancelState = ORDER_CANCEL_STATE.CLOSED;
+    await manager.save(order);
+  }
+
   private async lock(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   }
@@ -291,7 +332,11 @@ export class OrderService {
     );
   }
 
-  private async releaseStock(manager: EntityManager, order: Order) {
+  private async releaseStock(
+    manager: EntityManager,
+    order: Order,
+    sellable = true,
+  ) {
     const ids = [...new Set(order.items.map((item) => item.productId))].sort();
     if (!ids.length) return [];
     const products = await manager.find(Product, {
@@ -299,6 +344,19 @@ export class OrderService {
       order: { id: 'ASC' },
       lock: { mode: 'pessimistic_write' },
     });
+    const moderations = await manager.find(ProductModeration, {
+      where: { productId: In(ids) },
+      order: { productId: 'ASC' },
+      lock: { mode: 'pessimistic_read' },
+    });
+    const approvedIds = new Set(
+      moderations
+        .filter(
+          (moderation) =>
+            moderation.status === ProductModerationStatus.APPROVED,
+        )
+        .map((moderation) => moderation.productId),
+    );
     const categories = new Map<string, Category>();
     for (const id of [
       ...new Set(
@@ -327,6 +385,8 @@ export class OrderService {
       if (
         !product ||
         (!codOwned && product.soldOrderId !== order.id) ||
+        (product.reservedOrderId && product.reservedOrderId !== order.id) ||
+        (product.soldOrderId && product.soldOrderId !== order.id) ||
         product.reservationId ||
         product.shopId !== order.shopId ||
         (!codOwned && product.status === ProductStatus.HELD)
@@ -335,13 +395,12 @@ export class OrderService {
         continue;
       }
       if (product.status === ProductStatus.SOLD || codOwned) {
-        const item = order.items.find((item) => item.productId === id)!;
         const eligible =
+          sellable &&
           shop?.status === ShopStatus.ACTIVE &&
           product.categoryId &&
           categories.get(product.categoryId)?.isActive &&
-          product.approvedRevision === product.revision &&
-          product.revision === item.revision;
+          approvedIds.has(product.id);
         product.status = eligible ? ProductStatus.ACTIVE : ProductStatus.HIDDEN;
         product.soldAt = null;
         product.heldUntil = null;

@@ -16,9 +16,14 @@ import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
+import { Order } from '@/modules/order/order.entity';
 import { OrderWorker } from '@/modules/order/order.worker';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
+import { LateHandoverService } from '@/modules/shipment/late-handover.service';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -109,6 +114,10 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     const product = await db
       .getRepository(Product)
       .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+    await db.getRepository(ProductModeration).save({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+    });
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
@@ -159,7 +168,6 @@ describe('COD to carrier and cancellation HTTP flow', () => {
           productId: product.id,
           title: 'Jacket',
           price: 200000,
-          revision: 1,
           size: null,
           condition: 'GOOD',
           coverUrl: null,
@@ -277,6 +285,109 @@ describe('COD to carrier and cancellation HTTP flow', () => {
       .expect(403);
     await request(server)
       .get('/api/admin/fulfillment/incidents')
+      .auth(token(admin), { type: 'bearer' })
+      .expect(200);
+  });
+
+  it('enforces admin and buyer access to late-handover consent and durable notices', async () => {
+    const server = app.getHttpServer();
+    const calendar = {
+      year: new Date(Date.now() + 7 * 3600000).getUTCFullYear(),
+      closedDates: [],
+      source: 'Explicit test holiday calendar',
+    };
+    await request(server)
+      .post('/api/admin/fulfillment/calendar')
+      .auth(token(buyer), { type: 'bearer' })
+      .send(calendar)
+      .expect(403);
+    await request(server)
+      .post('/api/admin/fulfillment/calendar')
+      .auth(token(admin), { type: 'bearer' })
+      .send(calendar)
+      .expect(200);
+    const order = await db.getRepository(Order).save({
+      checkoutOrderId: randomUUID(),
+      buyerId: buyer.id,
+      shopId: shop.id,
+      shopName: shop.name,
+      paymentMethod: 'COD',
+      status: 'preparing',
+      subtotal: 0,
+      shippingFee: 0,
+      total: 0,
+      address: {},
+      items: [],
+      sellerConfirmBy: new Date(),
+      acceptedAt: new Date(Date.now() - 49 * 3600000),
+      handoverBy: new Date(Date.now() - 3600000),
+    });
+    await app.get(LateHandoverService).run();
+    await request(server)
+      .get('/api/admin/fulfillment/handovers')
+      .auth(token(buyer), { type: 'bearer' })
+      .expect(403);
+    await request(server)
+      .get(`/api/orders/${order.id}/handover`)
+      .auth(token(stranger), { type: 'bearer' })
+      .expect(404);
+    const proposal = {
+      deadline: new Date(Date.now() + 20 * 3600000).toISOString(),
+      reason: 'Pickup rescheduled by carrier',
+    };
+    const proposalPath = `/api/admin/orders/${order.id}/handover/proposal`;
+    await request(server)
+      .post(proposalPath)
+      .auth(token(owner), { type: 'bearer' })
+      .send(proposal)
+      .expect(403);
+    await request(server)
+      .post(proposalPath)
+      .auth(token(admin), { type: 'bearer' })
+      .send({ ...proposal, approve: true })
+      .expect(400);
+    const offered = await request(server)
+      .post(proposalPath)
+      .auth(token(admin), { type: 'bearer' })
+      .send(proposal)
+      .expect(200);
+    expect(offered.body.data.state).toBe('OFFERED');
+    const responsePath = `/api/orders/${order.id}/handover/response`;
+    await request(server)
+      .post(responsePath)
+      .auth(token(stranger), { type: 'bearer' })
+      .send({ accept: true })
+      .expect(404);
+    const consent = await request(server)
+      .post(responsePath)
+      .auth(token(buyer), { type: 'bearer' })
+      .send({ accept: true })
+      .expect(200);
+    expect(consent.body.data.state).toBe('CONSENTED');
+    expect(consent.body.data.proposedDeadline).toBe(
+      offered.body.data.proposedDeadline,
+    );
+    const notices = await request(server)
+      .get('/api/fulfillment/notices')
+      .auth(token(buyer), { type: 'bearer' })
+      .expect(200);
+    expect(
+      notices.body.data.some(
+        (notice: { orderId: string; action: string }) =>
+          notice.orderId === order.id && notice.action === 'PROPOSED',
+      ),
+    ).toBe(true);
+    const ownNotices = await request(server)
+      .get('/api/fulfillment/notices')
+      .auth(token(stranger), { type: 'bearer' })
+      .expect(200);
+    expect(ownNotices.body.data).toEqual([]);
+    await request(server)
+      .get('/api/admin/fulfillment/carrier-incidents')
+      .auth(token(owner), { type: 'bearer' })
+      .expect(403);
+    await request(server)
+      .get('/api/admin/fulfillment/carrier-incidents')
       .auth(token(admin), { type: 'bearer' })
       .expect(200);
   });

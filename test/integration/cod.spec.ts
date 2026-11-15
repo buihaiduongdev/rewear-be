@@ -18,8 +18,11 @@ import { PaymentAttempt } from '@/modules/payment/payment.entity';
 import { PaymentRefund } from '@/modules/payment/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -69,6 +72,12 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     const product = await db
       .getRepository(Product)
       .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+    await db.getRepository(ProductModeration).save({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+      version: 1,
+      reason: null,
+    });
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
@@ -119,7 +128,6 @@ describe('COD placement and reservations (PostgreSQL)', () => {
           productId: product.id,
           title: 'Jacket',
           price: 200000,
-          revision: 1,
           size: null,
           condition: 'GOOD',
           coverUrl: null,
@@ -134,6 +142,31 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     });
     return { db, buyer, owner, shop, product, checkout };
   }
+
+  it('rejects reserved stock whose moderation is no longer approved', async () => {
+    for (const status of [ProductModerationStatus.PENDING, null]) {
+      const f = await fixture();
+      if (status)
+        await f.db
+          .getRepository(ProductModeration)
+          .update({ productId: f.product.id }, { status });
+      else
+        await f.db
+          .getRepository(ProductModeration)
+          .delete({ productId: f.product.id });
+      await expect(
+        cod.place(f.buyer.id, f.checkout.id, 230000),
+      ).rejects.toThrow('Checkout stock is no longer reserved');
+      expect(
+        await f.db.getRepository(Order).countBy({ checkoutId: f.checkout.id }),
+      ).toBe(0);
+      const product = await f.db
+        .getRepository(Product)
+        .findOneByOrFail({ id: f.product.id });
+      expect(product.status).toBe(ProductStatus.HELD);
+      expect(product.reservationId).toBe(f.checkout.id);
+    }
+  });
 
   it('places one COD order once, keeps stock locked beyond checkout expiry and never credits unpaid money', async () => {
     const f = await fixture();
@@ -263,6 +296,14 @@ describe('COD placement and reservations (PostgreSQL)', () => {
           },
         ),
       ),
+    );
+    await f.db.getRepository(ProductModeration).save(
+      extras.map((product) => ({
+        productId: product.id,
+        status: ProductModerationStatus.APPROVED,
+        version: 1,
+        reason: null,
+      })),
     );
     source.items = [f.product, ...extras].map((product) => ({
       ...source.items[0],

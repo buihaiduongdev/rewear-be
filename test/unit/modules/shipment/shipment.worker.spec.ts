@@ -1,3 +1,6 @@
+import { CarrierIncidentService } from '@/modules/shipment/carrier-incident.service';
+import { LateHandoverService } from '@/modules/shipment/late-handover.service';
+import { ReturnInspectionDeadlineService } from '@/modules/shipment/return-inspection-deadline.service';
 import { ShipmentCancellationService } from '@/modules/shipment/shipment-cancellation.service';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
@@ -19,8 +22,29 @@ describe('fulfillment worker failure isolation', () => {
     const worker = new ShipmentWorker(
       shipments as unknown as ShipmentService,
       cancellations as unknown as ShipmentCancellationService,
+      {
+        run: async () => {
+          steps.push('handover');
+        },
+      } as unknown as LateHandoverService,
+      {
+        run: async () => {
+          steps.push('incident');
+        },
+      } as unknown as CarrierIncidentService,
+      {
+        run: async () => {
+          steps.push('inspection');
+        },
+      } as unknown as ReturnInspectionDeadlineService,
     );
     await expect(worker.run()).rejects.toBeInstanceOf(Error);
-    expect(steps).toEqual(['cancellation', 'shipment']);
+    expect(steps).toEqual([
+      'cancellation',
+      'shipment',
+      'handover',
+      'incident',
+      'inspection',
+    ]);
   });
 });

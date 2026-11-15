@@ -99,21 +99,21 @@ CANCEL_PENDING and query/cancel GHN outside the transaction. Acknowledgement
 alone does not unlock stock: require a verified cancelled snapshot and no
 observed pickup/collection. Otherwise retain the reservation and flag review.
 Thirty-minute unknown cancellation/creation incidents are marked by elapsed DB
-time even when every carrier query fails; this does not claim notification or
-Admin response SLA delivery.
+time even when every carrier query fails. The persistent incident, Admin SLA,
+late handover consent and physical-return recovery are documented in
+[FULFILLMENT_RECOVERY.md](FULFILLMENT_RECOVERY.md).
 
 ## Explicit remaining work
 
-- At 48 hours after COD seller acceptance, overdue unpicked orders require
-  review and cannot create a new booking. Late-handover extension/buyer consent,
-  full business-day Admin deadlines and their timeout transitions remain to be
-  implemented; no unsafe automatic release or silent continuation substitutes.
-- Carrier return/interception requests, returned-stock inspection and verified
-  delivery event time need a further operational slice. A picked parcel is not
-  automatically unlocked because cancellation was approved.
+- Late handover consent, calendar-based SLAs, return/interception requests and
+  returned-stock inspection are implemented in the recovery extension above.
+  Approved annual calendar data must be configured. A picked parcel remains
+  locked until physical return and inspection; verified exact delivery event
+  time is still needed for settlement.
 - Coin reservation/reward, failed-delivery fault decisions, disclosed fee
   collection/appeals, COD/bank reconciliation, wallet payment, 72-hour settlement,
-  notifications and Admin frontend remain separate work.
+  email/push notifications and Admin frontend remain separate work. Recovery
+  transitions provide a durable notice inbox for frontend polling.
 - No unsigned webhook is trusted to change money/status; this implementation
   polls GHN with server credentials. No live GHN booking/collection/refund test
   has been performed. Test carrier responses are simulations, not proof of cash.

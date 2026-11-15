@@ -7,8 +7,11 @@ import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketpla
 import { OrderAccess } from '@/modules/order/order.access';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { ShipmentCancellationService } from '@/modules/shipment/shipment-cancellation.service';
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
@@ -32,6 +35,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     create: jest.fn(),
     query: jest.fn(),
     cancel: jest.fn(),
+    requestReturn: jest.fn(),
     print: jest.fn(),
   };
   beforeAll(async () => {
@@ -68,6 +72,10 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     const product = await db
       .getRepository(Product)
       .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+    await db.getRepository(ProductModeration).save({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+    });
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
@@ -109,7 +117,6 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
           productId: product.id,
           title: 'Jacket',
           price: 200000,
-          revision: 1,
           size: null,
           condition: 'GOOD',
           coverUrl: null,
@@ -158,6 +165,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       transferredAt: null,
     }));
     client.cancel.mockResolvedValue(true);
+    client.requestReturn.mockResolvedValue(true);
     return { db, buyer, owner, shop, order, product };
   }
   async function due(id: string) {
@@ -335,6 +343,46 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       .findOneByOrFail({ id: booked.id });
     expect(row.reviewReason).toBe('CANCELLATION_UNRESOLVED_30_MINUTES');
     expect(row.state).toBe('CANCEL_PENDING');
+    expect(
+      (await f.db.getRepository(Product).findOneByOrFail({ id: f.product.id }))
+        .status,
+    ).toBe(ProductStatus.HELD);
+  });
+
+  it('requests carrier return after pickup during cancellation and keeps stock locked until physical inspection', async () => {
+    const f = await fixture();
+    const booked = await shipments.create(
+      f.owner.id,
+      f.shop.id,
+      f.order.id,
+      {},
+    );
+    await cancellations.request(f.buyer.id, f.order.id);
+    await cancellations.respond(f.owner.id, f.shop.id, f.order.id, {
+      approve: true,
+      reason: 'Stop parcel',
+      evidence: 'Buyer request',
+    });
+    status = 'picked';
+    await due(booked.id);
+    await shipments.reconcile(booked.id);
+    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode);
+    expect(
+      (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
+        .status,
+    ).toBe('shipping');
+    expect(
+      (await f.db.getRepository(Product).findOneByOrFail({ id: f.product.id }))
+        .status,
+    ).toBe(ProductStatus.HELD);
+    status = 'returned';
+    await due(booked.id);
+    await shipments.reconcile(booked.id);
+    const returned = await f.db
+      .getRepository(Order)
+      .findOneByOrFail({ id: f.order.id });
+    expect(returned.status).toBe('returns');
+    expect(returned.carrierReturnedAt).toBeInstanceOf(Date);
     expect(
       (await f.db.getRepository(Product).findOneByOrFail({ id: f.product.id }))
         .status,

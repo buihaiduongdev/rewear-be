@@ -12,10 +12,17 @@ import { OrderAccess } from '@/modules/order/order.access';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import {
+  ShopMemberRole,
+  ShopMemberStatus,
+  ShopStatus,
+} from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
@@ -55,6 +62,12 @@ describe('paid order acceptance with PostgreSQL', () => {
     const product = await db
       .getRepository(Product)
       .save(factory.product(0, { shopId: shop.id, categoryId: category.id }));
+    await db.getRepository(ProductModeration).save({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+      version: 1,
+      reason: null,
+    });
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
@@ -104,7 +117,6 @@ describe('paid order acceptance with PostgreSQL', () => {
           productId: product.id,
           title: 'Jacket',
           price: 200000,
-          revision: 1,
           size: null,
           condition: 'GOOD',
           coverUrl: null,
@@ -320,15 +332,30 @@ describe('paid order acceptance with PostgreSQL', () => {
 
   it('does not reopen changed, suspended or newly reserved stock when an old order is cancelled', async () => {
     for (const change of [
-      'revision',
+      'moderation',
+      'missing-moderation',
+      'shop',
       'suspended',
       'new-order',
       'reserved',
       'category',
     ]) {
       const f = await fixture();
-      if (change === 'revision')
-        await f.db.getRepository(Product).update(f.product.id, { revision: 2 });
+      if (change === 'moderation')
+        await f.db
+          .getRepository(ProductModeration)
+          .update(
+            { productId: f.product.id },
+            { status: ProductModerationStatus.PENDING, version: 2 },
+          );
+      if (change === 'missing-moderation')
+        await f.db
+          .getRepository(ProductModeration)
+          .delete({ productId: f.product.id });
+      if (change === 'shop')
+        await f.db
+          .getRepository(Shop)
+          .update(f.shop.id, { status: ShopStatus.INACTIVE });
       if (change === 'suspended')
         await f.db
           .getRepository(Product)
@@ -351,7 +378,9 @@ describe('paid order acceptance with PostgreSQL', () => {
         .getRepository(Product)
         .findOneByOrFail({ id: f.product.id });
       expect(product.status).toBe(
-        change === 'revision' || change === 'category'
+        ['moderation', 'missing-moderation', 'shop', 'category'].includes(
+          change,
+        )
           ? ProductStatus.HIDDEN
           : change === 'suspended'
             ? ProductStatus.SUSPENDED

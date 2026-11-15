@@ -179,6 +179,22 @@ export class GhnShipmentClient {
       throw failure();
     }
   }
+  /** Acknowledges a return request; physical return requires a later snapshot. */
+  async requestReturn(orderCode: string): Promise<boolean> {
+    this.config();
+    try {
+      orderCodeSchema.parse(orderCode);
+      const rows = cancelSchema.parse(
+        await this.request('/v2/switch-status/return', {
+          order_codes: [orderCode],
+        }),
+      );
+      if (rows[0].order_code !== orderCode) throw failure();
+      return rows[0].result;
+    } catch {
+      throw failure();
+    }
+  }
   async print(orderCode: string): Promise<{ url: string }> {
     this.config();
     try {

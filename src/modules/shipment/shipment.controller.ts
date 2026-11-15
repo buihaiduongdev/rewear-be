@@ -21,6 +21,11 @@ import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import {
+  returnInspectionSchema,
+  returnInspectionViewSchema,
+} from './schemas/return-inspection.schema';
+import type { ReturnInspectionInput } from './schemas/return-inspection.schema';
+import {
   cancellationDecisionSchema,
   fulfillmentIncidentsSchema,
   labelViewSchema,
@@ -32,6 +37,7 @@ import type {
   ShipmentCreateInput,
 } from './schemas/shipment.schema';
 import { ShipmentCancellationService } from './shipment-cancellation.service';
+import { ShipmentReturnInspectionService } from './shipment-return-inspection.service';
 import { ShipmentService } from './shipment.service';
 
 @ApiTags('Shipments')
@@ -42,7 +48,20 @@ export class ShipmentController {
   constructor(
     private readonly shipments: ShipmentService,
     private readonly cancellations: ShipmentCancellationService,
+    private readonly inspections: ShipmentReturnInspectionService,
   ) {}
+
+  @Post('shops/:shopId/orders/:id/shipment/return-inspection')
+  @HttpCode(200)
+  @Serialize(returnInspectionViewSchema)
+  inspect(
+    @CurrentUser() user: User,
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: returnInspectionSchema }) input: ReturnInspectionInput,
+  ) {
+    return this.inspections.inspect(user.id, shopId, id, input);
+  }
 
   @Post('shops/:shopId/orders/:id/shipment')
   @HttpCode(200)

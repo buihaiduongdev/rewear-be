@@ -700,3 +700,15 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #35](https://github.com/buihaiduongdev/rewear-be/pull/35), branch `refactor/simplify-shipping-package`.
 
+
+### 2026-11-15 — Giao COD trễ và xử lý sự cố GHN
+
+- **Người thực hiện:** Bùi Thành Tâm (yêu cầu triển khai); Codex hỗ trợ mã và kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node, PostgreSQL local và tài liệu API GHN chính thức.
+- **Mục đích và phạm vi:** Triển khai quyết định đã chốt về giao trễ, buyer đồng ý deadline mới, hủy chưa rõ, chuyển hoàn và kiểm hàng hoàn; tiếp tục PR #33.
+- **Prompt chính:** “ok giờ code đi”, tiếp theo phạm vi giao trễ và sự cố GHN đã đề xuất.
+- **Đầu ra AI được sử dụng:** Hồ sơ giao trễ, audit/inbox bền vững, lịch ngày làm việc, Admin carrier incident, GHN return adapter, kiểm hàng hoàn, worker/API/schema và tài liệu `docs/orders/FULFILLMENT_RECOVERY.md`. Đồng bộ thay đổi ProductModeration và shipping package từ main, sửa tương thích đặt COD/trả tồn.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm chốt nghiệp vụ trước đó, yêu cầu style decorator/schema/constants và triển khai. Chưa ghi nhận Tâm tự review toàn bộ phần mã mới.
+- **Cách kiểm chứng:** 37 Jest suites / 284 tests pass với PostgreSQL local trên database riêng `rewear_test`; 22 Node tests pass. Typecheck, Nest build, Oxlint và Prettier source/test pass. Có HTTP JWT/Owner/Admin, kiểm thử race, lịch nghỉ/qua năm/thiếu lịch, timeout, pickup trễ, hơn 100 hồ sơ, chuyển hoàn ACK và kiểm hàng lặp. Review độc lập không còn P1/P2 sau sửa. Chưa chạy với credentials GHN thật.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện đề nghị quá ngắn làm mất cửa sổ trả lời 12 giờ, batch/danh sách 100 hồ sơ che hồ sơ mới và khả năng kiểm hàng lặp vượt cờ dữ liệu GHN mâu thuẫn; đã sửa và có regression. Test full suite phát hiện fixture MoMo thiếu moderation approved sau cập nhật main; đã bổ sung fixture.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); tài liệu API và các suite integration/HTTP liên quan trong PR. Không merge.

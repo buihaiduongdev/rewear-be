@@ -19,8 +19,11 @@ import {
 } from '@/modules/payment/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -66,6 +69,12 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
           { status: ProductStatus.ACTIVE },
         ),
       );
+    await db.getRepository(ProductModeration).save({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+      version: 1,
+      reason: null,
+    });
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',

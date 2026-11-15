@@ -179,3 +179,77 @@ it('generates staging A5 print URL from an encoded token', async () => {
   });
   expect(requests[0].url).toMatch(/v2\/a5\/gen-token$/);
 });
+
+describe('return requests', () => {
+  it.each([true, false])(
+    'returns per-order acknowledgement %s from the sandbox endpoint',
+    async (acknowledged) => {
+      data = [{ order_code: 'GHN123', result: acknowledged, message: 'OK' }];
+      expect(await client.requestReturn('GHN123')).toBe(acknowledged);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]).toMatchObject({
+        url: 'https://dev-online-gateway.ghn.vn/shiip/public-api/v2/switch-status/return',
+        options: {
+          method: 'POST',
+          headers: {
+            Token: 'secret-token',
+            ShopId: '123',
+            'Content-Type': 'application/json',
+          },
+          body: '{"order_codes":["GHN123"]}',
+          redirect: 'error',
+        },
+      });
+    },
+  );
+  it.each(
+    [
+      [],
+      [{ order_code: 'other', result: true }],
+      [{ order_code: 'GHN123', result: 'true' }],
+      [{ order_code: 'GHN123' }],
+      [
+        { order_code: 'GHN123', result: true },
+        { order_code: 'GHN123', result: true },
+      ],
+    ].map((response) => [response]),
+  )('rejects an untrusted return acknowledgement %j', async (response) => {
+    data = response;
+    await expect(client.requestReturn('GHN123')).rejects.toThrow(
+      'GHN_BOOKING_UNAVAILABLE',
+    );
+  });
+  it.each(['', 'GHN/123', 'x'.repeat(51)])(
+    'rejects invalid return order code %s before HTTP',
+    async (code) => {
+      await expect(client.requestReturn(code)).rejects.toThrow(
+        'GHN_BOOKING_UNAVAILABLE',
+      );
+      expect(requests).toHaveLength(0);
+    },
+  );
+  it.each(keys)(
+    'requires valid configuration for %s before HTTP',
+    async (key) => {
+      delete process.env[key];
+      await expect(client.requestReturn('GHN123')).rejects.toThrow(
+        'GHN_BOOKING_UNAVAILABLE',
+      );
+      expect(requests).toHaveLength(0);
+    },
+  );
+  it('sanitizes carrier HTTP failures without exposing response data', async () => {
+    status = 500;
+    await expect(client.requestReturn('GHN123')).rejects.toMatchObject({
+      message: 'GHN_BOOKING_UNAVAILABLE',
+    });
+  });
+  it('sanitizes transport failures', async () => {
+    jest
+      .mocked(fetch)
+      .mockRejectedValueOnce(new Error('secret-token private-address'));
+    await expect(client.requestReturn('GHN123')).rejects.toMatchObject({
+      message: 'GHN_BOOKING_UNAVAILABLE',
+    });
+  });
+});

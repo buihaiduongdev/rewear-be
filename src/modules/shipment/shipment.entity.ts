@@ -53,6 +53,18 @@ export class Shipment extends BaseEntity {
   cancelRequestedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
+  returnRequestedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  returnInspectionBy: Date | null;
+
+  @Column({ default: false })
+  returnInspectionCalendarMissing: boolean;
+
+  @Column({ default: false })
+  returnInspectionOverdue: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
   codCollectedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
