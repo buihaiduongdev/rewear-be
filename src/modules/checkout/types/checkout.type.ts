@@ -1,6 +1,12 @@
+import type z from 'zod';
+
 import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 
-export type CheckoutState = 'HELD' | 'EMPTY' | 'CANCELLED' | 'EXPIRED' | 'PAID';
+import type { CHECKOUT_STATUS } from '../checkout.constants';
+import type { createCheckoutSchema } from '../schemas/checkout.schema';
+
+export type CheckoutState =
+  (typeof CHECKOUT_STATUS)[keyof typeof CHECKOUT_STATUS];
 
 export type CheckoutAddress = {
   recipientName: string;
@@ -25,3 +31,5 @@ export type CheckoutItem = {
   coverUrl: string | null;
 };
 export type RemovedCheckoutItem = { productId: string; reason: string };
+
+export type CreateCheckoutInput = z.output<typeof createCheckoutSchema>;

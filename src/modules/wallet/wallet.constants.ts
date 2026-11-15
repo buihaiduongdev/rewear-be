@@ -1,0 +1,3 @@
+export const WALLET_CREDIT_REASON = {
+  ORDER_CANCELLED: 'ORDER_CANCELLED',
+} as const;

@@ -10,20 +10,38 @@ import {
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { MAX_VND_AMOUNT } from '@/common/constants/money.constants';
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 import type {
   MomoNotification,
   MomoResult,
 } from '@/infrastructure/payment/momo-sandbox.client';
 import { Cart, CartItem } from '@/modules/cart/entities';
+import { CHECKOUT_STATUS } from '@/modules/checkout/checkout.constants';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { ORDER_POLICY } from '@/modules/order/order.constants';
+import {
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/order.constants';
+import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
 import { MOMO_CLIENT } from './payment.config';
-import { Order, PaymentAttempt, PaymentRefund } from './payment.entity';
+import { PAYMENT_MAX_AMOUNT, PAYMENT_MIN_AMOUNT } from './payment.constants';
+import {
+  PAYMENT_ATTEMPT_STATE,
+  PAYMENT_CAPTURE_DISPOSITION,
+  PAYMENT_PROVIDER_SUCCESS_CODE,
+  PAYMENT_QUERY_LEASE_MS,
+  PAYMENT_REFUND_REASON,
+  PAYMENT_REFUND_STATE,
+} from './payment.constants';
+import { PaymentAttempt, PaymentRefund } from './payment.entity';
 import {
   canStartAttempt,
   captureDisposition,
@@ -75,7 +93,7 @@ export class PaymentService {
       const previous = attempts.find((item) => item.requestId === requestId);
       if (previous) return { attempt: previous, send: false };
       if (
-        checkout.status !== 'HELD' ||
+        checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
         checkout.expiresAt <= now
       )
@@ -89,7 +107,11 @@ export class PaymentService {
         (sum, order) => sum + order.subtotal + order.shippingFee,
         0,
       );
-      if (!Number.isSafeInteger(amount) || amount < 1000 || amount > 50000000)
+      if (
+        !Number.isSafeInteger(amount) ||
+        amount < PAYMENT_MIN_AMOUNT ||
+        amount > PAYMENT_MAX_AMOUNT
+      )
         throw new ConflictException('Checkout total is outside MoMo limits');
       const products = await this.lockProducts(manager, checkout);
       if (
@@ -117,7 +139,7 @@ export class PaymentService {
           requestId,
           amount,
           orders,
-          state: 'CREATING',
+          state: PAYMENT_ATTEMPT_STATE.CREATING,
           payUrl: null,
           providerTransId: null,
           resultCode: null,
@@ -147,13 +169,23 @@ export class PaymentService {
         });
         // A concurrent query may have changed CREATING to UNKNOWN. Preserve a
         // valid payment URL for unresolved attempts, but never overwrite capture.
-        if (!['CREATING', 'PENDING', 'UNKNOWN'].includes(current.state)) return;
+        if (
+          !(
+            [
+              PAYMENT_ATTEMPT_STATE.CREATING,
+              PAYMENT_ATTEMPT_STATE.PENDING,
+              PAYMENT_ATTEMPT_STATE.UNKNOWN,
+            ] as readonly string[]
+          ).includes(current.state)
+        )
+          return;
         current.state =
-          result.resultCode === 0
-            ? 'PENDING'
-            : providerOutcome(result.resultCode) === 'FAILED'
-              ? 'FAILED'
-              : 'UNKNOWN';
+          result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE
+            ? PAYMENT_ATTEMPT_STATE.PENDING
+            : providerOutcome(result.resultCode) ===
+                PAYMENT_ATTEMPT_STATE.FAILED
+              ? PAYMENT_ATTEMPT_STATE.FAILED
+              : PAYMENT_ATTEMPT_STATE.UNKNOWN;
         current.resultCode = result.resultCode;
         current.payUrl = result.payUrl ?? null;
         await manager.save(current);
@@ -161,7 +193,10 @@ export class PaymentService {
     } catch {
       await this.db
         .getRepository(PaymentAttempt)
-        .update({ id: attempt.id, state: 'CREATING' }, { state: 'UNKNOWN' });
+        .update(
+          { id: attempt.id, state: PAYMENT_ATTEMPT_STATE.CREATING },
+          { state: PAYMENT_ATTEMPT_STATE.UNKNOWN },
+        );
     }
     return this.findMine(buyerId, attempt.id);
   }
@@ -178,7 +213,8 @@ export class PaymentService {
       checkoutId: attempt.checkoutId,
       amount: attempt.amount,
       state: attempt.state,
-      payUrl: attempt.state === 'PENDING' ? attempt.payUrl : null,
+      payUrl:
+        attempt.state === PAYMENT_ATTEMPT_STATE.PENDING ? attempt.payUrl : null,
       paidAt: attempt.paidAt,
       refunds: refunds.map((refund) => ({
         id: refund.id,
@@ -186,12 +222,6 @@ export class PaymentService {
         state: refund.state,
       })),
     };
-  }
-
-  async ordersMine(buyerId: string) {
-    return this.db
-      .getRepository(Order)
-      .find({ where: { buyerId }, order: { createdAt: 'DESC' }, take: 100 });
   }
 
   async ipn(body: MomoNotification) {
@@ -226,12 +256,18 @@ export class PaymentService {
       const now = await this.lock(manager);
       const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
       if (
-        !['CREATING', 'PENDING', 'UNKNOWN'].includes(attempt.state) ||
+        !(
+          [
+            PAYMENT_ATTEMPT_STATE.CREATING,
+            PAYMENT_ATTEMPT_STATE.PENDING,
+            PAYMENT_ATTEMPT_STATE.UNKNOWN,
+          ] as readonly string[]
+        ).includes(attempt.state) ||
         attempt.nextQueryAt > now
       )
         return false;
       // Lease is longer than maximum configured HTTP timeout (60 seconds).
-      attempt.nextQueryAt = new Date(now.getTime() + 75000);
+      attempt.nextQueryAt = new Date(now.getTime() + PAYMENT_QUERY_LEASE_MS);
       await manager.save(attempt);
       return true;
     });
@@ -250,14 +286,22 @@ export class PaymentService {
     await this.db.transaction(async (manager) => {
       const now = await this.lock(manager);
       const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
-      if (['PAID', 'REFUND_REQUIRED', 'REFUNDED'].includes(attempt.state)) {
+      if (
+        (
+          [
+            PAYMENT_ATTEMPT_STATE.PAID,
+            PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED,
+            PAYMENT_ATTEMPT_STATE.REFUNDED,
+          ] as readonly string[]
+        ).includes(attempt.state)
+      ) {
         if (
-          result.resultCode === 0 &&
+          result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
           attempt.providerTransId !== String(result.transId)
         ) {
           const outstanding = await this.queueRefund(manager, id, result, now);
-          if (attempt.state === 'REFUNDED' && outstanding) {
-            attempt.state = 'REFUND_REQUIRED';
+          if (attempt.state === PAYMENT_ATTEMPT_STATE.REFUNDED && outstanding) {
+            attempt.state = PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED;
             await manager.save(attempt);
           }
         }
@@ -296,16 +340,18 @@ export class PaymentService {
           shopsActive && this.ownsProducts(checkout, expectedIds, products),
       });
       attempt.resultCode = result.resultCode;
-      if (outcome === 'FAILED') attempt.state = 'FAILED';
-      else if (outcome === 'UNKNOWN') {
-        if (attempt.state !== 'FAILED') attempt.state = 'UNKNOWN';
+      if (outcome === PAYMENT_CAPTURE_DISPOSITION.FAILED)
+        attempt.state = PAYMENT_ATTEMPT_STATE.FAILED;
+      else if (outcome === PAYMENT_CAPTURE_DISPOSITION.UNKNOWN) {
+        if (attempt.state !== PAYMENT_ATTEMPT_STATE.FAILED)
+          attempt.state = PAYMENT_ATTEMPT_STATE.UNKNOWN;
       } else {
         if (
           !Number.isSafeInteger(result.transId) ||
           result.transId <= 0 ||
           !Number.isSafeInteger(result.amount) ||
           result.amount <= 0 ||
-          result.amount > 2147483647
+          result.amount > MAX_VND_AMOUNT
         )
           throw new ConflictException(
             'Invalid captured funds require reconciliation',
@@ -313,11 +359,11 @@ export class PaymentService {
         attempt.providerTransId = String(result.transId);
         attempt.capturedAmount = result.amount;
         attempt.paidAt = now;
-        if (outcome === 'REFUND') {
-          attempt.state = 'REFUND_REQUIRED';
+        if (outcome === PAYMENT_CAPTURE_DISPOSITION.REFUND) {
+          attempt.state = PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED;
           await this.queueRefund(manager, id, result, now);
         } else {
-          attempt.state = 'PAID';
+          attempt.state = PAYMENT_ATTEMPT_STATE.PAID;
           // Save payment first for order FK. All writes roll back together.
           await manager.save(attempt);
           for (const snapshot of attempt.orders) {
@@ -330,10 +376,11 @@ export class PaymentService {
               address,
               items,
             } = snapshot;
-            await manager.save(
-              Order,
+            const order = await manager.save(
               manager.create(Order, {
                 checkoutOrderId,
+                checkoutId: checkout.id,
+                paymentMethod: ORDER_PAYMENT_METHOD.MOMO,
                 paymentId: id,
                 buyerId: attempt.buyerId,
                 shopId,
@@ -343,26 +390,41 @@ export class PaymentService {
                 total: subtotal + shippingFee,
                 address,
                 items,
-                status: 'pending',
-                commissionBasisPoints: 300,
-                sellerConfirmBy: new Date(now.getTime() + 86400000),
+                status: ORDER_STATUS.PENDING,
+                commissionBasisPoints:
+                  ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
+                sellerConfirmBy: new Date(
+                  now.getTime() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
+                ),
               }),
             );
+            await manager.save(
+              OrderEvent,
+              manager.create(OrderEvent, {
+                orderId: order.id,
+                action: ORDER_EVENT_ACTION.PAID,
+                actorId: null,
+                reason: null,
+                createdAt: now,
+              }),
+            );
+            await manager.update(
+              Product,
+              {
+                id: In(items.map((item) => item.productId)),
+                reservationId: checkout.id,
+                status: ProductStatus.HELD,
+              },
+              {
+                status: ProductStatus.SOLD,
+                heldUntil: null,
+                reservationId: null,
+                soldOrderId: order.id,
+                soldAt: now,
+              },
+            );
           }
-          await manager.update(
-            Product,
-            {
-              id: In(expectedIds),
-              reservationId: checkout.id,
-              status: ProductStatus.HELD,
-            },
-            {
-              status: ProductStatus.SOLD,
-              heldUntil: null,
-              reservationId: null,
-            },
-          );
-          checkout.status = 'PAID';
+          checkout.status = CHECKOUT_STATUS.PAID;
           await manager.save(checkout);
           const cart = await manager.findOneBy(Cart, {
             userId: attempt.buyerId,
@@ -393,7 +455,7 @@ export class PaymentService {
       result.transId <= 0 ||
       !Number.isSafeInteger(result.amount) ||
       result.amount <= 0 ||
-      result.amount > 2147483647
+      result.amount > MAX_VND_AMOUNT
     )
       throw new ConflictException(
         'Invalid captured funds require reconciliation',
@@ -407,7 +469,7 @@ export class PaymentService {
         throw new ConflictException(
           'Conflicting capture requires reconciliation',
         );
-      return previous.state !== 'COMPLETED';
+      return previous.state !== PAYMENT_REFUND_STATE.COMPLETED;
     }
     await manager.save(
       PaymentRefund,
@@ -415,11 +477,12 @@ export class PaymentService {
         paymentId,
         providerTransId,
         amount: result.amount,
-        reason: 'LATE_OR_INVALID_CAPTURE',
+        reason: PAYMENT_REFUND_REASON.LATE_OR_INVALID_CAPTURE,
         state:
-          result.amount < 1000 || result.amount > 50000000
-            ? 'REVIEW_REQUIRED'
-            : 'QUEUED',
+          result.amount < PAYMENT_MIN_AMOUNT ||
+          result.amount > PAYMENT_MAX_AMOUNT
+            ? PAYMENT_REFUND_STATE.REVIEW_REQUIRED
+            : PAYMENT_REFUND_STATE.QUEUED,
         nextQueryAt: now,
         alertedAt: null,
       }),

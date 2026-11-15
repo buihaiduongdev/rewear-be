@@ -2,11 +2,16 @@ import { EntityManager } from 'typeorm';
 
 import { aggregateParcel } from '@/common/schemas/shipping-package.schema';
 import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/ghn-shipment.constants';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
-import type { QuoteOrder } from './schemas/shipping-quote.schema';
+import {
+  SHIPPING_QUOTE_ORDER_STATUS,
+  SHIPPING_QUOTE_REASON,
+} from './shipping-quote.constants';
+import type { QuoteOrder } from './types/shipping-quote.type';
 
 export async function quoteInputs(
   manager: EntityManager,
@@ -28,7 +33,7 @@ export async function quoteInputs(
       parcel: null,
       parcelCount: 1,
       itemCount: order.items.length,
-      status: 'UNAVAILABLE',
+      status: SHIPPING_QUOTE_ORDER_STATUS.UNAVAILABLE,
       reason: null,
       fee: null,
       estimatedDeliveryAt: null,
@@ -41,11 +46,14 @@ export async function quoteInputs(
       const reason = quoteReasonSchema.safeParse(
         error instanceof Error ? error.message : '',
       );
-      row.reason = reason.success ? reason.data : 'PACKAGE_REQUIRED';
+      row.reason = reason.success
+        ? reason.data
+        : SHIPPING_QUOTE_REASON.PACKAGE_REQUIRED;
     }
-    if (!row.reason && !pickup) row.reason = 'PICKUP_REQUIRED';
-    if (!row.reason && order.subtotal > 5000000)
-      row.reason = 'DECLARED_VALUE_LIMIT';
+    if (!row.reason && !pickup)
+      row.reason = SHIPPING_QUOTE_REASON.PICKUP_REQUIRED;
+    if (!row.reason && order.subtotal > GHN_SHIPPING_LIMITS.MAX_DECLARED_VALUE)
+      row.reason = SHIPPING_QUOTE_REASON.DECLARED_VALUE_LIMIT;
     inputs.push(
       pickup && row.parcel
         ? {

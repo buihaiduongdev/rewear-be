@@ -634,6 +634,25 @@
 - **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
 - **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.
 
+### 2026-11-14 — Shop tiếp nhận đơn và hoàn ví khi hủy
+
+- **Người thực hiện:** Bùi Thành Tâm yêu cầu triển khai backend theo luồng đã chốt; Codex hỗ trợ code và kiểm thử.
+- **Phạm vi:** Buyer/Owner xem đơn; Owner xác nhận hoặc từ chối có lý do; tự hủy quá 24 giờ. Hủy riêng order và cộng đủ tiền hàng/phí ship vào ví Rewear trong cùng transaction với nhả hàng và lịch sử; không gọi refund MoMo cho nhánh này.
+- **Phần AI hỗ trợ:** Order/Wallet modules, API, worker, bút toán chống trùng, liên kết sản phẩm với đúng đơn đã bán và test. Dùng quyền Owner hiện có; chưa thay thế bằng RBAC tùy chỉnh hoặc tự cấp Staff.
+- **Kiểm chứng:** PostgreSQL local riêng `rewear_test`: 25 suites/158 tests pass; 22 Node tests pass. Bao gồm HTTP với JWT thật, quyền, cạnh tranh xác nhận/từ chối/quá hạn, deadline qua trong lúc chờ khóa membership, rollback trước/sau ghi tiền, lỗi một đơn không chặn đơn khác và IPN lặp sau hoàn ví. Review độc lập không có blocker; kết quả CI ghi riêng trong PR.
+- **Lỗi đã phát hiện và sửa:** Timestamp đọc trước khi chờ membership có thể cho xác nhận trễ; chuyển sang đọc clock DB sau chờ. Một refund lỗi có thể chặn batch quá hạn; thêm rollback riêng, backoff và tiếp tục đơn khác.
+- **Giới hạn:** Chưa có frontend, COD/vận đơn, quyết toán 72 giờ, thanh toán bằng ví/xu, notification/Admin sự cố hoặc kiểm thử provider thật. Hàng lịch sử thiếu liên kết đơn không tự mở bán; ghi danh sách cần đối soát. Không reset DB dev; schema vẫn theo cơ chế synchronize hiện có.
+- **Theo góp ý review:** Chuẩn hóa decorator/field của entity, dùng `findOneOrFail` nhưng chỉ đổi lỗi thiếu membership thành 403; tách schema ví và kiểm tra tiền bằng Zod. Thêm regression cho tiền hàng âm bị phí ship bù vào tổng, không che lỗi database; kiểm chứng mới 27 suites/170 tests và 22 Node tests pass, typecheck/build/lint/format pass. Tiếp tục trên PR #33.
+
+### 2026-11-14 — COD và vận đơn GHN Sandbox
+
+- **Người thực hiện:** Bùi Thành Tâm yêu cầu làm tiếp backend COD → xác nhận → vận đơn → trạng thái; Codex hỗ trợ triển khai theo DECISIONS.md và tài liệu GHN chính thức.
+- **Phạm vi:** Đặt COD nguyên tử theo checkout, khóa hàng theo order, so tổng buyer đã xem với báo phí mới, hạn 24 giờ, caps 3 lượt/20 món chờ và 5 lượt đang giao nhận; hủy trước xác nhận không hoàn tiền chưa thu. Thêm bộ đếm đặt–hủy và hạn chế COD riêng, API Admin gỡ có lý do.
+- **Vận đơn:** Chủ động tạo bằng Owner; lưu request/mã tham chiếu trước HTTP, cấu hình sender trả cước và thu COD tổng đã chốt; query khi chưa rõ, nhãn in, trạng thái shipping/delivered/returns. Hủy sau xác nhận có cửa sổ 12 giờ, xét lại 4 giờ và Admin; chỉ nhả hàng khi chưa có vận đơn hoặc đã xác minh hủy an toàn. Lưu actor/lý do/bằng chứng. Booking mặc định tắt.
+- **Kiểm chứng:** 32 Jest suites/204 tests và 22 Node tests pass trên PostgreSQL 18 với DB riêng rewear_test; typecheck, Nest build, Oxlint, Prettier và diff check pass. Có HTTP JWT thật cho COD/Owner/Admin, protocol GHN giả lập, caps, race đặt lặp/hủy/xác nhận, MoMo thu muộn sau đổi COD và rollback/đối soát. Chưa dùng credentials GHN thật hoặc reset DB dev; CI ghi riêng trong PR.
+- **Review và sửa lỗi:** Review độc lập phát hiện escalation 30 phút chỉ chạy khi GHN trả kết quả; đã tách theo clock DB và kiểm thử toàn bộ query thất bại. Test mở rộng phát hiện báo phí song song có thể hoàn tất sau COD_PLACED và làm retry báo lỗi; đã trả lại order đã commit, có regression đồng bộ bằng Promise. Worker cô lập lỗi deadline và polling.
+- **Giới hạn:** Chưa có coins/thu phí và phản đối phí, đối soát tiền COD về ngân hàng, quyết toán 72 giờ, thông báo/UI Admin, return/interception API và luồng xin buyer đồng ý giao trễ. Quá hạn bàn giao hiện giữ khóa/chặn booking và hiện hồ sơ cần xét; không giả lập hoàn tiền hoặc tự mở hàng để thay các bước còn thiếu. deliveryObservedAt không phải thời điểm giao đã xác minh để quyết toán. Chi tiết API/phạm vi tại docs/orders/COD_GHN_SANDBOX.md.
+- **Review trên GitHub:** Gom trạng thái, payment method, lý do hủy, trạng thái yêu cầu hủy và action thành constant chung; type/schema/entity/service dùng lại cùng nguồn, giữ nguyên giá trị API. Các ý kiến decorator, findOneOrFail và schema tiền đã được xử lý ở commit trước. Không tự đánh dấu người dùng đã review hoặc merge.
 ### 2026-11-14 — Tính thông tin ảnh sản phẩm trong service
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -717,3 +736,39 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #37, branch `refactor/simplify-media-confirm`.
 
+
+### 2026-11-15 — Giao COD trễ và xử lý sự cố GHN
+
+- **Người thực hiện:** Bùi Thành Tâm (yêu cầu triển khai); Codex hỗ trợ mã và kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node, PostgreSQL local và tài liệu API GHN chính thức.
+- **Mục đích và phạm vi:** Triển khai quyết định đã chốt về giao trễ, buyer đồng ý deadline mới, hủy chưa rõ, chuyển hoàn và kiểm hàng hoàn; tiếp tục PR #33.
+- **Prompt chính:** “ok giờ code đi”, tiếp theo phạm vi giao trễ và sự cố GHN đã đề xuất.
+- **Đầu ra AI được sử dụng:** Hồ sơ giao trễ, audit/inbox bền vững, lịch ngày làm việc, Admin carrier incident, GHN return adapter, kiểm hàng hoàn, worker/API/schema và tài liệu `docs/orders/FULFILLMENT_RECOVERY.md`. Đồng bộ thay đổi ProductModeration và shipping package từ main, sửa tương thích đặt COD/trả tồn.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm chốt nghiệp vụ trước đó, yêu cầu style decorator/schema/constants và triển khai. Chưa ghi nhận Tâm tự review toàn bộ phần mã mới.
+- **Cách kiểm chứng:** 37 Jest suites / 284 tests pass với PostgreSQL local trên database riêng `rewear_test`; 22 Node tests pass. Typecheck, Nest build, Oxlint và Prettier source/test pass. Có HTTP JWT/Owner/Admin, kiểm thử race, lịch nghỉ/qua năm/thiếu lịch, timeout, pickup trễ, hơn 100 hồ sơ, chuyển hoàn ACK và kiểm hàng lặp. Review độc lập không còn P1/P2 sau sửa. Chưa chạy với credentials GHN thật.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện đề nghị quá ngắn làm mất cửa sổ trả lời 12 giờ, batch/danh sách 100 hồ sơ che hồ sơ mới và khả năng kiểm hàng lặp vượt cờ dữ liệu GHN mâu thuẫn; đã sửa và có regression. Test full suite phát hiện fixture MoMo thiếu moderation approved sau cập nhật main; đã bổ sung fixture.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); tài liệu API và các suite integration/HTTP liên quan trong PR. Không merge.
+
+### 2026-11-15 — Đối soát COD và nền sổ tiền Shop
+
+- **Người thực hiện:** Bùi Thành Tâm (chốt phạm vi và yêu cầu triển khai); Codex hỗ trợ mã/kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node và PostgreSQL local.
+- **Mục đích và phạm vi:** Ghi nhận bằng chứng thu COD, tiền hãng thực chuyển/bù trừ cước và bút toán tiền Shop đang giữ; tiếp tục PR #33, không merge.
+- **Prompt chính:** “làm đi”, sau đề xuất triển khai đối soát COD và nền sổ tiền Shop trước quyết toán 72 giờ.
+- **Đầu ra AI được sử dụng:** CodReconciliationModule, ShopFinanceModule, bảng collection/remittance/allocation/Shop ledger, API Admin và Owner, schema/policy tiền, test và `docs/orders/COD_RECONCILIATION.md`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm đã chốt nguyên tắc nhận COD thực tế, không ứng tiền seller, hoa hồng 3% làm tròn từng món và yêu cầu style/schema. Chưa ghi nhận Tâm tự review toàn bộ mã mới.
+- **Cách kiểm chứng:** 27 test mới pass local với PostgreSQL và HTTP JWT thật; 22 Node tests pass. Full Jest local có 26 suites / 226 tests pass và 13 suites không chạy do thiếu Faker từ main; typecheck local chỉ báo 8 import Faker thiếu. Không giả lập dependency để báo full pass. Lint/format pass; kết quả CI đầy đủ của commit cuối được cập nhật ở PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện trạng thái hủy đã bị bác vẫn chặn tiền vĩnh viễn, và thiếu chặn hồ sơ giao trễ đang xét; đã sửa qua test red/green. Test xuyên luồng phát hiện đánh dấu bàn giao trễ theo giờ giao đến thay vì lần quan sát pickup đầu tiên; đã sửa, giữ cờ review có trước.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33), các test `cod-reconciliation` và `cod-reconciliation-money`. Dữ liệu mô phỏng tách biệt; không có ngân hàng/GHN tiền thật hoặc mở tiền khả dụng trong đợt này.
+
+### 2026-11-15 — Chuẩn hóa constant, type và schema dùng chung
+
+- **Người thực hiện:** Bùi Thành Tâm (yêu cầu sửa theo review); Codex hỗ trợ refactor/kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node và PostgreSQL local.
+- **Mục đích và phạm vi:** Thay trạng thái/lý do/giới hạn tiền khai báo lặp bằng constant export, type suy ra từ constant và schema dùng chung trong các module của PR #33.
+- **Prompt chính:** “cần export ra constant, type riêng để dùng lại, các file khác dùng constant or schema không hard code”, kèm 3 ảnh review.
+- **Đầu ra AI được sử dụng:** Constant/type riêng cho Payment, Checkout, COD, Shipment, Handover, Reconciliation, Wallet; tái sử dụng schema tiền và kiện GHN, tên chính sách SLA/hoa hồng; loader test Node hỗ trợ import constant qua module. Giữ type-only compatibility export cho đường dẫn cũ.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm đưa review và quy chuẩn; chưa ghi nhận tự review toàn bộ refactor mới.
+- **Cách kiểm chứng:** 82 test chọn lọc pass với PostgreSQL/HTTP/GHN/lịch SLA; 22 Node tests pass. Full local có 26 suites / 226 tests pass, 13 suites không chạy do thiếu Faker từ main; typecheck chỉ báo thiếu 8 import Faker. Lint/format pass; kiểm chứng đầy đủ bằng CI của commit cuối trong PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện còn sót trạng thái pending và thời gian tra soát/hoàn tiền; đã chuyển sang constant. Loader test cũ không phân giải import constant lồng nhau; đã dùng helper nạp module local có kiểm tra đường dẫn. Giữ đọc trạng thái GHN chưa biết và lý do review lịch sử; không ép giới hạn ứng dụng thành giới hạn hãng.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); các file `*.constants.ts`, `*.type.ts` và schema liên quan. Không thay nghiệp vụ hoặc merge PR.

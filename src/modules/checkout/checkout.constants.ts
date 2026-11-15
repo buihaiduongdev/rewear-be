@@ -1,0 +1,12 @@
+export const CHECKOUT_STATUS = {
+  HELD: 'HELD',
+  EMPTY: 'EMPTY',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
+  PAID: 'PAID',
+  COD_PLACED: 'COD_PLACED',
+} as const;
+
+export const CHECKOUT_REMOVAL_REASON = { NOT_IN_CART: 'NOT_IN_CART' } as const;
+export const CHECKOUT_HOLD_SECONDS = 600;
+export const CHECKOUT_MAX_ITEMS = 50;

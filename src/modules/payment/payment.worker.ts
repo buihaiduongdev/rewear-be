@@ -13,6 +13,17 @@ import { DataSource, In, LessThanOrEqual } from 'typeorm';
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 
 import { MOMO_CLIENT } from './payment.config';
+import {
+  PAYMENT_ATTEMPT_STATE,
+  PAYMENT_PROVIDER_SUCCESS_CODE,
+  PAYMENT_QUERY_LEASE_MS,
+  PAYMENT_RECONCILIATION_BATCH_SIZE,
+  PAYMENT_REFUND_ALERT_AFTER_MS,
+  PAYMENT_REFUND_PENDING_CODES,
+  PAYMENT_REFUND_REVIEW_RETRY_MS,
+  PAYMENT_REFUND_STATE,
+  PAYMENT_WORKER_INTERVAL_MS,
+} from './payment.constants';
 import { PaymentAttempt, PaymentRefund } from './payment.entity';
 import { PaymentService } from './payment.service';
 
@@ -42,7 +53,7 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
         .finally(() => {
           this.running = false;
         });
-    }, 5000);
+    }, PAYMENT_WORKER_INTERVAL_MS);
     this.timer.unref();
   }
 
@@ -56,11 +67,15 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
     const due = new Date(now);
     const attempts = await this.db.getRepository(PaymentAttempt).find({
       where: {
-        state: In(['CREATING', 'PENDING', 'UNKNOWN']),
+        state: In([
+          PAYMENT_ATTEMPT_STATE.CREATING,
+          PAYMENT_ATTEMPT_STATE.PENDING,
+          PAYMENT_ATTEMPT_STATE.UNKNOWN,
+        ]),
         nextQueryAt: LessThanOrEqual(due),
       },
       order: { nextQueryAt: 'ASC' },
-      take: 4,
+      take: PAYMENT_RECONCILIATION_BATCH_SIZE,
     });
     // Bounded independent requests. Database leases prevent cross-instance overlap.
     await Promise.all(
@@ -77,11 +92,15 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
     );
     const refunds = await this.db.getRepository(PaymentRefund).find({
       where: {
-        state: In(['QUEUED', 'UNKNOWN', 'REVIEW_REQUIRED']),
+        state: In([
+          PAYMENT_REFUND_STATE.QUEUED,
+          PAYMENT_REFUND_STATE.UNKNOWN,
+          PAYMENT_REFUND_STATE.REVIEW_REQUIRED,
+        ]),
         nextQueryAt: LessThanOrEqual(due),
       },
       order: { nextQueryAt: 'ASC' },
-      take: 4,
+      take: PAYMENT_RECONCILIATION_BATCH_SIZE,
     });
     await Promise.all(
       refunds.map(async (refund) => {
@@ -104,16 +123,20 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const current = new Date(now);
       const refund = await manager.findOneByOrFail(PaymentRefund, { id });
-      if (refund.state === 'COMPLETED' || refund.nextQueryAt > current)
+      if (
+        refund.state === PAYMENT_REFUND_STATE.COMPLETED ||
+        refund.nextQueryAt > current
+      )
         return null;
       const payment = await manager.findOneByOrFail(PaymentAttempt, {
         id: refund.paymentId,
       });
-      const submit = refund.state === 'QUEUED';
+      const submit = refund.state === PAYMENT_REFUND_STATE.QUEUED;
       if (
         !refund.alertedAt &&
-        (refund.state === 'REVIEW_REQUIRED' ||
-          current.getTime() - refund.createdAt.getTime() >= 1800000)
+        (refund.state === PAYMENT_REFUND_STATE.REVIEW_REQUIRED ||
+          current.getTime() - refund.createdAt.getTime() >=
+            PAYMENT_REFUND_ALERT_AFTER_MS)
       ) {
         refund.alertedAt = current;
         this.logger.error({
@@ -122,13 +145,15 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
             'Refund incident: admin response required within four continuous hours',
         });
       }
-      if (refund.state === 'REVIEW_REQUIRED') {
-        refund.nextQueryAt = new Date(current.getTime() + 3600000);
+      if (refund.state === PAYMENT_REFUND_STATE.REVIEW_REQUIRED) {
+        refund.nextQueryAt = new Date(
+          current.getTime() + PAYMENT_REFUND_REVIEW_RETRY_MS,
+        );
         await manager.save(refund);
         return null;
       }
-      refund.state = 'UNKNOWN';
-      refund.nextQueryAt = new Date(current.getTime() + 75000);
+      refund.state = PAYMENT_REFUND_STATE.UNKNOWN;
+      refund.nextQueryAt = new Date(current.getTime() + PAYMENT_QUERY_LEASE_MS);
       await manager.save(refund);
       return { refund, payment, submit };
     });
@@ -143,9 +168,12 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
           amount: job.refund.amount,
           transId: Number(job.refund.providerTransId),
         });
-        complete = result.resultCode === 0 && result.transId > 0;
+        complete =
+          result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
+          result.transId > 0;
         definitiveError =
-          !complete && ![1000, 7000, 7002].includes(result.resultCode);
+          !complete &&
+          !PAYMENT_REFUND_PENDING_CODES.includes(result.resultCode);
       } else {
         complete = await this.client.queryRefund(
           job.refund.id,
@@ -156,25 +184,30 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
       await this.db.transaction(async (manager) => {
         await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
         const refund = await manager.findOneByOrFail(PaymentRefund, { id });
-        if (refund.state === 'COMPLETED') return;
+        if (refund.state === PAYMENT_REFUND_STATE.COMPLETED) return;
         if (complete) {
-          refund.state = 'COMPLETED';
+          refund.state = PAYMENT_REFUND_STATE.COMPLETED;
           const obligations = await manager.find(PaymentRefund, {
             where: { paymentId: refund.paymentId },
           });
           if (
             obligations.every(
-              (item) => item.id === refund.id || item.state === 'COMPLETED',
+              (item) =>
+                item.id === refund.id ||
+                item.state === PAYMENT_REFUND_STATE.COMPLETED,
             )
           ) {
             await manager.update(
               PaymentAttempt,
-              { id: refund.paymentId, state: 'REFUND_REQUIRED' },
-              { state: 'REFUNDED' },
+              {
+                id: refund.paymentId,
+                state: PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED,
+              },
+              { state: PAYMENT_ATTEMPT_STATE.REFUNDED },
             );
           }
         } else if (definitiveError) {
-          refund.state = 'REVIEW_REQUIRED';
+          refund.state = PAYMENT_REFUND_STATE.REVIEW_REQUIRED;
           refund.nextQueryAt = new Date();
         }
         await manager.save(refund);

@@ -4,12 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
-const load = async (file) => {
-  const source = await readFile(new URL(file, import.meta.url), 'utf8');
-  return import(
-    `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`
-  );
-};
+import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
+
+const load = (file) => loadTypeScriptModule(new URL(file, import.meta.url));
 const policy = await load('../src/modules/payment/payment.policy.ts');
 class Checkout {}
 class Product {}
@@ -19,12 +16,17 @@ class CartItem {}
 class PaymentAttempt {}
 class PaymentRefund {}
 class Order {}
+class OrderEvent {}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
   randomUUID,
   In,
   ...policy,
+  ...(await load('../src/modules/payment/payment.constants.ts')),
+  ...(await load('../src/modules/checkout/checkout.constants.ts')),
+  ...(await load('../src/common/constants/money.constants.ts')),
+  ...(await load('../src/modules/order/order.constants.ts')),
   Checkout,
   Product,
   Shop,
@@ -33,6 +35,7 @@ const deps = {
   PaymentAttempt,
   PaymentRefund,
   Order,
+  OrderEvent,
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,

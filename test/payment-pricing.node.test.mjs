@@ -3,8 +3,17 @@ import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
+import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
+
+const constants = await loadTypeScriptModule(
+  new URL(
+    '../src/modules/checkout/shipping-quote.constants.ts',
+    import.meta.url,
+  ),
+);
 let quote;
 globalThis.__paymentPricingDependencies = {
+  ...constants,
   ConflictException: Error,
   CheckoutOrder: class {},
 };
@@ -17,7 +26,7 @@ const source = (
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '');
 const { PaymentPricing } = await import(
-  `data:text/javascript;base64,${Buffer.from(`const { ConflictException, CheckoutOrder } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`const { ConflictException, CheckoutOrder, SHIPPING_QUOTE_STATUS, SHIPPING_QUOTE_ORDER_STATUS, SHIPPING_QUOTE_MAX_AGE_MS } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
 );
 
 test('pricing requires a current complete server quote and snapshots Shop money, address and items', async () => {

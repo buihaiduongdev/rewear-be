@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import z from 'zod';
 
+import { GHN_SHIPPING_LIMITS } from './ghn-shipment.constants';
+
 export type CarrierAddress = {
   name: string;
   phone: string;
@@ -74,6 +76,7 @@ export class GhnSandboxAdapter {
           'Content-Type': 'application/json',
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        redirect: 'error',
         signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]),
       });
       if (!response.ok) throw new Error('CARRIER_REJECTED');
@@ -136,15 +139,15 @@ export class GhnSandboxAdapter {
     );
     return { province: province.name, ward: ward.name };
   }
-  async quote(
+  async buildPayload(
     input: CarrierQuoteInput,
     signal: AbortSignal,
-  ): Promise<{ fee: number; estimatedDeliveryAt: string | null }> {
+  ): Promise<Record<string, unknown>> {
     this.config();
     if (
       !Number.isSafeInteger(input.value) ||
       input.value < 0 ||
-      input.value > 5000000
+      input.value > GHN_SHIPPING_LIMITS.MAX_DECLARED_VALUE
     )
       throw new Error('DECLARED_VALUE_LIMIT');
     const from = await this.resolve(input.from, signal);
@@ -192,6 +195,13 @@ export class GhnSandboxAdapter {
         },
       ],
     };
+    return payload;
+  }
+  async quote(
+    input: CarrierQuoteInput,
+    signal: AbortSignal,
+  ): Promise<{ fee: number; estimatedDeliveryAt: string | null }> {
+    const payload = await this.buildPayload(input, signal);
     const parsed = previewSchema.safeParse(
       await this.request('/v2/shipping-order/preview', signal, payload),
     );

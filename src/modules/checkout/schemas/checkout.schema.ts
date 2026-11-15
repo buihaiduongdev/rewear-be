@@ -1,7 +1,10 @@
 import z from 'zod';
 
+import { MONEY_CURRENCY } from '@/common/constants/money.constants';
 import { dateTimeSchema } from '@/common/schemas';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
+
+import { CHECKOUT_MAX_ITEMS, CHECKOUT_STATUS } from '../checkout.constants';
 
 export const createCheckoutSchema = z.strictObject({
   requestId: z.uuid(),
@@ -9,13 +12,13 @@ export const createCheckoutSchema = z.strictObject({
   productIds: z
     .array(z.uuid())
     .min(1)
-    .max(50)
+    .max(CHECKOUT_MAX_ITEMS)
     .refine(
       (ids) => new Set(ids).size === ids.length,
       'Duplicate products are not allowed',
     ),
 });
-export type CreateCheckoutInput = z.output<typeof createCheckoutSchema>;
+
 const addressSchema = z.object({
   recipientName: z.string(),
   phone: z.string(),
@@ -31,7 +34,7 @@ const addressSchema = z.object({
 });
 export const checkoutSchema = z.object({
   id: z.uuid(),
-  status: z.enum(['HELD', 'EMPTY', 'CANCELLED', 'EXPIRED', 'PAID']),
+  status: z.enum(CHECKOUT_STATUS),
   expiresAt: dateTimeSchema.nullable(),
   holdSeconds: z.number().int(),
   removedItems: z.array(z.object({ productId: z.uuid(), reason: z.string() })),
@@ -60,6 +63,8 @@ export const checkoutSchema = z.object({
     }),
   ),
   subtotal: z.number().int(),
-  currency: z.literal('VND'),
+  currency: z.literal(MONEY_CURRENCY.VND),
   paymentReady: z.literal(false),
 });
+
+export type { CreateCheckoutInput } from '../types/checkout.type';
