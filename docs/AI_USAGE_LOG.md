@@ -748,3 +748,15 @@
 - **Cách kiểm chứng:** 37 Jest suites / 284 tests pass với PostgreSQL local trên database riêng `rewear_test`; 22 Node tests pass. Typecheck, Nest build, Oxlint và Prettier source/test pass. Có HTTP JWT/Owner/Admin, kiểm thử race, lịch nghỉ/qua năm/thiếu lịch, timeout, pickup trễ, hơn 100 hồ sơ, chuyển hoàn ACK và kiểm hàng lặp. Review độc lập không còn P1/P2 sau sửa. Chưa chạy với credentials GHN thật.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện đề nghị quá ngắn làm mất cửa sổ trả lời 12 giờ, batch/danh sách 100 hồ sơ che hồ sơ mới và khả năng kiểm hàng lặp vượt cờ dữ liệu GHN mâu thuẫn; đã sửa và có regression. Test full suite phát hiện fixture MoMo thiếu moderation approved sau cập nhật main; đã bổ sung fixture.
 - **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); tài liệu API và các suite integration/HTTP liên quan trong PR. Không merge.
+
+### 2026-11-15 — Đối soát COD và nền sổ tiền Shop
+
+- **Người thực hiện:** Bùi Thành Tâm (chốt phạm vi và yêu cầu triển khai); Codex hỗ trợ mã/kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node và PostgreSQL local.
+- **Mục đích và phạm vi:** Ghi nhận bằng chứng thu COD, tiền hãng thực chuyển/bù trừ cước và bút toán tiền Shop đang giữ; tiếp tục PR #33, không merge.
+- **Prompt chính:** “làm đi”, sau đề xuất triển khai đối soát COD và nền sổ tiền Shop trước quyết toán 72 giờ.
+- **Đầu ra AI được sử dụng:** CodReconciliationModule, ShopFinanceModule, bảng collection/remittance/allocation/Shop ledger, API Admin và Owner, schema/policy tiền, test và `docs/orders/COD_RECONCILIATION.md`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm đã chốt nguyên tắc nhận COD thực tế, không ứng tiền seller, hoa hồng 3% làm tròn từng món và yêu cầu style/schema. Chưa ghi nhận Tâm tự review toàn bộ mã mới.
+- **Cách kiểm chứng:** 27 test mới pass local với PostgreSQL và HTTP JWT thật; 22 Node tests pass. Full Jest local có 26 suites / 226 tests pass và 13 suites không chạy do thiếu Faker từ main; typecheck local chỉ báo 8 import Faker thiếu. Không giả lập dependency để báo full pass. Lint/format pass; kết quả CI đầy đủ của commit cuối được cập nhật ở PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện trạng thái hủy đã bị bác vẫn chặn tiền vĩnh viễn, và thiếu chặn hồ sơ giao trễ đang xét; đã sửa qua test red/green. Test xuyên luồng phát hiện đánh dấu bàn giao trễ theo giờ giao đến thay vì lần quan sát pickup đầu tiên; đã sửa, giữ cờ review có trước.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33), các test `cod-reconciliation` và `cod-reconciliation-money`. Dữ liệu mô phỏng tách biệt; không có ngân hàng/GHN tiền thật hoặc mở tiền khả dụng trong đợt này.

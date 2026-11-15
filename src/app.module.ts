@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth';
 import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
 import { CheckoutModule } from './modules/checkout/checkout.module';
+import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconciliation.module';
 import { CodModule } from './modules/cod/cod.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { MediaModule } from './modules/media';
@@ -19,6 +20,7 @@ import { ProductModule } from './modules/product';
 import { ShipmentModule } from './modules/shipment/shipment.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
+import { ShopFinanceModule } from './modules/shop-finance/shop-finance.module';
 import { UserModule } from './modules/user';
 import { UserAddressModule } from './modules/user-address';
 
@@ -33,6 +35,8 @@ import { UserAddressModule } from './modules/user-address';
     PaymentModule,
     OrderModule,
     CodModule,
+    CodReconciliationModule,
+    ShopFinanceModule,
     ShopModule,
     ShippingModule,
     ShipmentModule,

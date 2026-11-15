@@ -110,7 +110,9 @@ mocked GHN responses and the GHN protocol contract. No live sandbox credentials
 were exercised. The application continues to poll authenticated GHN queries;
 an unsigned webhook cannot change state or money.
 
-COD bank reconciliation, exact delivery event verification, 72-hour settlement,
+Manual evidenced COD collection/remittance reconciliation and funded Shop held
+credits are implemented in [COD_RECONCILIATION.md](COD_RECONCILIATION.md).
+Automatic bank feeds, exact delivery event verification, 72-hour settlement,
 coins, fault/fee adjudication, wallet spending and frontend screens remain
 separate implementation work. Existing moderation/package changes from main
 are retained; COD placement and resale require `ProductModeration.APPROVED`.

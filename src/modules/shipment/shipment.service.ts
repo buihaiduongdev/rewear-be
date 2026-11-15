@@ -318,7 +318,7 @@ export class ShipmentService {
         if (
           order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
           order.handoverBy &&
-          now > order.handoverBy &&
+          row.pickedObservedAt > order.handoverBy &&
           !order.deliveryObservedAt
         )
           order.handoverReviewRequired = true;
