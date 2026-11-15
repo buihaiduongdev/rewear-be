@@ -4,6 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
+import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
+
+const load = (file) => loadTypeScriptModule(new URL(file, import.meta.url));
 class PaymentAttempt {}
 class PaymentRefund {}
 class Logger {
@@ -11,6 +14,7 @@ class Logger {
   warn() {}
 }
 globalThis.__workerDependencies = {
+  ...(await load('../src/modules/payment/payment.constants.ts')),
   randomUUID,
   PaymentAttempt,
   PaymentRefund,
@@ -26,7 +30,7 @@ const source = (
   .replace(/@Injectable\(\)/g, '')
   .replace(/@Inject\(MOMO_CLIENT\)/g, '');
 const { PaymentWorker } = await import(
-  `data:text/javascript;base64,${Buffer.from(`const { randomUUID, PaymentAttempt, PaymentRefund, Logger } = globalThis.__workerDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-worker-under-test.js`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(globalThis.__workerDependencies).join(', ')} } = globalThis.__workerDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-worker-under-test.js`).toString('base64')}`
 );
 
 function fixture() {

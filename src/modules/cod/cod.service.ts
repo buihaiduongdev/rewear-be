@@ -4,13 +4,16 @@ import { DataSource, In } from 'typeorm';
 
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
+import { CHECKOUT_STATUS } from '@/modules/checkout/checkout.constants';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { ORDER_POLICY } from '@/modules/order/order.constants';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/order.constants';
 import { Order, OrderEvent } from '@/modules/order/order.entity';
+import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/payment.constants';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -71,14 +74,20 @@ export class CodService {
         this.assertExpectedTotal(replay, expectedTotal);
         return replay;
       }
-      if (checkout.status !== 'HELD')
+      if (checkout.status !== CHECKOUT_STATUS.HELD)
         throw new ConflictException('An active checkout is required');
       const attempts = await manager.find(PaymentAttempt, {
         where: { checkoutId },
       });
       if (
         attempts.some(
-          (attempt) => !['FAILED', 'REFUNDED'].includes(attempt.state),
+          (attempt) =>
+            !(
+              [
+                PAYMENT_ATTEMPT_STATE.FAILED,
+                PAYMENT_ATTEMPT_STATE.REFUNDED,
+              ] as readonly string[]
+            ).includes(attempt.state),
         )
       )
         throw new ConflictException(
@@ -165,8 +174,10 @@ export class CodService {
             paymentMethod: ORDER_PAYMENT_METHOD.COD,
             status: ORDER_STATUS.PENDING,
             total,
-            sellerConfirmBy: new Date(now.getTime() + 86400000),
-            commissionBasisPoints: 300,
+            sellerConfirmBy: new Date(
+              now.getTime() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
+            ),
+            commissionBasisPoints: ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
           }),
         );
         await manager.save(
@@ -190,7 +201,7 @@ export class CodService {
         );
         orders.push(order);
       }
-      checkout.status = 'COD_PLACED';
+      checkout.status = CHECKOUT_STATUS.COD_PLACED;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
       if (cart)

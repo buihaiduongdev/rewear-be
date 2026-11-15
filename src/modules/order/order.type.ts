@@ -6,8 +6,6 @@ import {
   ORDER_STATUS,
 } from './order.constants';
 
-export const orderStates = Object.values(ORDER_STATUS);
-export const orderEventActions = Object.values(ORDER_EVENT_ACTION);
 export type OrderState = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
 export type OrderEventAction =
   (typeof ORDER_EVENT_ACTION)[keyof typeof ORDER_EVENT_ACTION];
@@ -22,3 +20,5 @@ export type OrderListInput = {
   limit?: number;
   offset?: number;
 };
+
+export { orderStates, orderEventActions } from './order.constants';

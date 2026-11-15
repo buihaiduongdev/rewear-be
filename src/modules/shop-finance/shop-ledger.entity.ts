@@ -1,8 +1,9 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/cod-reconciliation.constants';
 import { CodCollection } from '@/modules/cod-reconciliation/cod-reconciliation.entity';
+import type { ShopLedgerType } from '@/modules/cod-reconciliation/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/cod-reconciliation.type';
 import { Order } from '@/modules/order/order.entity';
 import { Shop } from '@/modules/shop/entities';
 
@@ -30,7 +31,7 @@ export class ShopLedgerEntry extends BaseEntity {
   @Column({ type: 'varchar', length: 16 })
   mode: ReconciliationMode;
   @Column({ type: 'varchar', length: 32 })
-  type: 'COD_FUNDED_HELD';
+  type: ShopLedgerType;
   @Column('integer')
   amount: number;
 

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { CarrierIncidentService } from './carrier-incident.service';
+import { FULFILLMENT_POLICY } from './fulfillment.constants';
 import { LateHandoverService } from './late-handover.service';
 import { ReturnInspectionDeadlineService } from './return-inspection-deadline.service';
 import { ShipmentCancellationService } from './shipment-cancellation.service';
@@ -34,7 +35,7 @@ export class ShipmentWorker implements OnModuleInit, OnModuleDestroy {
         .finally(() => {
           this.running = false;
         });
-    }, 10000);
+    }, FULFILLMENT_POLICY.WORKER_INTERVAL_MS);
     this.timer.unref();
   }
   onModuleDestroy() {

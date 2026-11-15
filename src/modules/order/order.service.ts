@@ -10,13 +10,16 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/shipment.constants';
+import { RETURN_INSPECTION_CONDITION } from '@/modules/shipment/shipment.constants';
 import { Shipment } from '@/modules/shipment/shipment.entity';
+import type { ReturnInspectionCondition } from '@/modules/shipment/shipment.type';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WalletCredit } from '@/modules/wallet/wallet.entity';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { OrderAccess } from './order.access';
+import { ORDER_POLICY } from './order.constants';
 import {
   ORDER_CANCEL_STATE,
   ORDER_CANCELLATION_REASON,
@@ -98,7 +101,9 @@ export class OrderService {
       order.status = ORDER_STATUS.PREPARING;
       order.acceptedAt = now;
       if (order.paymentMethod === ORDER_PAYMENT_METHOD.COD)
-        order.handoverBy = new Date(now.getTime() + 48 * 3600000);
+        order.handoverBy = new Date(
+          now.getTime() + ORDER_POLICY.HANDOVER_WINDOW_MS,
+        );
       await manager.save(order);
       await manager.save(
         OrderEvent,
@@ -182,12 +187,12 @@ export class OrderService {
       } catch {
         // One broken refund must not starve unrelated orders. Persist backoff so
         // even a full batch of failures leaves room on the next worker pass.
-        await this.db
-          .getRepository(Order)
-          .update(
-            { id: item.id, status: ORDER_STATUS.PENDING },
-            { expiryRetryAt: new Date(Date.now() + 60000) },
-          );
+        await this.db.getRepository(Order).update(
+          { id: item.id, status: ORDER_STATUS.PENDING },
+          {
+            expiryRetryAt: new Date(Date.now() + ORDER_POLICY.EXPIRY_RETRY_MS),
+          },
+        );
         this.logger.error({
           orderId: item.id,
           message: 'Order expiry/refund failed; rolled back, retry required',
@@ -257,7 +262,7 @@ export class OrderService {
     manager: EntityManager,
     order: Order,
     now: Date,
-    condition: 'SELLABLE' | 'DAMAGED',
+    condition: ReturnInspectionCondition,
   ) {
     const shipment = await manager.findOne(Shipment, {
       where: { orderId: order.id },
@@ -279,7 +284,7 @@ export class OrderService {
     order.stockReleaseReviewIds = await this.releaseStock(
       manager,
       order,
-      condition === 'SELLABLE',
+      condition === RETURN_INSPECTION_CONDITION.SELLABLE,
     );
     order.status = ORDER_STATUS.CANCELLED;
     order.cancelledAt = now;

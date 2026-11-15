@@ -4,6 +4,8 @@ import { BaseEntity } from '@/common/entities';
 import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { Order } from '@/modules/order/order.entity';
 
+import type { ShipmentState } from './shipment.type';
+
 @Entity('shipments')
 @Index(['orderId'], { unique: true })
 @Index(['orderCode'], { unique: true })
@@ -17,7 +19,7 @@ export class Shipment extends BaseEntity {
   order: Order;
 
   @Column({ type: 'varchar', length: 30 })
-  state: 'CREATING' | 'UNKNOWN' | 'BOOKED' | 'CANCEL_PENDING' | 'CANCELLED';
+  state: ShipmentState;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   orderCode: string | null;
@@ -71,5 +73,6 @@ export class Shipment extends BaseEntity {
   carrierTransferredAt: Date | null;
 
   @Column({ type: 'text', nullable: true })
+  // Keep unknown historical reasons readable; new writes use SHIPMENT_REVIEW_REASON.
   reviewReason: string | null;
 }

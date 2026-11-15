@@ -4,16 +4,20 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/ghn-shipment.constants';
+import type { ReconciliationReviewReason } from '@/modules/cod-reconciliation/cod-reconciliation.type';
 import {
   ORDER_CANCEL_STATE,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/order.constants';
 import { Order } from '@/modules/order/order.entity';
+import { SHIPMENT_STATE } from '@/modules/shipment/shipment.constants';
 import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/shipment.constants';
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/shop-ledger.entity';
 
+import { RECONCILIATION_REVIEW_REASON } from './cod-reconciliation.constants';
 import {
   COD_RECONCILIATION_STATUS,
   SHOP_LEDGER_TYPE,
@@ -24,15 +28,15 @@ import {
   CodRemittanceAllocation,
 } from './cod-reconciliation.entity';
 import { reconciliationMoney } from './cod-reconciliation.money';
+import type {
+  CollectionInput,
+  RemittanceInput,
+} from './cod-reconciliation.type';
+import type { FinanceListInput } from './cod-reconciliation.type';
 import {
   collectionInputSchema,
   remittanceInputSchema,
 } from './schemas/cod-reconciliation.schema';
-import type {
-  CollectionInput,
-  RemittanceInput,
-} from './schemas/cod-reconciliation.schema';
-import type { FinanceListInput } from './schemas/cod-reconciliation.schema';
 
 const fingerprint = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -268,11 +272,13 @@ export class CodReconciliationService {
     order: Order,
     shipment: Shipment,
     now: Date,
-  ): string | null {
-    if (row.collectedAmount < row.expectedAmount) return 'SHORT_COLLECTION';
-    if (row.collectedAmount > row.expectedAmount) return 'EXCESS_COLLECTION';
+  ): ReconciliationReviewReason | null {
+    if (row.collectedAmount < row.expectedAmount)
+      return RECONCILIATION_REVIEW_REASON.SHORT_COLLECTION;
+    if (row.collectedAmount > row.expectedAmount)
+      return RECONCILIATION_REVIEW_REASON.EXCESS_COLLECTION;
     if (this.orderFingerprint(order, shipment) !== row.orderFingerprint)
-      return 'ORDER_SNAPSHOT_CHANGED';
+      return RECONCILIATION_REVIEW_REASON.ORDER_SNAPSHOT_CHANGED;
     const unresolvedCancellation =
       order.cancelState === ORDER_CANCEL_STATE.REJECTED
         ? !order.cancelReviewUntil || order.cancelReviewUntil > now
@@ -280,8 +286,8 @@ export class CodReconciliationService {
     if (
       !deliveryStates.includes(order.status) ||
       !order.deliveryObservedAt ||
-      shipment.providerStatus !== 'delivered' ||
-      shipment.state === 'CANCELLED' ||
+      shipment.providerStatus !== GHN_SHIPMENT_STATUS.DELIVERED ||
+      shipment.state === SHIPMENT_STATE.CANCELLED ||
       shipment.returnRequestedAt ||
       order.carrierReturnedAt ||
       unresolvedCancellation ||
@@ -289,7 +295,7 @@ export class CodReconciliationService {
       (shipment.reviewReason &&
         UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason))
     )
-      return 'CARRIER_OR_ORDER_REQUIRES_REVIEW';
+      return RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
     return null;
   }
 

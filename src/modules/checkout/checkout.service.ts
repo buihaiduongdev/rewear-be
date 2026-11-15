@@ -8,10 +8,17 @@ import {
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
+import { MONEY_CURRENCY } from '@/common/constants/money.constants';
 import { resolveShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { CartService } from '@/modules/cart';
 import { Cart, CartItem } from '@/modules/cart/entities';
+import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { Category } from '@/modules/category/entities';
+import {
+  CHECKOUT_HOLD_SECONDS,
+  CHECKOUT_REMOVAL_REASON,
+  CHECKOUT_STATUS,
+} from '@/modules/checkout/checkout.constants';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
@@ -19,7 +26,7 @@ import { UserAddress } from '@/modules/user-address/entities';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
-import type { CreateCheckoutInput } from './schemas/checkout.schema';
+import type { CreateCheckoutInput } from './types/checkout.type';
 import type { CheckoutAddress } from './types/checkout.type';
 
 @Injectable()
@@ -138,9 +145,9 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         addressId: input.addressId,
         requestedProductIds: productIds,
         address: snapshot,
-        status: 'EMPTY',
+        status: CHECKOUT_STATUS.EMPTY,
         expiresAt: null,
-        holdSeconds: 600,
+        holdSeconds: CHECKOUT_HOLD_SECONDS,
         removedItems: [],
       });
       const groups = new Map<string, CheckoutOrder>();
@@ -148,13 +155,15 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         const cartEntry = saved.get(productId);
         if (
           !cartEntry ||
-          cartEntry.item.availability !== 'AVAILABLE' ||
+          cartEntry.item.availability !== CartAvailability.AVAILABLE ||
           !cartEntry.item.product ||
           !cartEntry.shop
         ) {
           checkout.removedItems.push({
             productId,
-            reason: cartEntry?.item.availability ?? 'NOT_IN_CART',
+            reason:
+              cartEntry?.item.availability ??
+              CHECKOUT_REMOVAL_REASON.NOT_IN_CART,
           });
           continue;
         }
@@ -188,7 +197,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         order.subtotal += product.price;
       }
       if (groups.size) {
-        checkout.status = 'HELD';
+        checkout.status = CHECKOUT_STATUS.HELD;
         const [{ now }] = await manager.query(
           'SELECT clock_timestamp() AS now',
         );
@@ -238,8 +247,8 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       await this.lock(manager);
       await this.expireDue(manager);
       const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
-      if (checkout.status === 'HELD')
-        await this.release(manager, checkout, 'CANCELLED');
+      if (checkout.status === CHECKOUT_STATUS.HELD)
+        await this.release(manager, checkout, CHECKOUT_STATUS.CANCELLED);
       return this.view(manager, checkout);
     });
   }
@@ -254,17 +263,20 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
   private async expireDue(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     const expired = await manager.find(Checkout, {
-      where: { status: 'HELD', expiresAt: LessThanOrEqual(new Date(now)) },
+      where: {
+        status: CHECKOUT_STATUS.HELD,
+        expiresAt: LessThanOrEqual(new Date(now)),
+      },
       order: { id: 'ASC' },
     });
     for (const checkout of expired)
-      await this.release(manager, checkout, 'EXPIRED');
+      await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
   }
 
   private async release(
     manager: EntityManager,
     checkout: Checkout,
-    status: 'EXPIRED' | 'CANCELLED',
+    status: typeof CHECKOUT_STATUS.EXPIRED | typeof CHECKOUT_STATUS.CANCELLED,
   ) {
     await manager.update(
       Product,
@@ -285,7 +297,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       ...checkout,
       orders: orders.map((order) => ({ ...order, shopName: order.shop.name })),
       subtotal: orders.reduce((total, order) => total + order.subtotal, 0),
-      currency: 'VND' as const,
+      currency: MONEY_CURRENCY.VND,
       paymentReady: false as const,
     };
   }

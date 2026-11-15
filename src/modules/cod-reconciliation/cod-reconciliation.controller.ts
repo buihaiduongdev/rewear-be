@@ -20,6 +20,11 @@ import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { CodReconciliationService } from './cod-reconciliation.service';
+import type {
+  CollectionInput,
+  FinanceListInput,
+  RemittanceInput,
+} from './cod-reconciliation.type';
 import {
   adminCollectionViewSchema,
   adminReconciliationDetailSchema,
@@ -28,11 +33,6 @@ import {
   financeListSchema,
   remittanceInputSchema,
   remittanceViewSchema,
-} from './schemas/cod-reconciliation.schema';
-import type {
-  CollectionInput,
-  FinanceListInput,
-  RemittanceInput,
 } from './schemas/cod-reconciliation.schema';
 
 @ApiTags('COD reconciliation')

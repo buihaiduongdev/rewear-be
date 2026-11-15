@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
+import { vndAmountSchema } from '@/common/schemas/money.schema';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
 import {
@@ -8,7 +9,7 @@ import {
   RECONCILIATION_MODE,
 } from '../cod-reconciliation.constants';
 
-export const vndSchema = z.number().int().nonnegative().max(2147483647);
+export const vndSchema = vndAmountSchema;
 const requestIdSchema = z.uuid().transform((value) => value.toLowerCase());
 const instantSchema = z.iso
   .datetime({ offset: true })
@@ -26,7 +27,6 @@ export const collectionInputSchema = z.strictObject({
   collectedAt: instantSchema,
   ...proofSchema,
 });
-export type CollectionInput = z.output<typeof collectionInputSchema>;
 export const remittanceInputSchema = z
   .strictObject({
     requestId: requestIdSchema,
@@ -80,12 +80,10 @@ export const remittanceInputSchema = z
       a.orderId.localeCompare(b.orderId),
     ),
   }));
-export type RemittanceInput = z.output<typeof remittanceInputSchema>;
 export const financeListSchema = z.strictObject({
   mode: z.enum(RECONCILIATION_MODE).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
-export type FinanceListInput = z.output<typeof financeListSchema>;
 export const financeHistorySchema = financeListSchema.pick({ offset: true });
 export const collectionViewSchema = z.object({
   id: z.uuid(),
@@ -137,3 +135,9 @@ export const adminReconciliationDetailSchema = z.object({
   collection: adminCollectionViewSchema,
   remittances: z.array(remittanceViewSchema),
 });
+
+export type {
+  CollectionInput,
+  RemittanceInput,
+  FinanceListInput,
+} from '../cod-reconciliation.type';

@@ -12,9 +12,16 @@ import { OrderService } from '@/modules/order/order.service';
 
 import { CarrierIncident } from './carrier-incident.entity';
 import { fulfillmentDeadline } from './fulfillment-calendar';
-import type { CarrierIncidentDecision } from './schemas/carrier-incident.schema';
-import type { FulfillmentListInput } from './schemas/fulfillment-list.schema';
+import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import {
+  CARRIER_INCIDENT_OUTCOME,
+  CARRIER_INCIDENT_STATE,
+  SHIPMENT_REVIEW_REASON,
+  SHIPMENT_STATE,
+} from './shipment.constants';
 import { Shipment } from './shipment.entity';
+import type { CarrierIncidentDecision } from './shipment.type';
+import type { FulfillmentListInput } from './shipment.type';
 
 @Injectable()
 export class CarrierIncidentService {
@@ -24,7 +31,7 @@ export class CarrierIncidentService {
   ) {}
   incidents(input: FulfillmentListInput = {}): Promise<CarrierIncident[]> {
     return this.db.getRepository(CarrierIncident).find({
-      where: { state: 'REVIEW' },
+      where: { state: CARRIER_INCIDENT_STATE.REVIEW },
       order: { openedAt: 'ASC', id: 'ASC' },
       skip: input.offset ?? 0,
       take: 100,
@@ -38,7 +45,7 @@ export class CarrierIncidentService {
     return this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const incident = await manager.findOneByOrFail(CarrierIncident, { id });
-      if (incident.state === 'RESOLVED')
+      if (incident.state === CARRIER_INCIDENT_STATE.RESOLVED)
         throw new ConflictException('Carrier incident is already resolved');
       const shipment = await manager.findOneByOrFail(Shipment, {
         id: incident.shipmentId,
@@ -50,9 +57,9 @@ export class CarrierIncidentService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(timestamp);
-      if (input.outcome === 'CANCELLED_BEFORE_PICKUP') {
+      if (input.outcome === CARRIER_INCIDENT_OUTCOME.CANCELLED_BEFORE_PICKUP) {
         if (
-          shipment.state !== 'CANCEL_PENDING' ||
+          shipment.state !== SHIPMENT_STATE.CANCEL_PENDING ||
           shipment.pickedObservedAt ||
           shipment.codCollectedAt ||
           shipment.carrierTransferredAt ||
@@ -67,11 +74,12 @@ export class CarrierIncidentService {
           );
         }
         await this.orders.cancelCodVerified(manager, order, now);
-        shipment.state = 'CANCELLED';
+        shipment.state = SHIPMENT_STATE.CANCELLED;
         shipment.nextQueryAt = null;
-        shipment.reviewReason = 'ADMIN_CONFIRMED_CANCELLATION';
+        shipment.reviewReason =
+          SHIPMENT_REVIEW_REASON.ADMIN_CONFIRMED_CANCELLATION;
         await manager.save(shipment);
-        incident.state = 'RESOLVED';
+        incident.state = CARRIER_INCIDENT_STATE.RESOLVED;
       }
       incident.events = [
         ...incident.events,
@@ -89,9 +97,13 @@ export class CarrierIncidentService {
       const now = new Date(timestamp);
       const shipments = await manager
         .createQueryBuilder(Shipment, 'shipment')
-        .where('shipment.state = :state', { state: 'CANCEL_PENDING' })
+        .where('shipment.state = :state', {
+          state: SHIPMENT_STATE.CANCEL_PENDING,
+        })
         .andWhere('shipment.cancelRequestedAt <= :cutoff', {
-          cutoff: new Date(now.getTime() - 1800000),
+          cutoff: new Date(
+            now.getTime() - FULFILLMENT_POLICY.UNKNOWN_ESCALATION_MS,
+          ),
         })
         .andWhere((query) => {
           const existing = query
@@ -112,12 +124,17 @@ export class CarrierIncidentService {
         });
         if (existing) continue;
         const openedAt = new Date(
-          shipment.cancelRequestedAt!.getTime() + 1800000,
+          shipment.cancelRequestedAt!.getTime() +
+            FULFILLMENT_POLICY.UNKNOWN_ESCALATION_MS,
         );
-        const reviewDueAt = await fulfillmentDeadline(manager, openedAt, 1);
+        const reviewDueAt = await fulfillmentDeadline(
+          manager,
+          openedAt,
+          FULFILLMENT_POLICY.CANCELLATION_ADMIN_BUSINESS_DAYS,
+        );
         await manager.save(CarrierIncident, {
           shipmentId: shipment.id,
-          state: 'REVIEW',
+          state: CARRIER_INCIDENT_STATE.REVIEW,
           openedAt,
           reviewDueAt,
           calendarMissing: reviewDueAt === null,
@@ -126,7 +143,7 @@ export class CarrierIncidentService {
         });
       }
       const pending = await manager.find(CarrierIncident, {
-        where: { state: 'REVIEW' },
+        where: { state: CARRIER_INCIDENT_STATE.REVIEW },
         order: { updatedAt: 'ASC', id: 'ASC' },
         take: 100,
       });
@@ -138,16 +155,16 @@ export class CarrierIncidentService {
           id: shipment.orderId,
         });
         if (
-          shipment.state === 'CANCELLED' &&
+          shipment.state === SHIPMENT_STATE.CANCELLED &&
           order.status === ORDER_STATUS.CANCELLED
         ) {
-          incident.state = 'RESOLVED';
+          incident.state = CARRIER_INCIDENT_STATE.RESOLVED;
         }
         if (incident.calendarMissing) {
           incident.reviewDueAt = await fulfillmentDeadline(
             manager,
             incident.openedAt,
-            1,
+            FULFILLMENT_POLICY.CANCELLATION_ADMIN_BUSINESS_DAYS,
           );
           incident.calendarMissing = incident.reviewDueAt === null;
         }

@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/ghn-shipment.constants';
 import { OrderAccess } from '@/modules/order/order.access';
 import {
   ORDER_CANCEL_STATE,
@@ -12,13 +13,12 @@ import {
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 
-import {
-  type ReturnInspectionInput,
-  returnInspectionSchema,
-} from './schemas/return-inspection.schema';
+import { returnInspectionSchema } from './schemas/return-inspection.schema';
 import { ShipmentReturnInspection } from './shipment-return-inspection.entity';
+import { SHIPMENT_REVIEW_REASON } from './shipment.constants';
 import { UNSAFE_CARRIER_REVIEW_REASONS } from './shipment.constants';
 import { Shipment } from './shipment.entity';
+import type { ReturnInspectionInput } from './shipment.type';
 
 @Injectable()
 export class ShipmentReturnInspectionService {
@@ -49,7 +49,7 @@ export class ShipmentReturnInspectionService {
       if (
         order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
         !order.carrierReturnedAt ||
-        shipment?.providerStatus !== 'returned'
+        shipment?.providerStatus !== GHN_SHIPMENT_STATUS.RETURNED
       )
         throw new ConflictException('Verified uncollected COD return required');
       if (
@@ -62,7 +62,7 @@ export class ShipmentReturnInspectionService {
       ) {
         order.cancelState = ORDER_CANCEL_STATE.ADMIN_REVIEW;
         shipment.reviewReason ??=
-          'RETURN_COLLECTION_REQUIRES_ADMIN_RECONCILIATION';
+          SHIPMENT_REVIEW_REASON.RETURN_COLLECTION_REQUIRES_ADMIN_RECONCILIATION;
         await manager.save(order);
         await manager.save(shipment);
         return { order, inspection: null, requiresAdmin: true };
@@ -112,7 +112,7 @@ export class ShipmentReturnInspectionService {
         }),
       );
       shipment.reviewReason = order.stockReleaseReviewIds.length
-        ? 'RETURN_STOCK_OWNERSHIP_REQUIRES_REVIEW'
+        ? SHIPMENT_REVIEW_REASON.RETURN_STOCK_OWNERSHIP_REQUIRES_REVIEW
         : null;
       await manager.save(shipment);
       return { order, inspection, requiresAdmin: false };

@@ -2,12 +2,14 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
+import { MONEY_CURRENCY } from '@/common/constants/money.constants';
 import { Order } from '@/modules/order/order.entity';
 
 import { orderRefundSchema } from './schemas/wallet-refund.schema';
 import { walletBalanceSchema } from './schemas/wallet.schema';
-import type { WalletQueryInput } from './schemas/wallet.schema';
+import { WALLET_CREDIT_REASON } from './wallet.constants';
 import { WalletAccount, WalletCredit } from './wallet.entity';
+import type { WalletQueryInput } from './wallet.type';
 
 @Injectable()
 export class WalletService {
@@ -44,7 +46,7 @@ export class WalletService {
         userId: order.buyerId,
         orderId: order.id,
         amount: order.total,
-        reason: 'ORDER_CANCELLED',
+        reason: WALLET_CREDIT_REASON.ORDER_CANCELLED,
       }),
     );
     account.balance = balance;
@@ -63,7 +65,7 @@ export class WalletService {
       });
       return {
         balance: account?.balance ?? 0,
-        currency: 'VND' as const,
+        currency: MONEY_CURRENCY.VND,
         credits,
       };
     });

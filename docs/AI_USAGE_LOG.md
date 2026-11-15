@@ -760,3 +760,15 @@
 - **Cách kiểm chứng:** 27 test mới pass local với PostgreSQL và HTTP JWT thật; 22 Node tests pass. Full Jest local có 26 suites / 226 tests pass và 13 suites không chạy do thiếu Faker từ main; typecheck local chỉ báo 8 import Faker thiếu. Không giả lập dependency để báo full pass. Lint/format pass; kết quả CI đầy đủ của commit cuối được cập nhật ở PR.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện trạng thái hủy đã bị bác vẫn chặn tiền vĩnh viễn, và thiếu chặn hồ sơ giao trễ đang xét; đã sửa qua test red/green. Test xuyên luồng phát hiện đánh dấu bàn giao trễ theo giờ giao đến thay vì lần quan sát pickup đầu tiên; đã sửa, giữ cờ review có trước.
 - **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33), các test `cod-reconciliation` và `cod-reconciliation-money`. Dữ liệu mô phỏng tách biệt; không có ngân hàng/GHN tiền thật hoặc mở tiền khả dụng trong đợt này.
+
+### 2026-11-15 — Chuẩn hóa constant, type và schema dùng chung
+
+- **Người thực hiện:** Bùi Thành Tâm (yêu cầu sửa theo review); Codex hỗ trợ refactor/kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, Jest/Node và PostgreSQL local.
+- **Mục đích và phạm vi:** Thay trạng thái/lý do/giới hạn tiền khai báo lặp bằng constant export, type suy ra từ constant và schema dùng chung trong các module của PR #33.
+- **Prompt chính:** “cần export ra constant, type riêng để dùng lại, các file khác dùng constant or schema không hard code”, kèm 3 ảnh review.
+- **Đầu ra AI được sử dụng:** Constant/type riêng cho Payment, Checkout, COD, Shipment, Handover, Reconciliation, Wallet; tái sử dụng schema tiền và kiện GHN, tên chính sách SLA/hoa hồng; loader test Node hỗ trợ import constant qua module. Giữ type-only compatibility export cho đường dẫn cũ.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm đưa review và quy chuẩn; chưa ghi nhận tự review toàn bộ refactor mới.
+- **Cách kiểm chứng:** 82 test chọn lọc pass với PostgreSQL/HTTP/GHN/lịch SLA; 22 Node tests pass. Full local có 26 suites / 226 tests pass, 13 suites không chạy do thiếu Faker từ main; typecheck chỉ báo thiếu 8 import Faker. Lint/format pass; kiểm chứng đầy đủ bằng CI của commit cuối trong PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện còn sót trạng thái pending và thời gian tra soát/hoàn tiền; đã chuyển sang constant. Loader test cũ không phân giải import constant lồng nhau; đã dùng helper nạp module local có kiểm tra đường dẫn. Giữ đọc trạng thái GHN chưa biết và lý do review lịch sử; không ép giới hạn ứng dụng thành giới hạn hãng.
+- **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); các file `*.constants.ts`, `*.type.ts` và schema liên quan. Không thay nghiệp vụ hoặc merge PR.

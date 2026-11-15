@@ -14,6 +14,7 @@ import {
   printSchema,
   shipmentPayloadSchema,
 } from './ghn-shipment.schema';
+import type { GhnShipmentSnapshot } from './ghn-shipment.type';
 
 const host = 'https://dev-online-gateway.ghn.vn';
 const failure = () =>
@@ -27,19 +28,7 @@ function freeze<T>(value: T): T {
   }
   return value;
 }
-export type GhnShipmentSnapshot = {
-  orderCode: string;
-  clientCode: string;
-  shopId: number;
-  status: string;
-  updatedAt: string;
-  codAmount: number;
-  paymentType: 1;
-  codCollected: boolean;
-  codTransferred: boolean;
-  collectedAt: string | null;
-  transferredAt: string | null;
-};
+export type { GhnShipmentSnapshot } from './ghn-shipment.type';
 @Injectable()
 export class GhnShipmentClient {
   constructor(private readonly adapter: GhnSandboxAdapter) {}

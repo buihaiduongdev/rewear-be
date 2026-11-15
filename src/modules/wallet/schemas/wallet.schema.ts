@@ -1,24 +1,32 @@
 import z from 'zod';
 
+import { MONEY_CURRENCY } from '@/common/constants/money.constants';
 import { dateTimeSchema } from '@/common/schemas';
+import {
+  safeBalanceSchema,
+  vndAmountSchema,
+} from '@/common/schemas/money.schema';
 
-export const walletBalanceSchema = z.number().int().nonnegative();
+import { WALLET_CREDIT_REASON } from '../wallet.constants';
+
+export type { WalletQueryInput } from '../wallet.type';
+
+export const walletBalanceSchema = safeBalanceSchema;
 
 export const walletQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
-export type WalletQueryInput = z.output<typeof walletQuerySchema>;
 
 export const walletViewSchema = z.object({
   balance: walletBalanceSchema,
-  currency: z.literal('VND'),
+  currency: z.literal(MONEY_CURRENCY.VND),
   credits: z.array(
     z.object({
       id: z.uuid(),
       orderId: z.uuid(),
-      amount: z.number().int().positive(),
-      reason: z.literal('ORDER_CANCELLED'),
+      amount: vndAmountSchema.positive(),
+      reason: z.enum(WALLET_CREDIT_REASON),
       createdAt: dateTimeSchema,
     }),
   ),

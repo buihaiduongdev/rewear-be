@@ -7,7 +7,7 @@ import type {
 } from '@/modules/checkout/types/checkout.type';
 import { PaymentAttempt } from '@/modules/payment/payment.entity';
 
-import { ORDER_PAYMENT_METHOD } from './order.constants';
+import { ORDER_PAYMENT_METHOD, ORDER_POLICY } from './order.constants';
 import type {
   OrderCancellationReason,
   OrderCancelState,
@@ -96,7 +96,10 @@ export class Order extends BaseEntity {
   @Column('jsonb')
   items: CheckoutItem[];
 
-  @Column({ type: 'integer', default: 300 })
+  @Column({
+    type: 'integer',
+    default: ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
+  })
   commissionBasisPoints: number;
 
   @Column('timestamptz')

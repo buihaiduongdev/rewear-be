@@ -1,4 +1,4 @@
-const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
+import { VIETNAM_UTC_OFFSET_MS } from '@/common/constants/time.constants';
 
 /** The caller supplies the approved closures covering the calculation period. */
 export function businessDeadline(
@@ -26,7 +26,7 @@ export function businessDeadline(
     closures.add(closedDate);
   }
 
-  const localDay = new Date(receivedAt.getTime() + VIETNAM_OFFSET_MS);
+  const localDay = new Date(receivedAt.getTime() + VIETNAM_UTC_OFFSET_MS);
   localDay.setUTCHours(0, 0, 0, 0);
   let remaining = days;
   while (remaining > 0) {
@@ -43,5 +43,5 @@ export function businessDeadline(
     }
   }
   localDay.setUTCHours(17, 0, 0, 0);
-  return new Date(localDay.getTime() - VIETNAM_OFFSET_MS);
+  return new Date(localDay.getTime() - VIETNAM_UTC_OFFSET_MS);
 }

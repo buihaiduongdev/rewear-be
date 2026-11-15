@@ -4,12 +4,13 @@ import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 import { orderSchema } from '@/modules/order/order.schema';
 
+import { RETURN_INSPECTION_CONDITION } from '../shipment.constants';
+
 export const returnInspectionSchema = z.strictObject({
-  condition: z.enum(['SELLABLE', 'DAMAGED']),
+  condition: z.enum(RETURN_INSPECTION_CONDITION),
   reason: trimmedTextSchema.min(1).max(1000),
   evidence: trimmedTextSchema.min(1).max(2000),
 });
-export type ReturnInspectionInput = z.output<typeof returnInspectionSchema>;
 
 export const returnInspectionViewSchema = z.object({
   order: orderSchema,
@@ -24,3 +25,5 @@ export const returnInspectionViewSchema = z.object({
     .nullable(),
   requiresAdmin: z.boolean(),
 });
+
+export type { ReturnInspectionInput } from '../shipment.type';

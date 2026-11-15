@@ -8,6 +8,18 @@ import {
 } from '@/modules/order/order.constants';
 import { Order } from '@/modules/order/order.entity';
 
+import {
+  COD_CANCELLATION_THRESHOLD,
+  COD_CANCELLATION_WINDOW_MS,
+  COD_EPISODE_WINDOW_MS,
+  COD_FIRST_BLOCK_MS,
+  COD_MANUAL_REVIEW_EPISODES,
+  COD_MAX_ACTIVE_CHECKOUTS,
+  COD_MAX_PENDING_CHECKOUTS,
+  COD_MAX_PENDING_ITEMS,
+  COD_REPEAT_BLOCK_MS,
+  COD_RESTRICTION_CAUSE,
+} from './cod.constants';
 import { CodBuyerCancellation, CodRestriction } from './cod.entity';
 
 @Injectable()
@@ -59,15 +71,24 @@ export class CodPolicy {
       0,
     );
     if (
-      pendingCheckouts >= 3 ||
-      activeCheckouts >= 5 ||
-      pendingItems + itemCount > 20
+      pendingCheckouts >= COD_MAX_PENDING_CHECKOUTS ||
+      activeCheckouts >= COD_MAX_ACTIVE_CHECKOUTS ||
+      pendingItems + itemCount > COD_MAX_PENDING_ITEMS
     )
       throw new ConflictException({
         message: 'COD limit reached',
-        remainingPendingCheckouts: Math.max(0, 3 - pendingCheckouts),
-        remainingPendingItems: Math.max(0, 20 - pendingItems),
-        remainingActiveCheckouts: Math.max(0, 5 - activeCheckouts),
+        remainingPendingCheckouts: Math.max(
+          0,
+          COD_MAX_PENDING_CHECKOUTS - pendingCheckouts,
+        ),
+        remainingPendingItems: Math.max(
+          0,
+          COD_MAX_PENDING_ITEMS - pendingItems,
+        ),
+        remainingActiveCheckouts: Math.max(
+          0,
+          COD_MAX_ACTIVE_CHECKOUTS - activeCheckouts,
+        ),
       });
   }
 
@@ -106,7 +127,10 @@ export class CodPolicy {
     const previous = restrictions[0];
     const openedAt = previous?.resolvedAt ?? previous?.blockedUntil;
     const since = new Date(
-      Math.max(now.getTime() - 86400000, openedAt?.getTime() ?? 0),
+      Math.max(
+        now.getTime() - COD_CANCELLATION_WINDOW_MS,
+        openedAt?.getTime() ?? 0,
+      ),
     );
     const count = await manager
       .getRepository(CodBuyerCancellation)
@@ -114,19 +138,22 @@ export class CodPolicy {
       .where('event.buyerId = :buyerId', { buyerId: order.buyerId })
       .andWhere('event.createdAt > :since', { since })
       .getCount();
-    if (count < 5) return;
+    if (count < COD_CANCELLATION_THRESHOLD) return;
     const episodes = restrictions.filter(
-      (row) => row.createdAt.getTime() >= now.getTime() - 30 * 86400000,
+      (row) => row.createdAt.getTime() >= now.getTime() - COD_EPISODE_WINDOW_MS,
     ).length;
     await manager.save(
       CodRestriction,
       manager.create(CodRestriction, {
         buyerId: order.buyerId,
-        cause: 'REPEATED_CANCELLATION',
+        cause: COD_RESTRICTION_CAUSE.REPEATED_CANCELLATION,
         blockedUntil:
-          episodes >= 2
+          episodes >= COD_MANUAL_REVIEW_EPISODES
             ? null
-            : new Date(now.getTime() + (episodes === 0 ? 24 : 72) * 3600000),
+            : new Date(
+                now.getTime() +
+                  (episodes === 0 ? COD_FIRST_BLOCK_MS : COD_REPEAT_BLOCK_MS),
+              ),
         resolvedAt: null,
         resolutionReason: null,
         resolvedBy: null,

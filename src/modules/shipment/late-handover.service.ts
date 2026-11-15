@@ -10,23 +10,44 @@ import {
 } from '@/modules/order/order.constants';
 import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
+import type { OrderState } from '@/modules/order/order.type';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
 
 import { fulfillmentDeadline } from './fulfillment-calendar';
-import { HANDOVER_STATE, HOUR_MS } from './late-handover.constants';
+import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import {
+  HANDOVER_ACTION,
+  HANDOVER_STOP_REASON,
+} from './late-handover.constants';
+import { HANDOVER_STATE } from './late-handover.constants';
 import {
   FulfillmentCalendar,
   FulfillmentNotice,
   HandoverCase,
 } from './late-handover.entity';
-import type { FulfillmentListInput } from './schemas/fulfillment-list.schema';
+import type {
+  HandoverAction,
+  HandoverState,
+  HandoverStopReason,
+} from './late-handover.type';
 import type {
   CalendarInput,
   HandoverProposal,
   HandoverStop,
-} from './schemas/late-handover.schema';
+} from './late-handover.type';
+import { SHIPMENT_REVIEW_REASON, SHIPMENT_STATE } from './shipment.constants';
 import { Shipment } from './shipment.entity';
+import type { FulfillmentListInput } from './shipment.type';
+
+const handoverReviewStates: readonly HandoverState[] = [
+  HANDOVER_STATE.REVIEW,
+  HANDOVER_STATE.OFFERED,
+];
+const extendableOrderStates: readonly OrderState[] = [
+  ORDER_STATUS.PREPARING,
+  ORDER_STATUS.SHIPPING,
+];
 
 @Injectable()
 export class LateHandoverService {
@@ -47,7 +68,7 @@ export class LateHandoverService {
   private async audit(
     manager: EntityManager,
     row: HandoverCase,
-    action: string,
+    action: HandoverAction,
     actorId: string | null,
     now: Date,
     reason: string,
@@ -138,21 +159,29 @@ export class LateHandoverService {
         !row.reviewDueAt ||
         row.reviewDueAt <= now ||
         order.cancelState ||
-        ![ORDER_STATUS.PREPARING, ORDER_STATUS.SHIPPING].includes(
-          order.status as 'preparing' | 'shipping',
-        ) ||
+        !extendableOrderStates.includes(order.status) ||
         !Number.isFinite(deadline.getTime()) ||
-        deadline.getTime() <= now.getTime() + 12 * HOUR_MS ||
-        deadline.getTime() > now.getTime() + 24 * HOUR_MS
+        deadline.getTime() <=
+          now.getTime() + FULFILLMENT_POLICY.BUYER_RESPONSE_MS ||
+        deadline.getTime() > now.getTime() + FULFILLMENT_POLICY.MAX_EXTENSION_MS
       )
         throw new ConflictException(
           'A single valid extension within 24 hours is required',
         );
       row.state = HANDOVER_STATE.OFFERED;
       row.proposedDeadline = deadline;
-      row.respondBy = new Date(now.getTime() + 12 * HOUR_MS);
+      row.respondBy = new Date(
+        now.getTime() + FULFILLMENT_POLICY.BUYER_RESPONSE_MS,
+      );
       row.reason = input.reason;
-      await this.audit(manager, row, 'PROPOSED', adminId, now, input.reason);
+      await this.audit(
+        manager,
+        row,
+        HANDOVER_ACTION.PROPOSED,
+        adminId,
+        now,
+        input.reason,
+      );
       return manager.save(row);
     });
   }
@@ -176,25 +205,33 @@ export class LateHandoverService {
         !row.proposedDeadline ||
         row.proposedDeadline <= now
       ) {
-        await this.stop(manager, order, row, now, 'BUYER_RESPONSE_TIMEOUT');
+        await this.stop(
+          manager,
+          order,
+          row,
+          now,
+          HANDOVER_STOP_REASON.BUYER_RESPONSE_TIMEOUT,
+        );
         return row;
       }
       await this.audit(
         manager,
         row,
-        accept ? 'BUYER_ACCEPTED' : 'BUYER_REFUSED',
+        accept ? HANDOVER_ACTION.BUYER_ACCEPTED : HANDOVER_ACTION.BUYER_REFUSED,
         buyerId,
         now,
         row.reason ?? 'Late handover',
       );
-      if (!accept) await this.stop(manager, order, row, now, 'BUYER_REFUSED');
+      if (!accept)
+        await this.stop(
+          manager,
+          order,
+          row,
+          now,
+          HANDOVER_ACTION.BUYER_REFUSED,
+        );
       else {
-        if (
-          order.cancelState ||
-          ![ORDER_STATUS.PREPARING, ORDER_STATUS.SHIPPING].includes(
-            order.status as 'preparing' | 'shipping',
-          )
-        )
+        if (order.cancelState || !extendableOrderStates.includes(order.status))
           throw new ConflictException('Order no longer eligible for extension');
         row.consentedAt = now;
         row.state = HANDOVER_STATE.CONSENTED;
@@ -212,23 +249,19 @@ export class LateHandoverService {
       await this.lock(manager);
       const row = await manager.findOneByOrFail(HandoverCase, { orderId });
       const order = await manager.findOneByOrFail(Order, { id: orderId });
-      if (
-        ![HANDOVER_STATE.REVIEW, HANDOVER_STATE.OFFERED].includes(
-          row.state as 'REVIEW' | 'OFFERED',
-        )
-      )
+      if (!handoverReviewStates.includes(row.state))
         throw new ConflictException('No pending late handover review');
       const now = await this.now(manager);
       await this.audit(
         manager,
         row,
-        'ADMIN_STOPPED',
+        HANDOVER_ACTION.ADMIN_STOPPED,
         adminId,
         now,
         input.reason,
       );
       row.events[row.events.length - 1].evidence = input.evidence;
-      await this.stop(manager, order, row, now, 'ADMIN_STOPPED');
+      await this.stop(manager, order, row, now, HANDOVER_ACTION.ADMIN_STOPPED);
       return row;
     });
   }
@@ -238,10 +271,17 @@ export class LateHandoverService {
     order: Order,
     row: HandoverCase,
     now: Date,
-    reason: string,
+    reason: HandoverStopReason,
   ) {
     order.handoverReviewRequired = true;
-    await this.audit(manager, row, 'SAFE_STOP', null, now, reason);
+    await this.audit(
+      manager,
+      row,
+      HANDOVER_ACTION.SAFE_STOP,
+      null,
+      now,
+      reason,
+    );
     const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
     order.cancelState = ORDER_CANCEL_STATE.APPROVED;
     order.cancelDecisionReason = reason;
@@ -256,11 +296,12 @@ export class LateHandoverService {
         order.status !== ORDER_STATUS.PREPARING
       ) {
         shipment.returnRequestedAt ??= now;
-        shipment.reviewReason = 'LATE_HANDOVER_RETURN_REQUIRED';
+        shipment.reviewReason =
+          SHIPMENT_REVIEW_REASON.LATE_HANDOVER_RETURN_REQUIRED;
         row.state = HANDOVER_STATE.RETURN_PENDING;
       } else {
         shipment.cancelRequestedAt ??= now;
-        shipment.state = 'CANCEL_PENDING';
+        shipment.state = SHIPMENT_STATE.CANCEL_PENDING;
         row.state = HANDOVER_STATE.CANCEL_PENDING;
       }
       shipment.nextQueryAt = now;
@@ -316,15 +357,17 @@ export class LateHandoverService {
           let row = await manager.findOneBy(HandoverCase, { orderId: id });
           if (!row) {
             if (
-              ![ORDER_STATUS.PREPARING, ORDER_STATUS.SHIPPING].includes(
-                order.status as 'preparing' | 'shipping',
-              ) ||
+              !extendableOrderStates.includes(order.status) ||
               !order.handoverBy ||
               order.handoverBy > now ||
               (shipment?.pickedObservedAt && !order.handoverReviewRequired)
             )
               return;
-            const reviewDueAt = await fulfillmentDeadline(manager, now, 2);
+            const reviewDueAt = await fulfillmentDeadline(
+              manager,
+              now,
+              FULFILLMENT_POLICY.HANDOVER_ADMIN_BUSINESS_DAYS,
+            );
             row = manager.create(HandoverCase, {
               orderId: id,
               state: HANDOVER_STATE.REVIEW,
@@ -336,7 +379,7 @@ export class LateHandoverService {
             await this.audit(
               manager,
               row,
-              'OVERDUE',
+              HANDOVER_ACTION.OVERDUE,
               null,
               now,
               'Carrier pickup not verified within 48 hours',
@@ -351,7 +394,7 @@ export class LateHandoverService {
             await this.audit(
               manager,
               row,
-              'CLOSED',
+              HANDOVER_ACTION.CLOSED,
               null,
               now,
               'Order cancellation verified',
@@ -366,14 +409,26 @@ export class LateHandoverService {
               row.calendarMissing = !row.reviewDueAt;
             }
             if (row.reviewDueAt && row.reviewDueAt <= now)
-              await this.stop(manager, order, row, now, 'ADMIN_REVIEW_TIMEOUT');
+              await this.stop(
+                manager,
+                order,
+                row,
+                now,
+                HANDOVER_STOP_REASON.ADMIN_REVIEW_TIMEOUT,
+              );
           } else if (
             row.state === HANDOVER_STATE.OFFERED &&
             row.respondBy &&
             (row.respondBy <= now ||
               (row.proposedDeadline && row.proposedDeadline <= now))
           )
-            await this.stop(manager, order, row, now, 'BUYER_RESPONSE_TIMEOUT');
+            await this.stop(
+              manager,
+              order,
+              row,
+              now,
+              HANDOVER_STOP_REASON.BUYER_RESPONSE_TIMEOUT,
+            );
           else if (row.state === HANDOVER_STATE.CONSENTED) {
             if (
               shipment?.pickedObservedAt &&
@@ -384,13 +439,19 @@ export class LateHandoverService {
               await this.audit(
                 manager,
                 row,
-                'PICKUP_VERIFIED',
+                HANDOVER_ACTION.PICKUP_VERIFIED,
                 null,
                 now,
                 'Carrier pickup observed after buyer consent',
               );
             } else if (order.handoverBy && order.handoverBy <= now)
-              await this.stop(manager, order, row, now, 'EXTENSION_EXHAUSTED');
+              await this.stop(
+                manager,
+                order,
+                row,
+                now,
+                HANDOVER_STOP_REASON.EXTENSION_EXHAUSTED,
+              );
           }
           row.updatedAt = now;
           await manager.save(row);

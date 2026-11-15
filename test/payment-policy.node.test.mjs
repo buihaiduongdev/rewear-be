@@ -1,15 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
-const source = await readFile(
-  new URL('../src/modules/payment/payment.policy.ts', import.meta.url),
-  'utf8',
-);
-const policy = await import(
-  `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`
-);
+import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
+
+const load = (file) => loadTypeScriptModule(new URL(file, import.meta.url));
+const policy = await load('../src/modules/payment/payment.policy.ts');
 
 test('a paid result settles only a live, matching, fully owned reservation once', () => {
   const input = {

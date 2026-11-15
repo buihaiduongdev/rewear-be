@@ -4,7 +4,7 @@ import { BaseEntity } from '@/common/entities';
 import { Order } from '@/modules/order/order.entity';
 import { User } from '@/modules/user/entities';
 
-import type { ReturnInspectionInput } from './schemas/return-inspection.schema';
+import type { ReturnInspectionInput } from './shipment.type';
 
 @Entity('shipment_return_inspections')
 @Index(['orderId'], { unique: true })

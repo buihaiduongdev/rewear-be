@@ -1,3 +1,5 @@
+import { HOUR_MS, MINUTE_MS } from '@/common/constants/time.constants';
+
 export const ORDER_STATUS = {
   WAITING: 'waiting',
   PENDING: 'pending',
@@ -45,3 +47,13 @@ export const ORDER_EVENT_ACTION = {
   CANCEL_REVIEW_REQUESTED: 'CANCEL_REVIEW_REQUESTED',
   CANCEL_REVIEW_DECIDED: 'CANCEL_REVIEW_DECIDED',
 } as const;
+
+export const ORDER_POLICY = {
+  DEFAULT_COMMISSION_BASIS_POINTS: 300,
+  SELLER_CONFIRM_WINDOW_MS: 24 * HOUR_MS,
+  HANDOVER_WINDOW_MS: 48 * HOUR_MS,
+  EXPIRY_RETRY_MS: MINUTE_MS,
+} as const;
+
+export const orderStates = Object.values(ORDER_STATUS);
+export const orderEventActions = Object.values(ORDER_EVENT_ACTION);

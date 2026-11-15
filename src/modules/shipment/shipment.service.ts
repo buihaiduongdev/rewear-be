@@ -4,10 +4,14 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
+import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
 import {
-  GhnShipmentClient,
-  GhnShipmentSnapshot,
-} from '@/infrastructure/shipping/ghn-shipment.client';
+  GHN_IN_TRANSIT_STATUSES,
+  GHN_INCIDENT_STATUSES,
+  GHN_RETURN_STATUSES,
+} from '@/infrastructure/shipping/ghn-shipment.constants';
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/ghn-shipment.constants';
+import type { GhnShipmentSnapshot } from '@/infrastructure/shipping/ghn-shipment.type';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { quoteInputs } from '@/modules/checkout/shipping-quote.inputs';
 import { OrderAccess } from '@/modules/order/order.access';
@@ -23,27 +27,15 @@ import type { OrderCancelState, OrderState } from '@/modules/order/order.type';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 
-import type { ShipmentCreateInput } from './schemas/shipment.schema';
+import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import { SHIPMENT_RECOVERY_ACTION } from './shipment.constants';
+import { SHIPMENT_REVIEW_REASON, SHIPMENT_STATE } from './shipment.constants';
 import { Shipment } from './shipment.entity';
+import type { ShipmentCreateInput } from './shipment.type';
 
-const inTransit = new Set([
-  'picked',
-  'storing',
-  'sorting',
-  'transporting',
-  'delivering',
-  'money_collect_delivering',
-  'delivery_fail',
-]);
-const returning = new Set([
-  'waiting_to_return',
-  'return',
-  'return_transporting',
-  'return_sorting',
-  'returning',
-  'return_fail',
-  'returned',
-]);
+const incidentStatuses = new Set<string>(GHN_INCIDENT_STATUSES);
+const inTransit = new Set<string>(GHN_IN_TRANSIT_STATUSES);
+const returning = new Set<string>(GHN_RETURN_STATUSES);
 const bookingBlockedCancelStates: readonly OrderCancelState[] = [
   ORDER_CANCEL_STATE.PENDING,
   ORDER_CANCEL_STATE.APPROVED,
@@ -163,8 +155,10 @@ export class ShipmentService {
           quotedParcel: prepared.quotedParcel,
           payload: { ...payload },
           codAmount,
-          state: 'CREATING',
-          nextQueryAt: new Date(now.getTime() + 75000),
+          state: SHIPMENT_STATE.CREATING,
+          nextQueryAt: new Date(
+            now.getTime() + FULFILLMENT_POLICY.QUERY_LEASE_MS,
+          ),
         }),
       );
       return { row, send: true };
@@ -178,12 +172,15 @@ export class ShipmentService {
           id: saved.row.id,
         });
         if (row.orderCode && row.orderCode !== response.orderCode) {
-          row.reviewReason = 'CARRIER_REFERENCE_MISMATCH';
+          row.reviewReason = SHIPMENT_REVIEW_REASON.CARRIER_REFERENCE_MISMATCH;
         } else {
           row.orderCode = response.orderCode;
           row.carrierFee = response.fee;
-          if (row.state === 'CREATING' || row.state === 'UNKNOWN')
-            row.state = 'BOOKED';
+          if (
+            row.state === SHIPMENT_STATE.CREATING ||
+            row.state === SHIPMENT_STATE.UNKNOWN
+          )
+            row.state = SHIPMENT_STATE.BOOKED;
         }
         row.nextQueryAt = await this.now(manager);
         await manager.save(row);
@@ -191,7 +188,10 @@ export class ShipmentService {
     } catch {
       await this.db
         .getRepository(Shipment)
-        .update({ id: saved.row.id, state: 'CREATING' }, { state: 'UNKNOWN' });
+        .update(
+          { id: saved.row.id, state: SHIPMENT_STATE.CREATING },
+          { state: SHIPMENT_STATE.UNKNOWN },
+        );
     }
     return this.view(
       await this.db
@@ -224,7 +224,7 @@ export class ShipmentService {
     const row = await this.db
       .getRepository(Shipment)
       .findOneByOrFail({ orderId });
-    if (!row.orderCode || row.state !== 'BOOKED')
+    if (!row.orderCode || row.state !== SHIPMENT_STATE.BOOKED)
       throw new ConflictException('Confirmed carrier booking is required');
     return this.carrier.print(row.orderCode);
   }
@@ -237,10 +237,12 @@ export class ShipmentService {
       if (
         !row.nextQueryAt ||
         row.nextQueryAt > now ||
-        row.state === 'CANCELLED'
+        row.state === SHIPMENT_STATE.CANCELLED
       )
         return null;
-      row.nextQueryAt = new Date(now.getTime() + 75000);
+      row.nextQueryAt = new Date(
+        now.getTime() + FULFILLMENT_POLICY.QUERY_LEASE_MS,
+      );
       await manager.save(row);
       return row;
     });
@@ -250,10 +252,10 @@ export class ShipmentService {
       const cancellation = await this.apply(id, snapshot);
       if (
         cancellation &&
-        snapshot.status !== 'cancel' &&
-        snapshot.status !== 'returned'
+        snapshot.status !== GHN_SHIPMENT_STATUS.CANCEL &&
+        snapshot.status !== GHN_SHIPMENT_STATUS.RETURNED
       ) {
-        if (cancellation === 'return')
+        if (cancellation === SHIPMENT_RECOVERY_ACTION.RETURN)
           await this.carrier.requestReturn(snapshot.orderCode);
         else await this.carrier.cancel(snapshot.orderCode);
         snapshot = await this.carrier.query(id);
@@ -271,16 +273,19 @@ export class ShipmentService {
       const order = await manager.findOneByOrFail(Order, { id: row.orderId });
       const now = await this.now(manager);
       const updatedAt = new Date(snapshot.updatedAt);
-      row.nextQueryAt = new Date(now.getTime() + 60000);
+      row.nextQueryAt = new Date(
+        now.getTime() + FULFILLMENT_POLICY.QUERY_INTERVAL_MS,
+      );
       if (
         snapshot.clientCode !== id ||
         snapshot.codAmount !== row.codAmount ||
         snapshot.paymentType !== 1 ||
         (row.orderCode && row.orderCode !== snapshot.orderCode) ||
         !Number.isFinite(updatedAt.getTime()) ||
-        updatedAt.getTime() > now.getTime() + 300000
+        updatedAt.getTime() >
+          now.getTime() + FULFILLMENT_POLICY.PROVIDER_CLOCK_TOLERANCE_MS
       ) {
-        row.reviewReason = 'CARRIER_DATA_MISMATCH';
+        row.reviewReason = SHIPMENT_REVIEW_REASON.CARRIER_DATA_MISMATCH;
         await manager.save(row);
         return false;
       }
@@ -291,14 +296,17 @@ export class ShipmentService {
       row.orderCode = snapshot.orderCode;
       row.providerStatus = snapshot.status;
       row.providerUpdatedAt = updatedAt;
-      if (row.state === 'CREATING' || row.state === 'UNKNOWN')
-        row.state = 'BOOKED';
+      if (
+        row.state === SHIPMENT_STATE.CREATING ||
+        row.state === SHIPMENT_STATE.UNKNOWN
+      )
+        row.state = SHIPMENT_STATE.BOOKED;
       if (snapshot.codCollected && snapshot.collectedAt)
         row.codCollectedAt ??= new Date(snapshot.collectedAt);
       if (snapshot.codTransferred && snapshot.transferredAt)
         row.carrierTransferredAt ??= new Date(snapshot.transferredAt);
       if (
-        snapshot.status === 'delivered' ||
+        snapshot.status === GHN_SHIPMENT_STATUS.DELIVERED ||
         inTransit.has(snapshot.status) ||
         returning.has(snapshot.status)
       ) {
@@ -308,13 +316,13 @@ export class ShipmentService {
           order.cancelState === ORDER_CANCEL_STATE.APPROVED
         ) {
           row.returnRequestedAt ??= now;
-          row.reviewReason = 'PICKED_DURING_CANCELLATION';
+          row.reviewReason = SHIPMENT_REVIEW_REASON.PICKED_DURING_CANCELLATION;
         }
         if (
           order.cancelState &&
           order.cancelState !== ORDER_CANCEL_STATE.CLOSED
         )
-          row.reviewReason = 'PICKED_DURING_CANCELLATION';
+          row.reviewReason = SHIPMENT_REVIEW_REASON.PICKED_DURING_CANCELLATION;
         if (
           order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
           order.handoverBy &&
@@ -324,7 +332,7 @@ export class ShipmentService {
           order.handoverReviewRequired = true;
       }
       if (
-        snapshot.status === 'delivered' &&
+        snapshot.status === GHN_SHIPMENT_STATUS.DELIVERED &&
         !deliveryTerminalStatuses.includes(order.status)
       ) {
         order.status = ORDER_STATUS.DELIVERED;
@@ -353,8 +361,10 @@ export class ShipmentService {
         !returnTerminalStatuses.includes(order.status)
       ) {
         order.status = ORDER_STATUS.RETURNS;
-        row.reviewReason ??= 'RETURN_REQUIRES_RECONCILIATION';
-        if (snapshot.status === 'returned') order.carrierReturnedAt ??= now;
+        row.reviewReason ??=
+          SHIPMENT_REVIEW_REASON.RETURN_REQUIRES_RECONCILIATION;
+        if (snapshot.status === GHN_SHIPMENT_STATUS.RETURNED)
+          order.carrierReturnedAt ??= now;
         await this.event(manager, order.id, ORDER_EVENT_ACTION.RETURNING, now);
       } else if (
         inTransit.has(snapshot.status) &&
@@ -362,7 +372,7 @@ export class ShipmentService {
       ) {
         order.status = ORDER_STATUS.SHIPPING;
         await this.event(manager, order.id, ORDER_EVENT_ACTION.SHIPPING, now);
-      } else if (snapshot.status === 'cancel') {
+      } else if (snapshot.status === GHN_SHIPMENT_STATUS.CANCEL) {
         if (
           row.cancelRequestedAt &&
           !row.pickedObservedAt &&
@@ -372,30 +382,32 @@ export class ShipmentService {
           order.cancelState === ORDER_CANCEL_STATE.APPROVED
         ) {
           await this.orders.cancelCodVerified(manager, order, now);
-          row.state = 'CANCELLED';
+          row.state = SHIPMENT_STATE.CANCELLED;
           row.nextQueryAt = null;
-        } else row.reviewReason ??= 'UNEXPECTED_CARRIER_CANCELLATION';
-      } else if (
-        ['lost', 'damage', 'scrap', 'exception'].includes(snapshot.status)
-      )
-        row.reviewReason = 'CARRIER_INCIDENT';
+        } else
+          row.reviewReason ??=
+            SHIPMENT_REVIEW_REASON.UNEXPECTED_CARRIER_CANCELLATION;
+      } else if (incidentStatuses.has(snapshot.status))
+        row.reviewReason = SHIPMENT_REVIEW_REASON.CARRIER_INCIDENT;
       if (
         row.cancelRequestedAt &&
-        now.getTime() - row.cancelRequestedAt.getTime() >= 1800000 &&
-        row.state !== 'CANCELLED'
+        now.getTime() - row.cancelRequestedAt.getTime() >=
+          FULFILLMENT_POLICY.UNKNOWN_ESCALATION_MS &&
+        row.state !== SHIPMENT_STATE.CANCELLED
       )
-        row.reviewReason ??= 'CANCELLATION_UNRESOLVED_30_MINUTES';
+        row.reviewReason ??=
+          SHIPMENT_REVIEW_REASON.CANCELLATION_UNRESOLVED_30_MINUTES;
       await manager.save(order);
       await manager.save(row);
       return row.returnRequestedAt &&
         !row.codCollectedAt &&
         !row.carrierTransferredAt &&
-        snapshot.status !== 'delivered'
-        ? 'return'
-        : row.state === 'CANCEL_PENDING' &&
+        snapshot.status !== GHN_SHIPMENT_STATUS.DELIVERED
+        ? SHIPMENT_RECOVERY_ACTION.RETURN
+        : row.state === SHIPMENT_STATE.CANCEL_PENDING &&
             !row.pickedObservedAt &&
             order.cancelState === ORDER_CANCEL_STATE.APPROVED
-          ? 'cancel'
+          ? SHIPMENT_RECOVERY_ACTION.CANCEL
           : false;
     });
   }
@@ -431,25 +443,31 @@ export class ShipmentService {
     const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
     // Escalate by elapsed DB time even if GHN never returns a usable snapshot.
     // A query timeout must not hide the very cancellation incident it caused.
-    const cutoff = new Date(new Date(now).getTime() - 1800000);
+    const cutoff = new Date(
+      new Date(now).getTime() - FULFILLMENT_POLICY.UNKNOWN_ESCALATION_MS,
+    );
     await this.db
       .getRepository(Shipment)
       .createQueryBuilder()
       .update()
-      .set({ reviewReason: 'CANCELLATION_UNRESOLVED_30_MINUTES' })
+      .set({
+        reviewReason: SHIPMENT_REVIEW_REASON.CANCELLATION_UNRESOLVED_30_MINUTES,
+      })
       .where(
         'state = :state AND "cancelRequestedAt" <= :cutoff AND "reviewReason" IS NULL',
-        { state: 'CANCEL_PENDING', cutoff },
+        { state: SHIPMENT_STATE.CANCEL_PENDING, cutoff },
       )
       .execute();
     await this.db
       .getRepository(Shipment)
       .createQueryBuilder()
       .update()
-      .set({ reviewReason: 'BOOKING_UNRESOLVED_30_MINUTES' })
+      .set({
+        reviewReason: SHIPMENT_REVIEW_REASON.BOOKING_UNRESOLVED_30_MINUTES,
+      })
       .where(
         'state IN (:...states) AND "createdAt" <= :cutoff AND "reviewReason" IS NULL',
-        { states: ['CREATING', 'UNKNOWN'], cutoff },
+        { states: [SHIPMENT_STATE.CREATING, SHIPMENT_STATE.UNKNOWN], cutoff },
       )
       .execute();
     const rows = await this.db

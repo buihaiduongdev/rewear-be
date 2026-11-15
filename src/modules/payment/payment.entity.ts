@@ -2,22 +2,15 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+
 import type {
-  CheckoutAddress,
-  CheckoutItem,
-} from '@/modules/checkout/types/checkout.type';
+  AttemptState,
+  PaymentOrderSnapshot,
+  RefundReason,
+  RefundState,
+} from './payment.type';
 
-import type { AttemptState } from './payment.policy';
-
-export interface PaymentOrderSnapshot {
-  checkoutOrderId: string;
-  shopId: string;
-  shopName: string;
-  subtotal: number;
-  shippingFee: number;
-  address: CheckoutAddress;
-  items: CheckoutItem[];
-}
+export type { PaymentOrderSnapshot } from './payment.type';
 
 @Entity('payment_attempts')
 @Index(['checkoutId', 'requestId'], { unique: true })
@@ -84,10 +77,10 @@ export class PaymentRefund extends BaseEntity {
   amount: number;
 
   @Column({ type: 'varchar', length: 32 })
-  reason: 'LATE_OR_INVALID_CAPTURE';
+  reason: RefundReason;
 
   @Column({ type: 'varchar', length: 24 })
-  state: 'QUEUED' | 'UNKNOWN' | 'COMPLETED' | 'REVIEW_REQUIRED';
+  state: RefundState;
 
   @Column('timestamptz')
   nextQueryAt: Date;

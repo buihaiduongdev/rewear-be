@@ -1,40 +1,45 @@
 import z from 'zod';
 
+import { MONEY_CURRENCY } from '@/common/constants/money.constants';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
-export const quoteReasonSchema = z.enum([
-  'PACKAGE_REQUIRED',
-  'PARCEL_LIMIT_EXCEEDED',
-  'PICKUP_REQUIRED',
-  'DECLARED_VALUE_LIMIT',
-  'ADDRESS_MAPPING_UNAVAILABLE',
-  'CARRIER_NOT_CONFIGURED',
-  'CARRIER_REJECTED',
-  'CARRIER_UNAVAILABLE',
-]);
+import {
+  SHIPPING_QUOTE_CARRIER,
+  SHIPPING_QUOTE_ENVIRONMENT,
+  SHIPPING_QUOTE_ORDER_STATUS,
+  SHIPPING_QUOTE_PARCEL_METHOD,
+  SHIPPING_QUOTE_REASON,
+  SHIPPING_QUOTE_STATUS,
+} from '../shipping-quote.constants';
+
+export const quoteReasonSchema = z.enum(SHIPPING_QUOTE_REASON);
 export const quoteOrderSchema = z.object({
   orderId: z.uuid(),
   shopId: z.uuid(),
   parcel: resolvedShippingPackageSchema.nullable(),
   parcelCount: z.literal(1),
   itemCount: z.number().int().positive(),
-  status: z.enum(['QUOTED', 'UNAVAILABLE']),
+  status: z.enum(SHIPPING_QUOTE_ORDER_STATUS),
   reason: quoteReasonSchema.nullable(),
   fee: z.number().int().nonnegative().nullable(),
   estimatedDeliveryAt: z.string().nullable(),
 });
 export const shippingQuoteSchema = z.object({
-  status: z.enum(['READY', 'PARTIAL', 'UNAVAILABLE']),
-  environment: z.literal('SANDBOX'),
-  carrier: z.literal('GHN'),
-  parcelMethod: z.literal('BOUNDING_STACK_V1'),
+  status: z.enum(SHIPPING_QUOTE_STATUS),
+  environment: z.literal(SHIPPING_QUOTE_ENVIRONMENT.SANDBOX),
+  carrier: z.literal(SHIPPING_QUOTE_CARRIER.GHN),
+  parcelMethod: z.literal(SHIPPING_QUOTE_PARCEL_METHOD.BOUNDING_STACK_V1),
   quotedAt: z.string(),
   orders: z.array(quoteOrderSchema),
   totalShippingFee: z.number().int().nonnegative().nullable(),
   grandTotal: z.number().int().nonnegative().nullable(),
-  currency: z.literal('VND'),
+  currency: z.literal(MONEY_CURRENCY.VND),
   paymentReady: z.literal(false),
 });
-export type ShippingQuoteResult = z.output<typeof shippingQuoteSchema>;
-export type QuoteOrder = z.output<typeof quoteOrderSchema>;
+
 export const refreshShippingQuoteSchema = z.strictObject({});
+
+export type {
+  ShippingQuoteResult,
+  QuoteOrder,
+} from '../types/shipping-quote.type';

@@ -2,6 +2,9 @@ import { Column, Entity, Index } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
+import { COD_RESTRICTION_CAUSE } from './cod.constants';
+import type { CodRestrictionCause } from './cod.type';
+
 @Entity('cod_buyer_cancellations')
 @Index(['buyerId', 'checkoutId'], { unique: true })
 @Index(['buyerId', 'createdAt'])
@@ -19,8 +22,12 @@ export class CodRestriction extends BaseEntity {
   @Column('uuid')
   buyerId: string;
 
-  @Column({ type: 'varchar', length: 30, default: 'REPEATED_CANCELLATION' })
-  cause: 'REPEATED_CANCELLATION';
+  @Column({
+    type: 'varchar',
+    length: 30,
+    default: COD_RESTRICTION_CAUSE.REPEATED_CANCELLATION,
+  })
+  cause: CodRestrictionCause;
 
   @Column({ type: 'timestamptz', nullable: true })
   blockedUntil: Date | null;

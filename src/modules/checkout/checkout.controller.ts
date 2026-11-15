@@ -19,12 +19,12 @@ import {
   checkoutSchema,
   createCheckoutSchema,
 } from './schemas/checkout.schema';
-import type { CreateCheckoutInput } from './schemas/checkout.schema';
 import {
   refreshShippingQuoteSchema,
   shippingQuoteSchema,
 } from './schemas/shipping-quote.schema';
 import { ShippingQuoteService } from './shipping-quote.service';
+import type { CreateCheckoutInput } from './types/checkout.type';
 
 @ApiTags('Checkout')
 @ApiBearerAuth()

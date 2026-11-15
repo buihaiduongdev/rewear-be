@@ -1,6 +1,7 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import type { ReconciliationReviewReason } from '@/modules/cod-reconciliation/cod-reconciliation.type';
 import { Order } from '@/modules/order/order.entity';
 import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
@@ -8,7 +9,7 @@ import { Shop } from '@/modules/shop/entities';
 import type {
   CodReconciliationStatus,
   ReconciliationMode,
-} from './cod-reconciliation.constants';
+} from './cod-reconciliation.type';
 
 @Entity('cod_collections')
 @Index(['orderId'], { unique: true })
@@ -71,7 +72,7 @@ export class CodCollection extends BaseEntity {
   @Column({ type: 'varchar', length: 64 })
   orderFingerprint: string;
   @Column({ type: 'text', nullable: true })
-  reviewReason: string | null;
+  reviewReason: ReconciliationReviewReason | null;
   @Column({ type: 'timestamptz', nullable: true })
   fundedAt: Date | null;
 }

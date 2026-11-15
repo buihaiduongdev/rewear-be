@@ -23,7 +23,7 @@ import { UserRole } from '@/modules/user/enums';
 
 import { CodPolicy } from './cod.policy';
 import { CodService } from './cod.service';
-import type { CancelCodInput, PlaceCodInput } from './schemas/cod.schema';
+import type { CancelCodInput, PlaceCodInput } from './cod.type';
 import {
   cancelCodSchema,
   codRestrictionsSchema,

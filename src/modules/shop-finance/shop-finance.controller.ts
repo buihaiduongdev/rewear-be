@@ -4,8 +4,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
+import type { FinanceListInput } from '@/modules/cod-reconciliation/cod-reconciliation.type';
 import { financeListSchema } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type { FinanceListInput } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { User } from '@/modules/user/entities';
 
 import { shopFinanceViewSchema } from './shop-finance.schema';

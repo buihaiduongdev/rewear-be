@@ -1,7 +1,8 @@
 import type { EntityManager } from 'typeorm';
 
+import { VIETNAM_UTC_OFFSET_MS } from '@/common/constants/time.constants';
+
 import { businessDeadline } from './business-calendar';
-import { HOUR_MS } from './late-handover.constants';
 import { FulfillmentCalendar } from './late-handover.entity';
 
 /** A missing approved year must never turn into an assumed holiday schedule. */
@@ -10,7 +11,9 @@ export async function fulfillmentDeadline(
   recordedAt: Date,
   days: number,
 ): Promise<Date | null> {
-  const year = new Date(recordedAt.getTime() + 7 * HOUR_MS).getUTCFullYear();
+  const year = new Date(
+    recordedAt.getTime() + VIETNAM_UTC_OFFSET_MS,
+  ).getUTCFullYear();
   const current = await manager.findOneBy(FulfillmentCalendar, { year });
   if (!current) return null;
   const next = await manager.findOneBy(FulfillmentCalendar, { year: year + 1 });
@@ -18,6 +21,8 @@ export async function fulfillmentDeadline(
     ...current.closedDates,
     ...(next?.closedDates ?? []),
   ]);
-  const dueYear = new Date(due.getTime() + 7 * HOUR_MS).getUTCFullYear();
+  const dueYear = new Date(
+    due.getTime() + VIETNAM_UTC_OFFSET_MS,
+  ).getUTCFullYear();
   return dueYear === year || (dueYear === year + 1 && next) ? due : null;
 }

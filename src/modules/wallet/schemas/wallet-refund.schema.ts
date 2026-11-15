@@ -1,13 +1,12 @@
 import z from 'zod';
 
-// VND is stored as a PostgreSQL integer on Order/WalletCredit.
-const orderAmountSchema = z.number().int().nonnegative().max(2147483647);
+import { vndAmountSchema } from '@/common/schemas/money.schema';
 
 export const orderRefundSchema = z
   .object({
-    subtotal: orderAmountSchema,
-    shippingFee: orderAmountSchema,
-    total: orderAmountSchema,
+    subtotal: vndAmountSchema,
+    shippingFee: vndAmountSchema,
+    total: vndAmountSchema,
   })
   .refine((order) => order.total === order.subtotal + order.shippingFee, {
     path: ['total'],

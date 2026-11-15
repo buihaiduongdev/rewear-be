@@ -12,8 +12,10 @@ import {
 import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 
-import type { CancellationDecision } from './schemas/shipment.schema';
+import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import { SHIPMENT_REVIEW_REASON, SHIPMENT_STATE } from './shipment.constants';
 import { Shipment } from './shipment.entity';
+import type { CancellationDecision } from './shipment.type';
 
 @Injectable()
 export class ShipmentCancellationService {
@@ -47,7 +49,9 @@ export class ShipmentCancellationService {
       const now = await this.now(manager);
       order.cancelState = ORDER_CANCEL_STATE.PENDING;
       order.cancelRequestedAt = now;
-      order.cancelRespondBy = new Date(now.getTime() + 12 * 3600000);
+      order.cancelRespondBy = new Date(
+        now.getTime() + FULFILLMENT_POLICY.CANCELLATION_RESPONSE_MS,
+      );
       await this.audit(
         manager,
         order,
@@ -93,7 +97,9 @@ export class ShipmentCancellationService {
       if (input.approve || expired) await this.approve(manager, order, now);
       else {
         order.cancelState = ORDER_CANCEL_STATE.REJECTED;
-        order.cancelReviewUntil = new Date(now.getTime() + 4 * 3600000);
+        order.cancelReviewUntil = new Date(
+          now.getTime() + FULFILLMENT_POLICY.CANCELLATION_REVIEW_MS,
+        );
         await manager.save(order);
       }
       return order;
@@ -173,10 +179,10 @@ export class ShipmentCancellationService {
       return;
     }
     shipment.cancelRequestedAt ??= now;
-    shipment.state = 'CANCEL_PENDING';
+    shipment.state = SHIPMENT_STATE.CANCEL_PENDING;
     shipment.nextQueryAt = now;
     if (shipment.pickedObservedAt)
-      shipment.reviewReason = 'PICKED_DURING_CANCELLATION';
+      shipment.reviewReason = SHIPMENT_REVIEW_REASON.PICKED_DURING_CANCELLATION;
     await manager.save(order);
     await manager.save(shipment);
   }

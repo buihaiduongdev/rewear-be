@@ -3,14 +3,10 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 
 import { Shipment } from './shipment.entity';
+import type { CarrierIncidentAudit } from './shipment.type';
+import type { CarrierIncidentState } from './shipment.type';
 
-export interface CarrierIncidentAudit {
-  outcome: 'CANCELLED_BEFORE_PICKUP' | 'KEEP_REVIEW';
-  actorId: string;
-  at: string;
-  reason: string;
-  evidence: string;
-}
+export type { CarrierIncidentAudit } from './shipment.type';
 
 @Entity('carrier_incidents')
 @Index(['shipmentId'], { unique: true })
@@ -23,7 +19,7 @@ export class CarrierIncident extends BaseEntity {
   shipment: Shipment;
 
   @Column({ type: 'varchar', length: 16 })
-  state: 'REVIEW' | 'RESOLVED';
+  state: CarrierIncidentState;
 
   @Column('timestamptz')
   openedAt: Date;

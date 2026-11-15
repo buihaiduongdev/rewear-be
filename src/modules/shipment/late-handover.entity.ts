@@ -10,7 +10,9 @@ import {
 import { BaseEntity } from '@/common/entities';
 import { Order } from '@/modules/order/order.entity';
 
-import type { HandoverState } from './late-handover.constants';
+import type { HandoverAudit } from './late-handover.type';
+import type { HandoverAction } from './late-handover.type';
+import type { HandoverState } from './late-handover.type';
 
 @Entity('fulfillment_calendars')
 export class FulfillmentCalendar {
@@ -27,13 +29,7 @@ export class FulfillmentCalendar {
   approvedBy: string;
 }
 
-export interface HandoverAudit {
-  action: string;
-  actorId: string | null;
-  at: string;
-  reason: string;
-  evidence?: string;
-}
+export type { HandoverAudit } from './late-handover.type';
 
 @Entity('fulfillment_notices')
 @Index(['orderId', 'recipientId', 'action'], { unique: true })
@@ -50,7 +46,7 @@ export class FulfillmentNotice extends BaseEntity {
   recipientId: string;
 
   @Column({ type: 'varchar', length: 40 })
-  action: string;
+  action: HandoverAction;
 
   @Column('text')
   reason: string;

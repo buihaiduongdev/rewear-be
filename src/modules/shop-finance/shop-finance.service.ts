@@ -2,16 +2,17 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
+import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
 } from '@/modules/cod-reconciliation/cod-reconciliation.constants';
 import { CodCollection } from '@/modules/cod-reconciliation/cod-reconciliation.entity';
+import type { FinanceListInput } from '@/modules/cod-reconciliation/cod-reconciliation.type';
 import {
   collectionViewSchema,
   financeListSchema,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type { FinanceListInput } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { OrderAccess } from '@/modules/order/order.access';
 
 import { ShopLedgerEntry } from './shop-ledger.entity';
@@ -51,7 +52,10 @@ export class ShopFinanceService {
         .getRawOne<{ total: string }>();
       const held = Number(heldRow?.total ?? 0),
         receivable = Number(pending?.total ?? 0);
-      if (!Number.isSafeInteger(held) || !Number.isSafeInteger(receivable))
+      if (
+        !safeBalanceSchema.safeParse(held).success ||
+        !safeBalanceSchema.safeParse(receivable).success
+      )
         throw new ConflictException('Shop totals exceed safe amount range');
       const entries = await manager.find(ShopLedgerEntry, {
         where: { shopId, mode },

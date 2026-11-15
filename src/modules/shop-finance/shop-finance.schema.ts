@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
+import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
@@ -13,8 +14,8 @@ import {
 export const shopFinanceViewSchema = z.object({
   shopId: z.uuid(),
   mode: z.enum(RECONCILIATION_MODE),
-  held: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  receivable: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  held: safeBalanceSchema,
+  receivable: safeBalanceSchema,
   available: z.literal(0),
   entries: z.array(
     z.object({

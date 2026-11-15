@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constants';
+
 import { vndSchema } from './cod-reconciliation.schema';
 
 export const reconciliationMoneySchema = z
@@ -7,7 +9,7 @@ export const reconciliationMoneySchema = z
     subtotal: vndSchema,
     shippingFee: vndSchema,
     total: vndSchema,
-    commissionBasisPoints: z.number().int().min(0).max(10000),
+    commissionBasisPoints: z.number().int().min(0).max(BASIS_POINTS_SCALE),
     items: z
       .array(z.object({ productId: z.string().min(1), price: vndSchema }))
       .max(100),

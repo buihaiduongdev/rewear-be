@@ -4,10 +4,15 @@ import { EntityManager } from 'typeorm';
 
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
+import type { ShippingQuoteResult } from '@/modules/checkout/types/shipping-quote.type';
 
-import type { PaymentOrderSnapshot } from './payment.entity';
+import {
+  SHIPPING_QUOTE_MAX_AGE_MS,
+  SHIPPING_QUOTE_ORDER_STATUS,
+  SHIPPING_QUOTE_STATUS,
+} from '../checkout/shipping-quote.constants';
+import type { PaymentOrderSnapshot } from './payment.type';
 
 // Never accept a client amount, fee or quote object as an authoritative price.
 @Injectable()
@@ -37,10 +42,10 @@ export class PaymentPricing {
     if (
       !orders.length ||
       prepared.checkoutId !== checkout.id ||
-      quote.status !== 'READY' ||
+      quote.status !== SHIPPING_QUOTE_STATUS.READY ||
       !Number.isFinite(age) ||
       age < 0 ||
-      age > 30000 ||
+      age > SHIPPING_QUOTE_MAX_AGE_MS ||
       quote.orders.length !== orders.length ||
       new Set(quote.orders.map((row) => row.orderId)).size !== orders.length
     )
@@ -51,7 +56,7 @@ export class PaymentPricing {
         !row ||
         row.shopId !== order.shopId ||
         !order.shop ||
-        row.status !== 'QUOTED' ||
+        row.status !== SHIPPING_QUOTE_ORDER_STATUS.QUOTED ||
         !Number.isSafeInteger(row.fee) ||
         row.fee! < 0
       )

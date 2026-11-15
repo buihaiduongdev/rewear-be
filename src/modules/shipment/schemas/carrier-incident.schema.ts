@@ -3,19 +3,21 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
+import {
+  CARRIER_INCIDENT_OUTCOME,
+  CARRIER_INCIDENT_STATE,
+} from '../shipment.constants';
+
 export const carrierIncidentDecisionSchema = z.strictObject({
-  outcome: z.enum(['CANCELLED_BEFORE_PICKUP', 'KEEP_REVIEW']),
+  outcome: z.enum(CARRIER_INCIDENT_OUTCOME),
   reason: trimmedTextSchema.min(1).max(2000),
   evidence: trimmedTextSchema.min(1).max(4000),
 });
-export type CarrierIncidentDecision = z.output<
-  typeof carrierIncidentDecisionSchema
->;
 
 export const carrierIncidentSchema = z.object({
   id: z.uuid(),
   shipmentId: z.uuid(),
-  state: z.enum(['REVIEW', 'RESOLVED']),
+  state: z.enum(CARRIER_INCIDENT_STATE),
   openedAt: dateTimeSchema,
   reviewDueAt: dateTimeSchema.nullable(),
   calendarMissing: z.boolean(),
@@ -27,3 +29,5 @@ export const carrierIncidentSchema = z.object({
     }),
   ),
 });
+
+export type { CarrierIncidentDecision } from '../shipment.type';

@@ -24,7 +24,6 @@ import {
   returnInspectionSchema,
   returnInspectionViewSchema,
 } from './schemas/return-inspection.schema';
-import type { ReturnInspectionInput } from './schemas/return-inspection.schema';
 import {
   cancellationDecisionSchema,
   fulfillmentIncidentsSchema,
@@ -32,13 +31,14 @@ import {
   shipmentCreateSchema,
   shipmentViewSchema,
 } from './schemas/shipment.schema';
-import type {
-  CancellationDecision,
-  ShipmentCreateInput,
-} from './schemas/shipment.schema';
 import { ShipmentCancellationService } from './shipment-cancellation.service';
 import { ShipmentReturnInspectionService } from './shipment-return-inspection.service';
 import { ShipmentService } from './shipment.service';
+import type { ReturnInspectionInput } from './shipment.type';
+import type {
+  CancellationDecision,
+  ShipmentCreateInput,
+} from './shipment.type';
 
 @ApiTags('Shipments')
 @ApiBearerAuth()

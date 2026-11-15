@@ -1,5 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constants';
+
 import { reconciliationMoneySchema } from './schemas/cod-money.schema';
 
 export function reconciliationMoney(input: unknown) {
@@ -10,7 +12,8 @@ export function reconciliationMoney(input: unknown) {
     order.items.reduce(
       (sum, item) =>
         sum +
-        (BigInt(item.price) * BigInt(order.commissionBasisPoints)) / 10000n,
+        (BigInt(item.price) * BigInt(order.commissionBasisPoints)) /
+          BigInt(BASIS_POINTS_SCALE),
       0n,
     ),
   );
