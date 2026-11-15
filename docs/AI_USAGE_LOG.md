@@ -693,3 +693,16 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests với PostgreSQL; chạy `pnpm test:e2e` và `pnpm seed` trên database thử nghiệm.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #36](https://github.com/buihaiduongdev/rewear-be/pull/36), nhánh `refactor/seed-factories`.
+
+### 2026-11-15 — Tách hằng số media và đơn giản hóa kiểm tra storage key
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash).
+- **Mục đích và phạm vi:** Chuẩn hóa hằng số module Media (MAX_PRODUCT_MEDIA, SUPPORTED_IMAGE_EXTENSIONS) sang thư mục constants riêng theo SRP; đơn giản hóa hàm kiểm tra storageKey khi confirm upload ảnh sản phẩm.
+- **Prompt chính:** Rà soát và tách các hằng số cấu hình trong MediaService sang constants riêng theo nguyên lý SRP, tái sử dụng MAX_PRODUCT_MEDIA trong reorderMediaSchema; đơn giản hóa hàm validateStorageKey bằng các phép kiểm tra chuỗi trực tiếp (prefix, extension, không chứa thư mục con) thay cho regex UUID phức tạp, bổ sung unit test cho các trường hợp biên.
+- **Đầu ra AI được sử dụng:** Tạo `src/modules/media/constants/media.constant.ts`, export qua barrel file; cập nhật `media.service.ts` và `media-input.schema.ts`; cập nhật và thêm test case cho `media.service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng giữ kiến trúc Cloudflare R2 Presigned URL an toàn và gọn gàng, tránh regex overengineering khi BE đã có thể kiểm tra trực tiếp prefix và extension hợp lệ.
+- **Cách kiểm chứng:** Chạy `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Nest build), `pnpm test:unit` pass 18 suites, 132 tests.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #37, branch `refactor/simplify-media-confirm`.
+
