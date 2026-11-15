@@ -692,4 +692,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn cấu trúc factory và seed đã quen thuộc để dễ review và bảo trì.
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests với PostgreSQL; chạy `pnpm test:e2e` và `pnpm seed` trên database thử nghiệm.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Nhánh `refactor/seed-factories`.
+- **Minh chứng:** [PR #36](https://github.com/buihaiduongdev/rewear-be/pull/36), nhánh `refactor/seed-factories`.
