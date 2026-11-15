@@ -4,7 +4,11 @@ import { paginatedSchema } from '@/common/pagination';
 import { dateTimeSchema } from '@/common/schemas';
 import { shippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
-import { ProductCondition, ProductStatus } from '../enums';
+import {
+  ProductCondition,
+  ProductModerationStatus,
+  ProductStatus,
+} from '../enums';
 import { defectSchema, measurementsSchema } from './product-input.schema';
 
 export const productSchema = z.object({
@@ -22,8 +26,6 @@ export const productSchema = z.object({
   shippingPackage: shippingPackageSchema.nullable().default(null),
   repairs: z.string().nullable(),
   defects: z.array(defectSchema),
-  revision: z.number().int().positive(),
-  approvedRevision: z.number().int().positive().nullable(),
   coverUrl: z.url().nullable(),
   mediaCount: z.number().int().nonnegative(),
   status: z.enum(ProductStatus),
@@ -47,17 +49,9 @@ export const productSchema = z.object({
 
 export const productListSchema = paginatedSchema(productSchema);
 
-export const productRevisionSchema = z.object({
-  id: z.uuid(),
+export const productModerationSchema = z.object({
   productId: z.uuid(),
-  revision: z.number().int(),
-  snapshot: z.record(z.string(), z.unknown()),
-  submittedById: z.uuid(),
-  decision: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']),
-  reviewedById: z.uuid().nullable(),
+  status: z.enum(ProductModerationStatus),
+  version: z.number().int().positive(),
   reason: z.string().nullable(),
-  reviewedAt: dateTimeSchema.nullable(),
-  createdAt: dateTimeSchema,
-  updatedAt: dateTimeSchema,
 });
-export const productRevisionListSchema = z.array(productRevisionSchema);

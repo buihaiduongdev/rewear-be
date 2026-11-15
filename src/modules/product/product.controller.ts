@@ -30,7 +30,7 @@ import { ProductService } from './product.service';
 import {
   moderateProductSchema,
   productListSchema,
-  productRevisionListSchema,
+  productModerationSchema,
   productSchema,
   suspendProductSchema,
 } from './schemas';
@@ -82,15 +82,15 @@ export class ProductController {
     return this.productService.findOneForManagement(id, user.id);
   }
 
-  @Get('manage/:id/revisions')
+  @Get('manage/:id/moderation')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Serialize(productRevisionListSchema)
-  revisions(
+  @Serialize(productModerationSchema)
+  moderationForOwner(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.productService.findRevisions(id, user.id);
+    return this.productService.findModeration(id, user.id);
   }
 
   @Get('admin')
@@ -115,16 +115,16 @@ export class ProductController {
     return this.productService.findForReview(id, user.id);
   }
 
-  @Get('admin/:id/revisions')
+  @Get('admin/:id/moderation')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @Serialize(productRevisionListSchema)
-  reviewHistory(
+  @Serialize(productModerationSchema)
+  moderationForAdmin(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.productService.findRevisions(id, user.id, true);
+    return this.productService.findModeration(id, user.id, true);
   }
 
   @Post(':id/submit')

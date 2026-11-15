@@ -634,6 +634,41 @@
 - **Kiểm chứng:** Typecheck, Nest build, Oxlint, Prettier và git diff check pass; 23 Jest suites/146 tests trên PostgreSQL 18 với database riêng rewear_test; 22 Node tests pass. Sáu payment integration tests dùng pricing/shipping service thật, HTTP provider giả lập; gồm phí mới, tên Shop hiện tại, lỗi báo phí và hủy checkout khi đang chờ GHN. Review độc lập không tìm thấy blocker. Có cảnh báo experimental Node và pg deprecation, không có test fail.
 - **Giới hạn:** MoMo vẫn mặc định tắt, chưa có giao dịch Sandbox thật; frontend cần cập nhật theo API Shop mới. Không reset database dev hay triển khai production.
 
+### 2026-11-14 — Tính thông tin ảnh sản phẩm trong service
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Đưa xử lý ảnh bìa và số lượng ảnh ra khỏi entity sản phẩm.
+- **Prompt chính:** Chuyển việc tạo thông tin ảnh trong response từ entity sang service để dễ đọc.
+- **Đầu ra AI được sử dụng:** Tạo response sản phẩm cùng thông tin ảnh trong ProductService, giữ nguyên dữ liệu trả về API.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách để entity tập trung mô tả dữ liệu và xử lý response trong service.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; chạy riêng E2E.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34), nhánh `refactor/product-media-response`.
+
+### 2026-11-14 — Đơn giản hóa kiểm duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Bỏ lưu lịch sử snapshot kiểm duyệt, dùng nội dung và ảnh hiện tại của sản phẩm.
+- **Prompt chính:** Bỏ ProductRevision và snapshot; giữ số revision hiện có để tránh duyệt nhầm yêu cầu cũ.
+- **Đầu ra AI được sử dụng:** Cập nhật luồng duyệt, giỏ hàng, ảnh và seed; giữ lý do kiểm duyệt hiện tại trên sản phẩm.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn không lưu các phiên bản nội dung đã gửi duyệt; giữ quy tắc hủy trước khi sửa sản phẩm đang chờ duyệt.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL; kiểm tra hủy, gửi lại và duyệt yêu cầu cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Thiết kế snapshot ban đầu phức tạp hơn nhu cầu kiểm duyệt hiện tại.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).
+
+### 2026-11-14 — Tách thông tin kiểm duyệt sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Lưu thông tin duyệt hiện tại trong một bản ghi riêng liên kết sản phẩm.
+- **Prompt chính:** Để moderation giữ productId và thông tin duyệt; Cart chỉ kiểm tra trạng thái sản phẩm, không truy vấn moderation.
+- **Đầu ra AI được sử dụng:** Thêm ProductModeration một-một, chuyển lý do và số lần gửi duyệt sang moderation; cập nhật luồng duyệt, checkout và test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt không lưu snapshot hay khóa ngoại moderation trên Product; cập nhật cùng bản ghi khi gửi duyệt lại.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL, gồm kiểm tra gửi lại và từ chối version cũ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất Cart truy vấn moderation; đã sửa theo hướng Cart chỉ dùng trạng thái sản phẩm.
+- **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).
 ### 2026-11-14 — Đơn giản hóa cấu trúc thông số đóng gói vận chuyển (Shipping Package)
 
 - **Người thực hiện:** Bùi Hải Dương.
