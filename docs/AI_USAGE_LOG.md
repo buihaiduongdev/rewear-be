@@ -693,3 +693,15 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests với PostgreSQL; chạy `pnpm test:e2e` và `pnpm seed` trên database thử nghiệm.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #36](https://github.com/buihaiduongdev/rewear-be/pull/36), nhánh `refactor/seed-factories`.
+
+### 2026-11-15 — Gom cấu trúc database
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Gom data source, module, migrations, seed và factories trong một thư mục database.
+- **Prompt chính:** Gom các thành phần database vào cùng thư mục để cấu trúc thống nhất và dễ đọc.
+- **Đầu ra AI được sử dụng:** Di chuyển data source, module và migrations; cập nhật import và lệnh migration.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách tổ chức thống nhất trong `src/database`.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests; chạy seed và kiểm tra lệnh migration với PostgreSQL.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần refactor seed trước đã để database thành hai thư mục; đã gom lại.
+- **Minh chứng:** Nhánh `refactor/database-structure`.

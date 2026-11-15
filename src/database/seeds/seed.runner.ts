@@ -1,4 +1,4 @@
-import { AppDataSource } from '@/modules/database/data-source';
+import { AppDataSource } from '@/database/data-source';
 
 import { runInitialDataSeed } from './initial-data.seed';
 
