@@ -175,6 +175,6 @@ CORS to allow that header before testing direct uploads.
 
 ## Development seed
 
-Use `pnpm seed` with an explicit `SEED_DATABASE_URL` to populate a development
-PostgreSQL database with accounts, shops, categories, approved products and images.
-See [seed commands, fixture accounts and E2E factory usage](docs/SEEDING.md).
+Run `pnpm seed` to populate the configured database with development accounts,
+shops, categories and products. Run the seed on an empty development database.
+Seeded accounts use the password `RewearSeed123!`.

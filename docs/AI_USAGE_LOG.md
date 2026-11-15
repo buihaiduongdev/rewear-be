@@ -681,3 +681,15 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #35](https://github.com/buihaiduongdev/rewear-be/pull/35), branch `refactor/simplify-shipping-package`.
 
+
+### 2026-11-15 — Tổ chức lại seed và factory
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tổ chức seed và factory theo cấu trúc đã quen thuộc, dễ đọc và tái sử dụng trong test.
+- **Prompt chính:** Refactor seed theo mẫu factory riêng cho từng entity, dùng BaseFactory và seed runner; cập nhật các test liên quan.
+- **Đầu ra AI được sử dụng:** Các factory dùng chung build/create, seed runner và dữ liệu khởi tạo; cập nhật test sử dụng factory.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chọn cấu trúc factory và seed đã quen thuộc để dễ review và bảo trì.
+- **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests với PostgreSQL; chạy `pnpm test:e2e` và `pnpm seed` trên database thử nghiệm.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/seed-factories`.
