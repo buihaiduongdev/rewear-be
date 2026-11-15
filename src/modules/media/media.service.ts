@@ -19,6 +19,7 @@ import type {
 import { ConfigService } from '@/modules/config';
 import { ProductService } from '@/modules/product/product.service';
 
+import { MAX_PRODUCT_MEDIA, SUPPORTED_IMAGE_EXTENSIONS } from './constants';
 import { Media, MediaLink } from './entities';
 import { MediaOwnerType, MediaRole, MediaType } from './enums';
 import type {
@@ -28,17 +29,6 @@ import type {
   UpdateMediaMetadataInput,
 } from './schemas/media-input.schema';
 import type { ProductMediaView } from './types/product-media.type';
-
-const MAX_PRODUCT_MEDIA = 10;
-const UUID_PATTERN =
-  '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
-
-const EXTENSIONS: Readonly<Record<string, string>> = {
-  'image/avif': 'avif',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
 
 @Injectable()
 export class MediaService {
@@ -118,7 +108,7 @@ export class MediaService {
     });
     this.assertMediaCapacity(existingCount);
 
-    const extension = EXTENSIONS[mimeType];
+    const extension = SUPPORTED_IMAGE_EXTENSIONS[mimeType];
     const storageKey = `products/${productId}/${randomUUID()}.${extension}`;
     return this.storageService.createUploadTicket({
       contentType: mimeType,
@@ -366,11 +356,15 @@ export class MediaService {
     storageKey: string,
     mimeType: string,
   ): void {
-    const expectedKey = new RegExp(
-      `^products/${productId}/${UUID_PATTERN}\\.${EXTENSIONS[mimeType]}$`,
-      'i',
-    );
-    if (!expectedKey.test(storageKey)) {
+    const extension = SUPPORTED_IMAGE_EXTENSIONS[mimeType];
+    const prefix = `products/${productId}/`;
+    const suffix = `.${extension}`;
+
+    if (
+      !storageKey.startsWith(prefix) ||
+      !storageKey.toLowerCase().endsWith(suffix) ||
+      storageKey.slice(prefix.length, -suffix.length).includes('/')
+    ) {
       throw new BadRequestException('Invalid product media storage key');
     }
   }

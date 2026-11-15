@@ -8,6 +8,7 @@ import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import type { StorageService, UploadTicket } from '@/infrastructure/storage';
 import type { ConfigService } from '@/modules/config';
+import { MAX_PRODUCT_MEDIA } from '@/modules/media/constants';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
@@ -220,7 +221,7 @@ describe('MediaService', () => {
   });
 
   it('retains an uploaded object for retry when the product reaches its media limit', async () => {
-    manager.count.mockResolvedValueOnce(10);
+    manager.count.mockResolvedValueOnce(MAX_PRODUCT_MEDIA);
 
     await expect(
       service.confirmUpload(productId, userId, {
@@ -230,6 +231,26 @@ describe('MediaService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(storageService.delete).not.toHaveBeenCalled();
+  });
+
+  it('rejects confirming a storage key that does not belong to the product', async () => {
+    await expect(
+      service.confirmUpload(productId, userId, {
+        storageKey: 'products/another-product-id/image.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects confirming a storage key with an invalid or mismatched extension', async () => {
+    await expect(
+      service.confirmUpload(productId, userId, {
+        storageKey: `products/${productId}/image.png`,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('does not delete an object when the same upload is confirmed twice', async () => {
