@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { MAX_PRODUCT_MEDIA } from '../constants';
+
 export const createMediaUploadTicketSchema = z.strictObject({
   mimeType: z.string().max(100),
   sizeBytes: z.number().int().min(1),
@@ -25,7 +27,7 @@ export const confirmMediaUploadSchema = createMediaUploadTicketSchema.extend({
 export const reorderMediaSchema = z.strictObject({
   mediaIds: z
     .array(z.uuidv4())
-    .max(10)
+    .max(MAX_PRODUCT_MEDIA)
     .refine((ids) => new Set(ids).size === ids.length, {
       message: 'mediaIds must contain unique values',
     })
