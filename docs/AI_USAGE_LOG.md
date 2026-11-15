@@ -704,4 +704,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Chọn cách tổ chức thống nhất trong `src/database`.
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests; chạy seed và kiểm tra lệnh migration với PostgreSQL.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần refactor seed trước đã để database thành hai thư mục; đã gom lại.
-- **Minh chứng:** Nhánh `refactor/database-structure`.
+- **Minh chứng:** [PR #38](https://github.com/buihaiduongdev/rewear-be/pull/38), nhánh `refactor/database-structure`.
