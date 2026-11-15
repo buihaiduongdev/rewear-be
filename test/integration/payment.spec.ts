@@ -2,13 +2,16 @@ import { randomUUID } from 'node:crypto';
 
 import { EntityNotFoundError } from 'typeorm';
 
+import { CategoryFactory } from '@/database/factories/category.factory';
+import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserFactory } from '@/database/factories/user.factory';
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
-import { MarketplaceFactory } from '@/modules/database/seeds/factories/marketplace.factory';
 import {
   Order,
   PaymentAttempt,
@@ -49,19 +52,22 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
 
   async function fixture() {
     const db = database.dataSource;
-    const factory = new MarketplaceFactory(randomUUID());
-    const buyer = await db.getRepository(User).save(factory.user(1, 'unused'));
-    const category = await db.getRepository(Category).save(factory.category(0));
-    const shop = await db.getRepository(Shop).save(factory.shop(0));
-    const product = await db
-      .getRepository(Product)
-      .save(
-        factory.product(
-          0,
-          { categoryId: category.id, shopId: shop.id },
-          { status: ProductStatus.ACTIVE },
-        ),
-      );
+    const userFactory = new UserFactory();
+    const categoryFactory = new CategoryFactory();
+    const shopFactory = new ShopFactory();
+    const productFactory = new ProductFactory();
+    const buyer = await db.getRepository(User).save(userFactory.build());
+    const category = await db
+      .getRepository(Category)
+      .save(categoryFactory.build());
+    const shop = await db.getRepository(Shop).save(shopFactory.build());
+    const product = await db.getRepository(Product).save(
+      productFactory.build({
+        categoryId: category.id,
+        shopId: shop.id,
+        status: ProductStatus.ACTIVE,
+      }),
+    );
     const address = {
       recipientName: 'Buyer',
       phone: '0912345678',
