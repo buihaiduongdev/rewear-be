@@ -83,12 +83,11 @@ validation. This API does not yet allow withdrawing/spending available money.
 
 ## Follow-up integration
 
-Dispute/appeal/adjudication is not implemented by this slice. Future case writes
-must acquire the same commerce lock, establish durable blocking status/case
-before committing, and allow timely disputes after early completion. Current
-release checks block dispute/returns order states; this is not a complete case
-workflow. Fee corrections, post-release reversals, bank payouts, coins, exact
-GHN event ingestion and live Sandbox verification remain separate work.
+[Dispute intake, evidence and party responses](DISPUTES.md) now establish durable
+case holds under the same commerce lock, including timely disputes after early
+completion. Release also checks open issue records directly. Adjudication,
+appeals, fee corrections, post-release reversals, bank payouts, coins, exact GHN
+event ingestion and live Sandbox verification remain separate work.
 
 Tests: integration, e2e and unit `order-settlement.spec.ts` suites, dedicated
 local PostgreSQL, real HTTP/JWT permission checks and exact time boundaries.

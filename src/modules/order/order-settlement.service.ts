@@ -3,6 +3,11 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { requiresFulfillmentReview } from '@/modules/cod-reconciliation/policies/cod-funding.policy';
+import { DISPUTE_ISSUE_STATE } from '@/modules/dispute/constants/dispute.constant';
+import {
+  DisputeCase,
+  DisputeIssue,
+} from '@/modules/dispute/entities/dispute.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 
@@ -152,6 +157,18 @@ export class OrderSettlementService {
         shipment &&
         !requiresFulfillmentReview(order, shipment, now);
       if (!canConsider) return null;
+      const hasOpenDispute = await manager
+        .createQueryBuilder(DisputeIssue, 'issue')
+        .innerJoin(DisputeCase, 'dispute', 'dispute.id = issue.caseId')
+        .where('dispute.orderId = :orderId', { orderId })
+        .andWhere('issue.status IN (:...states)', {
+          states: [
+            DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
+            DISPUTE_ISSUE_STATE.ACTIVE,
+          ],
+        })
+        .getExists();
+      if (hasOpenDispute) return null;
       const verification = await manager.findOneBy(OrderDeliveryVerification, {
         orderId,
       });
