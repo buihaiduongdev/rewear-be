@@ -5,19 +5,19 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { Category } from '@/modules/category/entities';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShipmentCancellationService } from '@/modules/shipment/shipment-cancellation.service';
-import { Shipment } from '@/modules/shipment/shipment.entity';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';

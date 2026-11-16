@@ -2,9 +2,9 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
-import { orderSchema } from '@/modules/order/order.schema';
+import { orderSchema } from '@/modules/order/schemas/order.schema';
 
-import { RETURN_INSPECTION_CONDITION } from '../shipment.constants';
+import { RETURN_INSPECTION_CONDITION } from '../constants/shipment.constant';
 
 export const returnInspectionSchema = z.strictObject({
   condition: z.enum(RETURN_INSPECTION_CONDITION),
@@ -26,4 +26,4 @@ export const returnInspectionViewSchema = z.object({
   requiresAdmin: z.boolean(),
 });
 
-export type { ReturnInspectionInput } from '../shipment.type';
+export type { ReturnInspectionInput } from '../types/shipment.type';

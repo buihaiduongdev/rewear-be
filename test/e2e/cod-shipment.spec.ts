@@ -15,12 +15,12 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
-import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { Order } from '@/modules/order/order.entity';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {

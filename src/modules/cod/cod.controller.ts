@@ -12,23 +12,23 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { OrderService } from '@/modules/order/order.service';
 import {
   orderListSchema,
   orderSchema,
   rejectOrderSchema,
-} from '@/modules/order/order.schema';
-import { OrderService } from '@/modules/order/order.service';
+} from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { CodPolicy } from './cod.policy';
 import { CodService } from './cod.service';
-import type { CancelCodInput, PlaceCodInput } from './cod.type';
+import { CodPolicy } from './policies/cod.policy';
 import {
   cancelCodSchema,
   codRestrictionsSchema,
   placeCodSchema,
 } from './schemas/cod.schema';
+import type { CancelCodInput, PlaceCodInput } from './types/cod.type';
 
 @ApiTags('COD')
 @ApiBearerAuth()

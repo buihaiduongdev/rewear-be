@@ -1,5 +1,5 @@
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
-import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import type { CarrierQuoteInput } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 
 const source = {
   name: 'Sender',

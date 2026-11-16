@@ -1,24 +1,24 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
-import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/ghn-shipment.constants';
-import { OrderAccess } from '@/modules/order/order.access';
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import {
   ORDER_CANCEL_STATE,
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
-import { Order, OrderEvent } from '@/modules/order/order.entity';
+} from '@/modules/order/constants/order.constant';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 
+import { SHIPMENT_REVIEW_REASON } from './constants/shipment.constant';
+import { UNSAFE_CARRIER_REVIEW_REASONS } from './constants/shipment.constant';
+import { ShipmentReturnInspection } from './entities/shipment-return-inspection.entity';
+import { Shipment } from './entities/shipment.entity';
 import { returnInspectionSchema } from './schemas/return-inspection.schema';
-import { ShipmentReturnInspection } from './shipment-return-inspection.entity';
-import { SHIPMENT_REVIEW_REASON } from './shipment.constants';
-import { UNSAFE_CARRIER_REVIEW_REASONS } from './shipment.constants';
-import { Shipment } from './shipment.entity';
-import type { ReturnInspectionInput } from './shipment.type';
+import type { ReturnInspectionInput } from './types/shipment.type';
 
 @Injectable()
 export class ShipmentReturnInspectionService {
@@ -46,20 +46,20 @@ export class ShipmentReturnInspectionService {
         where: { orderId: id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (
+      const returnUnverified =
         order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
         !order.carrierReturnedAt ||
-        shipment?.providerStatus !== GHN_SHIPMENT_STATUS.RETURNED
-      )
+        shipment?.providerStatus !== GHN_SHIPMENT_STATUS.RETURNED;
+      if (returnUnverified)
         throw new ConflictException('Verified uncollected COD return required');
-      if (
+      const adminReconciliationRequired =
         order.cancelState === ORDER_CANCEL_STATE.ADMIN_REVIEW ||
         shipment.codCollectedAt ||
         shipment.carrierTransferredAt ||
         order.deliveryObservedAt ||
         (shipment.reviewReason &&
-          UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason))
-      ) {
+          UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason));
+      if (adminReconciliationRequired) {
         order.cancelState = ORDER_CANCEL_STATE.ADMIN_REVIEW;
         shipment.reviewReason ??=
           SHIPMENT_REVIEW_REASON.RETURN_COLLECTION_REQUIRES_ADMIN_RECONCILIATION;
@@ -71,51 +71,68 @@ export class ShipmentReturnInspectionService {
         orderId: id,
       });
       if (existing) {
-        if (
+        const inspectionChanged =
           existing.condition !== decision.condition ||
           existing.reason !== decision.reason ||
-          existing.evidence !== decision.evidence
-        )
+          existing.evidence !== decision.evidence;
+        if (inspectionChanged)
           throw new ConflictException('Returned parcel was already inspected');
         return { order, inspection: existing, requiresAdmin: false };
       }
       if (order.status !== ORDER_STATUS.RETURNS)
         throw new ConflictException('Verified uncollected COD return required');
-      const [{ now: clock }] = await manager.query(
-        'SELECT clock_timestamp() AS now',
-      );
-      const now = new Date(clock);
-      await this.orders.releaseCodReturnedVerified(
+      return this.recordReturnInspection(
         manager,
         order,
-        now,
-        decision.condition,
+        shipment,
+        userId,
+        id,
+        decision,
       );
-      const inspection = await manager.save(
-        ShipmentReturnInspection,
-        manager.create(ShipmentReturnInspection, {
-          orderId: id,
-          actorId: userId,
-          ...decision,
-          createdAt: now,
-        }),
-      );
-      await manager.save(
-        OrderEvent,
-        manager.create(OrderEvent, {
-          orderId: id,
-          action: ORDER_EVENT_ACTION.RETURN_INSPECTED,
-          actorId: userId,
-          reason: decision.reason,
-          evidence: decision.evidence,
-          createdAt: now,
-        }),
-      );
-      shipment.reviewReason = order.stockReleaseReviewIds.length
-        ? SHIPMENT_REVIEW_REASON.RETURN_STOCK_OWNERSHIP_REQUIRES_REVIEW
-        : null;
-      await manager.save(shipment);
-      return { order, inspection, requiresAdmin: false };
     });
+  }
+  private async recordReturnInspection(
+    manager: EntityManager,
+    order: Order,
+    shipment: Shipment,
+    userId: string,
+    id: string,
+    decision: ReturnInspectionInput,
+  ) {
+    const [{ now: clock }] = await manager.query(
+      'SELECT clock_timestamp() AS now',
+    );
+    const now = new Date(clock);
+    await this.orders.releaseCodReturnedVerified(
+      manager,
+      order,
+      now,
+      decision.condition,
+    );
+    const inspection = await manager.save(
+      ShipmentReturnInspection,
+      manager.create(ShipmentReturnInspection, {
+        orderId: id,
+        actorId: userId,
+        ...decision,
+        createdAt: now,
+      }),
+    );
+    await manager.save(
+      OrderEvent,
+      manager.create(OrderEvent, {
+        orderId: id,
+        action: ORDER_EVENT_ACTION.RETURN_INSPECTED,
+        actorId: userId,
+        reason: decision.reason,
+        evidence: decision.evidence,
+        createdAt: now,
+      }),
+    );
+    shipment.reviewReason = order.stockReleaseReviewIds.length
+      ? SHIPMENT_REVIEW_REASON.RETURN_STOCK_OWNERSHIP_REQUIRES_REVIEW
+      : null;
+    await manager.save(shipment);
+    return { order, inspection, requiresAdmin: false };
   }
 }

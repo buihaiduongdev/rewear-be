@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { WalletAccount, WalletCredit } from './entities/wallet.entity';
 import { WalletController } from './wallet.controller';
-import { WalletAccount, WalletCredit } from './wallet.entity';
 import { WalletService } from './wallet.service';
 
 @Module({

@@ -4,7 +4,7 @@ import test from 'node:test';
 import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
 
 const load = (file) => loadTypeScriptModule(new URL(file, import.meta.url));
-const policy = await load('../src/modules/payment/payment.policy.ts');
+const policy = await load('../src/modules/payment/policies/payment.policy.ts');
 
 test('a paid result settles only a live, matching, fully owned reservation once', () => {
   const input = {

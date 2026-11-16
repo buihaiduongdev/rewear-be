@@ -14,7 +14,7 @@ class Logger {
   warn() {}
 }
 globalThis.__workerDependencies = {
-  ...(await load('../src/modules/payment/payment.constants.ts')),
+  ...(await load('../src/modules/payment/constants/payment.constant.ts')),
   randomUUID,
   PaymentAttempt,
   PaymentRefund,

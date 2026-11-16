@@ -4,10 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
+import ms from 'ms';
+
 import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
 
 const load = (file) => loadTypeScriptModule(new URL(file, import.meta.url));
-const policy = await load('../src/modules/payment/payment.policy.ts');
+const policy = await load('../src/modules/payment/policies/payment.policy.ts');
 class Checkout {}
 class Product {}
 class Shop {}
@@ -20,13 +22,14 @@ class OrderEvent {}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
+  ms,
   randomUUID,
   In,
   ...policy,
-  ...(await load('../src/modules/payment/payment.constants.ts')),
-  ...(await load('../src/modules/checkout/checkout.constants.ts')),
-  ...(await load('../src/common/constants/money.constants.ts')),
-  ...(await load('../src/modules/order/order.constants.ts')),
+  ...(await load('../src/modules/payment/constants/payment.constant.ts')),
+  ...(await load('../src/modules/checkout/constants/checkout.constant.ts')),
+  ...(await load('../src/common/constants/money.constant.ts')),
+  ...(await load('../src/modules/order/constants/order.constant.ts')),
   Checkout,
   Product,
   Shop,

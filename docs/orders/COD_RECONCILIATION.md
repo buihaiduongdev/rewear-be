@@ -5,10 +5,10 @@ allocation and the Shop money foundation. It follows
 `COD-COLLECTION-VERIFY-01`, `COD-SETTLEMENT-NET-RECEIPT-01`,
 `COD-SETTLEMENT-PARTIAL-01` and per-item commission rounding.
 
-**No available funds or payout are released here.** A funded held balance is a
-recorded liability to the Shop, not permission to withdraw. Exact delivery-time
-verification, the 72-hour release/dispute rules, refunds and payout remain
-separate work. Delivery status, `codCollectedAt` and `carrierTransferredAt`
+Collection/remittance records create held liabilities. The separate
+[72-hour settlement workflow](SETTLEMENT.md) now verifies Admin-evidenced delivery
+times and releases eligible held funds internally. Refund/dispute adjudication
+and bank payouts remain separate work. Delivery status, `codCollectedAt` and `carrierTransferredAt`
 alone do not prove money was received in Rewear's bank account.
 
 ## Verification modes
@@ -114,7 +114,7 @@ selection. The response includes:
   partial receipt does not make any seller funds available.
 - `held`: total immutable funded held credits, including funds still subject to
   later dispute/refund/settlement workflows.
-- `available`: always `0` in this slice.
+- `available`: released amounts from the [72-hour settlement workflow](SETTLEMENT.md).
 - Paged safe entry/report views; private bank references, Admin evidence and
   request fingerprints are excluded.
 

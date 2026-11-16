@@ -1,15 +1,15 @@
 import z from 'zod';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
 import {
   safeBalanceSchema,
   vndAmountSchema,
 } from '@/common/schemas/money.schema';
 
-import { WALLET_CREDIT_REASON } from '../wallet.constants';
+import { WALLET_CREDIT_REASON } from '../constants/wallet.constant';
 
-export type { WalletQueryInput } from '../wallet.type';
+export type { WalletQueryInput } from '../types/wallet.type';
 
 export const walletBalanceSchema = safeBalanceSchema;
 

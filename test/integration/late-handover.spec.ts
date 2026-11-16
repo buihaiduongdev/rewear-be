@@ -3,16 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import {
   FulfillmentCalendar,
   HandoverCase,
-} from '@/modules/shipment/late-handover.entity';
+} from '@/modules/shipment/entities/late-handover.entity';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { LateHandoverService } from '@/modules/shipment/late-handover.service';
-import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';

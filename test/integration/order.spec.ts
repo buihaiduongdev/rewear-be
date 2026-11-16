@@ -11,11 +11,11 @@ import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order, OrderEvent } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
-import { PaymentAttempt } from '@/modules/payment/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,

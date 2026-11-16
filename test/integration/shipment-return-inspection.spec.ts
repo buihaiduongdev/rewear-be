@@ -6,25 +6,28 @@ import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { Category } from '@/modules/category/entities';
-import { CodBuyerCancellation, CodRestriction } from '@/modules/cod/cod.entity';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import {
+  CodBuyerCancellation,
+  CodRestriction,
+} from '@/modules/cod/entities/cod.entity';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { ShipmentReturnInspection } from '@/modules/shipment/entities/shipment-return-inspection.entity';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { returnInspectionSchema } from '@/modules/shipment/schemas/return-inspection.schema';
-import { ShipmentReturnInspection } from '@/modules/shipment/shipment-return-inspection.entity';
 import { ShipmentReturnInspectionService } from '@/modules/shipment/shipment-return-inspection.service';
-import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberStatus, ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
-import { WalletCredit } from '@/modules/wallet/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';

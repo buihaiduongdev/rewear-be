@@ -155,14 +155,13 @@ export class ProductService {
   }
 
   assertEditable(product: Product): void {
-    if (
-      [
-        ProductStatus.HELD,
-        ProductStatus.SOLD,
-        ProductStatus.SUSPENDED,
-        ProductStatus.PENDING_REVIEW,
-      ].includes(product.status)
-    ) {
+    const productIsNotEditable = [
+      ProductStatus.HELD,
+      ProductStatus.SOLD,
+      ProductStatus.SUSPENDED,
+      ProductStatus.PENDING_REVIEW,
+    ].includes(product.status);
+    if (productIsNotEditable) {
       throw new ConflictException(
         'This product cannot be edited in its current state',
       );
@@ -193,67 +192,15 @@ export class ProductService {
       this.assertEditable(product);
       if (input.categoryId)
         await this.assertActiveCategory(input.categoryId, manager);
-      let contentChanged = false;
+      const contentChanged = this.applyContentChanges(product, input);
       let priceChanged = false;
-      const textFields = [
-        'title',
-        'description',
-        'size',
-        'color',
-        'brand',
-        'repairs',
-      ] as const;
-      for (const field of textFields) {
-        if (input[field] !== undefined) {
-          const value = this.normalizeOptionalText(input[field]);
-          if (product[field] !== value) {
-            product[field] = value;
-            contentChanged = true;
-          }
-        }
-      }
-      if (
-        input.categoryId !== undefined &&
-        product.categoryId !== input.categoryId
-      ) {
-        product.categoryId = input.categoryId;
-        contentChanged = true;
-      }
-      if (
-        input.condition !== undefined &&
-        product.condition !== input.condition
-      ) {
-        product.condition = input.condition;
-        contentChanged = true;
-      }
-      for (const field of ['measurements', 'defects'] as const) {
-        if (
-          input[field] !== undefined &&
-          JSON.stringify(product[field]) !== JSON.stringify(input[field])
-        ) {
-          if (field === 'measurements')
-            product.measurements = input.measurements!;
-          else product.defects = input.defects!;
-          contentChanged = true;
-        }
-      }
-      if (
-        input.shippingPackage !== undefined &&
-        !isDeepStrictEqual(
-          product.shippingPackage ?? null,
-          input.shippingPackage,
-        )
-      ) {
-        product.shippingPackage = input.shippingPackage;
-        contentChanged = true;
-      }
       if (input.price !== undefined && product.price !== input.price) {
-        if (
+        const publishedPriceIsInvalid =
           [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
             product.status,
           ) &&
-          (!input.price || input.price <= 0)
-        ) {
+          (!input.price || input.price <= 0);
+        if (publishedPriceIsInvalid) {
           throw new BadRequestException(
             'A published product must have a positive price',
           );
@@ -262,17 +209,74 @@ export class ProductService {
         priceChanged = true;
       }
       // Editing content moves the product back to draft.
-      if (
+      const requiresContentReview =
         contentChanged ||
         (priceChanged &&
           ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
             product.status,
-          ))
-      ) {
+          ));
+      if (requiresContentReview) {
         await this.markContentChanged(manager, product);
       } else if (priceChanged) await manager.save(Product, product);
     });
     return this.findManagedProduct(id);
+  }
+
+  private applyContentChanges(
+    product: Product,
+    input: UpdateProductInput,
+  ): boolean {
+    let contentChanged = false;
+    const textFields = [
+      'title',
+      'description',
+      'size',
+      'color',
+      'brand',
+      'repairs',
+    ] as const;
+    for (const field of textFields) {
+      if (input[field] !== undefined) {
+        const value = this.normalizeOptionalText(input[field]);
+        if (product[field] !== value) {
+          product[field] = value;
+          contentChanged = true;
+        }
+      }
+    }
+    if (
+      input.categoryId !== undefined &&
+      product.categoryId !== input.categoryId
+    ) {
+      product.categoryId = input.categoryId;
+      contentChanged = true;
+    }
+    if (
+      input.condition !== undefined &&
+      product.condition !== input.condition
+    ) {
+      product.condition = input.condition;
+      contentChanged = true;
+    }
+    for (const field of ['measurements', 'defects'] as const) {
+      if (
+        input[field] !== undefined &&
+        JSON.stringify(product[field]) !== JSON.stringify(input[field])
+      ) {
+        if (field === 'measurements')
+          product.measurements = input.measurements!;
+        else product.defects = input.defects!;
+        contentChanged = true;
+      }
+    }
+    if (
+      input.shippingPackage !== undefined &&
+      !isDeepStrictEqual(product.shippingPackage ?? null, input.shippingPackage)
+    ) {
+      product.shippingPackage = input.shippingPackage;
+      contentChanged = true;
+    }
+    return contentChanged;
   }
 
   async updateStatus(
@@ -358,11 +362,11 @@ export class ProductService {
       const moderation = await manager.findOneByOrFail(ProductModeration, {
         productId: id,
       });
-      if (
+      const reviewIsStale =
         product.status !== ProductStatus.PENDING_REVIEW ||
         moderation.status !== ProductModerationStatus.PENDING ||
-        moderation.version !== input.version
-      ) {
+        moderation.version !== input.version;
+      if (reviewIsStale) {
         throw new ConflictException(
           'The submitted review is no longer current',
         );
@@ -459,13 +463,12 @@ export class ProductService {
     manager: EntityManager,
     userId: string,
   ): Promise<void> {
-    if (
-      !(await manager.existsBy(User, {
-        id: userId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      }))
-    ) {
+    const adminIsInactiveOrMissing = !(await manager.existsBy(User, {
+      id: userId,
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+    }));
+    if (adminIsInactiveOrMissing) {
       throw new ForbiddenException('Admin access required');
     }
   }
@@ -481,27 +484,24 @@ export class ProductService {
     manager: EntityManager,
     product: Product,
   ): Promise<void> {
-    if (
+    const categoryId = product.categoryId;
+    const publicationDetailsAreMissing =
       !product.title ||
-      !product.categoryId ||
+      !categoryId ||
       !product.condition ||
       !product.description?.trim() ||
       !product.price ||
-      product.price <= 0
-    ) {
+      product.price <= 0;
+    if (publicationDetailsAreMissing) {
       throw new BadRequestException(
         'Title, category, condition, description and a positive price are required',
       );
     }
-    const category = await this.assertActiveCategory(
-      product.categoryId,
-      manager,
+    const category = await this.assertActiveCategory(categoryId, manager);
+    const requiredMeasurementsAreMissing = category.requiredMeasurements.some(
+      (key) => !product.measurements[key] || product.measurements[key] <= 0,
     );
-    if (
-      category.requiredMeasurements.some(
-        (key) => !product.measurements[key] || product.measurements[key] <= 0,
-      )
-    ) {
+    if (requiredMeasurementsAreMissing) {
       throw new BadRequestException(
         'Required category measurements are missing',
       );
@@ -519,12 +519,11 @@ export class ProductService {
     if (!angles.has('FRONT') || !angles.has('BACK'))
       throw new BadRequestException('Front and back images are required');
     const ids = new Set(links.map((link) => link.mediaId));
-    if (
-      product.defects.some(
-        (defect) =>
-          !defect.mediaIds.length || defect.mediaIds.some((id) => !ids.has(id)),
-      )
-    ) {
+    const defectImagesAreInvalid = product.defects.some(
+      (defect) =>
+        !defect.mediaIds.length || defect.mediaIds.some((id) => !ids.has(id)),
+    );
+    if (defectImagesAreInvalid) {
       throw new BadRequestException(
         'Every defect must reference images attached to this product',
       );

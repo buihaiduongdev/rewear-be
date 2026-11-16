@@ -19,11 +19,6 @@ import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { LateHandoverService } from './late-handover.service';
-import type {
-  CalendarInput,
-  HandoverProposal,
-  HandoverStop,
-} from './late-handover.type';
 import { fulfillmentListSchema } from './schemas/fulfillment-list.schema';
 import {
   fulfillmentCalendarSchema,
@@ -33,7 +28,12 @@ import {
   handoverResponseSchema,
   handoverStopSchema,
 } from './schemas/late-handover.schema';
-import type { FulfillmentListInput } from './shipment.type';
+import type {
+  CalendarInput,
+  HandoverProposal,
+  HandoverStop,
+} from './types/late-handover.type';
+import type { FulfillmentListInput } from './types/shipment.type';
 
 @ApiTags('Fulfillment recovery')
 @ApiBearerAuth()

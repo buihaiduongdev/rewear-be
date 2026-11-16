@@ -1,20 +1,20 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DataSource, In } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
-import { CHECKOUT_STATUS } from '@/modules/checkout/checkout.constants';
+import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { ORDER_POLICY } from '@/modules/order/order.constants';
+import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
-import { Order, OrderEvent } from '@/modules/order/order.entity';
-import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/payment.constants';
-import { PaymentAttempt } from '@/modules/payment/payment.entity';
+} from '@/modules/order/constants/order.constant';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
+import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -24,7 +24,7 @@ import {
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
-import { CodPolicy } from './cod.policy';
+import { CodPolicy } from './policies/cod.policy';
 import { codOrderTotalSchema, placeCodSchema } from './schemas/cod.schema';
 
 @Injectable()
@@ -79,17 +79,16 @@ export class CodService {
       const attempts = await manager.find(PaymentAttempt, {
         where: { checkoutId },
       });
-      if (
-        attempts.some(
-          (attempt) =>
-            !(
-              [
-                PAYMENT_ATTEMPT_STATE.FAILED,
-                PAYMENT_ATTEMPT_STATE.REFUNDED,
-              ] as readonly string[]
-            ).includes(attempt.state),
-        )
-      )
+      const hasUnresolvedPayment = attempts.some(
+        (attempt) =>
+          !(
+            [
+              PAYMENT_ATTEMPT_STATE.FAILED,
+              PAYMENT_ATTEMPT_STATE.REFUNDED,
+            ] as readonly string[]
+          ).includes(attempt.state),
+      );
+      if (hasUnresolvedPayment)
         throw new ConflictException(
           'Resolve the previous payment before choosing COD',
         );
@@ -100,107 +99,19 @@ export class CodService {
         })),
         expectedTotal,
       );
-      const ids = snapshots
-        .flatMap((order) => order.items.map((item) => item.productId))
-        .sort();
-      const products = await manager.find(Product, {
-        where: { id: In(ids) },
-        order: { id: 'ASC' },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const moderations = await manager.find(ProductModeration, {
-        where: { productId: In(ids) },
-        order: { productId: 'ASC' },
-        lock: { mode: 'pessimistic_read' },
-      });
-      const approvedIds = new Set(
-        moderations
-          .filter(
-            (moderation) =>
-              moderation.status === ProductModerationStatus.APPROVED,
-          )
-          .map((moderation) => moderation.productId),
+      const { ids, now } = await this.validateReservedStock(
+        manager,
+        checkout,
+        snapshots,
       );
-      for (const categoryId of [
-        ...new Set(
-          products.flatMap((product) =>
-            product.categoryId ? [product.categoryId] : [],
-          ),
-        ),
-      ].sort()) {
-        await manager.findOneOrFail(Category, {
-          where: { id: categoryId, isActive: true },
-          lock: { mode: 'pessimistic_read' },
-        });
-      }
-      for (const shopId of [
-        ...new Set(snapshots.map((order) => order.shopId)),
-      ].sort())
-        await manager.findOneOrFail(Shop, {
-          where: { id: shopId, status: ShopStatus.ACTIVE },
-          lock: { mode: 'pessimistic_read' },
-        });
-      const [{ now: clock }] = await manager.query(
-        'SELECT clock_timestamp() AS now',
-      );
-      const now = new Date(clock);
-      if (
-        !checkout.expiresAt ||
-        checkout.expiresAt <= now ||
-        ids.length !== new Set(ids).size ||
-        products.length !== ids.length ||
-        products.some(
-          (product) =>
-            product.status !== ProductStatus.HELD ||
-            product.reservationId !== checkout.id ||
-            !product.categoryId ||
-            !approvedIds.has(product.id),
-        )
-      )
-        throw new ConflictException('Checkout stock is no longer reserved');
       await this.policy.assertCanPlace(manager, buyerId, ids.length, now);
-      const orders: Order[] = [];
-      for (const snapshot of snapshots) {
-        const total = snapshot.subtotal + snapshot.shippingFee;
-        if (!codOrderTotalSchema.safeParse(total).success)
-          throw new ConflictException('Order total is outside COD limits');
-        const order = await manager.save(
-          Order,
-          manager.create(Order, {
-            ...snapshot,
-            checkoutId,
-            buyerId,
-            paymentId: null,
-            paymentMethod: ORDER_PAYMENT_METHOD.COD,
-            status: ORDER_STATUS.PENDING,
-            total,
-            sellerConfirmBy: new Date(
-              now.getTime() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
-            ),
-            commissionBasisPoints: ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
-          }),
-        );
-        await manager.save(
-          OrderEvent,
-          manager.create(OrderEvent, {
-            orderId: order.id,
-            action: ORDER_EVENT_ACTION.PLACED,
-            actorId: buyerId,
-            reason: null,
-            createdAt: now,
-          }),
-        );
-        await manager.update(
-          Product,
-          {
-            id: In(order.items.map((item) => item.productId)),
-            reservationId: checkoutId,
-            status: ProductStatus.HELD,
-          },
-          { reservedOrderId: order.id, heldUntil: null, reservationId: null },
-        );
-        orders.push(order);
-      }
+      const orders = await this.createOrders(
+        manager,
+        buyerId,
+        checkoutId,
+        snapshots,
+        now,
+      );
       checkout.status = CHECKOUT_STATUS.COD_PLACED;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
@@ -208,6 +119,139 @@ export class CodService {
         await manager.delete(CartItem, { cartId: cart.id, productId: In(ids) });
       return orders;
     });
+  }
+
+  private async validateReservedStock(
+    manager: EntityManager,
+    checkout: Checkout,
+    snapshots: Awaited<ReturnType<PaymentPricing['snapshot']>>,
+  ) {
+    const ids = snapshots
+      .flatMap((order) => order.items.map((item) => item.productId))
+      .sort();
+    const products = await manager.find(Product, {
+      where: { id: In(ids) },
+      order: { id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const approvedIds = await this.lockStockEligibility(
+      manager,
+      ids,
+      products,
+      snapshots,
+    );
+    const [{ now: clock }] = await manager.query(
+      'SELECT clock_timestamp() AS now',
+    );
+    const now = new Date(clock);
+    const stockIsNoLongerReserved =
+      !checkout.expiresAt ||
+      checkout.expiresAt <= now ||
+      ids.length !== new Set(ids).size ||
+      products.length !== ids.length ||
+      products.some(
+        (product) =>
+          product.status !== ProductStatus.HELD ||
+          product.reservationId !== checkout.id ||
+          !product.categoryId ||
+          !approvedIds.has(product.id),
+      );
+    if (stockIsNoLongerReserved)
+      throw new ConflictException('Checkout stock is no longer reserved');
+    return { ids, now };
+  }
+
+  private async lockStockEligibility(
+    manager: EntityManager,
+    ids: string[],
+    products: Product[],
+    snapshots: Awaited<ReturnType<PaymentPricing['snapshot']>>,
+  ) {
+    const moderations = await manager.find(ProductModeration, {
+      where: { productId: In(ids) },
+      order: { productId: 'ASC' },
+      lock: { mode: 'pessimistic_read' },
+    });
+    const approvedIds = new Set(
+      moderations
+        .filter(
+          (moderation) =>
+            moderation.status === ProductModerationStatus.APPROVED,
+        )
+        .map((moderation) => moderation.productId),
+    );
+    for (const categoryId of [
+      ...new Set(
+        products.flatMap((product) =>
+          product.categoryId ? [product.categoryId] : [],
+        ),
+      ),
+    ].sort()) {
+      await manager.findOneOrFail(Category, {
+        where: { id: categoryId, isActive: true },
+        lock: { mode: 'pessimistic_read' },
+      });
+    }
+    for (const shopId of [
+      ...new Set(snapshots.map((order) => order.shopId)),
+    ].sort())
+      await manager.findOneOrFail(Shop, {
+        where: { id: shopId, status: ShopStatus.ACTIVE },
+        lock: { mode: 'pessimistic_read' },
+      });
+    return approvedIds;
+  }
+
+  private async createOrders(
+    manager: EntityManager,
+    buyerId: string,
+    checkoutId: string,
+    snapshots: Awaited<ReturnType<PaymentPricing['snapshot']>>,
+    now: Date,
+  ) {
+    const orders: Order[] = [];
+    for (const snapshot of snapshots) {
+      const total = snapshot.subtotal + snapshot.shippingFee;
+      if (!codOrderTotalSchema.safeParse(total).success)
+        throw new ConflictException('Order total is outside COD limits');
+      const order = await manager.save(
+        Order,
+        manager.create(Order, {
+          ...snapshot,
+          checkoutId,
+          buyerId,
+          paymentId: null,
+          paymentMethod: ORDER_PAYMENT_METHOD.COD,
+          status: ORDER_STATUS.PENDING,
+          total,
+          sellerConfirmBy: new Date(
+            now.getTime() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
+          ),
+          commissionBasisPoints: ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
+        }),
+      );
+      await manager.save(
+        OrderEvent,
+        manager.create(OrderEvent, {
+          orderId: order.id,
+          action: ORDER_EVENT_ACTION.PLACED,
+          actorId: buyerId,
+          reason: null,
+          createdAt: now,
+        }),
+      );
+      await manager.update(
+        Product,
+        {
+          id: In(order.items.map((item) => item.productId)),
+          reservationId: checkoutId,
+          status: ProductStatus.HELD,
+        },
+        { reservedOrderId: order.id, heldUntil: null, reservationId: null },
+      );
+      orders.push(order);
+    }
+    return orders;
   }
 
   private assertExpectedTotal(

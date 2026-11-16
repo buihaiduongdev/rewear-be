@@ -7,7 +7,7 @@ import { trimmedTextSchema } from '@/common/schemas/request.schema';
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
-} from '../cod-reconciliation.constants';
+} from '../constants/cod-reconciliation.constant';
 
 export const vndSchema = vndAmountSchema;
 const requestIdSchema = z.uuid().transform((value) => value.toLowerCase());
@@ -140,4 +140,4 @@ export type {
   CollectionInput,
   RemittanceInput,
   FinanceListInput,
-} from '../cod-reconciliation.type';
+} from '../types/cod-reconciliation.type';

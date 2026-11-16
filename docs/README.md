@@ -1,9 +1,12 @@
 # Re.wear — Tổng quan Tài liệu Kỹ thuật
 
+Cách tổ chức module backend: [MODULE_LAYOUT.md](MODULE_LAYOUT.md).
+
 API backend và phạm vi triển khai thực tế: [Shop tiếp nhận đơn](orders/SELLER_ACCEPTANCE.md),
 [COD và GHN Sandbox](orders/COD_GHN_SANDBOX.md),
 [Giao trễ và xử lý hàng hoàn](orders/FULFILLMENT_RECOVERY.md),
 [Đối soát COD và sổ tiền Shop](orders/COD_RECONCILIATION.md),
+[Xác nhận nhận hàng và quyết toán 72 giờ](orders/SETTLEMENT.md),
 [MoMo Sandbox](payments/MOMO_SANDBOX.md).
 Các hướng dẫn này nêu rõ phần đã kiểm thử và nghiệp vụ còn phải triển khai.
 

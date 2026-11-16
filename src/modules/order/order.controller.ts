@@ -15,15 +15,15 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
+import { OrderService } from './order.service';
 import {
   acceptOrderSchema,
   orderListInputSchema,
   orderListSchema,
   orderSchema,
   rejectOrderSchema,
-} from './order.schema';
-import { OrderService } from './order.service';
-import type { OrderListInput } from './order.type';
+} from './schemas/order.schema';
+import type { OrderListInput } from './types/order.type';
 
 @ApiTags('Orders')
 @ApiBearerAuth()

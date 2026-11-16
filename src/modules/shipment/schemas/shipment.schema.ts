@@ -2,10 +2,10 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
-import { ghnParcelSchema } from '@/infrastructure/shipping/ghn-shipment.schema';
-import { orderSchema } from '@/modules/order/order.schema';
+import { ghnParcelSchema } from '@/infrastructure/shipping/schemas/ghn-shipment.schema';
+import { orderSchema } from '@/modules/order/schemas/order.schema';
 
-import { SHIPMENT_STATE } from '../shipment.constants';
+import { SHIPMENT_STATE } from '../constants/shipment.constant';
 
 export const shipmentCreateSchema = z.strictObject({
   parcel: ghnParcelSchema.strict().optional(),
@@ -45,4 +45,4 @@ export const fulfillmentIncidentsSchema = z.object({
 export type {
   ShipmentCreateInput,
   CancellationDecision,
-} from '../shipment.type';
+} from '../types/shipment.type';

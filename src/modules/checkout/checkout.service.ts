@@ -8,7 +8,7 @@ import {
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { resolveShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { CartService } from '@/modules/cart';
 import { Cart, CartItem } from '@/modules/cart/entities';
@@ -18,7 +18,7 @@ import {
   CHECKOUT_HOLD_SECONDS,
   CHECKOUT_REMOVAL_REASON,
   CHECKOUT_STATUS,
-} from '@/modules/checkout/checkout.constants';
+} from '@/modules/checkout/constants/checkout.constant';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
@@ -77,68 +77,30 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         requestId: input.requestId,
       });
       if (previous) {
-        if (
+        const replaySelectionHasChanged =
           previous.addressId !== input.addressId ||
           JSON.stringify(previous.requestedProductIds) !==
-            JSON.stringify(productIds)
-        ) {
+            JSON.stringify(productIds);
+        if (replaySelectionHasChanged) {
           throw new ConflictException(
             'Request ID was already used with a different selection or address',
           );
         }
         return this.view(manager, previous);
       }
-      const address = await manager.findOneOrFail(UserAddress, {
-        where: { id: input.addressId, userId: buyerId },
-        lock: { mode: 'pessimistic_read' },
-      });
-      const snapshot: CheckoutAddress = {
-        recipientName: address.recipientName,
-        phone: address.phone,
-        addressLine1: address.addressLine1,
-        addressLine2: address.addressLine2,
-        countryCode: address.countryCode,
-        provinceCode: address.provinceCode,
-        provinceName: address.provinceName,
-        wardCode: address.wardCode,
-        wardName: address.wardName,
-        postalCode: address.postalCode,
-        deliveryInstructions: address.deliveryInstructions,
-      };
+      const snapshot = await this.snapshotAddress(
+        manager,
+        buyerId,
+        input.addressId,
+      );
       const products = await manager.find(Product, {
         where: { id: In(productIds) },
         order: { id: 'ASC' },
         lock: { mode: 'pessimistic_write' },
       });
-      // Keep shop/category eligibility stable while taking the approved snapshot.
-      for (const id of [
-        ...new Set(
-          products.map((p) => p.categoryId).filter((id): id is string => !!id),
-        ),
-      ].sort()) {
-        await manager.findOne(Category, {
-          where: { id },
-          lock: { mode: 'pessimistic_read' },
-        });
-      }
-      for (const id of [
-        ...new Set(
-          products.map((p) => p.shopId).filter((id): id is string => !!id),
-        ),
-      ].sort()) {
-        await manager.findOne(Shop, {
-          where: { id },
-          lock: { mode: 'pessimistic_read' },
-        });
-      }
+      await this.lockProductEligibility(manager, products);
       const cartView = await this.cart.readCart(manager, buyerId);
-      const saved = new Map(
-        cartView.groups.flatMap((g) =>
-          g.items.map(
-            (item) => [item.productId, { item, shop: g.shop }] as const,
-          ),
-        ),
-      );
+
       const checkout = manager.create(Checkout, {
         buyerId,
         requestId: input.requestId,
@@ -150,52 +112,13 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         holdSeconds: CHECKOUT_HOLD_SECONDS,
         removedItems: [],
       });
-      const groups = new Map<string, CheckoutOrder>();
-      for (const productId of productIds) {
-        const cartEntry = saved.get(productId);
-        if (
-          !cartEntry ||
-          cartEntry.item.availability !== CartAvailability.AVAILABLE ||
-          !cartEntry.item.product ||
-          !cartEntry.shop
-        ) {
-          checkout.removedItems.push({
-            productId,
-            reason:
-              cartEntry?.item.availability ??
-              CHECKOUT_REMOVAL_REASON.NOT_IN_CART,
-          });
-          continue;
-        }
-        const product = cartEntry.item.product;
-        const row = products.find((p) => p.id === productId)!;
-        // Eligibility and held-state check occurred after acquiring the product write lock.
-        if (row.reservationId)
-          throw new ConflictException('Product reservation is inconsistent');
-        let order = groups.get(cartEntry.shop.id);
-        if (!order) {
-          order = manager.create(CheckoutOrder, {
-            shopId: cartEntry.shop.id,
-            address: snapshot,
-            items: [],
-            subtotal: 0,
-            shippingFee: null,
-          });
-          groups.set(cartEntry.shop.id, order);
-        }
-        order.items.push({
-          shippingPackage: row.shippingPackage
-            ? resolveShippingPackage(row.shippingPackage)
-            : null,
-          productId,
-          title: product.title,
-          price: product.price,
-          size: product.size,
-          condition: product.condition,
-          coverUrl: product.coverUrl,
-        });
-        order.subtotal += product.price;
-      }
+      const groups = this.buildOrderGroups(
+        manager,
+        checkout,
+        products,
+        cartView,
+        snapshot,
+      );
       if (groups.size) {
         checkout.status = CHECKOUT_STATUS.HELD;
         const [{ now }] = await manager.query(
@@ -231,6 +154,120 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       }
       return this.view(manager, checkout);
     });
+  }
+
+  private async lockProductEligibility(
+    manager: EntityManager,
+    products: Product[],
+  ) {
+    // Keep shop/category eligibility stable while taking the approved snapshot.
+    for (const id of [
+      ...new Set(
+        products.map((p) => p.categoryId).filter((id): id is string => !!id),
+      ),
+    ].sort()) {
+      await manager.findOne(Category, {
+        where: { id },
+        lock: { mode: 'pessimistic_read' },
+      });
+    }
+    for (const id of [
+      ...new Set(
+        products.map((p) => p.shopId).filter((id): id is string => !!id),
+      ),
+    ].sort()) {
+      await manager.findOne(Shop, {
+        where: { id },
+        lock: { mode: 'pessimistic_read' },
+      });
+    }
+  }
+
+  private buildOrderGroups(
+    manager: EntityManager,
+    checkout: Checkout,
+    products: Product[],
+    cartView: Awaited<ReturnType<CartService['readCart']>>,
+    snapshot: CheckoutAddress,
+  ) {
+    const saved = new Map(
+      cartView.groups.flatMap((g) =>
+        g.items.map(
+          (item) => [item.productId, { item, shop: g.shop }] as const,
+        ),
+      ),
+    );
+    const groups = new Map<string, CheckoutOrder>();
+    for (const productId of checkout.requestedProductIds) {
+      const cartEntry = saved.get(productId);
+      const product = cartEntry?.item.product;
+      const cartEntryIsUnavailable =
+        !cartEntry ||
+        cartEntry.item.availability !== CartAvailability.AVAILABLE ||
+        !product ||
+        !cartEntry.shop;
+      if (cartEntryIsUnavailable) {
+        checkout.removedItems.push({
+          productId,
+          reason:
+            cartEntry?.item.availability ?? CHECKOUT_REMOVAL_REASON.NOT_IN_CART,
+        });
+        continue;
+      }
+      const row = products.find((p) => p.id === productId)!;
+      // Eligibility and held-state check occurred after acquiring the product write lock.
+      if (row.reservationId)
+        throw new ConflictException('Product reservation is inconsistent');
+      let order = groups.get(cartEntry.shop.id);
+      if (!order) {
+        order = manager.create(CheckoutOrder, {
+          shopId: cartEntry.shop.id,
+          address: snapshot,
+          items: [],
+          subtotal: 0,
+          shippingFee: null,
+        });
+        groups.set(cartEntry.shop.id, order);
+      }
+      order.items.push({
+        shippingPackage: row.shippingPackage
+          ? resolveShippingPackage(row.shippingPackage)
+          : null,
+        productId,
+        title: product.title,
+        price: product.price,
+        size: product.size,
+        condition: product.condition,
+        coverUrl: product.coverUrl,
+      });
+      order.subtotal += product.price;
+    }
+    return groups;
+  }
+
+  private async snapshotAddress(
+    manager: EntityManager,
+    buyerId: string,
+    addressId: string,
+  ): Promise<CheckoutAddress> {
+    const address = await manager.findOneOrFail(UserAddress, {
+      where: { id: addressId, userId: buyerId },
+      lock: { mode: 'pessimistic_read' },
+    });
+    const snapshot: CheckoutAddress = {
+      recipientName: address.recipientName,
+      phone: address.phone,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      countryCode: address.countryCode,
+      provinceCode: address.provinceCode,
+      provinceName: address.provinceName,
+      wardCode: address.wardCode,
+      wardName: address.wardName,
+      postalCode: address.postalCode,
+      deliveryInstructions: address.deliveryInstructions,
+    };
+    return snapshot;
   }
 
   async findMine(buyerId: string, id: string) {

@@ -1,4 +1,4 @@
-import { reconciliationMoney } from '@/modules/cod-reconciliation/cod-reconciliation.money';
+import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 
 describe('COD reconciliation money snapshot', () => {
   it('floors commission per item, excludes shipping and preserves the order rate', () => {

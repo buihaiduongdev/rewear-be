@@ -2,17 +2,17 @@ import { Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
-import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/ghn-shipment.constants';
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
+} from '@/modules/order/constants/order.constant';
 
-import { fulfillmentDeadline } from './fulfillment-calendar';
-import { FULFILLMENT_POLICY } from './fulfillment.constants';
-import { ShipmentReturnInspection } from './shipment-return-inspection.entity';
-import { SHIPMENT_REVIEW_REASON } from './shipment.constants';
-import { Shipment } from './shipment.entity';
+import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
+import { SHIPMENT_REVIEW_REASON } from './constants/shipment.constant';
+import { ShipmentReturnInspection } from './entities/shipment-return-inspection.entity';
+import { Shipment } from './entities/shipment.entity';
+import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 
 @Injectable()
 export class ReturnInspectionDeadlineService {

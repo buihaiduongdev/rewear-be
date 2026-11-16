@@ -15,12 +15,12 @@ import type { MomoNotification } from '@/infrastructure/payment/momo-sandbox.cli
 import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
+import { PaymentService } from './payment.service';
 import {
   createPaymentSchema,
   momoIpnSchema,
   paymentViewSchema,
-} from './payment.schemas';
-import { PaymentService } from './payment.service';
+} from './schemas/payment.schema';
 
 @ApiTags('Payments')
 @Controller()

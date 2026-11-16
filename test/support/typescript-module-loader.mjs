@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { stripTypeScriptTypes } from 'node:module';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { isAbsolute, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sourceRoot = new URL('../../src/', import.meta.url);
 const modules = new Map();
+const require = createRequire(import.meta.url);
 
 // Only framework-free local source modules belong in these isolated tests.
 async function moduleUrl(url, ancestors = new Set()) {
@@ -26,6 +27,14 @@ async function moduleUrl(url, ancestors = new Set()) {
           ...source.matchAll(/\b(?:from\s*|import\s*)['"]([^'"]+)['"]/g),
         ];
         for (const [statement, specifier] of dependencies) {
+          if (specifier === 'ms') {
+            const resolved = pathToFileURL(require.resolve('ms')).href;
+            source = source.replace(
+              statement,
+              statement.replace(specifier, resolved),
+            );
+            continue;
+          }
           let dependency;
           if (specifier.startsWith('@/'))
             dependency = new URL(specifier.slice(2), sourceRoot);

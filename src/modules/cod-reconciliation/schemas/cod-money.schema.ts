@@ -1,6 +1,6 @@
 import z from 'zod';
 
-import { BASIS_POINTS_SCALE } from '@/common/constants/money.constants';
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
 
 import { vndSchema } from './cod-reconciliation.schema';
 
