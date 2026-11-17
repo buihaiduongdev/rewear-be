@@ -14,7 +14,7 @@ import { Order } from '@/modules/order/entities/order.entity';
 import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -33,7 +33,6 @@ export async function adjudicationFixture(db: DataSource) {
     shopId: shop.id,
     userId: owner.id,
     memberRole: ShopMemberRole.OWNER,
-    status: ShopMemberStatus.ACTIVE,
   });
   const year = new Date().getUTCFullYear();
   await db.getRepository(FulfillmentCalendar).save(

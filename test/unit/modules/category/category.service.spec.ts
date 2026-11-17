@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 
-import { EntityNotFoundError } from 'typeorm';
+import { EntityNotFoundError, QueryFailedError } from 'typeorm';
 import type { Repository } from 'typeorm';
 
 import { CategoryService } from '@/modules/category/category.service';
@@ -64,14 +64,12 @@ describe('CategoryService', () => {
 
   it('creates a category and generates a normalized Vietnamese slug', async () => {
     const created = { ...category };
-    repository.findOneBy.mockResolvedValueOnce(null);
     repository.create.mockReturnValueOnce(created);
     repository.save.mockResolvedValueOnce(created);
 
     await expect(
       service.create(createCategorySchema.parse({ name: 'Áo khoác' })),
     ).resolves.toBe(created);
-    expect(repository.findOneBy).toHaveBeenCalledWith({ slug: 'ao-khoac' });
     expect(repository.create).toHaveBeenCalledWith({
       name: 'Áo khoác',
       slug: 'ao-khoac',
@@ -81,12 +79,22 @@ describe('CategoryService', () => {
   });
 
   it('rejects a duplicate slug', async () => {
-    repository.findOneBy.mockResolvedValueOnce(category);
+    const duplicateError = new QueryFailedError(
+      'INSERT INTO categories...',
+      [],
+      new Error(
+        'duplicate key value violates unique constraint "UQ_categories_slug"',
+      ),
+    );
+    Object.assign(duplicateError, {
+      driverError: { constraint: 'UQ_categories_slug' },
+    });
+    repository.create.mockReturnValueOnce(category);
+    repository.save.mockRejectedValueOnce(duplicateError);
 
     await expect(
       service.create(createCategorySchema.parse({ name: 'Áo khoác' })),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('does not expose an inactive category through the public lookup', async () => {
@@ -107,7 +115,6 @@ describe('CategoryService', () => {
     const existing = { ...category };
     const updated = { ...existing, name: 'Áo mùa đông', slug: 'ao-mua-dong' };
     repository.findOneByOrFail.mockResolvedValueOnce(existing);
-    repository.findOneBy.mockResolvedValueOnce(null);
     repository.save.mockResolvedValueOnce(updated);
 
     await expect(
@@ -129,12 +136,18 @@ describe('CategoryService', () => {
 
   it('rejects a generated slug that belongs to another category', async () => {
     const existing = { ...category };
-    repository.findOneByOrFail.mockResolvedValueOnce(existing);
-    repository.findOneBy.mockResolvedValueOnce({
-      ...category,
-      id: 'another-id',
-      slug: 'ao-am',
+    const duplicateError = new QueryFailedError(
+      'UPDATE categories...',
+      [],
+      new Error(
+        'duplicate key value violates unique constraint "UQ_categories_slug"',
+      ),
+    );
+    Object.assign(duplicateError, {
+      driverError: { constraint: 'UQ_categories_slug' },
     });
+    repository.findOneByOrFail.mockResolvedValueOnce(existing);
+    repository.save.mockRejectedValueOnce(duplicateError);
 
     await expect(
       service.update(
@@ -142,7 +155,6 @@ describe('CategoryService', () => {
         updateCategorySchema.parse({ name: 'Áo Ấm' }),
       ),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('preserves omitted values while applying false and empty measurements', async () => {

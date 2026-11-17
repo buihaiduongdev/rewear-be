@@ -1,17 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
+import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
+import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 import {
   acceptOrderSchema,
   orderSchema,
@@ -42,15 +37,15 @@ import type {
 
 @ApiTags('Shipments')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class ShipmentController {
   constructor(
-    private readonly shipments: ShipmentService,
-    private readonly cancellations: ShipmentCancellationService,
-    private readonly inspections: ShipmentReturnInspectionService,
+    private readonly shipmentService: ShipmentService,
+    private readonly shipmentCancellationService: ShipmentCancellationService,
+    private readonly shipmentReturnInspectionService: ShipmentReturnInspectionService,
   ) {}
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_UPDATE)
   @Post('shops/:shopId/orders/:id/shipment/return-inspection')
   @HttpCode(200)
   @Serialize(returnInspectionViewSchema)
@@ -60,9 +55,15 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: returnInspectionSchema }) input: ReturnInspectionInput,
   ) {
-    return this.inspections.inspect(user.id, shopId, id, input);
+    return this.shipmentReturnInspectionService.inspect(
+      user.id,
+      shopId,
+      id,
+      input,
+    );
   }
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_UPDATE)
   @Post('shops/:shopId/orders/:id/shipment')
   @HttpCode(200)
   @Serialize(shipmentViewSchema)
@@ -72,9 +73,10 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: shipmentCreateSchema }) input: ShipmentCreateInput,
   ) {
-    return this.shipments.create(user.id, shopId, id, input);
+    return this.shipmentService.create(user.id, shopId, id, input);
   }
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_VIEW)
   @Get('shops/:shopId/orders/:id/shipment')
   @Serialize(shipmentViewSchema)
   shopView(
@@ -82,18 +84,20 @@ export class ShipmentController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.shipments.shopView(user.id, shopId, id);
+    return this.shipmentService.shopView(user.id, shopId, id);
   }
 
+  @AuthenticatedAccess()
   @Get('orders/:id/shipment')
   @Serialize(shipmentViewSchema)
   buyerView(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.shipments.buyerView(user.id, id);
+    return this.shipmentService.buyerView(user.id, id);
   }
 
+  @AuthenticatedAccess()
   @Post('orders/:id/shipment/reconcile')
   @HttpCode(200)
   @Serialize(shipmentViewSchema)
@@ -102,17 +106,18 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.shipments.reconcileBuyer(user.id, id);
+    return this.shipmentService.reconcileBuyer(user.id, id);
   }
 
+  @AuthenticatedAccess()
   @Get('admin/fulfillment/incidents')
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Serialize(fulfillmentIncidentsSchema)
   incidents() {
-    return this.shipments.incidents();
+    return this.shipmentService.incidents();
   }
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_UPDATE)
   @Post('shops/:shopId/orders/:id/shipment/label')
   @HttpCode(200)
   @Serialize(labelViewSchema)
@@ -122,9 +127,10 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.shipments.label(user.id, shopId, id);
+    return this.shipmentService.label(user.id, shopId, id);
   }
 
+  @AuthenticatedAccess()
   @Post('orders/:id/cod/cancellation-request')
   @HttpCode(200)
   @Serialize(orderSchema)
@@ -133,9 +139,10 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.cancellations.request(user.id, id);
+    return this.shipmentCancellationService.request(user.id, id);
   }
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_UPDATE)
   @Post('shops/:shopId/orders/:id/cod/cancellation-response')
   @HttpCode(200)
   @Serialize(orderSchema)
@@ -145,30 +152,31 @@ export class ShipmentController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: cancellationDecisionSchema }) input: CancellationDecision,
   ) {
-    return this.cancellations.respond(user.id, shopId, id, input);
+    return this.shipmentCancellationService.respond(user.id, shopId, id, input);
   }
 
+  @AuthenticatedAccess()
   @Post('orders/:id/cod/cancellation-review')
   @HttpCode(200)
   @Serialize(orderSchema)
   review(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: rejectOrderSchema }) input: { reason: string },
+    @Body({ schema: rejectOrderSchema }) input: RejectOrderInput,
   ) {
-    return this.cancellations.requestReview(user.id, id, input.reason);
+    return this.shipmentCancellationService.requestReview(user.id, id, input);
   }
 
+  @AuthenticatedAccess()
   @Post('admin/orders/:id/cod/cancellation-decision')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Serialize(orderSchema)
   decide(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: cancellationDecisionSchema }) input: CancellationDecision,
   ) {
-    return this.cancellations.adminDecision(user.id, id, input);
+    return this.shipmentCancellationService.adminDecision(user.id, id, input);
   }
 }

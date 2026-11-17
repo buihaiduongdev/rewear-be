@@ -1,18 +1,11 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { OrderService } from '@/modules/order/order.service';
+import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 import {
   orderListSchema,
   orderSchema,
@@ -32,15 +25,15 @@ import type { CancelCodInput, PlaceCodInput } from './types/cod.type';
 
 @ApiTags('COD')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class CodController {
   constructor(
-    private readonly cod: CodService,
-    private readonly orders: OrderService,
+    private readonly codService: CodService,
+    private readonly orderService: OrderService,
     private readonly policy: CodPolicy,
   ) {}
 
+  @AuthenticatedAccess()
   @Post('checkouts/:id/orders/cod')
   @HttpCode(200)
   @Serialize(orderListSchema)
@@ -49,9 +42,10 @@ export class CodController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: placeCodSchema }) input: PlaceCodInput,
   ) {
-    return this.cod.place(user.id, id, input.expectedTotal);
+    return this.codService.place(user.id, id, input);
   }
 
+  @AuthenticatedAccess()
   @Post('orders/:id/cod/cancel')
   @HttpCode(200)
   @Serialize(orderSchema)
@@ -60,24 +54,25 @@ export class CodController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: cancelCodSchema }) _input: CancelCodInput,
   ) {
-    return this.orders.cancelCodPending(user.id, id);
+    return this.orderService.cancelCodPending(user.id, id);
   }
 
+  @AuthenticatedAccess()
   @Get('cod/restrictions/mine')
   @Serialize(codRestrictionsSchema)
   mine(@CurrentUser() user: User) {
     return this.policy.mine(user.id);
   }
 
+  @AuthenticatedAccess()
   @Post('admin/cod/restrictions/:id/resolve')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   resolve(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: rejectOrderSchema }) input: { reason: string },
+    @Body({ schema: rejectOrderSchema }) input: RejectOrderInput,
   ) {
-    return this.policy.resolve(user.id, id, input.reason);
+    return this.policy.resolve(user.id, id, input);
   }
 }

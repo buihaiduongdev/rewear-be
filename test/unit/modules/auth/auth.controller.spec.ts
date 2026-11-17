@@ -161,7 +161,7 @@ describe('AuthController', () => {
       authService.refresh.mockResolvedValueOnce(tokenPair);
 
       await expect(controller.refresh(input)).resolves.toEqual(tokenPair);
-      expect(authService.refresh).toHaveBeenCalledWith(input.refreshToken);
+      expect(authService.refresh).toHaveBeenCalledWith(input);
     });
 
     it('propagates an invalid refresh token error', async () => {
@@ -169,7 +169,7 @@ describe('AuthController', () => {
       authService.refresh.mockRejectedValueOnce(error);
 
       await expect(controller.refresh(input)).rejects.toBe(error);
-      expect(authService.refresh).toHaveBeenCalledWith(input.refreshToken);
+      expect(authService.refresh).toHaveBeenCalledWith(input);
     });
   });
 
@@ -181,7 +181,7 @@ describe('AuthController', () => {
       authService.logout.mockResolvedValueOnce(logoutMessage);
 
       await expect(controller.logout(input)).resolves.toEqual(logoutMessage);
-      expect(authService.logout).toHaveBeenCalledWith(input.refreshToken);
+      expect(authService.logout).toHaveBeenCalledWith(input);
     });
 
     it('propagates a logout error', async () => {
@@ -189,7 +189,7 @@ describe('AuthController', () => {
       authService.logout.mockRejectedValueOnce(error);
 
       await expect(controller.logout(input)).rejects.toBe(error);
-      expect(authService.logout).toHaveBeenCalledWith(input.refreshToken);
+      expect(authService.logout).toHaveBeenCalledWith(input);
     });
   });
 

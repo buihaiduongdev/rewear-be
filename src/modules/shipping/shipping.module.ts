@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AdministrativeDivisionModule } from '@/modules/administrative-division';
+import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { ProductModule } from '@/modules/product';
 
 import { PickupLocation } from './entities/pickup-location.entity';
@@ -11,6 +12,7 @@ import { ShippingController } from './shipping.controller';
 
 @Module({
   imports: [
+    AuthorizationModule,
     ProductModule,
     AdministrativeDivisionModule,
     TypeOrmModule.forFeature([PickupLocation]),

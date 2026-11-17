@@ -27,7 +27,7 @@ import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 export class CarrierIncidentService {
   constructor(
     private readonly db: DataSource,
-    private readonly orders: OrderService,
+    private readonly orderService: OrderService,
   ) {}
   incidents(input: FulfillmentListInput = {}): Promise<CarrierIncident[]> {
     return this.db.getRepository(CarrierIncident).find({
@@ -78,7 +78,7 @@ export class CarrierIncidentService {
             'Cancellation requires approved COD order and safe carrier state',
           );
         }
-        await this.orders.cancelCodVerified(manager, order, now);
+        await this.orderService.cancelCodVerified(manager, order, now);
         shipment.state = SHIPMENT_STATE.CANCELLED;
         shipment.nextQueryAt = null;
         shipment.reviewReason =

@@ -19,6 +19,7 @@ import { UserService } from '@/modules/user/user.service';
 
 import { AuthToken, RefreshToken } from './entities';
 import { AuthProvider, AuthTokenType } from './enums';
+import type { RefreshTokenInput } from './schemas/auth-input.schema';
 import type {
   ForgotPasswordInput,
   RegisterInput,
@@ -64,7 +65,9 @@ export class AuthService {
     return this.issueTokenPair(user);
   }
 
-  async refresh(rawToken: string): Promise<TokenPair> {
+  async refresh({
+    refreshToken: rawToken,
+  }: RefreshTokenInput): Promise<TokenPair> {
     let payload: RefreshJwtPayload;
     try {
       payload = await this.jwtService.verifyAsync<RefreshJwtPayload>(rawToken, {
@@ -100,7 +103,9 @@ export class AuthService {
     });
   }
 
-  async logout(rawToken: string): Promise<Message> {
+  async logout({
+    refreshToken: rawToken,
+  }: RefreshTokenInput): Promise<Message> {
     await this.refreshTokenRepository.update(
       { tokenHash: this.hashToken(rawToken), revokedAt: IsNull() },
       { revokedAt: new Date() },

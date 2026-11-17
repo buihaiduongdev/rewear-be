@@ -8,9 +8,10 @@ import { AuthProvider } from '@/modules/auth/enums';
 import { UserRole, UserStatus } from '../enums';
 
 @Entity('users')
+@Index('UQ_users_email', ['email'], { unique: true })
 @Index(['provider', 'providerAccountId'], { unique: true })
 export class User extends BaseEntity {
-  @Column({ unique: true })
+  @Column()
   email: string;
 
   @Column({ type: 'varchar', nullable: true, select: false })

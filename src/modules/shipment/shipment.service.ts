@@ -21,7 +21,6 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import type {
   OrderCancelState,
@@ -63,8 +62,7 @@ export class ShipmentService {
   private readonly logger = new Logger(ShipmentService.name);
   constructor(
     private readonly db: DataSource,
-    private readonly access: OrderAccess,
-    private readonly orders: OrderService,
+    private readonly orderService: OrderService,
     private readonly carrier: GhnShipmentClient,
   ) {}
 
@@ -124,7 +122,6 @@ export class ShipmentService {
     );
     const saved = await this.db.transaction(async (manager) => {
       await this.lock(manager);
-      await this.access.assertManage(manager, userId, shopId, true);
       const order = await manager.findOneByOrFail(Order, { id, shopId });
       const existing = await manager.findOneBy(Shipment, { orderId: id });
       if (existing) return { row: existing, send: false };
@@ -197,7 +194,7 @@ export class ShipmentService {
   ) {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
-      await this.access.assertManage(manager, userId, shopId, true);
+
       const order = await manager.findOneByOrFail(Order, { id, shopId });
       const existing = await manager.findOneBy(Shipment, { orderId: id });
       if (existing) return { existing };
@@ -234,14 +231,12 @@ export class ShipmentService {
     );
   }
   async shopView(userId: string, shopId: string, orderId: string) {
-    await this.access.assertManage(this.db.manager, userId, shopId);
     await this.db.getRepository(Order).findOneByOrFail({ id: orderId, shopId });
     return this.view(
       await this.db.getRepository(Shipment).findOneByOrFail({ orderId }),
     );
   }
   async label(userId: string, shopId: string, orderId: string) {
-    await this.access.assertManage(this.db.manager, userId, shopId);
     const order = await this.db
       .getRepository(Order)
       .findOneByOrFail({ id: orderId, shopId });
@@ -409,7 +404,7 @@ export class ShipmentService {
         order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
         order.cancelState === ORDER_CANCEL_STATE.APPROVED;
       if (cancellationVerified) {
-        await this.orders.cancelCodVerified(manager, order, now);
+        await this.orderService.cancelCodVerified(manager, order, now);
         row.state = SHIPMENT_STATE.CANCELLED;
         row.nextQueryAt = null;
       } else

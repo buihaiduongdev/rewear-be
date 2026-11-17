@@ -6,7 +6,7 @@ import {
   uuidSchema,
 } from '@/common/schemas/request.schema';
 
-import { ShopMemberStatus, ShopStatus } from '../enums';
+import { ShopStatus } from '../enums';
 
 export const createShopSchema = z.strictObject({
   name: trimmedTextSchema.min(1).max(100),
@@ -18,12 +18,12 @@ export const updateShopSchema = createShopSchema.partial().extend({
   status: optionalInput(z.enum(ShopStatus)),
 });
 
-export const addShopStaffSchema = z.strictObject({ userId: uuidSchema });
-export const updateShopStaffSchema = z.strictObject({
-  status: z.enum(ShopMemberStatus),
-});
-
 export type CreateShopInput = z.output<typeof createShopSchema>;
 export type UpdateShopInput = z.output<typeof updateShopSchema>;
-export type AddShopStaffInput = z.output<typeof addShopStaffSchema>;
-export type UpdateShopStaffInput = z.output<typeof updateShopStaffSchema>;
+
+export const inviteSchema = z.strictObject({
+  email: z.email().trim().toLowerCase(),
+  roleIds: z.array(uuidSchema),
+});
+
+export type InviteShopMemberInput = z.output<typeof inviteSchema>;

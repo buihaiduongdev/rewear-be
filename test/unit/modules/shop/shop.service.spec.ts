@@ -1,20 +1,15 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 
-import { EntityNotFoundError } from 'typeorm';
+import { EntityNotFoundError, QueryFailedError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import {
-  ShopMemberRole,
-  ShopMemberStatus,
-  ShopStatus,
-} from '@/modules/shop/enums';
+import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 import { ShopService } from '@/modules/shop/shop.service';
 import { User } from '@/modules/user/entities';
 
 describe('ShopService', () => {
   const ownerId = 'eb9ab2f0-97dd-456c-809f-75831b227895';
-  const staffUserId = '40e2a58e-e61f-4c6c-a0b6-6e98b282c344';
   const shop: Shop = {
     id: 'f844ab9a-6f7a-4495-bc34-064bf3bf32d5',
     name: 'Re.wear Closet',
@@ -31,21 +26,9 @@ describe('ShopService', () => {
     userId: ownerId,
     user: { id: ownerId } as User,
     memberRole: ShopMemberRole.OWNER,
-    status: ShopMemberStatus.ACTIVE,
     joinedAt: new Date('2026-10-18T00:00:00.000Z'),
     createdAt: new Date('2026-10-18T00:00:00.000Z'),
     updatedAt: new Date('2026-10-18T00:00:00.000Z'),
-  };
-  const staffMembership: ShopMember = {
-    ...ownerMembership,
-    id: 'cd6f4fd6-68c9-40a5-aa37-043f239b1aa9',
-    userId: staffUserId,
-    user: {
-      id: staffUserId,
-      email: 'staff@example.com',
-      fullName: 'Shop Staff',
-    } as User,
-    memberRole: ShopMemberRole.STAFF,
   };
 
   const shopRepository: jest.Mocked<
@@ -78,11 +61,11 @@ describe('ShopService', () => {
     create: jest.fn(),
     save: jest.fn(),
   };
-  const userRepository: jest.Mocked<Pick<Repository<User>, 'findOneByOrFail'>> =
-    {
-      findOneByOrFail: jest.fn(),
-    };
   const entityManager = {
+    findOneOrFail: jest.fn(),
+    findOneBy: jest.fn(),
+    findOneByOrFail: jest.fn(),
+    getRepository: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
   };
@@ -92,12 +75,17 @@ describe('ShopService', () => {
   const service = new ShopService(
     shopRepository as unknown as Repository<Shop>,
     memberRepository as unknown as Repository<ShopMember>,
-    userRepository as unknown as Repository<User>,
     dataSource as unknown as DataSource,
+    { initializeDefaultRoles: jest.fn() } as never,
   );
 
   beforeEach(() => {
     jest.resetAllMocks();
+    entityManager.getRepository.mockReturnValue(shopRepository);
+    dataSource.transaction.mockImplementation(
+      async (run: (manager: EntityManager) => Promise<unknown>) =>
+        run(entityManager as unknown as EntityManager),
+    );
     shopRepository.merge.mockImplementation((entity, ...sources) => {
       for (const source of sources) {
         Object.assign(
@@ -163,18 +151,31 @@ describe('ShopService', () => {
       shopId: shop.id,
       userId: ownerId,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
   });
 
-  it('requires an active owner membership before updating a shop', async () => {
-    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
-    memberRepository.findOneBy.mockResolvedValueOnce(null);
+  it('rejects shop creation if user already belongs to a shop', async () => {
+    const newShop = { ...shop };
+    entityManager.create.mockReturnValueOnce(newShop);
+    entityManager.save.mockResolvedValueOnce(newShop);
+
+    const duplicateError = new QueryFailedError(
+      'INSERT INTO shop_members...',
+      [],
+      new Error(
+        'duplicate key value violates unique constraint "UQ_shop_members_user"',
+      ),
+    );
+    Object.assign(duplicateError, {
+      driverError: { constraint: 'UQ_shop_members_user' },
+    });
+    entityManager.save.mockRejectedValueOnce(duplicateError);
 
     await expect(
-      service.update(shop.id, staffUserId, { name: 'New name' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(shopRepository.save).not.toHaveBeenCalled();
+      service.create(ownerId, {
+        name: 'Re.wear Closet',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it.each([
@@ -205,48 +206,16 @@ describe('ShopService', () => {
     expect(shopRepository.save).toHaveBeenCalledWith(existing);
   });
 
-  it('rejects adding a user who is already a shop member', async () => {
-    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
-    memberRepository.findOneBy
-      .mockResolvedValueOnce(ownerMembership)
-      .mockResolvedValueOnce(staffMembership);
-    userRepository.findOneByOrFail.mockResolvedValueOnce(staffMembership.user);
+  it('does not allow the owner membership to be removed as staff', async () => {
+    entityManager.findOneBy.mockResolvedValueOnce(ownerMembership);
+    entityManager.findOneByOrFail.mockResolvedValueOnce(ownerMembership);
+    dataSource.transaction.mockImplementationOnce(
+      async (run: (manager: EntityManager) => Promise<void>) =>
+        run(entityManager as unknown as EntityManager),
+    );
 
     await expect(
-      service.addStaff(shop.id, ownerId, { userId: staffUserId }),
-    ).rejects.toBeInstanceOf(ConflictException);
-    expect(memberRepository.save).not.toHaveBeenCalled();
-  });
-
-  it('adds staff and reloads the member with safe user details', async () => {
-    const unsavedStaff = { ...staffMembership, user: undefined as never };
-    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
-    memberRepository.findOneBy
-      .mockResolvedValueOnce(ownerMembership)
-      .mockResolvedValueOnce(null);
-    userRepository.findOneByOrFail.mockResolvedValueOnce(staffMembership.user);
-    memberRepository.create.mockReturnValueOnce(unsavedStaff);
-    memberRepository.save.mockResolvedValueOnce(unsavedStaff);
-    memberRepository.findOneOrFail.mockResolvedValueOnce(staffMembership);
-
-    await expect(
-      service.addStaff(shop.id, ownerId, { userId: staffUserId }),
-    ).resolves.toBe(staffMembership);
-    expect(memberRepository.findOneOrFail).toHaveBeenCalledWith({
-      where: { id: staffMembership.id, shopId: shop.id },
-      relations: { user: true },
-    });
-  });
-
-  it('does not allow the owner membership to be disabled as staff', async () => {
-    shopRepository.findOneByOrFail.mockResolvedValueOnce(shop);
-    memberRepository.findOneBy.mockResolvedValueOnce(ownerMembership);
-    memberRepository.findOneByOrFail.mockResolvedValueOnce(ownerMembership);
-
-    await expect(
-      service.updateStaff(shop.id, ownerMembership.id, ownerId, {
-        status: ShopMemberStatus.INACTIVE,
-      }),
+      service.removeMember(shop.id, ownerMembership.id),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(memberRepository.save).not.toHaveBeenCalled();
   });

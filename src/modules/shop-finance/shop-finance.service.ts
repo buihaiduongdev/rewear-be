@@ -16,23 +16,17 @@ import type {
   FinanceListInput,
   ReconciliationMode,
 } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import { OrderAccess } from '@/modules/order/order.access';
 
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import { ShopSettlement } from './entities/shop-settlement.entity';
 
 @Injectable()
 export class ShopFinanceService {
-  constructor(
-    private readonly db: DataSource,
-    private readonly access: OrderAccess,
-  ) {}
-
+  constructor(private readonly db: DataSource) {}
   async view(userId: string, shopId: string, input: FinanceListInput) {
     const data = financeListSchema.parse(input);
     const mode = data.mode ?? RECONCILIATION_MODE.EVIDENCE;
     return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await this.access.assertManage(manager, userId, shopId);
       const totals = await this.readTotals(manager, shopId, mode);
       const history = await this.readHistory(
         manager,

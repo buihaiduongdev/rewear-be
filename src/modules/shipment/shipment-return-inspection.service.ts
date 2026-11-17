@@ -10,7 +10,6 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 
 import { SHIPMENT_REVIEW_REASON } from './constants/shipment.constant';
@@ -24,8 +23,7 @@ import type { ReturnInspectionInput } from './types/shipment.type';
 export class ShipmentReturnInspectionService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: OrderAccess,
-    private readonly orders: OrderService,
+    private readonly orderService: OrderService,
   ) {}
 
   async inspect(
@@ -37,7 +35,7 @@ export class ShipmentReturnInspectionService {
     const decision = returnInspectionSchema.parse(input);
     return this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      await this.access.assertManage(manager, userId, shopId, true);
+
       const order = await manager.findOneOrFail(Order, {
         where: { id, shopId },
         lock: { mode: 'pessimistic_write' },
@@ -103,7 +101,7 @@ export class ShipmentReturnInspectionService {
       'SELECT clock_timestamp() AS now',
     );
     const now = new Date(clock);
-    await this.orders.releaseCodReturnedVerified(
+    await this.orderService.releaseCodReturnedVerified(
       manager,
       order,
       now,

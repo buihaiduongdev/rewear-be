@@ -51,9 +51,9 @@ export class MediaService {
 
   async findForManagement(
     productId: string,
-    userId: string,
+    shopId?: string,
   ): Promise<ProductMediaView[]> {
-    await this.productService.findOneForManagement(productId, userId);
+    await this.productService.findManagedProduct(productId, shopId);
     return (
       await this.findProductLinks(this.mediaLinkRepository, productId)
     ).map((link) => this.toView(link));
@@ -64,12 +64,13 @@ export class MediaService {
     mediaId: string,
     userId: string,
     input: UpdateMediaMetadataInput,
+    shopId?: string,
   ): Promise<ProductMediaView> {
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        userId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const link = await manager.findOneOrFail(MediaLink, {
@@ -93,10 +94,11 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: CreateMediaUploadTicketInput,
+    shopId?: string,
   ): Promise<UploadTicket> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
@@ -121,10 +123,11 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: ConfirmMediaUploadInput,
+    shopId?: string,
   ): Promise<ProductMediaView> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
@@ -139,10 +142,10 @@ export class MediaService {
     );
 
     const link = await this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       await this.productService.markContentChanged(manager, product);
       const existingMedia = await manager.findOne(Media, {
@@ -188,17 +191,18 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: ReorderMediaInput,
+    shopId?: string,
   ): Promise<ProductMediaView[]> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const links = await this.findProductLinks(
@@ -219,32 +223,63 @@ export class MediaService {
       if (links.every((link, index) => link.mediaId === input.mediaIds[index]))
         return links.map((link) => this.toView(link));
       await this.productService.markContentChanged(manager, product);
+
+      const [updatedRows, affected]: [MediaLink[], number] =
+        await manager.query(
+          `WITH product_media_count AS (
+           SELECT count(*)::int AS total_count
+           FROM media_links
+           WHERE "ownerType" = $2 AND "ownerId" = $3
+         ),
+         new_positions AS (
+           SELECT id, (position - 1) AS new_sort_order
+           FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, position)
+         )
+         UPDATE media_links AS link
+         SET "sortOrder" = new_positions.new_sort_order, "updatedAt" = NOW()
+         FROM new_positions, product_media_count
+         WHERE link."mediaId" = new_positions.id
+           AND link."ownerType" = $2
+           AND link."ownerId" = $3
+           AND product_media_count.total_count = cardinality($1::uuid[])
+         RETURNING link.*`,
+          [input.mediaIds, MediaOwnerType.PRODUCT, productId],
+        );
+
+      if (affected !== input.mediaIds.length) {
+        throw new BadRequestException(
+          'mediaIds must contain every product media id exactly once',
+        );
+      }
+
       const byMediaId = new Map(links.map((link) => [link.mediaId, link]));
-      const ordered = input.mediaIds.map((mediaId, sortOrder) => {
+      const sortOrderMap = new Map(
+        updatedRows.map((row) => [row.mediaId, row.sortOrder]),
+      );
+
+      return input.mediaIds.map((mediaId) => {
         const link = byMediaId.get(mediaId) as MediaLink;
-        link.sortOrder = sortOrder;
-        return link;
+        link.sortOrder = sortOrderMap.get(mediaId) ?? link.sortOrder;
+        return this.toView(link);
       });
-      await manager.save(ordered);
-      return ordered.map((link) => this.toView(link));
     });
   }
 
   async setCover(
     productId: string,
     mediaId: string,
-    currentUserId: string,
+    shopId?: string,
   ): Promise<ProductMediaView> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const links = await this.findProductLinks(
@@ -270,51 +305,84 @@ export class MediaService {
   async delete(
     productId: string,
     mediaId: string,
-    currentUserId: string,
-  ): Promise<void> {
-    const managedProduct = await this.productService.findOneForManagement(
+    _currentUserId: string,
+    shopId?: string,
+  ): Promise<ProductMediaView[]> {
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
-    const storageKey = await this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
-        manager,
-        productId,
-        currentUserId,
-      );
-      await this.productService.markContentChanged(manager, product);
-      const links = await this.findProductLinks(
-        manager.getRepository(MediaLink),
-        productId,
-      );
-      const target = links.find((link) => link.mediaId === mediaId);
-      if (!target) throw new NotFoundException('Product media not found');
+    const { storageKey, remaining } = await this.dataSource.transaction(
+      async (manager) => {
+        const product = await this.productService.lockProduct(
+          manager,
+          productId,
+          shopId,
+        );
+        await this.productService.markContentChanged(manager, product);
+        const links = await this.findProductLinks(
+          manager.getRepository(MediaLink),
+          productId,
+        );
+        const target = links.find((link) => link.mediaId === mediaId);
+        if (!target) throw new NotFoundException('Product media not found');
 
-      await manager.remove(target);
-      const remaining = links.filter((link) => link.mediaId !== mediaId);
-      remaining.forEach((link, index) => {
-        link.sortOrder = index;
-      });
-      if (
-        target.role === MediaRole.COVER &&
-        remaining.length > 0 &&
-        !remaining.some((link) => link.role === MediaRole.COVER)
-      ) {
-        remaining[0].role = MediaRole.COVER;
-      }
-      if (remaining.length > 0) await manager.save(remaining);
+        await manager.remove(target);
+        const remaining = links.filter((link) => link.mediaId !== mediaId);
+        remaining.forEach((link, index) => {
+          link.sortOrder = index;
+        });
+        const shouldPromoteCover =
+          target.role === MediaRole.COVER &&
+          remaining.length > 0 &&
+          !remaining.some((link) => link.role === MediaRole.COVER);
 
-      const otherLinkCount = await manager.count(MediaLink, {
-        where: { mediaId },
-      });
-      if (otherLinkCount > 0) return null;
-      target.media.retiredAt = new Date();
-      await manager.save(target.media);
-      return target.media.storageKey;
-    });
+        if (shouldPromoteCover) {
+          remaining[0].role = MediaRole.COVER;
+        }
+
+        if (remaining.length > 0) {
+          const remainingIds = remaining.map((link) => link.mediaId);
+          await manager.query(
+            `
+            WITH new_positions AS (
+              SELECT id, (position - 1) AS new_sort_order
+              FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, position)
+            )
+            UPDATE media_links AS link
+            SET "sortOrder" = new_positions.new_sort_order,
+                "role" = CASE
+                  WHEN new_positions.new_sort_order = 0 AND $4 = true THEN 'COVER'::"media_links_role_enum"
+                  ELSE link."role"
+                END,
+                "updatedAt" = NOW()
+            FROM new_positions
+            WHERE link."mediaId" = new_positions.id
+              AND link."ownerType" = $2
+              AND link."ownerId" = $3
+            `,
+            [
+              remainingIds,
+              MediaOwnerType.PRODUCT,
+              productId,
+              shouldPromoteCover,
+            ],
+          );
+        }
+
+        const otherLinkCount = await manager.count(MediaLink, {
+          where: { mediaId },
+        });
+        if (otherLinkCount > 0) return { storageKey: null, remaining };
+        target.media.retiredAt = new Date();
+        await manager.save(target.media);
+        return { storageKey: target.media.storageKey, remaining };
+      },
+    );
 
     if (storageKey) await this.deleteStoredObject(storageKey);
+    return remaining.map((link) => this.toView(link));
   }
 
   private findProductLinks(

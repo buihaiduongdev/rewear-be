@@ -39,3 +39,5 @@ export const momoIpnSchema = z.object({
   extraData: z.string().max(1000),
   signature: z.string().regex(/^[a-f0-9]{64}$/i),
 });
+
+export type CreatePaymentInput = z.output<typeof createPaymentSchema>;

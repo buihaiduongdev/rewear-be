@@ -6,13 +6,12 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -27,8 +26,8 @@ import type { DisputeDecisionInput } from './types/dispute-decision.type';
 
 @ApiTags('Dispute adjudication')
 @ApiBearerAuth()
+@AuthenticatedAccess()
 @Roles(UserRole.ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin/dispute-issues')
 export class DisputeAdjudicationController {
   constructor(private readonly adjudication: DisputeAdjudicationService) {}

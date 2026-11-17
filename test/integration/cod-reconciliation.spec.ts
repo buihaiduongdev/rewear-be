@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { AuthProvider } from '@/modules/auth/enums';
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import {
   CodCollection,
@@ -13,14 +14,13 @@ import {
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
@@ -35,7 +35,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new CodReconciliationService(database.dataSource);
-    finance = new ShopFinanceService(database.dataSource, new OrderAccess());
+    finance = new ShopFinanceService(database.dataSource);
   });
   afterAll(async () => database?.destroy());
   async function fixture() {
@@ -51,7 +51,6 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
       shopId: shop.id,
       userId: owner.id,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     const order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
@@ -114,7 +113,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
       reference: randomUUID(),
       mode,
       netAmount: cashAmount,
-      receivedAt: new Date().toISOString(),
+      receivedAt: new Date(Date.now() - 1000).toISOString(),
       reason: 'Bank and carrier settlement matched',
       evidence: 'Verified transaction receipt',
       allocations: [{ orderId, cashAmount, feeDeducted }],
@@ -297,9 +296,13 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     const f = await fixture();
     await service.recordCollection(adminId, f.order.id, f.input);
     await service.recordRemittance(adminId, receipt(f.order.id, 230000));
-    await expect(finance.view(randomUUID(), f.shop.id, {})).rejects.toThrow(
-      'access required',
-    );
+    await expect(
+      new AuthorizationService(f.db).authorize(
+        randomUUID(),
+        f.shop.id,
+        'shop.owner',
+      ),
+    ).rejects.toThrow('Shop permission denied');
     const view = await finance.view(f.owner.id, f.shop.id, {});
     expect(JSON.stringify(view)).not.toContain(f.input.evidence);
     expect(view.entries).toHaveLength(1);
@@ -430,8 +433,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     expect((await finance.view(f.owner.id, f.shop.id, {})).available).toBe(0);
   });
   it('does not mark an on-time verified pickup late merely because delivery arrives after the handover deadline', async () => {
-    const f = await fixture(),
-      access = new OrderAccess();
+    const f = await fixture();
     await f.db.getRepository(Order).update(f.order.id, {
       status: 'shipping',
       deliveryObservedAt: null,
@@ -459,13 +461,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     };
     const shipments = new ShipmentService(
       f.db,
-      access,
-      new OrderService(
-        f.db,
-        access,
-        new WalletService(f.db),
-        new CodPolicy(f.db),
-      ),
+      new OrderService(f.db, new WalletService(f.db), new CodPolicy(f.db)),
       carrier as unknown as GhnShipmentClient,
     );
     await shipments.reconcile(f.shipment.id);

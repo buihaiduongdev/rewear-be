@@ -27,7 +27,7 @@ import {
   ORDER_STATUS,
 } from './constants/order.constant';
 import { Order, OrderEvent } from './entities/order.entity';
-import { OrderAccess } from './order.access';
+import type { RejectOrderInput } from './schemas/order.schema';
 import type { OrderListInput } from './types/order.type';
 
 @Injectable()
@@ -35,8 +35,7 @@ export class OrderService {
   private readonly logger = new Logger(OrderService.name);
   constructor(
     private readonly db: DataSource,
-    private readonly access: OrderAccess,
-    private readonly wallet: WalletService,
+    private readonly walletService: WalletService,
     private readonly codPolicy: CodPolicy,
   ) {}
 
@@ -52,12 +51,10 @@ export class OrderService {
   }
 
   async shopList(userId: string, shopId: string, input: OrderListInput) {
-    await this.access.assertManage(this.db.manager, userId, shopId);
     return this.list(this.db.manager, { shopId }, input);
   }
 
   async shopDetail(userId: string, shopId: string, id: string) {
-    await this.access.assertManage(this.db.manager, userId, shopId);
     return this.detail(
       this.db.manager,
       await this.db.getRepository(Order).findOneByOrFail({ id, shopId }),
@@ -80,7 +77,7 @@ export class OrderService {
   async accept(userId: string, shopId: string, id: string) {
     const result = await this.db.transaction(async (manager) => {
       await this.lock(manager);
-      await this.access.assertManage(manager, userId, shopId, true);
+
       const order = await manager.findOneByOrFail(Order, { id, shopId });
       if (order.status === ORDER_STATUS.PREPARING)
         return { order, expired: false };
@@ -125,10 +122,15 @@ export class OrderService {
     return this.detail(this.db.manager, result.order);
   }
 
-  async reject(userId: string, shopId: string, id: string, reason: string) {
+  async reject(
+    userId: string,
+    shopId: string,
+    id: string,
+    { reason }: RejectOrderInput,
+  ) {
     const order = await this.db.transaction(async (manager) => {
       await this.lock(manager);
-      await this.access.assertManage(manager, userId, shopId, true);
+
       const order = await manager.findOneByOrFail(Order, { id, shopId });
       if (order.status === ORDER_STATUS.CANCELLED) return order;
       if (order.status !== ORDER_STATUS.PENDING)
@@ -311,7 +313,7 @@ export class OrderService {
     note: string | null,
   ) {
     if (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD)
-      await this.wallet.creditCancellation(manager, order);
+      await this.walletService.creditCancellation(manager, order);
     order.stockReleaseReviewIds = await this.releaseStock(manager, order);
     order.status = ORDER_STATUS.CANCELLED;
     order.cancelledAt = now;

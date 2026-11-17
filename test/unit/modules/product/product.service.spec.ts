@@ -20,6 +20,7 @@ describe('Product lifecycle boundaries', () => {
     {} as Repository<Shop>,
     {} as Repository<ShopMember>,
     {} as DataSource,
+    {} as never,
   );
 
   it.each([

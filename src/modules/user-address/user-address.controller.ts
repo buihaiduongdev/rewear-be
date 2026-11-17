@@ -8,13 +8,12 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
 import { UserAddress } from './entities';
@@ -32,16 +31,17 @@ import { UserAddressService } from './user-address.service';
 @ApiTags('User Addresses')
 @ApiBearerAuth()
 @Controller('user-addresses')
-@UseGuards(JwtAuthGuard)
 export class UserAddressController {
   constructor(private readonly userAddressService: UserAddressService) {}
 
+  @AuthenticatedAccess()
   @Get()
   @Serialize(userAddressListSchema)
   findAll(@CurrentUser() currentUser: User): Promise<UserAddress[]> {
     return this.userAddressService.findAll(currentUser.id);
   }
 
+  @AuthenticatedAccess()
   @Get(':id')
   @Serialize(userAddressSchema)
   findOne(
@@ -51,6 +51,7 @@ export class UserAddressController {
     return this.userAddressService.findOne(currentUser.id, id);
   }
 
+  @AuthenticatedAccess()
   @Post()
   @Serialize(userAddressSchema, { status: HttpStatus.CREATED })
   create(
@@ -60,6 +61,7 @@ export class UserAddressController {
     return this.userAddressService.create(currentUser.id, input);
   }
 
+  @AuthenticatedAccess()
   @Patch(':id')
   @Serialize(userAddressSchema)
   update(
@@ -70,6 +72,7 @@ export class UserAddressController {
     return this.userAddressService.update(currentUser.id, id, input);
   }
 
+  @AuthenticatedAccess()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(

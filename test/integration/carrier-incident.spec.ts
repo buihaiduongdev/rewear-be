@@ -4,7 +4,6 @@ import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { CarrierIncidentService } from '@/modules/shipment/carrier-incident.service';
 import { CarrierIncident } from '@/modules/shipment/entities/carrier-incident.entity';
@@ -25,12 +24,7 @@ describe('Carrier incident resolution (PostgreSQL)', () => {
     const db = database.dataSource;
     service = new CarrierIncidentService(
       db,
-      new OrderService(
-        db,
-        new OrderAccess(),
-        new WalletService(db),
-        new CodPolicy(db),
-      ),
+      new OrderService(db, new WalletService(db), new CodPolicy(db)),
     );
   });
   afterAll(async () => database?.destroy());

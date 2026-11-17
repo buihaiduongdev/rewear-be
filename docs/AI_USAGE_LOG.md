@@ -737,6 +737,18 @@
 - **Minh chứng:** PR #37, branch `refactor/simplify-media-confirm`.
 
 
+### 2026-11-15 — Phân quyền thành viên shop
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tập trung phân quyền toàn ứng dụng, quản lý role shop và lời mời nhân viên.
+- **Prompt chính:** Áp dụng thiết kế RBAC đã chốt trong tài liệu, tham khảo cách tổ chức role, permission và guard; kiểm thử các quyền shop.
+- **Đầu ra AI được sử dụng:** Hai guard JWT và Permission chạy toàn app, policy bắt buộc cho các route; quyền Owner dùng chung policy shop và không được gán cho role tùy chỉnh; thống nhất decorator RequirePermission với phạm vi X-Shop-Id, kiểm tra URL/body và resource thuộc shop; phân quyền shop, sản phẩm, media, đơn hàng và vận chuyển qua controller; bỏ kiểm tra quyền lặp trong service; giữ OrderAccess cho luồng tranh chấp của team. Role tùy chỉnh, lời mời và thông tin shop trong hồ sơ người dùng được đồng bộ cùng test; controller truyền input đã kiểm tra vào service.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quyền mặc định của Manager và Staff, giữ quyền quản lý thành viên, role và tài chính cho Owner.
+- **Cách kiểm chứng:** Lint, format, typecheck; sau khi kết hợp main: 47 Jest suites/387 tests và 22 Node tests pass với PostgreSQL; không chạy build.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu cho rằng cần chờ chốt thiết kế RBAC mà chưa đối chiếu quyết định trong tài liệu.
+- **Giới hạn:** Chưa nối giao diện FE và thông báo lời mời.
+- **Minh chứng:** [PR #39](https://github.com/buihaiduongdev/rewear-be/pull/39), nhánh `feat/shop-rbac`.
 ### 2026-11-15 — Giao COD trễ và xử lý sự cố GHN
 
 - **Người thực hiện:** Bùi Thành Tâm (yêu cầu triển khai); Codex hỗ trợ mã và kiểm thử.
@@ -820,3 +832,46 @@
 - **Cách kiểm chứng:** Test trước triển khai; 14 PostgreSQL và 4 HTTP JWT tests mới đạt. Full local 48 suites / 404 Jest tests cùng 22 Node tests đạt; typecheck, Nest build, lint, format và diff check đạt. Có race/replay, rollback, phản hồi mới sau review, hơn 100 messages, quyền Admin/privacy, deadline/lịch nghỉ và giữ tiền sau kết luận. Review độc lập bản sửa không còn P1/P2. CI theo commit được kiểm tra riêng trên PR mới.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review chỉ ra thiếu món không thể áp REQUIRE_RETURN. Đã quan sát test fail rồi chặn, bổ sung UPHOLD_CLAIM như kết luận có căn cứ với phương án xử lý còn chờ, không suy ra miễn trả hoặc entitlement refund. Nhiều vấn đề cùng món dùng chung remedyKey; itemPrice không được cộng thành nhiều khoản hoàn.
 - **Giới hạn và minh chứng:** Chưa tiếp nhận/xử lý xét lại, chốt final remedy, tạo vận đơn trả, hoàn tiền, phí hoặc rút ngân hàng. Quyết định vẫn giữ tiền cả order kể cả qua cửa sổ xét lại cho đến khi có bước thực hiện hợp lệ. Nhánh feat/dispute-adjudication từ main sau PR #40; không merge tự động hoặc reset database dev.
+
+### 2026-11-17 — Tối ưu hóa phân quyền Shop RBAC và giảm tải round-trip mạng cho mutation API
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tối ưu hóa phản hồi API gán vai trò thành viên shop (Shop RBAC) và chuyển đổi các mutation xóa (`DELETE /cart/items/:productId`, `DELETE /products/:productId/media/:mediaId`) sang trả về trạng thái tài nguyên mới nhất (`CartView`, `ProductMediaView[]`) thay vì 204 No Content, giúp Frontend đồng bộ cache tức thì không cần invalidate fetch lại.
+- **Prompt chính:** Tối ưu hóa API assign roles để trả về danh sách role đầy đủ thay vì chỉ trả về roleId; rà soát dự án tìm các API mutation trả về 204 No Content và tối ưu hóa trả về snapshot mới nhất để frontend cập nhật cache trực tiếp mà không tốn thêm round-trip mạng; kiểm chứng mã nguồn và chuẩn bị PR.
+- **Đầu ra AI được sử dụng:** Cập nhật `shopRoleAssignmentSchema` để trả về danh sách role `{ id, name }`, tối ưu `ShopRoleService.assign`; cập nhật `CartService.remove` và `CartController.remove` trả về `CartView` kèm `@Serialize(cartSchema)`; cập nhật `MediaService.delete` và `MediaController.delete` trả về `ProductMediaView[]` kèm `@Serialize(mediaListSchema)`. Cập nhật unit test `MediaService.delete`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng schema nhất quán, loại bỏ import `HttpCode` thừa, bổ sung kiểm thử đơn vị cho media service, rà soát lint/format và kiểm tra toàn bộ pipeline kiểm thử.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (27/27 test suites, 228 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `feat/shop-rbac-improvements`, PR #42 (`https://github.com/buihaiduongdev/rewear-be/pull/42`).
+
+### 2026-11-17 — Bắt lỗi vi phạm ràng buộc cơ sở dữ liệu thay vì truy vấn SELECT tiền kiểm tra
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Xóa bỏ pattern `await findOneBy`/`await exists` tiền kiểm tra trùng lặp trước khi tạo hoặc cập nhật bản ghi tại `ShopRoleService`, `CategoryService`, `UserService` và `ShopService`, thay thế bằng việc bắt trực tiếp `QueryFailedError` từ PostgreSQL (Unique Constraints `UQ_shop_roles_shop_id_name`, `UQ_categories_slug`, `UQ_users_email`, `UQ_shop_members_user`) và chuyển đổi sang `ConflictException`.
+- **Prompt chính:** Triển khai PR 1 trong kế hoạch tối ưu hóa cơ sở dữ liệu: tạo helper xử lý constraint TypeORM/Postgres tập trung, refactor `ShopRoleService`, `CategoryService`, `UserService`, `ShopService` loại bỏ round-trip SELECT dư thừa, cập nhật kiểm thử đơn vị và đảm bảo 100% pass quality check.
+- **Đầu ra AI được sử dụng:** Tạo `src/common/utils/database-constraint.util.ts`, đặt tên rõ ràng cho Unique Index trên entity `ShopRole`, `Category`, `User`, cập nhật `ShopRoleService.create/update`, `CategoryService.create/update`, `UserService.register/create/update`, `ShopService.create/accept`, cập nhật test suite `category.service.spec.ts`, `shop.service.spec.ts` và tạo mới `shop-role.service.spec.ts`, `user.service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Xác định danh sách constraint cần xử lý, căn chỉnh kiểu TypeScript strict cho TypeORM EntityManager mock và rà soát lint/format.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/db-constraints`, PR #43.
+
+### 2026-11-17 — Tối ưu hóa cập nhật thứ tự ảnh kéo thả bằng PostgreSQL CTE và unnest WITH ORDINALITY
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tối ưu hóa tính năng sắp xếp lại thứ tự ảnh sản phẩm (`MediaService.reorder`) và việc nén/đánh số lại thứ tự ảnh sau khi xóa (`MediaService.delete`) bằng cách thay thế việc duyệt mảng JS và N câu lệnh `UPDATE` đơn lẻ qua TypeORM bằng câu truy vấn PostgreSQL CTE kết hợp `unnest(...) WITH ORDINALITY` duy nhất, vừa validate atomic số lượng ảnh vừa cập nhật hàng loạt và trả về trạng thái mới.
+- **Prompt chính:** Triển khai PR 2 theo kỹ thuật của `be-marty-demo-2`: tối ưu `MediaService.reorder` và `MediaService.delete` với CTE `unnest WITH ORDINALITY`, cập nhật unit test kiểm thử câu lệnh truy vấn hàng loạt và đảm bảo 100% pass quality check.
+- **Đầu ra AI được sử dụng:** Cập nhật `MediaService.reorder` và `MediaService.delete` sử dụng `manager.query` với khối CTE `product_media_count` và `new_positions` kết hợp `unnest($1::uuid[]) WITH ORDINALITY`, cập nhật test suite `media.service.spec.ts` kiểm tra câu lệnh truy vấn CTE cho cả reorder và index compaction khi xóa ảnh (kèm xử lý thăng hạng ảnh bìa `COVER`).
+- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng câu lệnh CTE với đúng tên cột có quote `"ownerType"`, `"ownerId"`, `"mediaId"`, `"sortOrder"` trong PostgreSQL, căn chỉnh map view trả về.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 236 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/media-reorder-cte`, PR #44.
+
+### 2026-11-17 — Đồng bộ PR #41 với RBAC và media mới trước merge
+
+- **Người thực hiện:** Bùi Thành Tâm yêu cầu merge PR #41 rồi làm xét lại; Codex hỗ trợ đồng bộ và kiểm chứng.
+- **Phạm vi:** Đưa main c08e17b (RBAC, mutation snapshots, constraint handling và media CTE) vào nhánh phân xử; giữ cả hai phần AI log, dùng AuthenticatedAccess/global PermissionGuard và giữ Roles ADMIN; fixture bỏ membership status đã được main loại bỏ.
+- **Kiểm chứng:** Local 51 suites / 413 Jest tests và 22 Node tests đạt; typecheck, Nest build, lint/format đạt. HTTP tests vẫn từ chối buyer/Owner gọi API Admin. Không reset DB dev hoặc thay quyền Admin cho seller.
+- **Giới hạn:** Đây là sửa tương thích trước merge PR #41, chưa phải triển khai xét lại. Kết quả CI của commit đồng bộ được kiểm tra riêng.

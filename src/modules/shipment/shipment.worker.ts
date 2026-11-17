@@ -18,11 +18,11 @@ export class ShipmentWorker implements OnModuleInit, OnModuleDestroy {
   private running = false;
   private readonly logger = new Logger(ShipmentWorker.name);
   constructor(
-    private readonly shipments: ShipmentService,
-    private readonly cancellations: ShipmentCancellationService,
-    private readonly handovers: LateHandoverService,
-    private readonly incidents: CarrierIncidentService,
-    private readonly inspectionDeadlines: ReturnInspectionDeadlineService,
+    private readonly shipmentService: ShipmentService,
+    private readonly shipmentCancellationService: ShipmentCancellationService,
+    private readonly lateHandoverService: LateHandoverService,
+    private readonly carrierIncidentService: CarrierIncidentService,
+    private readonly returnInspectionDeadlineService: ReturnInspectionDeadlineService,
   ) {}
   onModuleInit() {
     this.timer = setInterval(() => {
@@ -43,11 +43,11 @@ export class ShipmentWorker implements OnModuleInit, OnModuleDestroy {
   }
   async run() {
     const results = await Promise.allSettled([
-      this.cancellations.run(),
-      this.shipments.run(),
-      this.handovers.run(),
-      this.incidents.run(),
-      this.inspectionDeadlines.run(),
+      this.shipmentCancellationService.run(),
+      this.shipmentService.run(),
+      this.lateHandoverService.run(),
+      this.carrierIncidentService.run(),
+      this.returnInspectionDeadlineService.run(),
     ]);
     if (results.some((result) => result.status === 'rejected'))
       throw new Error('Fulfillment worker requires reconciliation');

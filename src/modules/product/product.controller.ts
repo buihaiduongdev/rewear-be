@@ -7,7 +7,6 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -18,9 +17,17 @@ import {
   type PaginateQuery,
 } from 'nestjs-paginate';
 
-import { CurrentUser, Roles, Serialize } from '@/common/decorators';
+import {
+  CurrentShopId,
+  CurrentUser,
+  Roles,
+  Serialize,
+} from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
+import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
+import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -53,6 +60,7 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Get()
+  @PublicAccess()
   @Serialize(productListSchema)
   @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
   findAll(@Paginate() query: PaginateQuery): Promise<Paginated<Product>> {
@@ -61,7 +69,7 @@ export class ProductController {
 
   @Get('me')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @AuthenticatedAccess()
   @Serialize(productListSchema)
   @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
   findMine(
@@ -71,123 +79,120 @@ export class ProductController {
     return this.productService.findMine(currentUser.id, query);
   }
 
-  @Get('manage/:id')
+  @Get('manage/:productId')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_VIEW)
   @Serialize(productSchema)
   findManaged(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
+    @CurrentShopId() shopId?: string,
   ) {
-    return this.productService.findOneForManagement(id, user.id);
+    return this.productService.findManagedProduct(id, shopId);
   }
 
-  @Get('manage/:id/moderation')
+  @Get('manage/:productId/moderation')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_VIEW)
   @Serialize(productModerationSchema)
   moderationForOwner(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
+    @CurrentShopId() shopId?: string,
   ) {
-    return this.productService.findModeration(id, user.id);
+    return this.productService.findModeration(id, shopId);
   }
 
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @AuthenticatedAccess()
   @Roles(UserRole.ADMIN)
   @Serialize(productListSchema)
   @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
-  reviewQueue(@CurrentUser() user: User, @Paginate() query: PaginateQuery) {
-    return this.productService.findReviewQueue(query, user.id);
+  reviewQueue(@Paginate() query: PaginateQuery) {
+    return this.productService.findReviewQueue(query);
   }
 
-  @Get('admin/:id')
+  @Get('admin/:productId')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @AuthenticatedAccess()
   @Roles(UserRole.ADMIN)
   @Serialize(productSchema)
-  reviewDetail(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.productService.findForReview(id, user.id);
+  reviewDetail(@Param('productId', { schema: uuidSchema }) id: string) {
+    return this.productService.findForReview(id);
   }
 
-  @Get('admin/:id/moderation')
+  @Get('admin/:productId/moderation')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @AuthenticatedAccess()
   @Roles(UserRole.ADMIN)
   @Serialize(productModerationSchema)
-  moderationForAdmin(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.productService.findModeration(id, user.id, true);
+  moderationForAdmin(@Param('productId', { schema: uuidSchema }) id: string) {
+    return this.productService.findModeration(id);
   }
 
-  @Post(':id/submit')
+  @Post(':productId/submit')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_UPDATE)
   @Serialize(productSchema)
   submit(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
+    @CurrentShopId() shopId?: string,
   ) {
-    return this.productService.submit(id, user.id);
+    return this.productService.submit(id, shopId);
   }
 
-  @Post(':id/cancel-submission')
+  @Post(':productId/cancel-submission')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_UPDATE)
   @Serialize(productSchema)
   cancelSubmission(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
+    @CurrentShopId() shopId?: string,
   ) {
-    return this.productService.cancelSubmission(id, user.id);
+    return this.productService.cancelSubmission(id, shopId);
   }
 
-  @Post('admin/:id/moderation')
+  @Post('admin/:productId/moderation')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @AuthenticatedAccess()
   @Roles(UserRole.ADMIN)
   @Serialize(productSchema)
   moderate(
     @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
     @Body({ schema: moderateProductSchema }) input: ModerateProductInput,
   ) {
     return this.productService.moderate(id, user.id, input);
   }
 
-  @Post('admin/:id/suspend')
+  @Post('admin/:productId/suspend')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @AuthenticatedAccess()
   @Roles(UserRole.ADMIN)
   @Serialize(productSchema)
   suspend(
     @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
     @Body({ schema: suspendProductSchema }) input: SuspendProductInput,
   ) {
-    return this.productService.suspend(id, user.id, input.reason);
+    return this.productService.suspend(id, user.id, input);
   }
 
-  @Get(':id')
+  @Get(':productId')
+  @PublicAccess()
   @Serialize(productSchema)
-  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<Product> {
+  findOne(
+    @Param('productId', { schema: uuidSchema }) id: string,
+  ): Promise<Product> {
     return this.productService.findOne(id);
   }
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_CREATE)
   @Serialize(productSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
@@ -196,28 +201,30 @@ export class ProductController {
     return this.productService.create(currentUser.id, input);
   }
 
-  @Patch(':id/status')
+  @Patch(':productId/status')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_UPDATE)
   @Serialize(productSchema)
   updateStatus(
     @CurrentUser() currentUser: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
     @Body({ schema: updateProductStatusSchema })
     input: UpdateProductStatusInput,
+    @CurrentShopId() shopId?: string,
   ): Promise<Product> {
-    return this.productService.updateStatus(id, currentUser.id, input);
+    return this.productService.updateStatus(id, currentUser.id, input, shopId);
   }
 
-  @Patch(':id')
+  @Patch(':productId')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_UPDATE)
   @Serialize(productSchema)
   update(
     @CurrentUser() currentUser: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('productId', { schema: uuidSchema }) id: string,
     @Body({ schema: updateProductSchema }) input: UpdateProductInput,
+    @CurrentShopId() shopId?: string,
   ): Promise<Product> {
-    return this.productService.update(id, currentUser.id, input);
+    return this.productService.update(id, currentUser.id, input, shopId);
   }
 }

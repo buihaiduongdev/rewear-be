@@ -75,6 +75,7 @@ describe('MediaService', () => {
     getRepository: jest.fn(() => mediaLinkRepository),
     remove: jest.fn(),
     save: jest.fn(),
+    query: jest.fn(),
   };
   const dataSource = {
     transaction: jest.fn((work: (entityManager: EntityManager) => unknown) =>
@@ -84,9 +85,9 @@ describe('MediaService', () => {
   const productService = {
     findOne: jest.fn(),
     findPublishedMedia: jest.fn(),
-    findOneForManagement: jest.fn(),
+    findManagedProduct: jest.fn(),
     assertEditable: jest.fn(),
-    lockForManagement: jest.fn(),
+    lockProduct: jest.fn(),
     markContentChanged: jest.fn(),
   };
   const storageService = {
@@ -144,9 +145,9 @@ describe('MediaService', () => {
       }),
     ).resolves.toEqual(ticket);
 
-    expect(productService.findOneForManagement).toHaveBeenCalledWith(
+    expect(productService.findManagedProduct).toHaveBeenCalledWith(
       productId,
-      userId,
+      undefined,
     );
     expect(storageService.createUploadTicket).toHaveBeenCalledWith({
       contentType: 'image/jpeg',
@@ -275,7 +276,32 @@ describe('MediaService', () => {
     await expect(
       service.reorder(productId, userId, { mediaIds: [mediaId] }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(manager.save).not.toHaveBeenCalled();
+    expect(manager.query).not.toHaveBeenCalled();
+  });
+
+  it('updates sortOrder via CTE batch query when order changes', async () => {
+    const link1 = makeLink(mediaId, MediaRole.COVER, 0);
+    const link2 = makeLink(secondMediaId, MediaRole.GALLERY, 1);
+    mediaLinkRepository.find.mockResolvedValueOnce([link1, link2]);
+
+    const updatedRows = [
+      { mediaId: secondMediaId, sortOrder: 0 },
+      { mediaId, sortOrder: 1 },
+    ];
+    manager.query.mockResolvedValueOnce([updatedRows, 2]);
+
+    const result = await service.reorder(productId, userId, {
+      mediaIds: [secondMediaId, mediaId],
+    });
+
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('WITH product_media_count AS'),
+      [[secondMediaId, mediaId], MediaOwnerType.PRODUCT, productId],
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: secondMediaId, sortOrder: 0 }),
+      expect.objectContaining({ id: mediaId, sortOrder: 1 }),
+    ]);
   });
 
   it('promotes the next image when deleting the current cover', async () => {
@@ -284,10 +310,19 @@ describe('MediaService', () => {
     mediaLinkRepository.find.mockResolvedValueOnce([cover, gallery]);
     manager.count.mockResolvedValueOnce(0);
 
-    await expect(
-      service.delete(productId, mediaId, userId),
-    ).resolves.toBeUndefined();
+    const remainingViews = await service.delete(productId, mediaId, userId);
+    expect(remainingViews).toEqual([
+      expect.objectContaining({
+        id: secondMediaId,
+        role: MediaRole.COVER,
+        sortOrder: 0,
+      }),
+    ]);
     expect(manager.remove).toHaveBeenNthCalledWith(1, cover);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('WITH new_positions AS'),
+      [[secondMediaId], MediaOwnerType.PRODUCT, productId, true],
+    );
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),
     );
@@ -302,7 +337,7 @@ describe('MediaService', () => {
     ]);
 
     await expect(
-      service.setCover(productId, secondMediaId, userId),
+      service.setCover(productId, secondMediaId),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

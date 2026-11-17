@@ -7,6 +7,7 @@ import { createRequestValidationPipe } from './common/validation';
 import { DatabaseModule } from './database';
 import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
+import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
 import { CheckoutModule } from './modules/checkout/checkout.module';
@@ -34,6 +35,7 @@ import { UserAddressModule } from './modules/user-address';
     CartModule,
     CheckoutModule,
     PaymentModule,
+    AuthorizationModule,
     OrderModule,
     DisputeModule,
     CodModule,

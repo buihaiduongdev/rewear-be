@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -11,6 +12,7 @@ import { ProductService } from './product.service';
 
 @Module({
   imports: [
+    AuthorizationModule,
     TypeOrmModule.forFeature([
       Product,
       ProductModeration,

@@ -9,8 +9,8 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
+import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 
 import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
 import {
@@ -24,8 +24,7 @@ import type { CancellationDecision } from './types/shipment.type';
 export class ShipmentCancellationService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: OrderAccess,
-    private readonly orders: OrderService,
+    private readonly orderService: OrderService,
   ) {}
   private async lock(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
@@ -75,7 +74,7 @@ export class ShipmentCancellationService {
   ) {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
-      await this.access.assertManage(manager, userId, shopId, true);
+
       const order = await manager.findOneByOrFail(Order, {
         id,
         shopId,
@@ -109,7 +108,11 @@ export class ShipmentCancellationService {
     });
   }
 
-  async requestReview(buyerId: string, id: string, reason: string) {
+  async requestReview(
+    buyerId: string,
+    id: string,
+    { reason }: RejectOrderInput,
+  ) {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       const order = await manager.findOneByOrFail(Order, {
@@ -178,7 +181,7 @@ export class ShipmentCancellationService {
     order.cancelState = ORDER_CANCEL_STATE.APPROVED;
     const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
     if (!shipment) {
-      await this.orders.cancelCodVerified(manager, order, now);
+      await this.orderService.cancelCodVerified(manager, order, now);
       return;
     }
     shipment.cancelRequestedAt ??= now;

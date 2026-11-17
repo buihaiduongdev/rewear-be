@@ -9,8 +9,10 @@ import * as argon2 from 'argon2';
 import { paginate, type Paginated, type PaginateQuery } from 'nestjs-paginate';
 import { Repository } from 'typeorm';
 
+import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 import { AuthProvider } from '@/modules/auth/enums';
 import type { RegisterInput } from '@/modules/auth/schemas/auth-input.schema';
+import { ShopMember } from '@/modules/shop/entities';
 
 import { User } from './entities';
 import { UserRole, UserStatus } from './enums';
@@ -34,10 +36,11 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(ShopMember)
+    private readonly shopMemberRepository: Repository<ShopMember>,
   ) {}
 
   async register(input: RegisterInput): Promise<User> {
-    await this.assertEmailAvailable(input.email);
     const user = this.userRepository.create({
       email: this.normalizeEmail(input.email),
       password: await argon2.hash(input.password),
@@ -47,22 +50,33 @@ export class UserService {
       role: UserRole.USER,
       status: UserStatus.INACTIVE,
     });
-    return this.userRepository.save(user);
+    try {
+      return await this.userRepository.save(user);
+    } catch (error) {
+      handleDatabaseConstraint(error, {
+        UQ_users_email: 'Email is already registered',
+      });
+    }
   }
 
   async create(input: CreateUserInput): Promise<User> {
-    await this.assertEmailAvailable(input.email);
-    return this.userRepository.save(
-      this.userRepository.create({
-        email: this.normalizeEmail(input.email),
-        password: await argon2.hash(input.password),
-        fullName: input.fullName,
-        provider: AuthProvider.CREDENTIALS,
-        providerAccountId: null,
-        role: input.role ?? UserRole.USER,
-        status: input.status ?? UserStatus.ACTIVE,
-      }),
-    );
+    try {
+      return await this.userRepository.save(
+        this.userRepository.create({
+          email: this.normalizeEmail(input.email),
+          password: await argon2.hash(input.password),
+          fullName: input.fullName,
+          provider: AuthProvider.CREDENTIALS,
+          providerAccountId: null,
+          role: input.role ?? UserRole.USER,
+          status: input.status ?? UserStatus.ACTIVE,
+        }),
+      );
+    } catch (error) {
+      handleDatabaseConstraint(error, {
+        UQ_users_email: 'Email is already registered',
+      });
+    }
   }
 
   findAll(query: PaginateQuery): Promise<Paginated<User>> {
@@ -71,6 +85,24 @@ export class UserService {
 
   findById(id: string): Promise<User> {
     return this.userRepository.findOneByOrFail({ id });
+  }
+
+  async findProfile(id: string) {
+    const user = await this.findById(id);
+    const membership = await this.shopMemberRepository.findOne({
+      where: { userId: id },
+      relations: { shop: true },
+    });
+    return {
+      ...user,
+      shop: membership
+        ? {
+            id: membership.shop.id,
+            name: membership.shop.name,
+            memberRole: membership.memberRole,
+          }
+        : null,
+    };
   }
 
   async findByEmail(email: string, withPassword = false): Promise<User | null> {
@@ -123,8 +155,7 @@ export class UserService {
 
   async update(id: string, input: UpdateUserInput): Promise<User> {
     const user = await this.findById(id);
-    if (input.email && this.normalizeEmail(input.email) !== user.email) {
-      await this.assertEmailAvailable(input.email);
+    if (input.email) {
       user.email = this.normalizeEmail(input.email);
     }
     //TODO sao ko dung merge nhi
@@ -132,7 +163,13 @@ export class UserService {
     if (input.fullName) user.fullName = input.fullName;
     if (input.role) user.role = input.role;
     if (input.status) user.status = input.status;
-    return this.userRepository.save(user);
+    try {
+      return await this.userRepository.save(user);
+    } catch (error) {
+      handleDatabaseConstraint(error, {
+        UQ_users_email: 'Email is already registered',
+      });
+    }
   }
 
   async updateProfile(id: string, input: UpdateProfileInput): Promise<User> {
@@ -144,12 +181,6 @@ export class UserService {
   async remove(id: string): Promise<void> {
     const result = await this.userRepository.delete(id);
     if (!result.affected) throw new NotFoundException('User not found');
-  }
-
-  private async assertEmailAvailable(email: string): Promise<void> {
-    if (await this.findByEmail(email)) {
-      throw new ConflictException('Email is already registered');
-    }
   }
 
   //TODO cai nay co schema trim o tang tren roi ma

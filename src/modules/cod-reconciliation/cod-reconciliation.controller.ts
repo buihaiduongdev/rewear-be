@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -14,7 +13,7 @@ import z from 'zod';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { acceptOrderSchema } from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
@@ -37,11 +36,13 @@ import type {
 
 @ApiTags('COD reconciliation')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class CodReconciliationController {
-  constructor(private readonly reconciliation: CodReconciliationService) {}
+  constructor(
+    private readonly codReconciliationService: CodReconciliationService,
+  ) {}
+  @AuthenticatedAccess()
   @Post('orders/:id/cod/collection')
   @HttpCode(200)
   @Serialize(adminCollectionViewSchema)
@@ -50,8 +51,9 @@ export class CodReconciliationController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: collectionInputSchema }) input: CollectionInput,
   ) {
-    return this.reconciliation.recordCollection(user.id, id, input);
+    return this.codReconciliationService.recordCollection(user.id, id, input);
   }
+  @AuthenticatedAccess()
   @Post('cod/remittances')
   @HttpCode(200)
   @Serialize(remittanceViewSchema)
@@ -59,13 +61,15 @@ export class CodReconciliationController {
     @CurrentUser() user: User,
     @Body({ schema: remittanceInputSchema }) input: RemittanceInput,
   ) {
-    return this.reconciliation.recordRemittance(user.id, input);
+    return this.codReconciliationService.recordRemittance(user.id, input);
   }
+  @AuthenticatedAccess()
   @Get('cod/reconciliations')
   @Serialize(z.array(adminCollectionViewSchema))
   list(@Query({ schema: financeListSchema }) input: FinanceListInput) {
-    return this.reconciliation.list(input);
+    return this.codReconciliationService.list(input);
   }
+  @AuthenticatedAccess()
   @Get('orders/:id/cod/reconciliation')
   @Serialize(adminReconciliationDetailSchema)
   detail(
@@ -73,8 +77,9 @@ export class CodReconciliationController {
     @Query({ schema: financeHistorySchema })
     input: Pick<FinanceListInput, 'offset'>,
   ) {
-    return this.reconciliation.detail(id, input);
+    return this.codReconciliationService.detail(id, input);
   }
+  @AuthenticatedAccess()
   @Post('orders/:id/cod/reconciliation/refresh')
   @HttpCode(200)
   @Serialize(adminCollectionViewSchema)
@@ -83,6 +88,6 @@ export class CodReconciliationController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.reconciliation.refresh(user.id, id);
+    return this.codReconciliationService.refresh(user.id, id);
   }
 }

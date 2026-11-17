@@ -21,7 +21,7 @@ import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -96,7 +96,6 @@ describe('Dispute API and private evidence HTTP', () => {
       shopId: shop.id,
       userId: owner.id,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     const deliveredAt = new Date(Date.now() - ms('1h'));
     const deadline = new Date(deliveredAt.getTime() + ms('72h'));
