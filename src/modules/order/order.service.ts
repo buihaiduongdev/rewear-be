@@ -354,7 +354,13 @@ export class OrderService {
     const { approvedIds, categories, shop } =
       await this.stockReleaseEligibility(manager, order, ids, products);
     const review: string[] = [];
-    const productsToSave: Product[] = [];
+    const updates: {
+      id: string;
+      status: ProductStatus;
+      clearTimestamps: boolean;
+      clearReservedOrder: boolean;
+    }[] = [];
+
     for (const id of ids) {
       const product = products.find((item) => item.id === id);
       const codOwned =
@@ -373,6 +379,8 @@ export class OrderService {
         review.push(id);
         continue;
       }
+      let targetStatus = product.status;
+      let clearTimestamps = false;
       if (product.status === ProductStatus.SOLD || codOwned) {
         const eligible =
           sellable &&
@@ -380,16 +388,44 @@ export class OrderService {
           product.categoryId &&
           categories.get(product.categoryId)?.isActive &&
           approvedIds.has(product.id);
-        product.status = eligible ? ProductStatus.ACTIVE : ProductStatus.HIDDEN;
-        product.soldAt = null;
-        product.heldUntil = null;
+        targetStatus = eligible ? ProductStatus.ACTIVE : ProductStatus.HIDDEN;
+        clearTimestamps = true;
       }
-      product.soldOrderId = null;
-      if (codOwned) product.reservedOrderId = null;
-      productsToSave.push(product);
+      updates.push({
+        id: product.id,
+        status: targetStatus,
+        clearTimestamps,
+        clearReservedOrder: !!codOwned,
+      });
     }
-    if (productsToSave.length > 0) {
-      await manager.save(Product, productsToSave);
+
+    if (updates.length > 0) {
+      await manager.query(
+        `
+        UPDATE products AS p
+        SET status = u.new_status::"products_status_enum",
+            "soldAt" = CASE WHEN u.clear_timestamps THEN NULL ELSE p."soldAt" END,
+            "heldUntil" = CASE WHEN u.clear_timestamps THEN NULL ELSE p."heldUntil" END,
+            "soldOrderId" = NULL,
+            "reservedOrderId" = CASE WHEN u.clear_reserved THEN NULL ELSE p."reservedOrderId" END,
+            "updatedAt" = NOW()
+        FROM (
+          SELECT * FROM unnest(
+            $1::uuid[],
+            $2::varchar[],
+            $3::boolean[],
+            $4::boolean[]
+          ) AS t(id, new_status, clear_timestamps, clear_reserved)
+        ) AS u
+        WHERE p.id = u.id
+        `,
+        [
+          updates.map((u) => u.id),
+          updates.map((u) => u.status),
+          updates.map((u) => u.clearTimestamps),
+          updates.map((u) => u.clearReservedOrder),
+        ],
+      );
     }
     return review;
   }
