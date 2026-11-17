@@ -1,11 +1,8 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { DataSource, type EntityManager, In } from 'typeorm';
 
+import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
@@ -65,23 +62,26 @@ export class ShopRoleService {
       throw new BadRequestException('Owner is a reserved role');
 
     return this.db.transaction(async (manager) => {
-      if (await manager.exists(ShopRole, { where: { shopId, name } }))
-        throw new ConflictException('Shop role name already exists');
-
       const uniquePermissions = [...new Set(permissions)];
-      const role = await manager.save(
-        ShopRole,
-        manager.create(ShopRole, {
-          shopId,
-          name,
-          isDefault: false,
-          permissions: uniquePermissions.map((permissionKey) =>
-            manager.create(ShopRolePermission, { permissionKey }),
-          ),
-        }),
-      );
+      try {
+        const role = await manager.save(
+          ShopRole,
+          manager.create(ShopRole, {
+            shopId,
+            name,
+            isDefault: false,
+            permissions: uniquePermissions.map((permissionKey) =>
+              manager.create(ShopRolePermission, { permissionKey }),
+            ),
+          }),
+        );
 
-      return { ...role, permissions: uniquePermissions };
+        return { ...role, permissions: uniquePermissions };
+      } catch (error) {
+        handleDatabaseConstraint(error, {
+          UQ_shop_roles_shop_id_name: 'Shop role name already exists',
+        });
+      }
     });
   }
 
@@ -102,10 +102,14 @@ export class ShopRoleService {
       if (name !== undefined && name !== role.name) {
         if (role.isDefault)
           throw new BadRequestException('Default role names cannot be changed');
-        if (await manager.exists(ShopRole, { where: { shopId, name } }))
-          throw new ConflictException('Shop role name already exists');
         role.name = name;
-        await manager.save(ShopRole, role);
+        try {
+          await manager.save(ShopRole, role);
+        } catch (error) {
+          handleDatabaseConstraint(error, {
+            UQ_shop_roles_shop_id_name: 'Shop role name already exists',
+          });
+        }
       }
 
       if (permissions !== undefined) {
