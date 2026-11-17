@@ -319,6 +319,10 @@ describe('MediaService', () => {
       }),
     ]);
     expect(manager.remove).toHaveBeenNthCalledWith(1, cover);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('WITH new_positions AS'),
+      [[secondMediaId], MediaOwnerType.PRODUCT, productId, true],
+    );
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),
     );

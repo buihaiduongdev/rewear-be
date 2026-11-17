@@ -333,14 +333,43 @@ export class MediaService {
         remaining.forEach((link, index) => {
           link.sortOrder = index;
         });
-        if (
+        const shouldPromoteCover =
           target.role === MediaRole.COVER &&
           remaining.length > 0 &&
-          !remaining.some((link) => link.role === MediaRole.COVER)
-        ) {
+          !remaining.some((link) => link.role === MediaRole.COVER);
+
+        if (shouldPromoteCover) {
           remaining[0].role = MediaRole.COVER;
         }
-        if (remaining.length > 0) await manager.save(remaining);
+
+        if (remaining.length > 0) {
+          const remainingIds = remaining.map((link) => link.mediaId);
+          await manager.query(
+            `
+            WITH new_positions AS (
+              SELECT id, (position - 1) AS new_sort_order
+              FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, position)
+            )
+            UPDATE media_links AS link
+            SET "sortOrder" = new_positions.new_sort_order,
+                "role" = CASE
+                  WHEN new_positions.new_sort_order = 0 AND $4 = true THEN 'COVER'::"media_links_role_enum"
+                  ELSE link."role"
+                END,
+                "updatedAt" = NOW()
+            FROM new_positions
+            WHERE link."mediaId" = new_positions.id
+              AND link."ownerType" = $2
+              AND link."ownerId" = $3
+            `,
+            [
+              remainingIds,
+              MediaOwnerType.PRODUCT,
+              productId,
+              shouldPromoteCover,
+            ],
+          );
+        }
 
         const otherLinkCount = await manager.count(MediaLink, {
           where: { mediaId },
