@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { Serialize } from '@/common/decorators';
+import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 import { userSchema } from '@/modules/user/schemas';
 
 import { AuthService } from './auth.service';
@@ -30,6 +31,7 @@ import { CredentialAuthStrategy } from './strategies/credential.strategy';
 import { OAuthStrategyFactory } from './strategies/oauth-strategy.factory';
 
 @ApiTags('Auth')
+@PublicAccess()
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -66,14 +68,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Serialize(tokenPairSchema)
   refresh(@Body({ schema: refreshTokenSchema }) input: RefreshTokenInput) {
-    return this.authService.refresh(input.refreshToken);
+    return this.authService.refresh(input);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @Serialize(messageSchema)
   logout(@Body({ schema: refreshTokenSchema }) input: RefreshTokenInput) {
-    return this.authService.logout(input.refreshToken);
+    return this.authService.logout(input);
   }
 
   @Post('verify-email')

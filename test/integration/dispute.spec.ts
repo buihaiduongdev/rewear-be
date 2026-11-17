@@ -22,7 +22,7 @@ import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 
@@ -63,7 +63,6 @@ describe('Dispute intake and holds (PostgreSQL)', () => {
       shopId: shop.id,
       userId: owner.id,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     const productId = randomUUID();
     const secondProductId = randomUUID();

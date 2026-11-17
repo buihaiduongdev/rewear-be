@@ -23,7 +23,6 @@ jest.mock('@nestjs/swagger', () => ({
 }));
 jest.mock('@/modules/auth/guards', () => ({
   JwtAuthGuard: class JwtAuthGuard {},
-  RolesGuard: class RolesGuard {},
 }));
 jest.mock('@/modules/user/user.service', () => ({
   UserService: class UserService {},
@@ -47,10 +46,17 @@ describe('UserController', () => {
   const userService: jest.Mocked<
     Pick<
       UserService,
-      'findById' | 'updateProfile' | 'findAll' | 'create' | 'update' | 'remove'
+      | 'findById'
+      | 'findProfile'
+      | 'updateProfile'
+      | 'findAll'
+      | 'create'
+      | 'update'
+      | 'remove'
     >
   > = {
     findById: jest.fn(),
+    findProfile: jest.fn(),
     updateProfile: jest.fn(),
     findAll: jest.fn(),
     create: jest.fn(),
@@ -65,18 +71,21 @@ describe('UserController', () => {
 
   describe('GET /users/me', () => {
     it('returns the current user', async () => {
-      userService.findById.mockResolvedValueOnce(user);
+      userService.findProfile.mockResolvedValueOnce({ ...user, shop: null });
 
-      await expect(controller.getMe(user)).resolves.toBe(user);
-      expect(userService.findById).toHaveBeenCalledWith(user.id);
+      await expect(controller.getMe(user)).resolves.toEqual({
+        ...user,
+        shop: null,
+      });
+      expect(userService.findProfile).toHaveBeenCalledWith(user.id);
     });
 
     it('propagates an error when the current user no longer exists', async () => {
       const error = new NotFoundException('User not found');
-      userService.findById.mockRejectedValueOnce(error);
+      userService.findProfile.mockRejectedValueOnce(error);
 
       await expect(controller.getMe(user)).rejects.toBe(error);
-      expect(userService.findById).toHaveBeenCalledWith(user.id);
+      expect(userService.findProfile).toHaveBeenCalledWith(user.id);
     });
   });
 

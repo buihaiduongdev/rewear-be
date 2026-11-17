@@ -2,7 +2,7 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 
-import { ShopMemberRole, ShopMemberStatus, ShopStatus } from '../enums';
+import { ShopMemberRole, ShopStatus } from '../enums';
 
 export const shopSchema = z.object({
   id: z.uuid(),
@@ -15,24 +15,17 @@ export const shopSchema = z.object({
 
 export const shopListSchema = z.array(shopSchema);
 
-export const shopMembershipSchema = z.object({
+export const shopMemberRoleItemSchema = z.object({
   id: z.uuid(),
-  shopId: z.uuid(),
-  userId: z.uuid(),
-  memberRole: z.enum(ShopMemberRole),
-  status: z.enum(ShopMemberStatus),
-  joinedAt: dateTimeSchema,
-  shop: shopSchema,
+  name: z.string(),
 });
-
-export const shopMembershipListSchema = z.array(shopMembershipSchema);
 
 export const shopMemberSchema = z.object({
   id: z.uuid(),
   shopId: z.uuid(),
   userId: z.uuid(),
   memberRole: z.enum(ShopMemberRole),
-  status: z.enum(ShopMemberStatus),
+  roles: z.array(shopMemberRoleItemSchema),
   joinedAt: dateTimeSchema,
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,

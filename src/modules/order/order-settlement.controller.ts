@@ -1,16 +1,9 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -21,7 +14,7 @@ import type { VerifyDeliveryInput } from './types/order-settlement.type';
 
 @ApiTags('Order receipt and settlement')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@AuthenticatedAccess()
 @Controller()
 export class OrderSettlementController {
   constructor(private readonly settlement: OrderSettlementService) {}
@@ -38,7 +31,6 @@ export class OrderSettlementController {
   }
 
   @Post('admin/orders/:id/delivery-verification')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(200)
   @Serialize(orderSchema)

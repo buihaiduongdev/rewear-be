@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 
 import { DEFAULT_SEED_PASSWORD } from '@/database/seeds/catalog';
 import { runInitialDataSeed } from '@/database/seeds/initial-data.seed';
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { Product } from '@/modules/product/entities';
@@ -48,6 +49,7 @@ describe('Seed data (PostgreSQL)', () => {
       db.getRepository(Shop),
       db.getRepository(ShopMember),
       db,
+      new AuthorizationService(db),
     );
     const result = await products.findAll({ path: '/products', limit: 100 });
     expect(result.data).toHaveLength(30);

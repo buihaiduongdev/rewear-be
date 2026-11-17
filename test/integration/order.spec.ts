@@ -9,11 +9,11 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -22,11 +22,7 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import {
-  ShopMemberRole,
-  ShopMemberStatus,
-  ShopStatus,
-} from '@/modules/shop/enums';
+import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 import { WalletService } from '@/modules/wallet/wallet.service';
@@ -41,7 +37,6 @@ describe('paid order acceptance with PostgreSQL', () => {
     database = await createTestDatabase();
     service = new OrderService(
       database.dataSource,
-      new OrderAccess(),
       new WalletService(database.dataSource),
       new CodPolicy(database.dataSource),
     );
@@ -179,16 +174,26 @@ describe('paid order acceptance with PostgreSQL', () => {
       (await service.shopList(f.owner.id, f.shop.id, {})).map((row) => row.id),
     ).toEqual([f.order.id]);
     await expect(
-      service.shopDetail(f.stranger.id, f.shop.id, f.order.id),
+      new AuthorizationService(f.db).authorize(
+        f.stranger.id,
+        f.shop.id,
+        'order.view',
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
-      service.accept(f.staff.id, f.shop.id, f.order.id),
+      new AuthorizationService(f.db).authorize(
+        f.staff.id,
+        f.shop.id,
+        'order.update',
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    await f.db
-      .getRepository(ShopMember)
-      .update(f.membership.id, { status: ShopMemberStatus.INACTIVE });
+    await f.db.getRepository(ShopMember).delete(f.membership.id);
     await expect(
-      service.accept(f.owner.id, f.shop.id, f.order.id),
+      new AuthorizationService(f.db).authorize(
+        f.owner.id,
+        f.shop.id,
+        'order.update',
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -198,7 +203,9 @@ describe('paid order acceptance with PostgreSQL', () => {
       .getRepository(Order)
       .update(f.order.id, { subtotal: -1, shippingFee: 230001 });
     await expect(
-      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+      service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      }),
     ).rejects.toThrow('Invalid order refund amount');
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
@@ -231,7 +238,9 @@ describe('paid order acceptance with PostgreSQL', () => {
         .countBy({ orderId: f.order.id, action: 'ACCEPTED' }),
     ).toBe(1);
     await expect(
-      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+      service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      }),
     ).rejects.toThrow('Order is no longer awaiting confirmation');
   });
 
@@ -251,8 +260,12 @@ describe('paid order acceptance with PostgreSQL', () => {
       .getRepository(PaymentAttempt)
       .update(f.payment.id, { amount: 460000 });
     await Promise.all([
-      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
-      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+      service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      }),
+      service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      }),
     ]);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
@@ -320,33 +333,18 @@ describe('paid order acceptance with PostgreSQL', () => {
     ).toBe(1);
   });
 
-  it('does not accept after the deadline while waiting for a concurrent membership update', async () => {
+  it('rejects acceptance after the deadline', async () => {
     const f = await fixture();
-    const runner = f.db.createQueryRunner();
-    await runner.connect();
-    await runner.startTransaction();
-    await runner.manager.update(ShopMember, f.membership.id, {
-      status: ShopMemberStatus.ACTIVE,
-    });
     await f.db
       .getRepository(Order)
-      .update(f.order.id, { sellerConfirmBy: new Date(Date.now() + 100) });
-    const result = service.accept(f.owner.id, f.shop.id, f.order.id).then(
-      () => 'accepted',
-      () => 'rejected',
-    );
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      await runner.commitTransaction();
-      expect(await result).toBe('rejected');
-      expect(
-        (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
-          .status,
-      ).toBe('cancelled');
-    } finally {
-      if (runner.isTransactionActive) await runner.rollbackTransaction();
-      await runner.release();
-    }
+      .update(f.order.id, { sellerConfirmBy: new Date(Date.now() - 1000) });
+    await expect(
+      service.accept(f.owner.id, f.shop.id, f.order.id),
+    ).rejects.toThrow('Seller confirmation deadline has passed');
+    expect(
+      (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
+        .status,
+    ).toBe('cancelled');
   });
 
   it('does not reopen changed, suspended or newly reserved stock when an old order is cancelled', async () => {
@@ -392,7 +390,9 @@ describe('paid order acceptance with PostgreSQL', () => {
         await f.db
           .getRepository(Category)
           .update(f.category.id, { isActive: false });
-      await service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil');
+      await service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      });
       const product = await f.db
         .getRepository(Product)
         .findOneByOrFail({ id: f.product.id });
@@ -421,7 +421,9 @@ describe('paid order acceptance with PostgreSQL', () => {
     );
     try {
       await expect(
-        service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+        service.reject(f.owner.id, f.shop.id, f.order.id, {
+          reason: 'Cannot fulfil',
+        }),
       ).rejects.toThrow('ledger unavailable');
       expect(
         (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
@@ -500,7 +502,9 @@ describe('paid order acceptance with PostgreSQL', () => {
     );
     try {
       await expect(
-        service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+        service.reject(f.owner.id, f.shop.id, f.order.id, {
+          reason: 'Cannot fulfil',
+        }),
       ).rejects.toThrow('cancellation unavailable');
       expect((await new WalletService(f.db).mine(f.buyer.id, {})).balance).toBe(
         0,
@@ -528,7 +532,9 @@ describe('paid order acceptance with PostgreSQL', () => {
     const f = await fixture();
     const results = await Promise.allSettled([
       service.accept(f.owner.id, f.shop.id, f.order.id),
-      service.reject(f.owner.id, f.shop.id, f.order.id, 'Cannot fulfil'),
+      service.reject(f.owner.id, f.shop.id, f.order.id, {
+        reason: 'Cannot fulfil',
+      }),
     ]);
     expect(
       results.filter((result) => result.status === 'fulfilled'),

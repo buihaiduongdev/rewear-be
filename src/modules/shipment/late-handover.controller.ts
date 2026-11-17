@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -14,12 +13,15 @@ import z from 'zod';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
+import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { LateHandoverService } from './late-handover.service';
 import { fulfillmentListSchema } from './schemas/fulfillment-list.schema';
+import type { HandoverResponseInput } from './schemas/late-handover.schema';
 import {
   fulfillmentCalendarSchema,
   fulfillmentNoticeSchema,
@@ -37,63 +39,65 @@ import type { FulfillmentListInput } from './types/shipment.type';
 
 @ApiTags('Fulfillment recovery')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class LateHandoverController {
-  constructor(private readonly handovers: LateHandoverService) {}
+  constructor(private readonly lateHandoverService: LateHandoverService) {}
 
+  @AuthenticatedAccess()
   @Post('admin/orders/:id/handover/stop')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Serialize(handoverCaseSchema)
   stop(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: handoverStopSchema }) input: HandoverStop,
   ) {
-    return this.handovers.adminStop(user.id, id, input);
+    return this.lateHandoverService.adminStop(user.id, id, input);
   }
 
+  @AuthenticatedAccess()
   @Get('fulfillment/notices')
   @Serialize(z.array(fulfillmentNoticeSchema))
   notices(
     @CurrentUser() user: User,
     @Query({ schema: fulfillmentListSchema }) input: FulfillmentListInput,
   ) {
-    return this.handovers.notices(user.id, input);
+    return this.lateHandoverService.notices(user.id, input);
   }
 
+  @AuthenticatedAccess()
   @Post('admin/fulfillment/calendar')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   configureCalendar(
     @CurrentUser() user: User,
     @Body({ schema: fulfillmentCalendarSchema }) input: CalendarInput,
   ) {
-    return this.handovers.configureCalendar(user.id, input);
+    return this.lateHandoverService.configureCalendar(user.id, input);
   }
 
+  @AuthenticatedAccess()
   @Get('admin/fulfillment/handovers')
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Serialize(z.array(handoverCaseSchema))
   incidents(
     @Query({ schema: fulfillmentListSchema }) input: FulfillmentListInput,
   ) {
-    return this.handovers.incidents(input);
+    return this.lateHandoverService.incidents(input);
   }
 
+  @AuthenticatedAccess()
   @Get('orders/:id/handover')
   @Serialize(handoverCaseSchema)
   buyerView(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.handovers.buyerView(user.id, id);
+    return this.lateHandoverService.buyerView(user.id, id);
   }
 
+  @RequirePermission(SHOP_PERMISSIONS.ORDER_VIEW)
   @Get('shops/:shopId/orders/:id/handover')
   @Serialize(handoverCaseSchema)
   shopView(
@@ -101,30 +105,31 @@ export class LateHandoverController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.handovers.shopView(user.id, shopId, id);
+    return this.lateHandoverService.shopView(user.id, shopId, id);
   }
 
+  @AuthenticatedAccess()
   @Post('admin/orders/:id/handover/proposal')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Serialize(handoverCaseSchema)
   propose(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: handoverProposalSchema }) input: HandoverProposal,
   ) {
-    return this.handovers.propose(user.id, id, input);
+    return this.lateHandoverService.propose(user.id, id, input);
   }
 
+  @AuthenticatedAccess()
   @Post('orders/:id/handover/response')
   @HttpCode(200)
   @Serialize(handoverCaseSchema)
   respond(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: handoverResponseSchema }) input: { accept: boolean },
+    @Body({ schema: handoverResponseSchema }) input: HandoverResponseInput,
   ) {
-    return this.handovers.respond(user.id, id, input.accept);
+    return this.lateHandoverService.respond(user.id, id, input);
   }
 }

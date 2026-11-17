@@ -5,6 +5,7 @@ import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
@@ -79,6 +80,7 @@ describe('commerce behavior with PostgreSQL', () => {
       db.getRepository(Shop),
       db.getRepository(ShopMember),
       db,
+      new AuthorizationService(db),
     );
     const product = await products.create(seller.id, {
       shopId: shop.id,
@@ -111,27 +113,23 @@ describe('commerce behavior with PostgreSQL', () => {
       });
     }
 
-    const pending = await products.submit(product.id, seller.id);
+    const pending = await products.submit(product.id);
     expect(pending.status).toBe(ProductStatus.PENDING_REVIEW);
-    const firstReview = await products.findModeration(
-      product.id,
-      admin.id,
-      true,
-    );
+    const firstReview = await products.findModeration(product.id);
     await expect(
       products.update(product.id, seller.id, { title: 'Changed jacket' }),
     ).rejects.toThrow('This product cannot be edited in its current state');
     await expect(
-      products.cancelSubmission(product.id, buyer.id),
-    ).rejects.toThrow('Shop owner access required');
-    const cancelled = await products.cancelSubmission(product.id, seller.id);
+      new AuthorizationService(db).authorize(
+        buyer.id,
+        shop.id,
+        'product.update',
+      ),
+    ).rejects.toThrow('Shop permission denied');
+    const cancelled = await products.cancelSubmission(product.id);
     expect(cancelled.status).toBe(ProductStatus.DRAFT);
-    await products.submit(product.id, seller.id);
-    const secondReview = await products.findModeration(
-      product.id,
-      admin.id,
-      true,
-    );
+    await products.submit(product.id);
+    const secondReview = await products.findModeration(product.id);
     expect(secondReview.id).toBe(firstReview.id);
     expect(secondReview.version).toBeGreaterThan(firstReview.version);
     await expect(
@@ -146,18 +144,14 @@ describe('commerce behavior with PostgreSQL', () => {
       reason: 'Ảnh chưa rõ',
     });
     expect(rejected.status).toBe(ProductStatus.REJECTED);
-    expect((await products.findModeration(product.id, seller.id)).reason).toBe(
+    expect((await products.findModeration(product.id)).reason).toBe(
       'Ảnh chưa rõ',
     );
     await products.update(product.id, seller.id, {
       title: 'Denim jacket updated',
     });
-    await products.submit(product.id, seller.id);
-    const finalReview = await products.findModeration(
-      product.id,
-      admin.id,
-      true,
-    );
+    await products.submit(product.id);
+    const finalReview = await products.findModeration(product.id);
     expect(finalReview.reason).toBeNull();
     const published = await products.moderate(product.id, admin.id, {
       version: finalReview.version,

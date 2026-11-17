@@ -121,14 +121,17 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
     await request(server)
       .get(`/api/orders/${order.id}`)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(404);
     await request(server)
       .get('/api/orders/mine?limit=101')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(400);
     const list = await request(server)
       .get('/api/orders/mine?limit=1&status=pending')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(list.body.data.map((row: { id: string }) => row.id)).toEqual([
       order.id,
@@ -137,21 +140,25 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
     await request(server)
       .post(`${path}/reject`)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ reason: 'Cannot fulfil' })
       .expect(403);
     await request(server)
       .post(`${path}/reject`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ reason: '   ' })
       .expect(400);
     await request(server)
       .post(`${path}/reject`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ reason: 'Cannot fulfil', amount: 1 })
       .expect(400);
     const rejected = await request(server)
       .post(`${path}/reject`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ reason: '  Cannot   fulfil  ' })
       .expect(200);
     expect(rejected.body.data.status).toBe('cancelled');
@@ -165,22 +172,26 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
     const wallet = await request(server)
       .get('/api/wallet/mine')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(wallet.body.data.balance).toBe(230000);
     expect(wallet.body.data.credits).toHaveLength(1);
     const otherWallet = await request(server)
       .get('/api/wallet/mine')
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(otherWallet.body.data.balance).toBe(0);
     await request(server)
       .post(`${path}/accept`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(409);
     const detail = await request(server)
       .get(`/api/orders/${order.id}`)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(detail.body.data.walletRefund.amount).toBe(230000);
     expect(detail.body.data.createdAt).toBeUndefined(); // serialization excludes internal fields

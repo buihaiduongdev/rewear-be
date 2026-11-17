@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
+import { METHOD_METADATA } from '@nestjs/common/constants';
+import { ModulesContainer } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 
@@ -19,11 +21,16 @@ import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbo
 import { STORAGE_PROVIDER } from '@/infrastructure/storage/storage.interface';
 import type { IStorageProvider } from '@/infrastructure/storage/storage.interface';
 import { JwtAuthGuard } from '@/modules/auth/guards';
+import { ACCESS_POLICY } from '@/modules/authorization/constants/access-policy.constant';
+import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
+import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
+import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { Category } from '@/modules/category/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
@@ -73,22 +80,27 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     database = await createTestDatabase();
     await database.destroy();
 
+    const testAuthGuard = {
+      async canActivate(context: ExecutionContext) {
+        const policy =
+          Reflect.getMetadata(ACCESS_POLICY, context.getHandler()) ??
+          Reflect.getMetadata(ACCESS_POLICY, context.getClass());
+        if (policy?.type === 'public') return true;
+        const request = context.switchToHttp().getRequest();
+        const id = request.headers['x-test-user'];
+        if (typeof id !== 'string') return false;
+        const user = await db.getRepository(User).findOneBy({
+          id,
+          status: UserStatus.ACTIVE,
+        });
+        if (!user) return false;
+        request.user = user;
+        return true;
+      },
+    };
     const module = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({
-        async canActivate(context: ExecutionContext) {
-          const request = context.switchToHttp().getRequest();
-          const id = request.headers['x-test-user'];
-          if (typeof id !== 'string') return false;
-          const user = await db.getRepository(User).findOneBy({
-            id,
-            status: UserStatus.ACTIVE,
-          });
-          if (!user) return false;
-          request.user = user;
-          return true;
-        },
-      })
+      .overrideProvider(JwtAuthGuard)
+      .useValue(testAuthGuard)
       .overrideProvider(STORAGE_PROVIDER)
       .useValue(storage)
       .overrideProvider(GhnSandboxAdapter)
@@ -159,46 +171,207 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
 
   it('lets a seller publish an approved listing that a buyer can hold at checkout', async () => {
     const server = app.getHttpServer();
+    for (const module of app.get(ModulesContainer).values()) {
+      for (const controller of module.controllers.values()) {
+        const type = controller.metatype;
+        if (!type) continue;
+        for (const name of Object.getOwnPropertyNames(type.prototype)) {
+          const handler = type.prototype[name];
+          if (
+            typeof handler !== 'function' ||
+            !Reflect.hasMetadata(METHOD_METADATA, handler)
+          )
+            continue;
+          const policy =
+            Reflect.getMetadata(ACCESS_POLICY, handler) ??
+            Reflect.getMetadata(ACCESS_POLICY, type);
+          expect({
+            route: `${type.name}.${name}`,
+            configured: Boolean(policy),
+          }).toEqual({ route: `${type.name}.${name}`, configured: true });
+        }
+      }
+    }
+    const sellerProfile = await request(server)
+      .get('/api/users/me')
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
+    expect(sellerProfile.body.data.shop).toMatchObject({
+      id: shop.id,
+      name: shop.name,
+      memberRole: 'OWNER',
+    });
+    const buyerProfile = await request(server)
+      .get('/api/users/me')
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
+    expect(buyerProfile.body.data.shop).toBeNull();
+    await request(server)
+      .post(`/api/shops/${shop.id}/roles`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .send({ name: 'Escalation', permissions: ['shop.owner'] })
+      .expect(400);
+    const assignablePermissions = await request(server)
+      .get(`/api/shops/${shop.id}/permissions`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
+    expect(assignablePermissions.body.data).not.toContain('shop.owner');
+
+    await request(server)
+      .get(`/api/shops/${shop.id}/roles`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    const staffMembership = await db.getRepository(ShopMember).save({
+      shopId: shop.id,
+      userId: buyer.id,
+      memberRole: ShopMemberRole.STAFF,
+    });
+    await request(server)
+      .get(`/api/shops/${shop.id}/roles`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .delete(`/api/shops/${shop.id}/members/${staffMembership.id}`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .get(`/api/shops/${shop.id}/permissions/me`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
+    await request(server)
+      .put(`/api/shops/${shop.id}/members/${staffMembership.id}/roles`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .send({ roleIds: [] })
+      .expect(200);
+    const anotherShop = await db
+      .getRepository(Shop)
+      .save(new ShopFactory().build());
+    await request(server)
+      .get(`/api/shops/${shop.id}/roles`)
+      .set('x-test-user', seller.id)
+      .expect(400);
+    await request(server)
+      .get(`/api/shops/${shop.id}/roles`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', 'invalid')
+      .expect(400);
+    await request(server)
+      .get(`/api/shops/${anotherShop.id}/roles`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(404);
+    await request(server)
+      .post('/api/products')
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .send({ shopId: anotherShop.id, title: 'Wrong scope' })
+      .expect(404);
+    const foreignProduct = await db
+      .getRepository(Product)
+      .save({ shopId: anotherShop.id, title: 'Private product' });
+    await request(server)
+      .get(`/api/products/manage/${foreignProduct.id}`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(404);
+    const otherMembership = await db.getRepository(ShopMember).save({
+      shopId: anotherShop.id,
+      userId: admin.id,
+      memberRole: ShopMemberRole.OWNER,
+    });
+    await request(server)
+      .put(`/api/shops/${shop.id}/members/${otherMembership.id}/roles`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .send({ roleIds: [] })
+      .expect(404);
+    await request(server)
+      .get(`/api/shops/${shop.id}/orders`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    const staffRole = await db
+      .getRepository(ShopRole)
+      .save({ shopId: shop.id, name: 'Order reader' });
+    const rolePermission = await db
+      .getRepository(ShopRolePermission)
+      .save({ roleId: staffRole.id, permissionKey: 'order.view' });
+    await db
+      .getRepository(ShopMemberRoleAssignment)
+      .save({ memberId: staffMembership.id, roleId: staffRole.id });
+    await request(server)
+      .get(`/api/shops/${shop.id}/orders`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
+    await db.getRepository(ShopRolePermission).remove(rolePermission);
+    await request(server)
+      .get(`/api/shops/${shop.id}/orders`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .delete(`/api/shops/${shop.id}/members/${staffMembership.id}`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(204);
     const categoryCreated = await request(server)
       .post('/api/categories')
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Áo Đầm' })
       .expect(201);
     expect(categoryCreated.body.data.slug).toBe('ao-dam');
     await request(server)
       .post('/api/categories')
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Áo Dam' })
       .expect(409);
     await request(server)
       .post('/api/categories')
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Áo khoác', slug: 'custom-slug' })
       .expect(400);
     await request(server)
       .post('/api/categories')
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Váy đẹp' })
       .expect(201);
     await request(server)
       .patch(`/api/categories/${categoryCreated.body.data.id}`)
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Váy đẹp' })
       .expect(409);
     const categoryUpdated = await request(server)
       .patch(`/api/categories/${categoryCreated.body.data.id}`)
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: 'Áo mới' })
       .expect(200);
     expect(categoryUpdated.body.data.slug).toBe('ao-moi');
     await request(server)
       .patch(`/api/categories/${categoryCreated.body.data.id}`)
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ slug: 'custom-slug' })
       .expect(400);
     await request(server)
       .post('/api/categories')
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ name: '!!!' })
       .expect(400);
     const openapi = SwaggerModule.createDocument(
@@ -215,12 +388,14 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const otherUsersAddress = await request(server)
       .get(`/api/user-addresses/${address.id}`)
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .expect(404);
     expect(otherUsersAddress.body.message).toBe('Resource not found');
 
     const missingProduct = await request(server)
       .put(`/api/cart/items/${randomUUID()}`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(404);
     expect(missingProduct.body.message).toBe('Resource not found');
@@ -228,17 +403,20 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     await request(server)
       .post('/api/products')
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({ title: 'Missing shop' })
       .expect(400);
     await request(server)
       .post('/api/products')
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({ shopId: shop.id })
       .expect(403);
 
     const created = await request(server)
       .post('/api/products')
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({
         shopId: shop.id,
         title: 'Denim jacket',
@@ -256,16 +434,38 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       })
       .expect(201);
     const productId = created.body.data.id as string;
+    await request(server)
+      .get(`/api/products/manage/${productId}`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .get(`/api/products/admin/${productId}/moderation`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .get(`/api/shipping/shops/${shop.id}/pickup-location`)
+      .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
+      .expect(403);
+    await request(server)
+      .get(`/api/shipping/shops/${shop.id}/pickup-location`)
+      .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
+      .expect(200);
 
     for (const angle of ['FRONT', 'BACK', 'LABEL']) {
       const ticket = await request(server)
         .post(`/api/products/${productId}/media/upload-ticket`)
         .set('x-test-user', seller.id)
+        .set('x-shop-id', shop.id)
         .send({ mimeType: 'image/jpeg', sizeBytes: 1024 })
         .expect(201);
       await request(server)
         .post(`/api/products/${productId}/media`)
         .set('x-test-user', seller.id)
+        .set('x-shop-id', shop.id)
         .send({
           mimeType: 'image/jpeg',
           sizeBytes: 1024,
@@ -278,6 +478,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const submitted = await request(server)
       .post(`/api/products/${productId}/submit`)
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(submitted.body.data.status).toBe(ProductStatus.PENDING_REVIEW);
@@ -285,26 +486,31 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     await request(server)
       .patch(`/api/products/${productId}`)
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({ title: 'Edited while pending' })
       .expect(409);
     await request(server)
       .post(`/api/products/${productId}/cancel-submission`)
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     await request(server)
       .post(`/api/products/${productId}/submit`)
       .set('x-test-user', seller.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
 
     const review = await request(server)
       .get(`/api/products/admin/${productId}/moderation`)
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .expect(200);
     const approved = await request(server)
       .post(`/api/products/admin/${productId}/moderation`)
       .set('x-test-user', admin.id)
+      .set('x-shop-id', shop.id)
       .send({ version: review.body.data.version, decision: 'APPROVE' })
       .expect(200);
     expect(approved.body.data.status).toBe(ProductStatus.ACTIVE);
@@ -335,6 +541,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const cart = await request(server)
       .put(`/api/cart/items/${productId}`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(cart.body.data.groups[0].shop).toMatchObject({
@@ -346,6 +553,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const checkedOut = await request(server)
       .post('/api/checkouts')
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({
         requestId: randomUUID(),
         addressId: address.id,
@@ -373,6 +581,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const quote = await request(server)
       .post(`/api/checkouts/${checkedOut.body.data.id}/shipping-quotes`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(quote.body.data.orders[0].shopId).toBe(shop.id);
@@ -382,6 +591,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     await request(server)
       .post(`/api/checkouts/${checkedOut.body.data.id}/shipping-quotes`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(quoteCarrier).toHaveBeenCalledTimes(2);
@@ -389,6 +599,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const updatedCheckout = await request(server)
       .get(`/api/checkouts/${checkedOut.body.data.id}`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(updatedCheckout.body.data.orders[0].shopName).toBe('Tên shop mới');
     expect(updatedCheckout.body.data).not.toHaveProperty('shippingQuote');
@@ -400,6 +611,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     const unavailable = await request(server)
       .post(`/api/checkouts/${checkedOut.body.data.id}/shipping-quotes`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(unavailable.body.data).toMatchObject({
@@ -411,6 +623,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       await request(server)
         .post(`/api/checkouts/${checkedOut.body.data.id}/cancel`)
         .set('x-test-user', buyer.id)
+        .set('x-shop-id', shop.id)
         .send({})
         .expect(200);
       return { fee: 25000, estimatedDeliveryAt: null };
@@ -418,6 +631,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     await request(server)
       .post(`/api/checkouts/${checkedOut.body.data.id}/shipping-quotes`)
       .set('x-test-user', buyer.id)
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(409);
   });

@@ -3,7 +3,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { EntityManager, EntityNotFoundError } from 'typeorm';
 
 import { ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 
 @Injectable()
 export class OrderAccess {
@@ -21,7 +21,6 @@ export class OrderAccess {
           shopId,
           userId,
           memberRole: ShopMemberRole.OWNER,
-          status: ShopMemberStatus.ACTIVE,
         },
         lock: lock ? { mode: 'pessimistic_read' } : undefined,
       });

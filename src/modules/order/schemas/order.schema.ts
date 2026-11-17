@@ -75,3 +75,5 @@ export const orderSchema = z.object({
     .optional(),
 });
 export const orderListSchema = z.array(orderSchema);
+
+export type RejectOrderInput = z.output<typeof rejectOrderSchema>;

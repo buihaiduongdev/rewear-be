@@ -13,12 +13,12 @@ export class OrderWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrderWorker.name);
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
-  constructor(private readonly orders: OrderService) {}
+  constructor(private readonly orderService: OrderService) {}
   onModuleInit() {
     this.timer = setInterval(() => {
       if (this.running) return;
       this.running = true;
-      void this.orders
+      void this.orderService
         .expireDue()
         .catch(() =>
           this.logger.error(

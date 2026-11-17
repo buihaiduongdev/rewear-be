@@ -37,7 +37,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly db: DataSource,
-    private readonly cart: CartService,
+    private readonly cartService: CartService,
   ) {}
 
   onModuleInit() {
@@ -99,7 +99,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         lock: { mode: 'pessimistic_write' },
       });
       await this.lockProductEligibility(manager, products);
-      const cartView = await this.cart.readCart(manager, buyerId);
+      const cartView = await this.cartService.readCart(manager, buyerId);
 
       const checkout = manager.create(Checkout, {
         buyerId,

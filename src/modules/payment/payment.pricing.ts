@@ -17,13 +17,13 @@ import type { PaymentOrderSnapshot } from './types/payment.type';
 // Never accept a client amount, fee or quote object as an authoritative price.
 @Injectable()
 export class PaymentPricing {
-  constructor(private readonly shipping: ShippingQuoteService) {}
+  constructor(private readonly shippingQuoteService: ShippingQuoteService) {}
 
   async quote(buyerId: string, checkoutId: string) {
     // GHN HTTP must finish before acquiring any payment/stock transaction lock.
     return {
       checkoutId,
-      quote: await this.shipping.refresh(buyerId, checkoutId),
+      quote: await this.shippingQuoteService.refresh(buyerId, checkoutId),
     };
   }
 

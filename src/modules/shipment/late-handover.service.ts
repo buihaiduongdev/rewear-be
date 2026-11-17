@@ -8,11 +8,10 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import type { OrderState } from '@/modules/order/types/order.type';
 import { ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 
 import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
 import {
@@ -30,6 +29,7 @@ import {
   HandoverCase,
 } from './entities/late-handover.entity';
 import { Shipment } from './entities/shipment.entity';
+import type { HandoverResponseInput } from './schemas/late-handover.schema';
 import type {
   HandoverAction,
   HandoverState,
@@ -57,8 +57,7 @@ export class LateHandoverService {
   private readonly logger = new Logger(LateHandoverService.name);
   constructor(
     private readonly db: DataSource,
-    private readonly access: OrderAccess,
-    private readonly orders: OrderService,
+    private readonly orderService: OrderService,
   ) {}
 
   private async lock(manager: EntityManager) {
@@ -84,7 +83,6 @@ export class LateHandoverService {
     const owner = await manager.findOneBy(ShopMember, {
       shopId: order.shopId,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     for (const recipientId of new Set([
       order.buyerId,
@@ -134,7 +132,6 @@ export class LateHandoverService {
     return this.db.getRepository(HandoverCase).findOneByOrFail({ orderId });
   }
   async shopView(userId: string, shopId: string, orderId: string) {
-    await this.access.assertManage(this.db.manager, userId, shopId);
     await this.db.getRepository(Order).findOneByOrFail({ id: orderId, shopId });
     return this.db.getRepository(HandoverCase).findOneByOrFail({ orderId });
   }
@@ -193,7 +190,11 @@ export class LateHandoverService {
     });
   }
 
-  async respond(buyerId: string, orderId: string, accept: boolean) {
+  async respond(
+    buyerId: string,
+    orderId: string,
+    { accept }: HandoverResponseInput,
+  ) {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
       const order = await manager.findOneByOrFail(Order, {
@@ -298,7 +299,7 @@ export class LateHandoverService {
     const unbookedOrderPreparing =
       !shipment && order.status === ORDER_STATUS.PREPARING;
     if (unbookedOrderPreparing) {
-      await this.orders.cancelCodVerified(manager, order, now);
+      await this.orderService.cancelCodVerified(manager, order, now);
       row.state = HANDOVER_STATE.CLOSED;
     } else if (shipment) {
       const pickupRequiresReturn =

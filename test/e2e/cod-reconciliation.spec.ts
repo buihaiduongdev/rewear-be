@@ -16,7 +16,7 @@ import { OrderWorker } from '@/modules/order/order.worker';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -66,7 +66,6 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
       shopId: shop.id,
       userId: owner.id,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
@@ -124,16 +123,19 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     await request(server)
       .post(path)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(data)
       .expect(403);
     await request(server)
       .post(path)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ ...data, available: 999999 })
       .expect(400);
     const recorded = await request(server)
       .post(path)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(data)
       .expect(200);
     expect(recorded.body.data.actorId).toBe(admin.id);
@@ -153,21 +155,25 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     await request(server)
       .post('/api/admin/cod/remittances')
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(batch)
       .expect(403);
     await request(server)
       .post('/api/admin/cod/remittances')
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(batch)
       .expect(200);
     const financePath = `/api/shops/${shop.id}/finance`;
     await request(server)
       .get(financePath)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(403);
     const balance = await request(server)
       .get(financePath)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(balance.body.data.held).toBe(194000);
     expect(balance.body.data.available).toBe(0);
@@ -175,6 +181,7 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     await request(server)
       .get(financePath + '?mode=SIMULATION')
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200)
       .expect((response) => {
         expect(response.body.data.held).toBe(0);
@@ -182,24 +189,29 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     await request(server)
       .get(financePath + '?offset=-1')
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(400);
     await request(server)
       .get(`/api/admin/orders/${order.id}/cod/reconciliation`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(403);
     const detail = await request(server)
       .get(`/api/admin/orders/${order.id}/cod/reconciliation`)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(detail.text).toContain('PRIVATE_BANK_PROOF');
     await request(server)
       .post(`/api/admin/orders/${order.id}/cod/reconciliation/refresh`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(403);
     await request(server)
       .post(`/api/admin/orders/${order.id}/cod/reconciliation/refresh`)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
   });

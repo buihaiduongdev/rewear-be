@@ -178,18 +178,22 @@ const paid = (id, transId = 12345, amount = 230000) => ({
 test('same client request, including concurrent calls, creates only one provider request', async () => {
   const f = setup();
   const result = await Promise.all([
-    f.service.create('buyer', 'checkout', 'request'),
-    f.service.create('buyer', 'checkout', 'request'),
+    f.service.create('buyer', 'checkout', { requestId: 'request' }),
+    f.service.create('buyer', 'checkout', { requestId: 'request' }),
   ]);
   assert.equal(result[0].id, result[1].id);
   assert.equal(f.calls(), 1);
   await assert.rejects(f.service.findMine('stranger', result[0].id));
-  await assert.rejects(f.service.create('buyer', 'checkout', 'another'));
+  await assert.rejects(
+    f.service.create('buyer', 'checkout', { requestId: 'another' }),
+  );
 });
 
 test('duplicate settlement is monotonic, creates one pending order, and reserves 24 hours', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', 'request');
+  const attempt = await f.service.create('buyer', 'checkout', {
+    requestId: 'request',
+  });
   await Promise.all([
     f.service.applyResult(attempt.id, paid(attempt.id)),
     f.service.applyResult(attempt.id, paid(attempt.id)),
@@ -215,7 +219,8 @@ test('create response arriving after IPN never overwrites settlement', async () 
     };
   };
   assert.equal(
-    (await f.service.create('buyer', 'checkout', 'request')).state,
+    (await f.service.create('buyer', 'checkout', { requestId: 'request' }))
+      .state,
     'PAID',
   );
 });
@@ -233,7 +238,9 @@ test('an early pending query during create does not discard its eventual valid p
       payUrl: 'https://test-payment.momo.vn/pay',
     };
   };
-  const result = await f.service.create('buyer', 'checkout', 'request');
+  const result = await f.service.create('buyer', 'checkout', {
+    requestId: 'request',
+  });
   assert.equal(result.state, 'PENDING');
   assert.equal(result.payUrl, 'https://test-payment.momo.vn/pay');
 });
@@ -241,7 +248,9 @@ test('an early pending query during create does not discard its eventual valid p
 test('cancelled/expired and wrong amounts persist refunds without reviving or selling stock', async () => {
   for (const change of ['CANCELLED', 'EXPIRED', 'wrong-amount']) {
     const f = setup();
-    const attempt = await f.service.create('buyer', 'checkout', 'request');
+    const attempt = await f.service.create('buyer', 'checkout', {
+      requestId: 'request',
+    });
     if (change !== 'wrong-amount') f.checkout.status = change;
     await f.service.applyResult(
       attempt.id,
@@ -255,7 +264,9 @@ test('cancelled/expired and wrong amounts persist refunds without reviving or se
 
 test('a second actual capture has its own durable refund, repeated notification does not duplicate it', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', 'request');
+  const attempt = await f.service.create('buyer', 'checkout', {
+    requestId: 'request',
+  });
   await f.service.applyResult(attempt.id, paid(attempt.id));
   await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
   await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
@@ -266,7 +277,9 @@ test('a second actual capture has its own durable refund, repeated notification 
 
 test('a new capture after a previous refund reopens the outstanding refund state', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', 'request');
+  const attempt = await f.service.create('buyer', 'checkout', {
+    requestId: 'request',
+  });
   f.checkout.status = 'CANCELLED';
   await f.service.applyResult(attempt.id, paid(attempt.id));
   f.rows(PaymentAttempt)[0].state = 'REFUNDED';

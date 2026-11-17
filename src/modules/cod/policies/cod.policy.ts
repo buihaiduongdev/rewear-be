@@ -7,6 +7,7 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
+import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 
 import {
   COD_CANCELLATION_THRESHOLD,
@@ -168,7 +169,7 @@ export class CodPolicy {
       .find({ where: { buyerId }, order: { createdAt: 'DESC' }, take: 100 });
   }
 
-  async resolve(adminId: string, id: string, reason: string) {
+  async resolve(adminId: string, id: string, { reason }: RejectOrderInput) {
     return this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const row = await manager.findOneByOrFail(CodRestriction, { id });
