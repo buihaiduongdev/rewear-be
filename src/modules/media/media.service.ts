@@ -276,50 +276,53 @@ export class MediaService {
     mediaId: string,
     _currentUserId: string,
     shopId?: string,
-  ): Promise<void> {
+  ): Promise<ProductMediaView[]> {
     const managedProduct = await this.productService.findManagedProduct(
       productId,
       shopId,
     );
     this.productService.assertEditable(managedProduct);
-    const storageKey = await this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockProduct(
-        manager,
-        productId,
-        shopId,
-      );
-      await this.productService.markContentChanged(manager, product);
-      const links = await this.findProductLinks(
-        manager.getRepository(MediaLink),
-        productId,
-      );
-      const target = links.find((link) => link.mediaId === mediaId);
-      if (!target) throw new NotFoundException('Product media not found');
+    const { storageKey, remaining } = await this.dataSource.transaction(
+      async (manager) => {
+        const product = await this.productService.lockProduct(
+          manager,
+          productId,
+          shopId,
+        );
+        await this.productService.markContentChanged(manager, product);
+        const links = await this.findProductLinks(
+          manager.getRepository(MediaLink),
+          productId,
+        );
+        const target = links.find((link) => link.mediaId === mediaId);
+        if (!target) throw new NotFoundException('Product media not found');
 
-      await manager.remove(target);
-      const remaining = links.filter((link) => link.mediaId !== mediaId);
-      remaining.forEach((link, index) => {
-        link.sortOrder = index;
-      });
-      if (
-        target.role === MediaRole.COVER &&
-        remaining.length > 0 &&
-        !remaining.some((link) => link.role === MediaRole.COVER)
-      ) {
-        remaining[0].role = MediaRole.COVER;
-      }
-      if (remaining.length > 0) await manager.save(remaining);
+        await manager.remove(target);
+        const remaining = links.filter((link) => link.mediaId !== mediaId);
+        remaining.forEach((link, index) => {
+          link.sortOrder = index;
+        });
+        if (
+          target.role === MediaRole.COVER &&
+          remaining.length > 0 &&
+          !remaining.some((link) => link.role === MediaRole.COVER)
+        ) {
+          remaining[0].role = MediaRole.COVER;
+        }
+        if (remaining.length > 0) await manager.save(remaining);
 
-      const otherLinkCount = await manager.count(MediaLink, {
-        where: { mediaId },
-      });
-      if (otherLinkCount > 0) return null;
-      target.media.retiredAt = new Date();
-      await manager.save(target.media);
-      return target.media.storageKey;
-    });
+        const otherLinkCount = await manager.count(MediaLink, {
+          where: { mediaId },
+        });
+        if (otherLinkCount > 0) return { storageKey: null, remaining };
+        target.media.retiredAt = new Date();
+        await manager.save(target.media);
+        return { storageKey: target.media.storageKey, remaining };
+      },
+    );
 
     if (storageKey) await this.deleteStoredObject(storageKey);
+    return remaining.map((link) => this.toView(link));
   }
 
   private findProductLinks(
