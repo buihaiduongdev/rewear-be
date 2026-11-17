@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
   HttpStatus,
   Param,
   Patch,
@@ -149,13 +148,13 @@ export class MediaController {
   @RequirePermission(SHOP_PERMISSIONS.PRODUCT_UPDATE)
   @Delete(':mediaId')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @Serialize(mediaListSchema)
   delete(
     @CurrentShopId() shopId: string | undefined,
     @CurrentUser() currentUser: User,
     @Param('productId', { schema: uuidSchema }) productId: string,
     @Param('mediaId', { schema: uuidSchema }) mediaId: string,
-  ): Promise<void> {
+  ): Promise<ProductMediaView[]> {
     return this.mediaService.delete(productId, mediaId, currentUser.id, shopId);
   }
 }

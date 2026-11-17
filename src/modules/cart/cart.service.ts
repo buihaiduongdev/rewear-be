@@ -83,7 +83,7 @@ export class CartService {
     return this.findMine(userId);
   }
 
-  async remove(userId: string, productId: string): Promise<void> {
+  async remove(userId: string, productId: string): Promise<CartView> {
     const cart = await this.dataSource
       .getRepository(Cart)
       .findOneBy({ userId });
@@ -91,6 +91,7 @@ export class CartService {
       await this.dataSource
         .getRepository(CartItem)
         .delete({ cartId: cart.id, productId });
+    return this.findMine(userId);
   }
 
   private canDisplay(product: Product): boolean {

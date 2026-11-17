@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
@@ -45,11 +36,11 @@ export class CartController {
 
   @AuthenticatedAccess()
   @Delete('items/:productId')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @Serialize(cartSchema)
   remove(
     @CurrentUser() user: User,
     @Param('productId', { schema: uuidSchema }) productId: string,
-  ): Promise<void> {
+  ): Promise<CartView> {
     return this.cartService.remove(user.id, productId);
   }
 }

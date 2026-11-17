@@ -284,9 +284,14 @@ describe('MediaService', () => {
     mediaLinkRepository.find.mockResolvedValueOnce([cover, gallery]);
     manager.count.mockResolvedValueOnce(0);
 
-    await expect(
-      service.delete(productId, mediaId, userId),
-    ).resolves.toBeUndefined();
+    const remainingViews = await service.delete(productId, mediaId, userId);
+    expect(remainingViews).toEqual([
+      expect.objectContaining({
+        id: secondMediaId,
+        role: MediaRole.COVER,
+        sortOrder: 0,
+      }),
+    ]);
     expect(manager.remove).toHaveBeenNthCalledWith(1, cover);
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),

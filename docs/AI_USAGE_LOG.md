@@ -821,14 +821,14 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phản hồi seller trễ trước worker scan có thể che trách nhiệm phản hồi; đã kiểm tra timestamp gốc thay vì chỉ tồn tại message. Lịch nghỉ khôi phục phải phân loại lại late:null theo giờ gửi gốc, không đổi nội dung. Cấu hình storage thiếu không được làm mất quota upload; kiểm tra trước khi tạo ticket. Đã có regression.
 - **Giới hạn và minh chứng:** Chưa làm quyết định phân xử/xét lại, vận đơn trả/refund, email/push, malware scanning hoặc test MoMo/GHN/R2 trực tiếp. Bucket riêng tư cần operator cấu hình policy/CORS; thiếu cấu hình trả 503, không dùng bucket public. API/test/docs tiếp tục trong PR #40; không reset database dev.
 
-### 2026-11-17 — Tối ưu hóa phân quyền Shop RBAC và cải thiện hiệu năng truy vấn
+### 2026-11-17 — Tối ưu hóa phân quyền Shop RBAC và giảm tải round-trip mạng cho mutation API
 
 - **Người thực hiện:** Bùi Hải Dương.
 - **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
-- **Mục đích và phạm vi:** Tối ưu hóa phản hồi API gán vai trò thành viên shop và hoàn thiện kiến trúc phân quyền Shop RBAC.
-- **Prompt chính:** Tối ưu hóa API assign roles để trả về danh sách role đầy đủ thay vì chỉ trả về roleId, giúp frontend cập nhật ngay cache mà không phải gọi thêm request fetch lại danh sách thành viên; kiểm chứng mã nguồn và chuẩn bị PR.
-- **Đầu ra AI được sử dụng:** Cập nhật `shopRoleAssignmentSchema` để trả về danh sách đối tượng role `{ id, name }`, cập nhật `ShopRoleService.assign` tận dụng mảng role đã truy vấn trong bộ nhớ để trả về trực tiếp mà không tốn thêm câu lệnh SQL.
-- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng schema nhất quán với `shopMemberSchema`, rà soát các kiểm thử đơn vị liên quan và kiểm tra toàn bộ pipeline kiểm thử.
+- **Mục đích và phạm vi:** Tối ưu hóa phản hồi API gán vai trò thành viên shop (Shop RBAC) và chuyển đổi các mutation xóa (`DELETE /cart/items/:productId`, `DELETE /products/:productId/media/:mediaId`) sang trả về trạng thái tài nguyên mới nhất (`CartView`, `ProductMediaView[]`) thay vì 204 No Content, giúp Frontend đồng bộ cache tức thì không cần invalidate fetch lại.
+- **Prompt chính:** Tối ưu hóa API assign roles để trả về danh sách role đầy đủ thay vì chỉ trả về roleId; rà soát dự án tìm các API mutation trả về 204 No Content và tối ưu hóa trả về snapshot mới nhất để frontend cập nhật cache trực tiếp mà không tốn thêm round-trip mạng; kiểm chứng mã nguồn và chuẩn bị PR.
+- **Đầu ra AI được sử dụng:** Cập nhật `shopRoleAssignmentSchema` để trả về danh sách role `{ id, name }`, tối ưu `ShopRoleService.assign`; cập nhật `CartService.remove` và `CartController.remove` trả về `CartView` kèm `@Serialize(cartSchema)`; cập nhật `MediaService.delete` và `MediaController.delete` trả về `ProductMediaView[]` kèm `@Serialize(mediaListSchema)`. Cập nhật unit test `MediaService.delete`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng schema nhất quán, loại bỏ import `HttpCode` thừa, bổ sung kiểm thử đơn vị cho media service, rà soát lint/format và kiểm tra toàn bộ pipeline kiểm thử.
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (27/27 test suites, 228 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Nhánh `feat/shop-rbac-improvements`.
+- **Minh chứng:** Nhánh `feat/shop-rbac-improvements`, PR #42 (`https://github.com/buihaiduongdev/rewear-be/pull/42`).
