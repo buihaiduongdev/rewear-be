@@ -354,6 +354,7 @@ export class OrderService {
     const { approvedIds, categories, shop } =
       await this.stockReleaseEligibility(manager, order, ids, products);
     const review: string[] = [];
+    const productsToSave: Product[] = [];
     for (const id of ids) {
       const product = products.find((item) => item.id === id);
       const codOwned =
@@ -385,7 +386,10 @@ export class OrderService {
       }
       product.soldOrderId = null;
       if (codOwned) product.reservedOrderId = null;
-      await manager.save(product);
+      productsToSave.push(product);
+    }
+    if (productsToSave.length > 0) {
+      await manager.save(Product, productsToSave);
     }
     return review;
   }
