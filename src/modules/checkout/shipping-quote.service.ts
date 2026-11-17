@@ -2,13 +2,10 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource } from 'typeorm';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
-import { CHECKOUT_STATUS } from '@/modules/checkout/checkout.constants';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 
-import { CheckoutOrder } from './entities/checkout-order.entity';
-import { Checkout } from './entities/checkout.entity';
-import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import {
   SHIPPING_QUOTE_CARRIER,
   SHIPPING_QUOTE_ENVIRONMENT,
@@ -16,7 +13,10 @@ import {
   SHIPPING_QUOTE_PARCEL_METHOD,
   SHIPPING_QUOTE_REASON,
   SHIPPING_QUOTE_STATUS,
-} from './shipping-quote.constants';
+} from './constants/shipping-quote.constant';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { Checkout } from './entities/checkout.entity';
+import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import { quoteInputs } from './shipping-quote.inputs';
 import type { ShippingQuoteResult } from './types/shipping-quote.type';
 
@@ -41,32 +41,7 @@ export class ShippingQuoteService {
       order: { id: 'ASC' },
     });
     const { inputs, results } = await quoteInputs(this.db.manager, orders);
-    const signal = AbortSignal.timeout(8000);
-    let next = 0;
-    await Promise.all(
-      Array.from({ length: Math.min(4, results.length) }, async () => {
-        while (next < results.length) {
-          const index = next++;
-          const order = results[index];
-          if (order.reason) continue;
-          try {
-            const input = inputs[index];
-            if (!input) throw new Error(SHIPPING_QUOTE_REASON.PICKUP_REQUIRED);
-            const response = await this.carrier.quote(input, signal);
-            order.status = SHIPPING_QUOTE_ORDER_STATUS.QUOTED;
-            order.fee = response.fee;
-            order.estimatedDeliveryAt = response.estimatedDeliveryAt;
-          } catch (error) {
-            const reason = quoteReasonSchema.safeParse(
-              error instanceof Error ? error.message : '',
-            );
-            order.reason = reason.success
-              ? reason.data
-              : SHIPPING_QUOTE_REASON.CARRIER_UNAVAILABLE;
-          }
-        }
-      }),
-    );
+    await this.quoteOrders(inputs, results);
     const currentCheckout = await this.db
       .getRepository(Checkout)
       .findOneByOrFail({
@@ -105,13 +80,45 @@ export class ShippingQuoteService {
     };
   }
 
+  private async quoteOrders(
+    inputs: Awaited<ReturnType<typeof quoteInputs>>['inputs'],
+    results: Awaited<ReturnType<typeof quoteInputs>>['results'],
+  ) {
+    const signal = AbortSignal.timeout(8000);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, results.length) }, async () => {
+        while (next < results.length) {
+          const index = next++;
+          const order = results[index];
+          if (order.reason) continue;
+          try {
+            const input = inputs[index];
+            if (!input) throw new Error(SHIPPING_QUOTE_REASON.PICKUP_REQUIRED);
+            const response = await this.carrier.quote(input, signal);
+            order.status = SHIPPING_QUOTE_ORDER_STATUS.QUOTED;
+            order.fee = response.fee;
+            order.estimatedDeliveryAt = response.estimatedDeliveryAt;
+          } catch (error) {
+            const reason = quoteReasonSchema.safeParse(
+              error instanceof Error ? error.message : '',
+            );
+            order.reason = reason.success
+              ? reason.data
+              : SHIPPING_QUOTE_REASON.CARRIER_UNAVAILABLE;
+          }
+        }
+      }),
+    );
+  }
+
   private async assertActive(checkout: Checkout) {
     const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
-    if (
+    const reservationIsInactive =
       checkout.status !== CHECKOUT_STATUS.HELD ||
       !checkout.expiresAt ||
-      checkout.expiresAt <= new Date(now)
-    )
+      checkout.expiresAt <= new Date(now);
+    if (reservationIsInactive)
       throw new ConflictException('An active reservation is required');
   }
 }

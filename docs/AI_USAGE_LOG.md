@@ -772,3 +772,39 @@
 - **Cách kiểm chứng:** 82 test chọn lọc pass với PostgreSQL/HTTP/GHN/lịch SLA; 22 Node tests pass. Full local có 26 suites / 226 tests pass, 13 suites không chạy do thiếu Faker từ main; typecheck chỉ báo thiếu 8 import Faker. Lint/format pass; kiểm chứng đầy đủ bằng CI của commit cuối trong PR.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Review phát hiện còn sót trạng thái pending và thời gian tra soát/hoàn tiền; đã chuyển sang constant. Loader test cũ không phân giải import constant lồng nhau; đã dùng helper nạp module local có kiểm tra đường dẫn. Giữ đọc trạng thái GHN chưa biết và lý do review lịch sử; không ép giới hạn ứng dụng thành giới hạn hãng.
 - **Minh chứng:** [PR #33](https://github.com/buihaiduongdev/rewear-be/pull/33); các file `*.constants.ts`, `*.type.ts` và schema liên quan. Không thay nghiệp vụ hoặc merge PR.
+
+### 2026-11-16 — Dùng ms và tổ chức thư mục module theo Product
+
+- **Người thực hiện:** Bùi Thành Tâm (yêu cầu refactor); Codex hỗ trợ mã và kiểm thử.
+- **Công cụ:** Codex, GitHub plugin, ms 2.1.3 đã có trong dự án, Jest/Node và PostgreSQL local.
+- **Mục đích và phạm vi:** Gom entity/constant/type/schema vào thư mục riêng như Product; dùng ms thay helper tự nhân phút/giờ, giữ nguyên nghiệp vụ và giá trị thời gian.
+- **Prompt chính:** “file time.constant.ts có thể dùng thư viện ms… đọc cách chia folder như trong product… chia file vào các folder riêng”.
+- **Đầu ra AI được sử dụng:** Chuyển 42 file vào entities/constants/types/schemas/policies/utils và GHN adapters/clients; cập nhật import, URL source của test và barrel index. Bỏ time.constants.ts; SLA/lease/cache/timeout dùng ms, offset UTC+7 nằm ở calendar constant. Thêm docs/MODULE_LAYOUT.md; không thêm dependency.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm chọn thư viện và mẫu tổ chức thư mục; chưa ghi nhận tự review toàn bộ mã mới.
+- **Cách kiểm chứng:** Baseline và sau refactor: 74 test chọn lọc PostgreSQL/HTTP/GHN/lịch SLA cùng 22 Node tests pass. Full local có 26 suites / 226 tests pass; 13 suites và typecheck bị chặn bởi Faker chưa cài từ main. Lint/format pass; CI đầy đủ của PR là kiểm chứng bản cuối. Review độc lập không còn P1/P2, không phát hiện thay đổi API/table hoặc giá trị thời gian.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Loader test cũ không nạp package ms từ data URL; đã phân giải package thật qua Node, không mock. Một re-export HOUR_MS cũ còn tham chiếu helper đã xóa được test HTTP phát hiện, đã bỏ và chạy lại test qua.
+- **Minh chứng:** Nhánh refactor/commerce-module-layout; [Hướng dẫn cấu trúc module](MODULE_LAYOUT.md). PR #33 đã merge trước đó nên đợt này dùng PR refactor mới, không merge tự động.
+
+### 2026-11-16 — Xác nhận nhận hàng và quyết toán nội bộ 72 giờ
+
+- **Người thực hiện:** Bùi Thành Tâm chốt phạm vi; Codex hỗ trợ triển khai và kiểm thử.
+- **Công cụ:** Codex, TypeScript/NestJS, Jest/Node, PostgreSQL test local; không gọi GitHub trong đợt này.
+- **Mục đích và phạm vi:** Buyer xác nhận nhận hàng không mở tiền sớm; ghi mốc giao bằng chứng Admin và deadline 72 giờ bất biến; worker hoàn tất đơn, kiểm tra nguồn tiền rồi chuyển khoản Shop đang giữ sang khả dụng đúng một lần.
+- **Prompt chính:** “oke giờ làm đi”, sau đề xuất API xác nhận nhận hàng, deadline không reset, worker quyết toán, ghi sổ chống lặp và test thời hạn/tranh chấp/đồng thời.
+- **Đầu ra AI được sử dụng:** OrderSettlementService/Worker/Controller, OrderFundingService, schema/type/policy riêng, bảng delivery verification và shop settlement, finance tổng hợp/history và [tài liệu API](orders/SETTLEMENT.md). Giữ cấu trúc module và điều kiện có tên của bản refactor trước.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm yêu cầu làm backend trước khi có tài khoản MoMo/GHN; chưa ghi nhận Tâm tự review toàn bộ mã mới. Admin phải tự đối chiếu chứng từ thật; lưu evidence không phải xác minh tài liệu tự động.
+- **Cách kiểm chứng:** Viết test trước, quan sát lỗi rồi triển khai; regression riêng cho thời điểm quan sát pickup, hoàn capture trùng và hoàn tất đơn khi COD chưa về đủ. Full local 42 suites / 339 Jest tests cùng 22 Node tests đạt; typecheck, Nest build, lint/format đạt. Sau sửa assertion theo lint, chạy lại 25 integration tests đều đạt. Review độc lập bản sửa không còn P1/P2. Không có CI hoặc test provider trực tiếp trong đợt này.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không được coi pickedObservedAt là giờ lấy hàng thật; loại đơn đã quyết toán khỏi worker để tránh quét lịch sử làm chậm đơn mới. Đã sửa và có test hồi quy. Test rollback ban đầu áp constraint lên cả dữ liệu cũ nên lỗi ngay tại setup; đổi sang NOT VALID để chỉ kiểm tra ghi mới như mục tiêu test.
+- **Giới hạn và minh chứng:** MoMo Sandbox luôn ở SIMULATION, không cộng tiền thật; COD cần đủ chứng từ nhận tiền. Chưa làm phân xử tranh chấp, rút ngân hàng, xu hoặc ingestion giờ giao GHN chính xác. Code/test/tài liệu đang ở local, chưa stage thêm, commit, push hay tạo PR theo yêu cầu của Tâm.
+
+### 2026-11-16 — Tiếp nhận tranh chấp, bằng chứng riêng tư và phản hồi hai bên
+
+- **Người thực hiện:** Bùi Thành Tâm chốt tiếp tục backend; Codex hỗ trợ mã, kiểm thử và review.
+- **Công cụ:** Codex, GitHub plugin, NestJS/TypeORM, Jest/Node/PostgreSQL local, AWS SDK đã có trong dự án.
+- **Mục đích và phạm vi:** Tiếp nhận một hồ sơ mỗi order, nhiều vấn đề theo món; giữ tiền cả order, bổ sung bằng chứng một lần 24 giờ, phản hồi hai bên và SLA Admin theo lịch làm việc đã chốt. Tiếp tục PR #40, không merge.
+- **Prompt chính:** “làm tiếp đi”, sau đề xuất mở hồ sơ → giữ tiền → bằng chứng → phản hồi hai bên.
+- **Đầu ra AI được sử dụng:** DisputeModule, case/issue/evidence/message/notice/audit, upload bucket riêng tư và signed PUT/GET, đối chiếu HEAD, API phân quyền/serialization, worker bổ sung/SLA/gia hạn/chuyển cấp, kiểm tra hồ sơ trực tiếp tại settlement và [tài liệu API](orders/DISPUTES.md).
+- **Phần tự làm hoặc đã chỉnh sửa:** Tâm đã chốt quy tắc nghiệp vụ và yêu cầu code dễ đọc; chưa ghi nhận Tâm tự review toàn bộ mã mới hoặc cấu hình/test bucket riêng tư. Không coi tag ảnh/video là nhận diện nội dung tự động.
+- **Cách kiểm chứng:** Test trước triển khai và regression red/green. Full local 46 suites / 386 Jest tests cùng 22 Node tests đạt; typecheck/Nest build/lint/format đạt. Có 19 test PostgreSQL về deadline/hold/rollback/concurrency, 7 HTTP JWT/privacy và 21 unit cho evidence/storage. Test race kiểm tra clock sau chờ commerce lock. Review độc lập bản sửa không còn P1/P2; CI theo commit trên PR được báo riêng.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phản hồi seller trễ trước worker scan có thể che trách nhiệm phản hồi; đã kiểm tra timestamp gốc thay vì chỉ tồn tại message. Lịch nghỉ khôi phục phải phân loại lại late:null theo giờ gửi gốc, không đổi nội dung. Cấu hình storage thiếu không được làm mất quota upload; kiểm tra trước khi tạo ticket. Đã có regression.
+- **Giới hạn và minh chứng:** Chưa làm quyết định phân xử/xét lại, vận đơn trả/refund, email/push, malware scanning hoặc test MoMo/GHN/R2 trực tiếp. Bucket riêng tư cần operator cấu hình policy/CORS; thiếu cấu hình trả 503, không dùng bucket public. API/test/docs tiếp tục trong PR #40; không reset database dev.

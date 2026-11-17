@@ -2,43 +2,46 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { OrderAccess } from '@/modules/order/order.access';
 import {
   ORDER_CANCEL_STATE,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
-import { Order } from '@/modules/order/order.entity';
+} from '@/modules/order/constants/order.constant';
+import { Order } from '@/modules/order/entities/order.entity';
+import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
-import type { OrderState } from '@/modules/order/order.type';
+import type { OrderState } from '@/modules/order/types/order.type';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
 
-import { fulfillmentDeadline } from './fulfillment-calendar';
-import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
 import {
   HANDOVER_ACTION,
   HANDOVER_STOP_REASON,
-} from './late-handover.constants';
-import { HANDOVER_STATE } from './late-handover.constants';
+} from './constants/late-handover.constant';
+import { HANDOVER_STATE } from './constants/late-handover.constant';
+import {
+  SHIPMENT_REVIEW_REASON,
+  SHIPMENT_STATE,
+} from './constants/shipment.constant';
 import {
   FulfillmentCalendar,
   FulfillmentNotice,
   HandoverCase,
-} from './late-handover.entity';
+} from './entities/late-handover.entity';
+import { Shipment } from './entities/shipment.entity';
 import type {
   HandoverAction,
   HandoverState,
   HandoverStopReason,
-} from './late-handover.type';
+} from './types/late-handover.type';
 import type {
   CalendarInput,
   HandoverProposal,
   HandoverStop,
-} from './late-handover.type';
-import { SHIPMENT_REVIEW_REASON, SHIPMENT_STATE } from './shipment.constants';
-import { Shipment } from './shipment.entity';
-import type { FulfillmentListInput } from './shipment.type';
+} from './types/late-handover.type';
+import type { FulfillmentListInput } from './types/shipment.type';
+import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 
 const handoverReviewStates: readonly HandoverState[] = [
   HANDOVER_STATE.REVIEW,
@@ -153,18 +156,22 @@ export class LateHandoverService {
       const order = await manager.findOneByOrFail(Order, { id: orderId });
       const now = await this.now(manager);
       const deadline = new Date(input.deadline);
-      if (
+      const reviewUnavailable =
         row.state !== HANDOVER_STATE.REVIEW ||
         row.proposedDeadline ||
         !row.reviewDueAt ||
-        row.reviewDueAt <= now ||
-        order.cancelState ||
-        !extendableOrderStates.includes(order.status) ||
+        row.reviewDueAt <= now;
+      const orderIneligible =
+        order.cancelState || !extendableOrderStates.includes(order.status);
+      const extensionWindowInvalid =
         !Number.isFinite(deadline.getTime()) ||
         deadline.getTime() <=
           now.getTime() + FULFILLMENT_POLICY.BUYER_RESPONSE_MS ||
-        deadline.getTime() > now.getTime() + FULFILLMENT_POLICY.MAX_EXTENSION_MS
-      )
+        deadline.getTime() >
+          now.getTime() + FULFILLMENT_POLICY.MAX_EXTENSION_MS;
+      const proposalUnavailable =
+        reviewUnavailable || orderIneligible || extensionWindowInvalid;
+      if (proposalUnavailable)
         throw new ConflictException(
           'A single valid extension within 24 hours is required',
         );
@@ -195,16 +202,17 @@ export class LateHandoverService {
       });
       const row = await manager.findOneByOrFail(HandoverCase, { orderId });
       const now = await this.now(manager);
-      if (row.consentedAt && accept && row.state === HANDOVER_STATE.CONSENTED)
-        return row;
+      const acceptanceAlreadyRecorded =
+        row.consentedAt && accept && row.state === HANDOVER_STATE.CONSENTED;
+      if (acceptanceAlreadyRecorded) return row;
       if (row.state !== HANDOVER_STATE.OFFERED)
         throw new ConflictException('No pending handover proposal');
-      if (
+      const proposalExpired =
         !row.respondBy ||
         row.respondBy <= now ||
         !row.proposedDeadline ||
-        row.proposedDeadline <= now
-      ) {
+        row.proposedDeadline <= now;
+      if (proposalExpired) {
         await this.stop(
           manager,
           order,
@@ -231,7 +239,9 @@ export class LateHandoverService {
           HANDOVER_ACTION.BUYER_REFUSED,
         );
       else {
-        if (order.cancelState || !extendableOrderStates.includes(order.status))
+        const orderIneligible =
+          order.cancelState || !extendableOrderStates.includes(order.status);
+        if (orderIneligible)
           throw new ConflictException('Order no longer eligible for extension');
         row.consentedAt = now;
         row.state = HANDOVER_STATE.CONSENTED;
@@ -285,16 +295,18 @@ export class LateHandoverService {
     const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
     order.cancelState = ORDER_CANCEL_STATE.APPROVED;
     order.cancelDecisionReason = reason;
-    if (!shipment && order.status === ORDER_STATUS.PREPARING) {
+    const unbookedOrderPreparing =
+      !shipment && order.status === ORDER_STATUS.PREPARING;
+    if (unbookedOrderPreparing) {
       await this.orders.cancelCodVerified(manager, order, now);
       row.state = HANDOVER_STATE.CLOSED;
     } else if (shipment) {
-      if (
+      const pickupRequiresReturn =
         shipment.pickedObservedAt ||
         shipment.codCollectedAt ||
         shipment.carrierTransferredAt ||
-        order.status !== ORDER_STATUS.PREPARING
-      ) {
+        order.status !== ORDER_STATUS.PREPARING;
+      if (pickupRequiresReturn) {
         shipment.returnRequestedAt ??= now;
         shipment.reviewReason =
           SHIPMENT_REVIEW_REASON.LATE_HANDOVER_RETURN_REQUIRED;
@@ -351,110 +363,7 @@ export class LateHandoverService {
       try {
         await this.db.transaction(async (manager) => {
           await this.lock(manager);
-          const order = await manager.findOneByOrFail(Order, { id });
-          const now = await this.now(manager);
-          const shipment = await manager.findOneBy(Shipment, { orderId: id });
-          let row = await manager.findOneBy(HandoverCase, { orderId: id });
-          if (!row) {
-            if (
-              !extendableOrderStates.includes(order.status) ||
-              !order.handoverBy ||
-              order.handoverBy > now ||
-              (shipment?.pickedObservedAt && !order.handoverReviewRequired)
-            )
-              return;
-            const reviewDueAt = await fulfillmentDeadline(
-              manager,
-              now,
-              FULFILLMENT_POLICY.HANDOVER_ADMIN_BUSINESS_DAYS,
-            );
-            row = manager.create(HandoverCase, {
-              orderId: id,
-              state: HANDOVER_STATE.REVIEW,
-              detectedAt: now,
-              reviewDueAt,
-              calendarMissing: !reviewDueAt,
-              events: [],
-            });
-            await this.audit(
-              manager,
-              row,
-              HANDOVER_ACTION.OVERDUE,
-              null,
-              now,
-              'Carrier pickup not verified within 48 hours',
-            );
-            order.handoverReviewRequired = true;
-            await manager.save(order);
-            await manager.save(row);
-          }
-          if (row.state === HANDOVER_STATE.CLOSED) return;
-          if (order.status === ORDER_STATUS.CANCELLED) {
-            row.state = HANDOVER_STATE.CLOSED;
-            await this.audit(
-              manager,
-              row,
-              HANDOVER_ACTION.CLOSED,
-              null,
-              now,
-              'Order cancellation verified',
-            );
-          } else if (row.state === HANDOVER_STATE.REVIEW) {
-            if (!row.reviewDueAt) {
-              row.reviewDueAt = await fulfillmentDeadline(
-                manager,
-                row.detectedAt,
-                2,
-              );
-              row.calendarMissing = !row.reviewDueAt;
-            }
-            if (row.reviewDueAt && row.reviewDueAt <= now)
-              await this.stop(
-                manager,
-                order,
-                row,
-                now,
-                HANDOVER_STOP_REASON.ADMIN_REVIEW_TIMEOUT,
-              );
-          } else if (
-            row.state === HANDOVER_STATE.OFFERED &&
-            row.respondBy &&
-            (row.respondBy <= now ||
-              (row.proposedDeadline && row.proposedDeadline <= now))
-          )
-            await this.stop(
-              manager,
-              order,
-              row,
-              now,
-              HANDOVER_STOP_REASON.BUYER_RESPONSE_TIMEOUT,
-            );
-          else if (row.state === HANDOVER_STATE.CONSENTED) {
-            if (
-              shipment?.pickedObservedAt &&
-              order.handoverBy &&
-              shipment.pickedObservedAt <= order.handoverBy
-            ) {
-              row.state = HANDOVER_STATE.CLOSED;
-              await this.audit(
-                manager,
-                row,
-                HANDOVER_ACTION.PICKUP_VERIFIED,
-                null,
-                now,
-                'Carrier pickup observed after buyer consent',
-              );
-            } else if (order.handoverBy && order.handoverBy <= now)
-              await this.stop(
-                manager,
-                order,
-                row,
-                now,
-                HANDOVER_STOP_REASON.EXTENSION_EXHAUSTED,
-              );
-          }
-          row.updatedAt = now;
-          await manager.save(row);
+          await this.reconcileHandover(manager, id);
         });
       } catch {
         this.logger.warn({
@@ -463,5 +372,131 @@ export class LateHandoverService {
         });
       }
     }
+  }
+  private async reconcileHandover(manager: EntityManager, id: string) {
+    const order = await manager.findOneByOrFail(Order, { id });
+    const now = await this.now(manager);
+    const shipment = await manager.findOneBy(Shipment, { orderId: id });
+    let row = await manager.findOneBy(HandoverCase, { orderId: id });
+    if (!row)
+      row = await this.openHandoverReview(manager, order, shipment, id, now);
+    if (!row) return;
+    await this.advanceHandoverCase(manager, order, shipment, row, now);
+  }
+
+  private async advanceHandoverCase(
+    manager: EntityManager,
+    order: Order,
+    shipment: Shipment | null,
+    row: HandoverCase,
+    now: Date,
+  ) {
+    if (row.state === HANDOVER_STATE.CLOSED) return;
+    const buyerResponseExpired =
+      row.state === HANDOVER_STATE.OFFERED &&
+      row.respondBy &&
+      (row.respondBy <= now ||
+        (row.proposedDeadline && row.proposedDeadline <= now));
+    if (order.status === ORDER_STATUS.CANCELLED) {
+      row.state = HANDOVER_STATE.CLOSED;
+      await this.audit(
+        manager,
+        row,
+        HANDOVER_ACTION.CLOSED,
+        null,
+        now,
+        'Order cancellation verified',
+      );
+    } else if (row.state === HANDOVER_STATE.REVIEW) {
+      if (!row.reviewDueAt) {
+        row.reviewDueAt = await fulfillmentDeadline(manager, row.detectedAt, 2);
+        row.calendarMissing = !row.reviewDueAt;
+      }
+      const adminReviewExpired = row.reviewDueAt && row.reviewDueAt <= now;
+      if (adminReviewExpired)
+        await this.stop(
+          manager,
+          order,
+          row,
+          now,
+          HANDOVER_STOP_REASON.ADMIN_REVIEW_TIMEOUT,
+        );
+    } else if (buyerResponseExpired)
+      await this.stop(
+        manager,
+        order,
+        row,
+        now,
+        HANDOVER_STOP_REASON.BUYER_RESPONSE_TIMEOUT,
+      );
+    else if (row.state === HANDOVER_STATE.CONSENTED) {
+      const pickupWithinExtension =
+        shipment?.pickedObservedAt &&
+        order.handoverBy &&
+        shipment.pickedObservedAt <= order.handoverBy;
+      if (pickupWithinExtension) {
+        row.state = HANDOVER_STATE.CLOSED;
+        await this.audit(
+          manager,
+          row,
+          HANDOVER_ACTION.PICKUP_VERIFIED,
+          null,
+          now,
+          'Carrier pickup observed after buyer consent',
+        );
+      } else {
+        const extensionExpired = order.handoverBy && order.handoverBy <= now;
+        if (extensionExpired)
+          await this.stop(
+            manager,
+            order,
+            row,
+            now,
+            HANDOVER_STOP_REASON.EXTENSION_EXHAUSTED,
+          );
+      }
+    }
+    row.updatedAt = now;
+    await manager.save(row);
+  }
+
+  private async openHandoverReview(
+    manager: EntityManager,
+    order: Order,
+    shipment: Shipment | null,
+    id: string,
+    now: Date,
+  ) {
+    const reviewNotRequired =
+      !extendableOrderStates.includes(order.status) ||
+      !order.handoverBy ||
+      order.handoverBy > now ||
+      (shipment?.pickedObservedAt && !order.handoverReviewRequired);
+    if (reviewNotRequired) return null;
+    const reviewDueAt = await fulfillmentDeadline(
+      manager,
+      now,
+      FULFILLMENT_POLICY.HANDOVER_ADMIN_BUSINESS_DAYS,
+    );
+    const row = manager.create(HandoverCase, {
+      orderId: id,
+      state: HANDOVER_STATE.REVIEW,
+      detectedAt: now,
+      reviewDueAt,
+      calendarMissing: !reviewDueAt,
+      events: [],
+    });
+    await this.audit(
+      manager,
+      row,
+      HANDOVER_ACTION.OVERDUE,
+      null,
+      now,
+      'Carrier pickup not verified within 48 hours',
+    );
+    order.handoverReviewRequired = true;
+    await manager.save(order);
+    await manager.save(row);
+    return row;
   }
 }

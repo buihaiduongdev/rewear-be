@@ -12,7 +12,6 @@ import { DataSource, In, LessThanOrEqual } from 'typeorm';
 
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 
-import { MOMO_CLIENT } from './payment.config';
 import {
   PAYMENT_ATTEMPT_STATE,
   PAYMENT_PROVIDER_SUCCESS_CODE,
@@ -23,8 +22,9 @@ import {
   PAYMENT_REFUND_REVIEW_RETRY_MS,
   PAYMENT_REFUND_STATE,
   PAYMENT_WORKER_INTERVAL_MS,
-} from './payment.constants';
-import { PaymentAttempt, PaymentRefund } from './payment.entity';
+} from './constants/payment.constant';
+import { PaymentAttempt, PaymentRefund } from './entities/payment.entity';
+import { MOMO_CLIENT } from './payment.config';
 import { PaymentService } from './payment.service';
 
 @Injectable()

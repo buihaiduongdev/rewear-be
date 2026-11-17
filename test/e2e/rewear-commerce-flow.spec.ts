@@ -15,7 +15,7 @@ import { CategoryFactory } from '@/database/factories/category.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { STORAGE_PROVIDER } from '@/infrastructure/storage/storage.interface';
 import type { IStorageProvider } from '@/infrastructure/storage/storage.interface';
 import { JwtAuthGuard } from '@/modules/auth/guards';

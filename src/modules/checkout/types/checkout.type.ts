@@ -2,7 +2,7 @@ import type z from 'zod';
 
 import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 
-import type { CHECKOUT_STATUS } from '../checkout.constants';
+import type { CHECKOUT_STATUS } from '../constants/checkout.constant';
 import type { createCheckoutSchema } from '../schemas/checkout.schema';
 
 export type CheckoutState =

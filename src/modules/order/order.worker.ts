@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 
+import { ORDER_POLICY } from './constants/order.constant';
 import { OrderService } from './order.service';
 
 @Injectable()
@@ -27,7 +28,7 @@ export class OrderWorker implements OnModuleInit, OnModuleDestroy {
         .finally(() => {
           this.running = false;
         });
-    }, 30000);
+    }, ORDER_POLICY.WORKER_INTERVAL_MS);
     this.timer.unref();
   }
   onModuleDestroy() {

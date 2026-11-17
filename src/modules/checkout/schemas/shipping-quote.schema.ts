@@ -1,6 +1,6 @@
 import z from 'zod';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
 import {
@@ -10,7 +10,7 @@ import {
   SHIPPING_QUOTE_PARCEL_METHOD,
   SHIPPING_QUOTE_REASON,
   SHIPPING_QUOTE_STATUS,
-} from '../shipping-quote.constants';
+} from '../constants/shipping-quote.constant';
 
 export const quoteReasonSchema = z.enum(SHIPPING_QUOTE_REASON);
 export const quoteOrderSchema = z.object({

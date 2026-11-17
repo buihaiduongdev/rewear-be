@@ -5,12 +5,12 @@ import { UserFactory } from '@/database/factories/user.factory';
 import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
-import { Order } from '@/modules/order/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/late-handover.entity';
+} from '@/modules/order/constants/order.constant';
+import { Order } from '@/modules/order/entities/order.entity';
+import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { ShipmentReturnInspection } from '@/modules/shipment/entities/shipment-return-inspection.entity';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ReturnInspectionDeadlineService } from '@/modules/shipment/return-inspection-deadline.service';
-import { ShipmentReturnInspection } from '@/modules/shipment/shipment-return-inspection.entity';
-import { Shipment } from '@/modules/shipment/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';

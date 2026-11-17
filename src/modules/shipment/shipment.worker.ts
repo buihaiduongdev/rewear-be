@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { CarrierIncidentService } from './carrier-incident.service';
-import { FULFILLMENT_POLICY } from './fulfillment.constants';
+import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
 import { LateHandoverService } from './late-handover.service';
 import { ReturnInspectionDeadlineService } from './return-inspection-deadline.service';
 import { ShipmentCancellationService } from './shipment-cancellation.service';

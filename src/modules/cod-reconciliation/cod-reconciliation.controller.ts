@@ -15,16 +15,11 @@ import z from 'zod';
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
-import { acceptOrderSchema } from '@/modules/order/order.schema';
+import { acceptOrderSchema } from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { CodReconciliationService } from './cod-reconciliation.service';
-import type {
-  CollectionInput,
-  FinanceListInput,
-  RemittanceInput,
-} from './cod-reconciliation.type';
 import {
   adminCollectionViewSchema,
   adminReconciliationDetailSchema,
@@ -34,6 +29,11 @@ import {
   remittanceInputSchema,
   remittanceViewSchema,
 } from './schemas/cod-reconciliation.schema';
+import type {
+  CollectionInput,
+  FinanceListInput,
+  RemittanceInput,
+} from './types/cod-reconciliation.type';
 
 @ApiTags('COD reconciliation')
 @ApiBearerAuth()

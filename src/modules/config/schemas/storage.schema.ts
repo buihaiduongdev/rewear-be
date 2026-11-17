@@ -8,6 +8,7 @@ export const storageSchema = z.object({
   accessKeyId: z.string().min(1),
   secretAccessKey: z.string().min(1),
   bucket: z.string().min(1),
+  privateBucket: z.string().optional(),
   publicBaseUrl: z.url().transform((value) => value.replace(/\/+$/, '')),
   maxSizeBytes: z.coerce
     .number()

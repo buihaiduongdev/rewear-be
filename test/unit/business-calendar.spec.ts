@@ -1,4 +1,4 @@
-import { businessDeadline } from '../../src/modules/shipment/business-calendar';
+import { businessDeadline } from '../../src/modules/shipment/utils/business-calendar';
 
 describe('businessDeadline', () => {
   it.each([

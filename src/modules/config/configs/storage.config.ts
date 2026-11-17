@@ -9,6 +9,7 @@ export const storageConfig = registerAs('storage', () =>
     accessKeyId: process.env.STORAGE_ACCESS_KEY_ID,
     secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY,
     bucket: process.env.STORAGE_BUCKET,
+    privateBucket: process.env.STORAGE_PRIVATE_BUCKET,
     publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL,
     maxSizeBytes: process.env.STORAGE_MAX_SIZE_BYTES,
     uploadExpiresInSeconds: process.env.STORAGE_UPLOAD_EXPIRES_IN_SECONDS,

@@ -3,32 +3,32 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
-import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/shipment.constants';
-import { RETURN_INSPECTION_CONDITION } from '@/modules/shipment/shipment.constants';
-import { Shipment } from '@/modules/shipment/shipment.entity';
-import type { ReturnInspectionCondition } from '@/modules/shipment/shipment.type';
+import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/constants/shipment.constant';
+import { RETURN_INSPECTION_CONDITION } from '@/modules/shipment/constants/shipment.constant';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import type { ReturnInspectionCondition } from '@/modules/shipment/types/shipment.type';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { WalletCredit } from '@/modules/wallet/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
-import { OrderAccess } from './order.access';
-import { ORDER_POLICY } from './order.constants';
+import { ORDER_POLICY } from './constants/order.constant';
 import {
   ORDER_CANCEL_STATE,
   ORDER_CANCELLATION_REASON,
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from './order.constants';
-import { Order, OrderEvent } from './order.entity';
-import type { OrderListInput } from './order.type';
+} from './constants/order.constant';
+import { Order, OrderEvent } from './entities/order.entity';
+import { OrderAccess } from './order.access';
+import type { OrderListInput } from './types/order.type';
 
 @Injectable()
 export class OrderService {
@@ -237,11 +237,11 @@ export class OrderService {
   // Shipment workflow calls this only after proving no booking exists or GHN
   // confirms cancellation before any observed pickup, within the same lock/tx.
   async cancelCodVerified(manager: EntityManager, order: Order, now: Date) {
-    if (
+    const codCancellationIsUnsafe =
       order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
       order.status !== ORDER_STATUS.PREPARING ||
-      order.cancelState !== ORDER_CANCEL_STATE.APPROVED
-    )
+      order.cancelState !== ORDER_CANCEL_STATE.APPROVED;
+    if (codCancellationIsUnsafe)
       throw new ConflictException(
         'COD cancellation requires approval and safe carrier state',
       );
@@ -268,7 +268,7 @@ export class OrderService {
       where: { orderId: order.id },
       lock: { mode: 'pessimistic_write' },
     });
-    if (
+    const codReturnIsUnverified =
       order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
       order.status !== ORDER_STATUS.RETURNS ||
       !order.carrierReturnedAt ||
@@ -278,8 +278,8 @@ export class OrderService {
       shipment.codCollectedAt ||
       shipment.carrierTransferredAt ||
       (shipment.reviewReason &&
-        UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason))
-    )
+        UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason));
+    if (codReturnIsUnverified)
       throw new ConflictException('Verified uncollected COD return required');
     order.stockReleaseReviewIds = await this.releaseStock(
       manager,
@@ -349,6 +349,51 @@ export class OrderService {
       order: { id: 'ASC' },
       lock: { mode: 'pessimistic_write' },
     });
+    const { approvedIds, categories, shop } =
+      await this.stockReleaseEligibility(manager, order, ids, products);
+    const review: string[] = [];
+    for (const id of ids) {
+      const product = products.find((item) => item.id === id);
+      const codOwned =
+        order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
+        product?.reservedOrderId === order.id &&
+        product.status === ProductStatus.HELD;
+      const requiresStockReview =
+        !product ||
+        (!codOwned && product.soldOrderId !== order.id) ||
+        (product.reservedOrderId && product.reservedOrderId !== order.id) ||
+        (product.soldOrderId && product.soldOrderId !== order.id) ||
+        product.reservationId ||
+        product.shopId !== order.shopId ||
+        (!codOwned && product.status === ProductStatus.HELD);
+      if (requiresStockReview) {
+        review.push(id);
+        continue;
+      }
+      if (product.status === ProductStatus.SOLD || codOwned) {
+        const eligible =
+          sellable &&
+          shop?.status === ShopStatus.ACTIVE &&
+          product.categoryId &&
+          categories.get(product.categoryId)?.isActive &&
+          approvedIds.has(product.id);
+        product.status = eligible ? ProductStatus.ACTIVE : ProductStatus.HIDDEN;
+        product.soldAt = null;
+        product.heldUntil = null;
+      }
+      product.soldOrderId = null;
+      if (codOwned) product.reservedOrderId = null;
+      await manager.save(product);
+    }
+    return review;
+  }
+
+  private async stockReleaseEligibility(
+    manager: EntityManager,
+    order: Order,
+    ids: string[],
+    products: Product[],
+  ) {
     const moderations = await manager.find(ProductModeration, {
       where: { productId: In(ids) },
       order: { productId: 'ASC' },
@@ -380,41 +425,7 @@ export class OrderService {
       where: { id: order.shopId },
       lock: { mode: 'pessimistic_read' },
     });
-    const review: string[] = [];
-    for (const id of ids) {
-      const product = products.find((item) => item.id === id);
-      const codOwned =
-        order.paymentMethod === ORDER_PAYMENT_METHOD.COD &&
-        product?.reservedOrderId === order.id &&
-        product.status === ProductStatus.HELD;
-      if (
-        !product ||
-        (!codOwned && product.soldOrderId !== order.id) ||
-        (product.reservedOrderId && product.reservedOrderId !== order.id) ||
-        (product.soldOrderId && product.soldOrderId !== order.id) ||
-        product.reservationId ||
-        product.shopId !== order.shopId ||
-        (!codOwned && product.status === ProductStatus.HELD)
-      ) {
-        review.push(id);
-        continue;
-      }
-      if (product.status === ProductStatus.SOLD || codOwned) {
-        const eligible =
-          sellable &&
-          shop?.status === ShopStatus.ACTIVE &&
-          product.categoryId &&
-          categories.get(product.categoryId)?.isActive &&
-          approvedIds.has(product.id);
-        product.status = eligible ? ProductStatus.ACTIVE : ProductStatus.HIDDEN;
-        product.soldAt = null;
-        product.heldUntil = null;
-      }
-      product.soldOrderId = null;
-      if (codOwned) product.reservedOrderId = null;
-      await manager.save(product);
-    }
-    return review;
+    return { approvedIds, categories, shop };
   }
 
   private async detail(manager: EntityManager, order: Order) {

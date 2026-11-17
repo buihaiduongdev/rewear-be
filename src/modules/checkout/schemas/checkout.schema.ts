@@ -1,10 +1,13 @@
 import z from 'zod';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 
-import { CHECKOUT_MAX_ITEMS, CHECKOUT_STATUS } from '../checkout.constants';
+import {
+  CHECKOUT_MAX_ITEMS,
+  CHECKOUT_STATUS,
+} from '../constants/checkout.constant';
 
 export const createCheckoutSchema = z.strictObject({
   requestId: z.uuid(),

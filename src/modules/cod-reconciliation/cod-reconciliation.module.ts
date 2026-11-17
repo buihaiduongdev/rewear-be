@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { ShopLedgerEntry } from '@/modules/shop-finance/shop-ledger.entity';
+import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 
 import { CodReconciliationController } from './cod-reconciliation.controller';
+import { CodReconciliationService } from './cod-reconciliation.service';
 import {
   CodCollection,
   CodRemittance,
   CodRemittanceAllocation,
-} from './cod-reconciliation.entity';
-import { CodReconciliationService } from './cod-reconciliation.service';
+} from './entities/cod-reconciliation.entity';
 
 @Module({
   imports: [

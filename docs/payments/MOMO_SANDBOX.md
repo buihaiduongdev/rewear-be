@@ -76,8 +76,9 @@ claimed: provider HTTP is mocked in automated tests.
 
 The following remain outside this first payment slice:
 
-- Seller confirmation processing, automatic 24-hour order cancellation, shipping,
-  escrow release, wallet/coin settlement and their ledgers/UI.
+- Seller acceptance, shipping and internal release are documented in later
+  slices; see [receipt and 72-hour settlement](../orders/SETTLEMENT.md).
+  Wallet spending, coins, payouts and their UI remain separate work.
 - Admin incident UI, customer notifications and safe operator-assisted retries
   after a definitive refund rejection. Refund incidents are persisted via state
   and `alertedAt` and logged; logging alone is not the complete notification SLA.

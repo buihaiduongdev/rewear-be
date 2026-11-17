@@ -13,6 +13,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconciliation.module';
 import { CodModule } from './modules/cod/cod.module';
 import { ConfigModule, ConfigService } from './modules/config';
+import { DisputeModule } from './modules/dispute/dispute.module';
 import { MediaModule } from './modules/media';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
@@ -34,6 +35,7 @@ import { UserAddressModule } from './modules/user-address';
     CheckoutModule,
     PaymentModule,
     OrderModule,
+    DisputeModule,
     CodModule,
     CodReconciliationModule,
     ShopFinanceModule,

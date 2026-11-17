@@ -1,3 +1,4 @@
+import ms from 'ms';
 import z from 'zod';
 
 export const MOMO_CLIENT = Symbol('MOMO_CLIENT');
@@ -7,7 +8,12 @@ export const momoSettingsSchema = z.object({
   secretKey: z.string().min(1),
   ipnUrl: z.url().startsWith('https://'),
   redirectUrl: z.url().startsWith('https://'),
-  timeoutMs: z.coerce.number().int().min(30000).max(60000).default(30000),
+  timeoutMs: z.coerce
+    .number()
+    .int()
+    .min(ms('30s'))
+    .max(ms('1m'))
+    .default(ms('30s')),
 });
 
 export function readMomoSettings(environment: NodeJS.ProcessEnv = process.env) {

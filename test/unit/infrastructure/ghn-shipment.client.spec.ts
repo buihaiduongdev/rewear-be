@@ -1,8 +1,8 @@
 import {
   type CarrierQuoteInput,
   GhnSandboxAdapter,
-} from '@/infrastructure/shipping/ghn-sandbox.adapter';
-import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
+} from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 
 const id = '55eb1e27-2a90-4b73-8856-47f2485bdc42';
 const address = {

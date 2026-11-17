@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { CartModule } from '@/modules/cart';
 
 import { CheckoutController } from './checkout.controller';

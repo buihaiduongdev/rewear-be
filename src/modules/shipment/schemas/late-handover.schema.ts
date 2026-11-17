@@ -3,8 +3,8 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
-import { HANDOVER_ACTION } from '../late-handover.constants';
-import { HANDOVER_STATE } from '../late-handover.constants';
+import { HANDOVER_ACTION } from '../constants/late-handover.constant';
+import { HANDOVER_STATE } from '../constants/late-handover.constant';
 
 export const handoverProposalSchema = z.strictObject({
   deadline: z.iso.datetime({ offset: true }),
@@ -58,4 +58,4 @@ export type {
   HandoverProposal,
   HandoverStop,
   CalendarInput,
-} from '../late-handover.type';
+} from '../types/late-handover.type';

@@ -2,20 +2,23 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { OrderAccess } from '@/modules/order/order.access';
 import {
   ORDER_CANCEL_STATE,
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
-} from '@/modules/order/order.constants';
-import { Order, OrderEvent } from '@/modules/order/order.entity';
+} from '@/modules/order/constants/order.constant';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 
-import { FULFILLMENT_POLICY } from './fulfillment.constants';
-import { SHIPMENT_REVIEW_REASON, SHIPMENT_STATE } from './shipment.constants';
-import { Shipment } from './shipment.entity';
-import type { CancellationDecision } from './shipment.type';
+import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
+import {
+  SHIPMENT_REVIEW_REASON,
+  SHIPMENT_STATE,
+} from './constants/shipment.constant';
+import { Shipment } from './entities/shipment.entity';
+import type { CancellationDecision } from './types/shipment.type';
 
 @Injectable()
 export class ShipmentCancellationService {

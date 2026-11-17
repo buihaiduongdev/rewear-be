@@ -112,7 +112,9 @@ an unsigned webhook cannot change state or money.
 
 Manual evidenced COD collection/remittance reconciliation and funded Shop held
 credits are implemented in [COD_RECONCILIATION.md](COD_RECONCILIATION.md).
-Automatic bank feeds, exact delivery event verification, 72-hour settlement,
+The [72-hour settlement workflow](SETTLEMENT.md) now supports Admin-evidenced
+delivery timestamps, receipt confirmation and safe internal ledger release.
+Automatic bank feeds, exact carrier delivery event ingestion,
 coins, fault/fee adjudication, wallet spending and frontend screens remain
 separate implementation work. Existing moderation/package changes from main
 are retained; COD placement and resale require `ProductModeration.APPROVED`.

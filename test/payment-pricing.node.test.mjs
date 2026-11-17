@@ -7,7 +7,7 @@ import { loadTypeScriptModule } from './support/typescript-module-loader.mjs';
 
 const constants = await loadTypeScriptModule(
   new URL(
-    '../src/modules/checkout/shipping-quote.constants.ts',
+    '../src/modules/checkout/constants/shipping-quote.constant.ts',
     import.meta.url,
   ),
 );

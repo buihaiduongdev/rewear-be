@@ -16,7 +16,7 @@ import {
   acceptOrderSchema,
   orderSchema,
   rejectOrderSchema,
-} from '@/modules/order/order.schema';
+} from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -34,11 +34,11 @@ import {
 import { ShipmentCancellationService } from './shipment-cancellation.service';
 import { ShipmentReturnInspectionService } from './shipment-return-inspection.service';
 import { ShipmentService } from './shipment.service';
-import type { ReturnInspectionInput } from './shipment.type';
+import type { ReturnInspectionInput } from './types/shipment.type';
 import type {
   CancellationDecision,
   ShipmentCreateInput,
-} from './shipment.type';
+} from './types/shipment.type';
 
 @ApiTags('Shipments')
 @ApiBearerAuth()

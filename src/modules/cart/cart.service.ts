@@ -47,14 +47,13 @@ export class CartService {
         where: { id: productId },
         lock: { mode: 'pessimistic_read' },
       });
-      if (
-        await manager.existsBy(ShopMember, {
-          shopId: product.shopId,
-          userId,
-          memberRole: ShopMemberRole.OWNER,
-          status: ShopMemberStatus.ACTIVE,
-        })
-      )
+      const buyerOwnsProduct = await manager.existsBy(ShopMember, {
+        shopId: product.shopId,
+        userId,
+        memberRole: ShopMemberRole.OWNER,
+        status: ShopMemberStatus.ACTIVE,
+      });
+      if (buyerOwnsProduct)
         throw new ForbiddenException('Cannot add your own product to the cart');
 
       product.category = product.categoryId
@@ -111,44 +110,12 @@ export class CartService {
     );
   }
 
-  async readCart(manager: EntityManager, userId: string): Promise<CartView> {
-    const result: CartView = {
-      groups: [],
-      summary: {
-        itemCount: 0,
-        availableItemCount: 0,
-        totalPrice: 0,
-        currency: 'VND',
-      },
-    };
-    const cart = await manager.findOneBy(Cart, { userId });
-    if (!cart) return result;
-    const items = await manager.find(CartItem, {
-      where: { cartId: cart.id },
-      relations: { product: { category: true, shop: true } },
-      order: { createdAt: 'DESC', id: 'ASC' },
-    });
-    if (!items.length) return result;
-    const memberships = await manager.find(ShopMember, {
-      where: {
-        userId,
-        memberRole: ShopMemberRole.OWNER,
-        status: ShopMemberStatus.ACTIVE,
-      },
-      select: { shopId: true },
-    });
-    const ownedShops = new Set(memberships.map((member) => member.shopId));
-    const covers = await manager.find(MediaLink, {
-      where: {
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: In(items.map(({ product }) => product.id)),
-        role: MediaRole.COVER,
-      },
-      relations: { media: true },
-    });
-    const coverUrls = new Map(
-      covers.map((link) => [link.ownerId, link.media.url]),
-    );
+  private populateCartView(
+    result: CartView,
+    items: CartItem[],
+    ownedShops: Set<string>,
+    coverUrls: Map<string, string>,
+  ) {
     const groups = new Map<string, CartView['groups'][number]>();
 
     for (const item of items) {
@@ -197,6 +164,47 @@ export class CartService {
       }
     }
     result.groups = [...groups.values()];
+  }
+
+  async readCart(manager: EntityManager, userId: string): Promise<CartView> {
+    const result: CartView = {
+      groups: [],
+      summary: {
+        itemCount: 0,
+        availableItemCount: 0,
+        totalPrice: 0,
+        currency: 'VND',
+      },
+    };
+    const cart = await manager.findOneBy(Cart, { userId });
+    if (!cart) return result;
+    const items = await manager.find(CartItem, {
+      where: { cartId: cart.id },
+      relations: { product: { category: true, shop: true } },
+      order: { createdAt: 'DESC', id: 'ASC' },
+    });
+    if (!items.length) return result;
+    const memberships = await manager.find(ShopMember, {
+      where: {
+        userId,
+        memberRole: ShopMemberRole.OWNER,
+        status: ShopMemberStatus.ACTIVE,
+      },
+      select: { shopId: true },
+    });
+    const ownedShops = new Set(memberships.map((member) => member.shopId));
+    const covers = await manager.find(MediaLink, {
+      where: {
+        ownerType: MediaOwnerType.PRODUCT,
+        ownerId: In(items.map(({ product }) => product.id)),
+        role: MediaRole.COVER,
+      },
+      relations: { media: true },
+    });
+    const coverUrls = new Map(
+      covers.map((link) => [link.ownerId, link.media.url]),
+    );
+    this.populateCartView(result, items, ownedShops, coverUrls);
     return result;
   }
 }

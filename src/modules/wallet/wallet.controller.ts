@@ -6,8 +6,8 @@ import { JwtAuthGuard } from '@/modules/auth/guards';
 import { User } from '@/modules/user/entities';
 
 import { walletQuerySchema, walletViewSchema } from './schemas/wallet.schema';
+import type { WalletQueryInput } from './types/wallet.type';
 import { WalletService } from './wallet.service';
-import type { WalletQueryInput } from './wallet.type';
 
 @ApiTags('Wallet')
 @ApiBearerAuth()

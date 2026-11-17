@@ -11,8 +11,8 @@ import {
   SHIPPING_QUOTE_MAX_AGE_MS,
   SHIPPING_QUOTE_ORDER_STATUS,
   SHIPPING_QUOTE_STATUS,
-} from '../checkout/shipping-quote.constants';
-import type { PaymentOrderSnapshot } from './payment.type';
+} from '../checkout/constants/shipping-quote.constant';
+import type { PaymentOrderSnapshot } from './types/payment.type';
 
 // Never accept a client amount, fee or quote object as an authoritative price.
 @Injectable()

@@ -2,14 +2,14 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { MONEY_CURRENCY } from '@/common/constants/money.constants';
-import { Order } from '@/modules/order/order.entity';
+import { MONEY_CURRENCY } from '@/common/constants/money.constant';
+import { Order } from '@/modules/order/entities/order.entity';
 
+import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
+import { WalletAccount, WalletCredit } from './entities/wallet.entity';
 import { orderRefundSchema } from './schemas/wallet-refund.schema';
 import { walletBalanceSchema } from './schemas/wallet.schema';
-import { WALLET_CREDIT_REASON } from './wallet.constants';
-import { WalletAccount, WalletCredit } from './wallet.entity';
-import type { WalletQueryInput } from './wallet.type';
+import type { WalletQueryInput } from './types/wallet.type';
 
 @Injectable()
 export class WalletService {

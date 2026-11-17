@@ -6,7 +6,7 @@ import { trimmedTextSchema } from '@/common/schemas/request.schema';
 import {
   CARRIER_INCIDENT_OUTCOME,
   CARRIER_INCIDENT_STATE,
-} from '../shipment.constants';
+} from '../constants/shipment.constant';
 
 export const carrierIncidentDecisionSchema = z.strictObject({
   outcome: z.enum(CARRIER_INCIDENT_OUTCOME),
@@ -30,4 +30,4 @@ export const carrierIncidentSchema = z.object({
   ),
 });
 
-export type { CarrierIncidentDecision } from '../shipment.type';
+export type { CarrierIncidentDecision } from '../types/shipment.type';

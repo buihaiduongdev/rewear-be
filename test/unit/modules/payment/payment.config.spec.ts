@@ -2,7 +2,7 @@ import { readMomoSettings } from '@/modules/payment/payment.config';
 import {
   createPaymentSchema,
   momoIpnSchema,
-} from '@/modules/payment/payment.schemas';
+} from '@/modules/payment/schemas/payment.schema';
 
 describe('MoMo Sandbox configuration and request validation', () => {
   it('is disabled without credentials and rejects partially enabled configuration without leaking secrets', () => {

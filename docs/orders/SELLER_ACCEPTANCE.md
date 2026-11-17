@@ -66,7 +66,7 @@ ACTIVE resale; ineligible SOLD stock becomes HIDDEN. Suspended/other states
 are preserved. Missing, inconsistent or historical ownership markers leave
 stock untouched and record `stockReleaseReviewIds` for reconciliation.
 
-The Order entity now lives in `src/modules/order/order.entity.ts`; the existing
+The Order entity now lives in `src/modules/order/entities/order.entity.ts`; the existing
 `orders` table is retained. Added tables are `order_events`, `wallet_accounts`
 and `wallet_credits`, plus nullable order metadata and product ownership.
 TypeORM synchronization remains the repository's current development setup;
@@ -81,10 +81,11 @@ crossed while waiting for membership, partial checkout cancellation, full wallet
 credit, stock eligibility/ownership, financial rollback, worker error isolation,
 capture replay, plus an HTTP flow with real JWT authentication and validation.
 
-Current scope stops at `preparing` or `cancelled`. The nine-state type reserves
+This acceptance slice stops at `preparing` or `cancelled`. Subsequent shipment,
+COD reconciliation and [72-hour settlement](SETTLEMENT.md) slices now implement
+the corresponding downstream workflows. The nine-state type reserves
 the remaining shipment/dispute states, but no arbitrary state-update route is
-exposed. COD, GHN waybills, buyer cancellation after acceptance, 72-hour
-settlement, coins, wallet spending, withdrawals and full Shop RBAC are later
-slices. Existing orders have no coin discounts, so cancellation credits the
+exposed. Dispute adjudication, coins, wallet spending, withdrawals and full Shop
+RBAC remain separate work. Existing orders have no coin discounts, so cancellation credits the
 saved order total; future coin integration must follow REFUND-SESSION-02 rather
 than blindly refunding only net cash.

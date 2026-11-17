@@ -1,24 +1,24 @@
 import { randomUUID } from 'node:crypto';
 
-import { GhnShipmentClient } from '@/infrastructure/shipping/ghn-shipment.client';
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { AuthProvider } from '@/modules/auth/enums';
+import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import {
   CodCollection,
   CodRemittance,
-} from '@/modules/cod-reconciliation/cod-reconciliation.entity';
-import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+} from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
 import {
   CollectionInput,
   RemittanceInput,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
-import { Shipment } from '@/modules/shipment/shipment.entity';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
+import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
-import { ShopLedgerEntry } from '@/modules/shop-finance/shop-ledger.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';

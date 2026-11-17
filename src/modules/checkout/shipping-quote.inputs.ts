@@ -1,16 +1,16 @@
 import { EntityManager } from 'typeorm';
 
 import { aggregateParcel } from '@/common/schemas/shipping-package.schema';
-import type { CarrierQuoteInput } from '@/infrastructure/shipping/ghn-sandbox.adapter';
-import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/ghn-shipment.constants';
+import type { CarrierQuoteInput } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
-import { CheckoutOrder } from './entities/checkout-order.entity';
-import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import {
   SHIPPING_QUOTE_ORDER_STATUS,
   SHIPPING_QUOTE_REASON,
-} from './shipping-quote.constants';
+} from './constants/shipping-quote.constant';
+import { CheckoutOrder } from './entities/checkout-order.entity';
+import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import type { QuoteOrder } from './types/shipping-quote.type';
 
 export async function quoteInputs(

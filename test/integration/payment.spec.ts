@@ -7,19 +7,19 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/ghn-sandbox.adapter';
+import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
-import { CodPolicy } from '@/modules/cod/cod.policy';
+import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
-import { Order } from '@/modules/order/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import {
   PaymentAttempt,
   PaymentRefund,
-} from '@/modules/payment/payment.entity';
+} from '@/modules/payment/entities/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
 import { Product, ProductModeration } from '@/modules/product/entities';

@@ -7,7 +7,7 @@ import {
   COD_CANCELLATION_REASON,
   COD_MAX_ORDER_TOTAL,
   COD_RESTRICTION_CAUSE,
-} from '../cod.constants';
+} from '../constants/cod.constant';
 
 export const placeCodSchema = z.strictObject({
   expectedTotal: vndAmountSchema,
@@ -28,4 +28,4 @@ export const codRestrictionsSchema = z.array(
   }),
 );
 
-export type { PlaceCodInput, CancelCodInput } from '../cod.type';
+export type { PlaceCodInput, CancelCodInput } from '../types/cod.type';
