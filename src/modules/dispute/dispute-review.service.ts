@@ -19,7 +19,9 @@ import {
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
   DISPUTE_POLICY,
+  OPEN_DISPUTE_STATES,
 } from './constants/dispute.constant';
+import { populateDecisionAppealDeadline } from './dispute-decision.lifecycle';
 import {
   notifyDispute,
   populateDisputeDeadlines,
@@ -32,10 +34,7 @@ import {
 } from './entities/dispute.entity';
 import { disputeExtensionSchema } from './schemas/dispute.schema';
 
-const openIssueStates = [
-  DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
-  DISPUTE_ISSUE_STATE.ACTIVE,
-];
+const openIssueStates = [...OPEN_DISPUTE_STATES];
 
 @Injectable()
 export class DisputeReviewService {
@@ -61,6 +60,8 @@ export class DisputeReviewService {
       if (supplementExpired) await this.closeIncomplete(manager, issue, now);
       if (issue.status === DISPUTE_ISSUE_STATE.ACTIVE)
         await this.updateSla(manager, issue, now);
+      if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL)
+        await populateDecisionAppealDeadline(manager, issue.id);
       return issue;
     });
   }

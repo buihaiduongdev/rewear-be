@@ -1,8 +1,9 @@
 # Dispute intake, evidence and party responses
 
 This slice implements intake and financial holds, private photo/video evidence,
-party responses and review SLA tracking. It does not yet implement Admin fault
-decisions, appeals, return labels/inspection after sale, refund or bank payouts.
+party responses and review SLA tracking. [Initial Admin adjudication](DISPUTE_ADJUDICATION.md)
+now records decisions and appeal windows separately. Appeals, return labels/
+inspection after sale, refund and bank payouts remain future work.
 No automatic winner or refund is inferred from video, silence or elapsed SLA.
 
 ## Intake and money
@@ -124,7 +125,8 @@ recalculated from original timestamps once approved coverage exists.
 The worker flags overdue review; after the five-day maximum it records
 escalation with a further one-business-day decision target. Funds remain held;
 silence and timeout never accept/reject the claim automatically. The actual
-decision/appeal workflow is the next implementation slice. Durable notices
+initial decision workflow is documented in [DISPUTE_ADJUDICATION.md](DISPUTE_ADJUDICATION.md);
+appeals and final execution are still future work. Durable notices
 are available in the case read API; email/push delivery is not implemented.
 
 ## Read APIs and test scope

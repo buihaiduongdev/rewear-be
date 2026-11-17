@@ -8,6 +8,7 @@ API backend và phạm vi triển khai thực tế: [Shop tiếp nhận đơn](o
 [Đối soát COD và sổ tiền Shop](orders/COD_RECONCILIATION.md),
 [Xác nhận nhận hàng và quyết toán 72 giờ](orders/SETTLEMENT.md),
 [Tiếp nhận khiếu nại và bằng chứng riêng tư](orders/DISPUTES.md),
+[Kết luận ban đầu của Admin](orders/DISPUTE_ADJUDICATION.md),
 [MoMo Sandbox](payments/MOMO_SANDBOX.md).
 Các hướng dẫn này nêu rõ phần đã kiểm thử và nghiệp vụ còn phải triển khai.
 

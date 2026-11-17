@@ -15,6 +15,7 @@ import {
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
 } from './constants/dispute.constant';
+import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
 
 @Injectable()
@@ -78,6 +79,7 @@ export class DisputeAccess {
             status: In([
               DISPUTE_ISSUE_STATE.ACTIVE,
               DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
+              DISPUTE_ISSUE_STATE.AWAITING_APPEAL,
             ]),
           },
         })
@@ -90,13 +92,26 @@ export class DisputeAccess {
         issue.status === DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE &&
         now < issue.supplementBy,
     );
+    const pendingDecisionIds = issues
+      .filter((issue) => issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL)
+      .map((issue) => issue.id);
+    const decisions = pendingDecisionIds.length
+      ? await manager.find(DisputeDecision, {
+          where: { issueId: In(pendingDecisionIds) },
+        })
+      : [];
+    const canPrepareAppeal = decisions.some(
+      (decision) => !decision.appealUntil || now <= decision.appealUntil,
+    );
     const buyerCanUpload =
       party.party === DISPUTE_PARTY.BUYER &&
       (hasActiveIssue ||
+        canPrepareAppeal ||
         hasSupplementWindow ||
         (await this.windowOpen(manager, party.order, now)));
     const sellerCanUpload =
-      party.party === DISPUTE_PARTY.SELLER && hasActiveIssue;
+      party.party === DISPUTE_PARTY.SELLER &&
+      (hasActiveIssue || canPrepareAppeal);
     const canUpload = buyerCanUpload || sellerCanUpload;
     if (!canUpload)
       throw new ConflictException('No open dispute evidence window');

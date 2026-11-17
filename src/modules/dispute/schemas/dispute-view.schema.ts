@@ -10,6 +10,7 @@ import {
   DISPUTE_KIND,
   DISPUTE_PARTY,
 } from '../constants/dispute.constant';
+import { disputeDecisionViewSchema } from './dispute-decision-view.schema';
 
 export const disputeIssueViewSchema = z.object({
   id: z.uuid(),
@@ -61,6 +62,7 @@ export const disputeCaseViewSchema = z.object({
   issues: z.array(disputeIssueViewSchema),
 });
 export const disputeCaseDetailSchema = disputeCaseViewSchema.extend({
+  decisions: z.array(disputeDecisionViewSchema),
   messages: z.array(disputeMessageViewSchema),
   evidence: z.array(disputeEvidenceViewSchema),
   attachments: z.array(z.object({ issueId: z.uuid(), evidenceId: z.uuid() })),
