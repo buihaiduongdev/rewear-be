@@ -223,14 +223,45 @@ export class MediaService {
       if (links.every((link, index) => link.mediaId === input.mediaIds[index]))
         return links.map((link) => this.toView(link));
       await this.productService.markContentChanged(manager, product);
+
+      const [updatedRows, affected]: [MediaLink[], number] =
+        await manager.query(
+          `WITH product_media_count AS (
+           SELECT count(*)::int AS total_count
+           FROM media_links
+           WHERE "ownerType" = $2 AND "ownerId" = $3
+         ),
+         new_positions AS (
+           SELECT id, (position - 1) AS new_sort_order
+           FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, position)
+         )
+         UPDATE media_links AS link
+         SET "sortOrder" = new_positions.new_sort_order, "updatedAt" = NOW()
+         FROM new_positions, product_media_count
+         WHERE link."mediaId" = new_positions.id
+           AND link."ownerType" = $2
+           AND link."ownerId" = $3
+           AND product_media_count.total_count = cardinality($1::uuid[])
+         RETURNING link.*`,
+          [input.mediaIds, MediaOwnerType.PRODUCT, productId],
+        );
+
+      if (affected !== input.mediaIds.length) {
+        throw new BadRequestException(
+          'mediaIds must contain every product media id exactly once',
+        );
+      }
+
       const byMediaId = new Map(links.map((link) => [link.mediaId, link]));
-      const ordered = input.mediaIds.map((mediaId, sortOrder) => {
+      const sortOrderMap = new Map(
+        updatedRows.map((row) => [row.mediaId, row.sortOrder]),
+      );
+
+      return input.mediaIds.map((mediaId) => {
         const link = byMediaId.get(mediaId) as MediaLink;
-        link.sortOrder = sortOrder;
-        return link;
+        link.sortOrder = sortOrderMap.get(mediaId) ?? link.sortOrder;
+        return this.toView(link);
       });
-      await manager.save(ordered);
-      return ordered.map((link) => this.toView(link));
     });
   }
 

@@ -75,6 +75,7 @@ describe('MediaService', () => {
     getRepository: jest.fn(() => mediaLinkRepository),
     remove: jest.fn(),
     save: jest.fn(),
+    query: jest.fn(),
   };
   const dataSource = {
     transaction: jest.fn((work: (entityManager: EntityManager) => unknown) =>
@@ -275,7 +276,32 @@ describe('MediaService', () => {
     await expect(
       service.reorder(productId, userId, { mediaIds: [mediaId] }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(manager.save).not.toHaveBeenCalled();
+    expect(manager.query).not.toHaveBeenCalled();
+  });
+
+  it('updates sortOrder via CTE batch query when order changes', async () => {
+    const link1 = makeLink(mediaId, MediaRole.COVER, 0);
+    const link2 = makeLink(secondMediaId, MediaRole.GALLERY, 1);
+    mediaLinkRepository.find.mockResolvedValueOnce([link1, link2]);
+
+    const updatedRows = [
+      { mediaId: secondMediaId, sortOrder: 0 },
+      { mediaId, sortOrder: 1 },
+    ];
+    manager.query.mockResolvedValueOnce([updatedRows, 2]);
+
+    const result = await service.reorder(productId, userId, {
+      mediaIds: [secondMediaId, mediaId],
+    });
+
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('WITH product_media_count AS'),
+      [[secondMediaId, mediaId], MediaOwnerType.PRODUCT, productId],
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: secondMediaId, sortOrder: 0 }),
+      expect.objectContaining({ id: mediaId, sortOrder: 1 }),
+    ]);
   });
 
   it('promotes the next image when deleting the current cover', async () => {
