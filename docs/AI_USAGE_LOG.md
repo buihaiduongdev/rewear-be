@@ -844,3 +844,15 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** Nhánh `refactor/db-constraints`, PR #43.
+
+### 2026-11-17 — Tối ưu hóa cập nhật thứ tự ảnh kéo thả bằng PostgreSQL CTE và unnest WITH ORDINALITY
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tối ưu hóa tính năng sắp xếp lại thứ tự ảnh sản phẩm (`MediaService.reorder`) và việc nén/đánh số lại thứ tự ảnh sau khi xóa (`MediaService.delete`) bằng cách thay thế việc duyệt mảng JS và N câu lệnh `UPDATE` đơn lẻ qua TypeORM bằng câu truy vấn PostgreSQL CTE kết hợp `unnest(...) WITH ORDINALITY` duy nhất, vừa validate atomic số lượng ảnh vừa cập nhật hàng loạt và trả về trạng thái mới.
+- **Prompt chính:** Triển khai PR 2 theo kỹ thuật của `be-marty-demo-2`: tối ưu `MediaService.reorder` và `MediaService.delete` với CTE `unnest WITH ORDINALITY`, cập nhật unit test kiểm thử câu lệnh truy vấn hàng loạt và đảm bảo 100% pass quality check.
+- **Đầu ra AI được sử dụng:** Cập nhật `MediaService.reorder` và `MediaService.delete` sử dụng `manager.query` với khối CTE `product_media_count` và `new_positions` kết hợp `unnest($1::uuid[]) WITH ORDINALITY`, cập nhật test suite `media.service.spec.ts` kiểm tra câu lệnh truy vấn CTE cho cả reorder và index compaction khi xóa ảnh (kèm xử lý thăng hạng ảnh bìa `COVER`).
+- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng câu lệnh CTE với đúng tên cột có quote `"ownerType"`, `"ownerId"`, `"mediaId"`, `"sortOrder"` trong PostgreSQL, căn chỉnh map view trả về.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 236 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/media-reorder-cte`, PR #44.
