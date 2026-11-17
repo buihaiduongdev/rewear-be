@@ -820,3 +820,15 @@
 - **Cách kiểm chứng:** Test trước triển khai và regression red/green. Full local 46 suites / 386 Jest tests cùng 22 Node tests đạt; typecheck/Nest build/lint/format đạt. Có 19 test PostgreSQL về deadline/hold/rollback/concurrency, 7 HTTP JWT/privacy và 21 unit cho evidence/storage. Test race kiểm tra clock sau chờ commerce lock. Review độc lập bản sửa không còn P1/P2; CI theo commit trên PR được báo riêng.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phản hồi seller trễ trước worker scan có thể che trách nhiệm phản hồi; đã kiểm tra timestamp gốc thay vì chỉ tồn tại message. Lịch nghỉ khôi phục phải phân loại lại late:null theo giờ gửi gốc, không đổi nội dung. Cấu hình storage thiếu không được làm mất quota upload; kiểm tra trước khi tạo ticket. Đã có regression.
 - **Giới hạn và minh chứng:** Chưa làm quyết định phân xử/xét lại, vận đơn trả/refund, email/push, malware scanning hoặc test MoMo/GHN/R2 trực tiếp. Bucket riêng tư cần operator cấu hình policy/CORS; thiếu cấu hình trả 503, không dùng bucket public. API/test/docs tiếp tục trong PR #40; không reset database dev.
+
+### 2026-11-17 — Tối ưu hóa phân quyền Shop RBAC và cải thiện hiệu năng truy vấn
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tối ưu hóa phản hồi API gán vai trò thành viên shop và hoàn thiện kiến trúc phân quyền Shop RBAC.
+- **Prompt chính:** Tối ưu hóa API assign roles để trả về danh sách role đầy đủ thay vì chỉ trả về roleId, giúp frontend cập nhật ngay cache mà không phải gọi thêm request fetch lại danh sách thành viên; kiểm chứng mã nguồn và chuẩn bị PR.
+- **Đầu ra AI được sử dụng:** Cập nhật `shopRoleAssignmentSchema` để trả về danh sách đối tượng role `{ id, name }`, cập nhật `ShopRoleService.assign` tận dụng mảng role đã truy vấn trong bộ nhớ để trả về trực tiếp mà không tốn thêm câu lệnh SQL.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định dạng schema nhất quán với `shopMemberSchema`, rà soát các kiểm thử đơn vị liên quan và kiểm tra toàn bộ pipeline kiểm thử.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (27/27 test suites, 228 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `feat/shop-rbac-improvements`.
