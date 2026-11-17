@@ -837,10 +837,10 @@
 
 - **Người thực hiện:** Bùi Hải Dương.
 - **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
-- **Mục đích và phạm vi:** Xóa bỏ pattern `await findOneBy`/`await exists` tiền kiểm tra trùng lặp trước khi tạo hoặc cập nhật bản ghi tại `ShopRoleService` và `CategoryService`, thay thế bằng việc bắt trực tiếp `QueryFailedError` từ PostgreSQL (Unique Constraints `UQ_shop_roles_shop_id_name`, `UQ_categories_slug`) và chuyển đổi sang `ConflictException`.
-- **Prompt chính:** Triển khai PR 1 trong kế hoạch tối ưu hóa cơ sở dữ liệu: tạo helper xử lý constraint TypeORM/Postgres tập trung, refactor `ShopRoleService` và `CategoryService` loại bỏ round-trip SELECT dư thừa, cập nhật kiểm thử đơn vị và đảm bảo 100% pass quality check.
-- **Đầu ra AI được sử dụng:** Tạo `src/common/utils/database-constraint.util.ts`, đặt tên rõ ràng cho Unique Index trên entity `ShopRole` và `Category`, cập nhật `ShopRoleService.create/update`, `CategoryService.create/update`, cập nhật test suite `category.service.spec.ts` và tạo mới `shop-role.service.spec.ts`.
+- **Mục đích và phạm vi:** Xóa bỏ pattern `await findOneBy`/`await exists` tiền kiểm tra trùng lặp trước khi tạo hoặc cập nhật bản ghi tại `ShopRoleService`, `CategoryService`, `UserService` và `ShopService`, thay thế bằng việc bắt trực tiếp `QueryFailedError` từ PostgreSQL (Unique Constraints `UQ_shop_roles_shop_id_name`, `UQ_categories_slug`, `UQ_users_email`, `UQ_shop_members_user`) và chuyển đổi sang `ConflictException`.
+- **Prompt chính:** Triển khai PR 1 trong kế hoạch tối ưu hóa cơ sở dữ liệu: tạo helper xử lý constraint TypeORM/Postgres tập trung, refactor `ShopRoleService`, `CategoryService`, `UserService`, `ShopService` loại bỏ round-trip SELECT dư thừa, cập nhật kiểm thử đơn vị và đảm bảo 100% pass quality check.
+- **Đầu ra AI được sử dụng:** Tạo `src/common/utils/database-constraint.util.ts`, đặt tên rõ ràng cho Unique Index trên entity `ShopRole`, `Category`, `User`, cập nhật `ShopRoleService.create/update`, `CategoryService.create/update`, `UserService.register/create/update`, `ShopService.create/accept`, cập nhật test suite `category.service.spec.ts`, `shop.service.spec.ts` và tạo mới `shop-role.service.spec.ts`, `user.service.spec.ts`.
 - **Phần tự làm hoặc đã chỉnh sửa:** Xác định danh sách constraint cần xử lý, căn chỉnh kiểu TypeScript strict cho TypeORM EntityManager mock và rà soát lint/format.
-- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (28/28 test suites, 232 tests).
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Nhánh `refactor/db-constraints`.
+- **Minh chứng:** Nhánh `refactor/db-constraints`, PR #43.

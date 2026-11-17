@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, In, MoreThan, Repository } from 'typeorm';
 
+import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
@@ -50,13 +51,6 @@ export class ShopService {
 
   create(userId: string, input: CreateShopInput): Promise<Shop> {
     return this.dataSource.transaction(async (manager) => {
-      if (
-        await manager.findOneBy(ShopMember, {
-          userId,
-        })
-      ) {
-        throw new ConflictException('User already belongs to a shop');
-      }
       const shop = await manager.save(
         Shop,
         manager.create(Shop, {
@@ -65,14 +59,20 @@ export class ShopService {
           status: ShopStatus.ACTIVE,
         }),
       );
-      await manager.save(
-        ShopMember,
-        manager.create(ShopMember, {
-          shopId: shop.id,
-          userId,
-          memberRole: ShopMemberRole.OWNER,
-        }),
-      );
+      try {
+        await manager.save(
+          ShopMember,
+          manager.create(ShopMember, {
+            shopId: shop.id,
+            userId,
+            memberRole: ShopMemberRole.OWNER,
+          }),
+        );
+      } catch (error) {
+        handleDatabaseConstraint(error, {
+          UQ_shop_members_user: 'User already belongs to a shop',
+        });
+      }
       await this.shopRoleService.initializeDefaultRoles(shop.id, manager);
       return shop;
     });
@@ -260,12 +260,6 @@ export class ShopService {
         invitation.expiresAt <= new Date()
       )
         throw new BadRequestException('Invitation is no longer valid');
-      if (
-        await manager.findOneBy(ShopMember, {
-          userId,
-        })
-      )
-        throw new ConflictException('User already belongs to a shop');
       const validRoles = invitation.roleIds.length
         ? await manager.findBy(ShopRole, {
             id: In(invitation.roleIds),
@@ -276,14 +270,21 @@ export class ShopService {
         throw new BadRequestException(
           'Invitation roles are no longer available',
         );
-      const member = await manager.save(
-        ShopMember,
-        manager.create(ShopMember, {
-          shopId: invitation.shopId,
-          userId,
-          memberRole: ShopMemberRole.STAFF,
-        }),
-      );
+      let member: ShopMember;
+      try {
+        member = await manager.save(
+          ShopMember,
+          manager.create(ShopMember, {
+            shopId: invitation.shopId,
+            userId,
+            memberRole: ShopMemberRole.STAFF,
+          }),
+        );
+      } catch (error) {
+        handleDatabaseConstraint(error, {
+          UQ_shop_members_user: 'User already belongs to a shop',
+        });
+      }
       await manager.save(
         ShopMemberRoleAssignment,
         invitation.roleIds.map((roleId) => ({ memberId: member.id, roleId })),
