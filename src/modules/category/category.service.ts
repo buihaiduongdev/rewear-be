@@ -11,10 +11,6 @@ import type {
   UpdateCategoryInput,
 } from './schemas/category-input.schema';
 
-const CATEGORY_CONSTRAINT_MAP = {
-  UQ_categories_slug: 'Category slug already exists',
-};
-
 @Injectable()
 export class CategoryService {
   constructor(
@@ -49,7 +45,9 @@ export class CategoryService {
         }),
       );
     } catch (error) {
-      handleDatabaseConstraint(error, CATEGORY_CONSTRAINT_MAP);
+      handleDatabaseConstraint(error, {
+        UQ_categories_slug: 'Category slug already exists',
+      });
     }
   }
 
@@ -61,7 +59,9 @@ export class CategoryService {
     try {
       return await this.categoryRepository.save(category);
     } catch (error) {
-      handleDatabaseConstraint(error, CATEGORY_CONSTRAINT_MAP);
+      handleDatabaseConstraint(error, {
+        UQ_categories_slug: 'Category slug already exists',
+      });
     }
   }
 
