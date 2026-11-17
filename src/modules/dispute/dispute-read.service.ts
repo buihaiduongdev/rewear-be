@@ -9,6 +9,7 @@ import {
   DISPUTE_PARTY,
 } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
+import { DisputeDecision } from './entities/dispute-decision.entity';
 import {
   DisputeAttachment,
   DisputeCase,
@@ -95,6 +96,7 @@ export class DisputeReadService {
         evidence: [],
         attachments: [],
         notices: [],
+        decisions: [],
       };
     const messages = await manager.find(DisputeMessage, {
       where: { issueId: In(issueIds) },
@@ -118,6 +120,18 @@ export class DisputeReadService {
       take: 100,
       skip: offset,
     });
-    return { ...row, issues, messages, evidence, attachments, notices };
+    const decisions = await manager.find(DisputeDecision, {
+      where: { issueId: In(issueIds) },
+      order: { decidedAt: 'ASC', id: 'ASC' },
+    });
+    return {
+      ...row,
+      issues,
+      messages,
+      evidence,
+      attachments,
+      notices,
+      decisions,
+    };
   }
 }
