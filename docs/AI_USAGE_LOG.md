@@ -844,3 +844,15 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** Nhánh `refactor/db-constraints`, PR #43.
+
+### 2026-11-17 — Gom nhóm các truy vấn vòng lặp thành toán tử In trong các module thương mại
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Triển khai PR 3: Loại bỏ các truy vấn lặp tuần tự (waterfall await trong vòng lặp for) tại `OrderService` (truy vấn danh mục sản phẩm khi giải phóng kho), `CodService` (kiểm tra danh mục và shop hợp lệ khi tạo đơn hàng COD) và `CodReconciliationService` (tải thông tin bản ghi collection khi đối soát remittance). Chuyển sang truy vấn hàng loạt bằng toán tử `In` kết hợp HashMap/Set để tra cứu in-memory $O(1)$.
+- **Prompt chính:** Rà soát và tối ưu hóa các vị trí có vòng lặp truy vấn cơ sở dữ liệu (N+1 queries / waterfall await) trong các module commerce (`OrderService`, `CodService`, `CodReconciliationService`), gom về `manager.find({ where: { id: In(...) } })`, đảm bảo giữ nguyên logic kiểm tra và đạt 100% kiểm thử chất lượng.
+- **Đầu ra AI được sử dụng:** Refactor `OrderService.stockReleaseEligibility` chuyển loop `manager.findOne(Category)` thành 1 query `In(categoryIds)`; refactor `CodService.validateStockAvailability` gom loop `Category` và `Shop` thành 2 query `In` kèm kiểm tra độ dài `length`; refactor `CodReconciliationService.loadValidatedAllocations` gom loop `manager.findOneByOrFail(CodCollection)` thành 1 query `In(orderIds)`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Kiểm soát thứ tự và điều kiện khóa pessimistic lock (`pessimistic_read`), giữ trọn vẹn nghiệp vụ assert/validation lỗi `ConflictException`, chạy format và toàn bộ kiểm thử chất lượng.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Nhánh `refactor/batch-in-queries`.

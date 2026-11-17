@@ -185,25 +185,32 @@ export class CodService {
         )
         .map((moderation) => moderation.productId),
     );
-    for (const categoryId of [
+    const categoryIds = [
       ...new Set(
         products.flatMap((product) =>
           product.categoryId ? [product.categoryId] : [],
         ),
       ),
-    ].sort()) {
-      await manager.findOneOrFail(Category, {
-        where: { id: categoryId, isActive: true },
+    ].sort();
+    if (categoryIds.length > 0) {
+      const activeCategories = await manager.find(Category, {
+        where: { id: In(categoryIds), isActive: true },
         lock: { mode: 'pessimistic_read' },
       });
+      if (activeCategories.length !== categoryIds.length) {
+        throw new ConflictException('Category is inactive or missing');
+      }
     }
-    for (const shopId of [
-      ...new Set(snapshots.map((order) => order.shopId)),
-    ].sort())
-      await manager.findOneOrFail(Shop, {
-        where: { id: shopId, status: ShopStatus.ACTIVE },
+    const shopIds = [...new Set(snapshots.map((order) => order.shopId))].sort();
+    if (shopIds.length > 0) {
+      const activeShops = await manager.find(Shop, {
+        where: { id: In(shopIds), status: ShopStatus.ACTIVE },
         lock: { mode: 'pessimistic_read' },
       });
+      if (activeShops.length !== shopIds.length) {
+        throw new ConflictException('Shop is inactive or missing');
+      }
+    }
     return approvedIds;
   }
 

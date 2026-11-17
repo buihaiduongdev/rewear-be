@@ -409,19 +409,22 @@ export class OrderService {
         )
         .map((moderation) => moderation.productId),
     );
-    const categories = new Map<string, Category>();
-    for (const id of [
+    const categoryIds = [
       ...new Set(
         products.flatMap((product) =>
           product.categoryId ? [product.categoryId] : [],
         ),
       ),
-    ].sort()) {
-      const category = await manager.findOne(Category, {
-        where: { id },
+    ].sort();
+    const categories = new Map<string, Category>();
+    if (categoryIds.length > 0) {
+      const categoryRows = await manager.find(Category, {
+        where: { id: In(categoryIds) },
         lock: { mode: 'pessimistic_read' },
       });
-      if (category) categories.set(id, category);
+      for (const category of categoryRows) {
+        categories.set(category.id, category);
+      }
     }
     const shop = await manager.findOne(Shop, {
       where: { id: order.shopId },

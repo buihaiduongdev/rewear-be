@@ -329,11 +329,20 @@ export class CodReconciliationService {
     data: RemittanceInput,
     receivedAt: Date,
   ): Promise<ValidatedRemittanceAllocation[]> {
+    const orderIds = data.allocations.map((a) => a.orderId);
+    const collections = await manager.find(CodCollection, {
+      where: { orderId: In(orderIds) },
+    });
+    const collectionMap = new Map(collections.map((c) => [c.orderId, c]));
+
     const validated: ValidatedRemittanceAllocation[] = [];
     for (const allocation of data.allocations) {
-      const collection = await manager.findOneByOrFail(CodCollection, {
-        orderId: allocation.orderId,
-      });
+      const collection = collectionMap.get(allocation.orderId);
+      if (!collection) {
+        throw new ConflictException(
+          `Collection record not found for order ${allocation.orderId}`,
+        );
+      }
       this.assertAllocationAllowed(
         collection,
         allocation,
