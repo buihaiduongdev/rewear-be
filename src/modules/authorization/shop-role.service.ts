@@ -149,7 +149,10 @@ export class ShopRoleService {
         ShopMemberRoleAssignment,
         uniqueIds.map((roleId) => ({ memberId, roleId })),
       );
-      return { memberId, roleIds: uniqueIds };
+      return {
+        memberId,
+        roles: roles.map((role) => ({ id: role.id, name: role.name })),
+      };
     });
   }
 }

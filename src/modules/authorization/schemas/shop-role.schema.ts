@@ -12,9 +12,14 @@ export const shopRoleSchema = z.object({
   updatedAt: dateTimeSchema,
 });
 export const shopRoleListSchema = z.array(shopRoleSchema);
+export const shopRoleItemSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+});
+
 export const shopRoleAssignmentSchema = z.object({
   memberId: z.uuid(),
-  roleIds: z.array(z.uuid()),
+  roles: z.array(shopRoleItemSchema),
 });
 
 export const shopAccessSchema = z.object({
