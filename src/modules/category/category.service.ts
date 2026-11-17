@@ -1,7 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+
+import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 
 import { Category } from './entities';
 import type {
@@ -32,28 +34,35 @@ export class CategoryService {
 
   async create(input: CreateCategoryInput): Promise<Category> {
     const { name, slug } = input;
-    await this.assertSlugAvailable(slug);
 
-    return this.categoryRepository.save(
-      this.categoryRepository.create({
-        name,
-        slug,
-        isActive: input.isActive ?? true,
-        requiredMeasurements: input.requiredMeasurements ?? [],
-      }),
-    );
+    try {
+      return await this.categoryRepository.save(
+        this.categoryRepository.create({
+          name,
+          slug,
+          isActive: input.isActive ?? true,
+          requiredMeasurements: input.requiredMeasurements ?? [],
+        }),
+      );
+    } catch (error) {
+      handleDatabaseConstraint(error, {
+        UQ_categories_slug: 'Category slug already exists',
+      });
+    }
   }
 
   async update(id: string, input: UpdateCategoryInput): Promise<Category> {
     const category = await this.categoryRepository.findOneByOrFail({ id });
 
-    if (input.slug !== undefined && input.slug !== category.slug) {
-      await this.assertSlugAvailable(input.slug, id);
-    }
-
     this.categoryRepository.merge(category, input);
 
-    return this.categoryRepository.save(category);
+    try {
+      return await this.categoryRepository.save(category);
+    } catch (error) {
+      handleDatabaseConstraint(error, {
+        UQ_categories_slug: 'Category slug already exists',
+      });
+    }
   }
 
   async remove(id: string): Promise<void> {
@@ -61,15 +70,5 @@ export class CategoryService {
     if (!category.isActive) return;
     category.isActive = false;
     await this.categoryRepository.save(category);
-  }
-
-  private async assertSlugAvailable(
-    slug: string,
-    excludedId?: string,
-  ): Promise<void> {
-    const where = excludedId ? { slug, id: Not(excludedId) } : { slug };
-    if (await this.categoryRepository.findOneBy(where)) {
-      throw new ConflictException('Category slug already exists');
-    }
   }
 }

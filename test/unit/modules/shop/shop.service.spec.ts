@@ -1,6 +1,6 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 
-import { EntityNotFoundError } from 'typeorm';
+import { EntityNotFoundError, QueryFailedError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -152,6 +152,30 @@ describe('ShopService', () => {
       userId: ownerId,
       memberRole: ShopMemberRole.OWNER,
     });
+  });
+
+  it('rejects shop creation if user already belongs to a shop', async () => {
+    const newShop = { ...shop };
+    entityManager.create.mockReturnValueOnce(newShop);
+    entityManager.save.mockResolvedValueOnce(newShop);
+
+    const duplicateError = new QueryFailedError(
+      'INSERT INTO shop_members...',
+      [],
+      new Error(
+        'duplicate key value violates unique constraint "UQ_shop_members_user"',
+      ),
+    );
+    Object.assign(duplicateError, {
+      driverError: { constraint: 'UQ_shop_members_user' },
+    });
+    entityManager.save.mockRejectedValueOnce(duplicateError);
+
+    await expect(
+      service.create(ownerId, {
+        name: 'Re.wear Closet',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it.each([

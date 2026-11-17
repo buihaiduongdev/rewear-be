@@ -13,7 +13,7 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopRolePermission } from './shop-role-permission.entity';
 
 @Entity('shop_roles')
-@Index(['shopId', 'name'], { unique: true })
+@Index('UQ_shop_roles_shop_id_name', ['shopId', 'name'], { unique: true })
 export class ShopRole extends BaseEntity {
   @Column('uuid')
   shopId: string;
