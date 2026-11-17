@@ -5,6 +5,7 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { Category } from '@/modules/category/entities';
 import {
   CodBuyerCancellation,
@@ -12,7 +13,6 @@ import {
 } from '@/modules/cod/entities/cod.entity';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -24,7 +24,7 @@ import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { returnInspectionSchema } from '@/modules/shipment/schemas/return-inspection.schema';
 import { ShipmentReturnInspectionService } from '@/modules/shipment/shipment-return-inspection.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberStatus, ShopStatus } from '@/modules/shop/enums';
+import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
@@ -38,11 +38,10 @@ describe('returned COD stock inspection (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const db = database.dataSource;
-    const access = new OrderAccess();
+
     service = new ShipmentReturnInspectionService(
       db,
-      access,
-      new OrderService(db, access, new WalletService(db), new CodPolicy(db)),
+      new OrderService(db, new WalletService(db), new CodPolicy(db)),
     );
   });
   afterAll(async () => database?.destroy());
@@ -309,14 +308,20 @@ describe('returned COD stock inspection (PostgreSQL)', () => {
   it('requires an active owner even for replay', async () => {
     const f = await fixture();
     await expect(
-      service.inspect(f.buyer.id, f.shop.id, f.order.id, input),
-    ).rejects.toThrow('access required');
-    await f.db
-      .getRepository(ShopMember)
-      .update(f.member.id, { status: ShopMemberStatus.INACTIVE });
+      new AuthorizationService(f.db).authorize(
+        f.buyer.id,
+        f.shop.id,
+        'shop.owner',
+      ),
+    ).rejects.toThrow('Shop permission denied');
+    await f.db.getRepository(ShopMember).delete(f.member.id);
     await expect(
-      service.inspect(f.owner.id, f.shop.id, f.order.id, input),
-    ).rejects.toThrow('access required');
+      new AuthorizationService(f.db).authorize(
+        f.owner.id,
+        f.shop.id,
+        'shop.owner',
+      ),
+    ).rejects.toThrow('Shop permission denied');
   });
   it('denies missing return evidence and non-COD orders without changing stock', async () => {
     for (const change of ['order-return', 'shipment-return', 'momo']) {

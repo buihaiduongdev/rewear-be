@@ -14,7 +14,6 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import {
   PaymentAttempt,
@@ -167,11 +166,14 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
   it('charges only server total and concurrent duplicate IPNs create one order and consume stock once', async () => {
     const { db, buyer, product, checkout } = await fixture();
     const requestId = randomUUID();
-    const payment = await service.create(buyer.id, checkout.id, requestId);
+    const payment = await service.create(buyer.id, checkout.id, {
+      requestId: requestId,
+    });
     expect(payment.amount).toBe(230000);
-    expect((await service.create(buyer.id, checkout.id, requestId)).id).toBe(
-      payment.id,
-    );
+    expect(
+      (await service.create(buyer.id, checkout.id, { requestId: requestId }))
+        .id,
+    ).toBe(payment.id);
     const notification = {
       partnerCode: 'TEST',
       orderId: payment.id,
@@ -215,7 +217,9 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
 
   it('late success creates a refund obligation and never revives checkout or consumes released stock', async () => {
     const { db, buyer, product, checkout } = await fixture();
-    const payment = await service.create(buyer.id, checkout.id, randomUUID());
+    const payment = await service.create(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+    });
     await db
       .getRepository(Checkout)
       .update(checkout.id, { status: 'CANCELLED' });
@@ -246,9 +250,11 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
 
   it('wrong amount queues actual captured amount for refund, unknown blocks retries and strangers cannot access', async () => {
     const { db, buyer, checkout } = await fixture();
-    const payment = await service.create(buyer.id, checkout.id, randomUUID());
+    const payment = await service.create(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+    });
     await expect(
-      service.create(buyer.id, checkout.id, randomUUID()),
+      service.create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('Resolve the previous payment');
     await expect(
       service.findMine(randomUUID(), payment.id),
@@ -285,23 +291,26 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
     await db.getRepository(Shop).update(shop.id, { name: 'Renamed Shop' });
     carrier.quote.mockResolvedValue({ fee: 35000, estimatedDeliveryAt: null });
     const requestId = randomUUID();
-    const payment = await service.create(buyer.id, checkout.id, requestId);
+    const payment = await service.create(buyer.id, checkout.id, {
+      requestId: requestId,
+    });
     expect(payment.amount).toBe(235000);
     const saved = await db
       .getRepository(PaymentAttempt)
       .findOneByOrFail({ id: payment.id });
     expect(saved.orders[0].shopName).toBe('Renamed Shop');
     carrier.quote.mockRejectedValue(new Error('CARRIER_UNAVAILABLE'));
-    expect((await service.create(buyer.id, checkout.id, requestId)).id).toBe(
-      payment.id,
-    );
+    expect(
+      (await service.create(buyer.id, checkout.id, { requestId: requestId }))
+        .id,
+    ).toBe(payment.id);
   });
 
   it('does not create a payment when fresh shipping cannot be fully quoted', async () => {
     const { db, buyer, checkout } = await fixture();
     carrier.quote.mockRejectedValue(new Error('CARRIER_UNAVAILABLE'));
     await expect(
-      service.create(buyer.id, checkout.id, randomUUID()),
+      service.create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('Refresh the shipping quote');
     expect(
       await db
@@ -322,7 +331,7 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       return { fee: 30000, estimatedDeliveryAt: null };
     });
     await expect(
-      service.create(buyer.id, checkout.id, randomUUID()),
+      service.create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('An active reservation is required');
     expect(
       await db
@@ -333,7 +342,9 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
 
   it('never recreates an expired Shop order or refunds MoMo again when its successful capture is replayed', async () => {
     const { db, buyer, checkout, product } = await fixture();
-    const payment = await service.create(buyer.id, checkout.id, randomUUID());
+    const payment = await service.create(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+    });
     const capture = {
       partnerCode: 'TEST',
       orderId: payment.id,
@@ -351,7 +362,6 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       .update(order.id, { sellerConfirmBy: new Date(Date.now() - 1) });
     const orders = new OrderService(
       db,
-      new OrderAccess(),
       new WalletService(db),
       new CodPolicy(db),
     );

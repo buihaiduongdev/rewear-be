@@ -737,6 +737,18 @@
 - **Minh chứng:** PR #37, branch `refactor/simplify-media-confirm`.
 
 
+### 2026-11-15 — Phân quyền thành viên shop
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Codex, PostgreSQL, Jest.
+- **Mục đích và phạm vi:** Tập trung phân quyền toàn ứng dụng, quản lý role shop và lời mời nhân viên.
+- **Prompt chính:** Áp dụng thiết kế RBAC đã chốt trong tài liệu, tham khảo cách tổ chức role, permission và guard; kiểm thử các quyền shop.
+- **Đầu ra AI được sử dụng:** Hai guard JWT và Permission chạy toàn app, policy bắt buộc cho các route; quyền Owner dùng chung policy shop và không được gán cho role tùy chỉnh; thống nhất decorator RequirePermission với phạm vi X-Shop-Id, kiểm tra URL/body và resource thuộc shop; phân quyền shop, sản phẩm, media, đơn hàng và vận chuyển qua controller; bỏ kiểm tra quyền lặp trong service; giữ OrderAccess cho luồng tranh chấp của team. Role tùy chỉnh, lời mời và thông tin shop trong hồ sơ người dùng được đồng bộ cùng test; controller truyền input đã kiểm tra vào service.
+- **Phần tự làm hoặc đã chỉnh sửa:** Chốt quyền mặc định của Manager và Staff, giữ quyền quản lý thành viên, role và tài chính cho Owner.
+- **Cách kiểm chứng:** Lint, format, typecheck; sau khi kết hợp main: 47 Jest suites/387 tests và 22 Node tests pass với PostgreSQL; không chạy build.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu cho rằng cần chờ chốt thiết kế RBAC mà chưa đối chiếu quyết định trong tài liệu.
+- **Giới hạn:** Chưa nối giao diện FE và thông báo lời mời.
+- **Minh chứng:** [PR #39](https://github.com/buihaiduongdev/rewear-be/pull/39), nhánh `feat/shop-rbac`.
 ### 2026-11-15 — Giao COD trễ và xử lý sự cố GHN
 
 - **Người thực hiện:** Bùi Thành Tâm (yêu cầu triển khai); Codex hỗ trợ mã và kiểm thử.

@@ -8,7 +8,6 @@ import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-recon
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
-import { OrderAccess } from '@/modules/order/order.access';
 import {
   PaymentAttempt,
   PaymentRefund,
@@ -18,7 +17,7 @@ import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.ent
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopMemberStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
@@ -52,7 +51,6 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       shopId: shop.id,
       userId: buyer.id,
       memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
     });
     const deliveredAt = new Date(Date.now() - age);
     const order = await db.getRepository(Order).save({
@@ -181,7 +179,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       .findBy({ orderId: f.order.id });
     expect(rows).toHaveLength(1);
     expect(rows[0].amount).toBe(194000);
-    const view = await new ShopFinanceService(f.db, new OrderAccess()).view(
+    const view = await new ShopFinanceService(f.db).view(
       f.buyer.id,
       f.shop.id,
       {},
@@ -329,7 +327,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
   it('holds verified MoMo Sandbox funds before 72h and releases only simulation balances later', async () => {
     const early = await momoFixture(ms('1h'));
     await service.settleOrder(early.order.id);
-    const finance = new ShopFinanceService(early.db, new OrderAccess());
+    const finance = new ShopFinanceService(early.db);
     expect(
       await finance.view(early.buyer.id, early.shop.id, { mode: 'SIMULATION' }),
     ).toMatchObject({ held: 194000, available: 0 });
@@ -397,7 +395,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       mode: 'SIMULATION',
     });
     await service.settleOrder(f.order.id);
-    const finance = new ShopFinanceService(f.db, new OrderAccess());
+    const finance = new ShopFinanceService(f.db);
     expect(
       await finance.view(f.buyer.id, f.shop.id, { mode: 'SIMULATION' }),
     ).toMatchObject({ available: 194000, held: 0 });

@@ -210,16 +210,19 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(codPath)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ expectedTotal: 1 })
       .expect(409);
     await request(server)
       .post(codPath)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ expectedTotal: 230000, cod_amount: 1 })
       .expect(400);
     const placed = await request(server)
       .post(codPath)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ expectedTotal: 230000 })
       .expect(200);
     const order = placed.body.data[0];
@@ -229,16 +232,19 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(`${shopOrder}/accept`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     await request(server)
       .post(`${shopOrder}/shipment`)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(403);
     const booked = await request(server)
       .post(`${shopOrder}/shipment`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     expect(booked.body.data.codAmount).toBe(230000);
@@ -247,16 +253,19 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(`/api/orders/${order.id}/cod/cancellation-request`)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(200);
     await request(server)
       .post(`${shopOrder}/shipment/label`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({})
       .expect(409);
     await request(server)
       .post(`${shopOrder}/cod/cancellation-response`)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({
         approve: false,
         reason: 'Other documented grounds',
@@ -266,6 +275,7 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(`/api/orders/${order.id}/cod/cancellation-review`)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ reason: 'Please review seller grounds' })
       .expect(200);
     const decisionPath = `/api/admin/orders/${order.id}/cod/cancellation-decision`;
@@ -277,17 +287,20 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(decisionPath)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(decision)
       .expect(403);
     await request(server)
       .post(decisionPath)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(decision)
       .expect(200);
     await app.get(ShipmentService).reconcile(booked.body.data.id);
     const detail = await request(server)
       .get(`/api/orders/${order.id}`)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(detail.body.data.status).toBe('cancelled');
     expect(detail.body.data.walletRefund).toBeNull();
@@ -299,10 +312,12 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .get('/api/admin/fulfillment/incidents')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(403);
     await request(server)
       .get('/api/admin/fulfillment/incidents')
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
   });
 
@@ -316,11 +331,13 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post('/api/admin/fulfillment/calendar')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(calendar)
       .expect(403);
     await request(server)
       .post('/api/admin/fulfillment/calendar')
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(calendar)
       .expect(200);
     const order = await db.getRepository(Order).save({
@@ -343,10 +360,12 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .get('/api/admin/fulfillment/handovers')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(403);
     await request(server)
       .get(`/api/orders/${order.id}/handover`)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(404);
     const proposal = {
       deadline: new Date(Date.now() + 20 * 3600000).toISOString(),
@@ -356,16 +375,19 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(proposalPath)
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(proposal)
       .expect(403);
     await request(server)
       .post(proposalPath)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ ...proposal, approve: true })
       .expect(400);
     const offered = await request(server)
       .post(proposalPath)
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send(proposal)
       .expect(200);
     expect(offered.body.data.state).toBe('OFFERED');
@@ -373,11 +395,13 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     await request(server)
       .post(responsePath)
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ accept: true })
       .expect(404);
     const consent = await request(server)
       .post(responsePath)
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .send({ accept: true })
       .expect(200);
     expect(consent.body.data.state).toBe('CONSENTED');
@@ -387,6 +411,7 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     const notices = await request(server)
       .get('/api/fulfillment/notices')
       .auth(token(buyer), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(
       notices.body.data.some(
@@ -397,15 +422,18 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     const ownNotices = await request(server)
       .get('/api/fulfillment/notices')
       .auth(token(stranger), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
     expect(ownNotices.body.data).toEqual([]);
     await request(server)
       .get('/api/admin/fulfillment/carrier-incidents')
       .auth(token(owner), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(403);
     await request(server)
       .get('/api/admin/fulfillment/carrier-incidents')
       .auth(token(admin), { type: 'bearer' })
+      .set('x-shop-id', shop.id)
       .expect(200);
   });
 });

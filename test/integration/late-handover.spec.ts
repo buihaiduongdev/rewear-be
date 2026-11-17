@@ -5,7 +5,6 @@ import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import {
   FulfillmentCalendar,
@@ -26,11 +25,10 @@ describe('Late handover consent (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const db = database.dataSource;
-    const access = new OrderAccess();
+
     service = new LateHandoverService(
       db,
-      access,
-      new OrderService(db, access, new WalletService(db), new CodPolicy(db)),
+      new OrderService(db, new WalletService(db), new CodPolicy(db)),
     );
     for (const year of [2026, 2027, 2028])
       await db.getRepository(FulfillmentCalendar).save({
@@ -120,9 +118,11 @@ describe('Late handover consent (PostgreSQL)', () => {
     expect(offered.state).toBe('OFFERED');
     expect(offered.respondBy).toBeInstanceOf(Date);
     await expect(
-      service.respond(randomUUID(), f.order.id, true),
+      service.respond(randomUUID(), f.order.id, { accept: true }),
     ).rejects.toThrow(/single valid extension|Could not find/);
-    const accepted = await service.respond(f.buyer.id, f.order.id, true);
+    const accepted = await service.respond(f.buyer.id, f.order.id, {
+      accept: true,
+    });
     expect(accepted.state).toBe('CONSENTED');
     const order = await f.db
       .getRepository(Order)
@@ -171,7 +171,9 @@ describe('Late handover consent (PostgreSQL)', () => {
       orderCode: randomUUID(),
     });
     await f.db.getRepository(Order).update(f.order.id, { status: 'shipping' });
-    const result = await service.respond(f.buyer.id, f.order.id, false);
+    const result = await service.respond(f.buyer.id, f.order.id, {
+      accept: false,
+    });
     expect(result.state).toBe('RETURN_PENDING');
     const shipment = await f.db
       .getRepository(Shipment)
@@ -189,7 +191,7 @@ describe('Late handover consent (PostgreSQL)', () => {
       deadline: new Date(Date.now() + 20 * 3600000).toISOString(),
       reason: 'Delay',
     });
-    await service.respond(f.buyer.id, f.order.id, true);
+    await service.respond(f.buyer.id, f.order.id, { accept: true });
     await f.db
       .getRepository(Order)
       .update(f.order.id, { handoverBy: new Date(0) });
@@ -215,7 +217,9 @@ describe('Late handover consent (PostgreSQL)', () => {
     await f.db
       .getRepository(HandoverCase)
       .update({ orderId: f.order.id }, { respondBy: new Date(0) });
-    const result = await service.respond(f.buyer.id, f.order.id, true);
+    const result = await service.respond(f.buyer.id, f.order.id, {
+      accept: true,
+    });
     expect(result.state).toBe('CLOSED');
     expect(result.consentedAt).toBeNull();
     expect(
@@ -267,9 +271,9 @@ describe('Late handover consent (PostgreSQL)', () => {
     expect((await service.buyerView(f.buyer.id, f.order.id)).state).toBe(
       'OFFERED',
     );
-    expect((await service.respond(f.buyer.id, f.order.id, true)).state).toBe(
-      'CONSENTED',
-    );
+    expect(
+      (await service.respond(f.buyer.id, f.order.id, { accept: true })).state,
+    ).toBe('CONSENTED');
     await service.run();
     expect((await service.buyerView(f.buyer.id, f.order.id)).state).toBe(
       'CLOSED',
@@ -313,7 +317,7 @@ describe('Late handover consent (PostgreSQL)', () => {
       deadline: new Date(Date.now() + 20 * 3600000).toISOString(),
       reason: 'Delay',
     });
-    await service.respond(f.buyer.id, f.order.id, true);
+    await service.respond(f.buyer.id, f.order.id, { accept: true });
     await f.db.getRepository(Order).update(f.order.id, {
       handoverBy: new Date(Date.now() - 3600000),
       status: 'shipping',

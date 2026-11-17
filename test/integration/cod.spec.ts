@@ -16,7 +16,6 @@ import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service'
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { PaymentRefund } from '@/modules/payment/entities/payment.entity';
@@ -53,12 +52,7 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
     cod = new CodService(db, pricing, policy);
-    orders = new OrderService(
-      db,
-      new OrderAccess(),
-      new WalletService(db),
-      policy,
-    );
+    orders = new OrderService(db, new WalletService(db), policy);
   });
   afterAll(async () => database?.destroy());
 
@@ -177,7 +171,7 @@ describe('COD placement and reservations (PostgreSQL)', () => {
           .getRepository(ProductModeration)
           .delete({ productId: f.product.id });
       await expect(
-        cod.place(f.buyer.id, f.checkout.id, 230000),
+        cod.place(f.buyer.id, f.checkout.id, { expectedTotal: 230000 }),
       ).rejects.toThrow('Checkout stock is no longer reserved');
       expect(
         await f.db.getRepository(Order).countBy({ checkoutId: f.checkout.id }),
@@ -193,8 +187,8 @@ describe('COD placement and reservations (PostgreSQL)', () => {
   it('places one COD order once, keeps stock locked beyond checkout expiry and never credits unpaid money', async () => {
     const f = await fixture();
     const [first, repeat] = await Promise.all([
-      cod.place(f.buyer.id, f.checkout.id, 230000),
-      cod.place(f.buyer.id, f.checkout.id, 230000),
+      cod.place(f.buyer.id, f.checkout.id, { expectedTotal: 230000 }),
+      cod.place(f.buyer.id, f.checkout.id, { expectedTotal: 230000 }),
     ]);
     expect(first[0].id).toBe(repeat[0].id);
     expect(first[0].paymentMethod).toBe('COD');
@@ -208,7 +202,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       (await f.db.getRepository(Product).findOneByOrFail({ id: f.product.id }))
         .reservedOrderId,
     ).toBe(first[0].id);
-    await orders.reject(f.owner.id, f.shop.id, first[0].id, 'Cannot fulfil');
+    await orders.reject(f.owner.id, f.shop.id, first[0].id, {
+      reason: 'Cannot fulfil',
+    });
     expect((await new WalletService(f.db).mine(f.buyer.id, {})).balance).toBe(
       0,
     );
@@ -240,8 +236,12 @@ describe('COD placement and reservations (PostgreSQL)', () => {
           started();
         }),
     );
-    const first = cod.place(f.buyer.id, f.checkout.id, 230000);
-    const second = cod.place(f.buyer.id, f.checkout.id, 230000);
+    const first = cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 230000,
+    });
+    const second = cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 230000,
+    });
     await bothQuoting;
     releaseFirst();
     const placed = await Promise.race([first, second]);
@@ -258,14 +258,16 @@ describe('COD placement and reservations (PostgreSQL)', () => {
 
   it('blocks a fourth pending checkout without changing existing stock or orders', async () => {
     const first = await fixture();
-    await cod.place(first.buyer.id, first.checkout.id, 230000);
+    await cod.place(first.buyer.id, first.checkout.id, {
+      expectedTotal: 230000,
+    });
     for (let i = 0; i < 2; i++) {
       const f = await fixture(first.buyer);
-      await cod.place(f.buyer.id, f.checkout.id, 230000);
+      await cod.place(f.buyer.id, f.checkout.id, { expectedTotal: 230000 });
     }
     const fourth = await fixture(first.buyer);
     await expect(
-      cod.place(fourth.buyer.id, fourth.checkout.id, 230000),
+      cod.place(fourth.buyer.id, fourth.checkout.id, { expectedTotal: 230000 }),
     ).rejects.toThrow('COD limit reached');
     expect(
       await first.db
@@ -292,9 +294,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       state: 'UNKNOWN',
       nextQueryAt: new Date(),
     });
-    await expect(cod.place(f.buyer.id, f.checkout.id, 230000)).rejects.toThrow(
-      'Resolve the previous payment',
-    );
+    await expect(
+      cod.place(f.buyer.id, f.checkout.id, { expectedTotal: 230000 }),
+    ).rejects.toThrow('Resolve the previous payment');
     expect(
       await f.db.getRepository(Order).countBy({ checkoutId: f.checkout.id }),
     ).toBe(0);
@@ -334,11 +336,13 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     await f.db.getRepository(Checkout).update(f.checkout.id, {
       requestedProductIds: source.items.map((item) => item.productId),
     });
-    const placed = await cod.place(f.buyer.id, f.checkout.id, 4030000);
+    const placed = await cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 4030000,
+    });
     expect(placed[0].items).toHaveLength(20);
     const next = await fixture(f.buyer);
     await expect(
-      cod.place(f.buyer.id, next.checkout.id, 230000),
+      cod.place(f.buyer.id, next.checkout.id, { expectedTotal: 230000 }),
     ).rejects.toThrow('COD limit reached');
     expect(
       await f.db.getRepository(Order).countBy({ checkoutId: next.checkout.id }),
@@ -349,12 +353,14 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     const first = await fixture();
     for (let i = 0; i < 5; i++) {
       const f = i === 0 ? first : await fixture(first.buyer);
-      const [order] = await cod.place(f.buyer.id, f.checkout.id, 230000);
+      const [order] = await cod.place(f.buyer.id, f.checkout.id, {
+        expectedTotal: 230000,
+      });
       await orders.accept(f.owner.id, f.shop.id, order.id);
     }
     const next = await fixture(first.buyer);
     await expect(
-      cod.place(first.buyer.id, next.checkout.id, 230000),
+      cod.place(first.buyer.id, next.checkout.id, { expectedTotal: 230000 }),
     ).rejects.toThrow('COD limit reached');
   });
 
@@ -367,13 +373,13 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       create: async () => ({ resultCode: 1006 }),
     } as unknown as MomoSandboxClient;
     const payments = new PaymentService(f.db, gateway, pricing);
-    const failed = await payments.create(
-      f.buyer.id,
-      f.checkout.id,
-      randomUUID(),
-    );
+    const failed = await payments.create(f.buyer.id, f.checkout.id, {
+      requestId: randomUUID(),
+    });
     expect(failed.state).toBe('FAILED');
-    const [order] = await cod.place(f.buyer.id, f.checkout.id, 230000);
+    const [order] = await cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 230000,
+    });
     await payments.applyResult(failed.id, {
       partnerCode: 'TEST',
       orderId: failed.id,
@@ -400,7 +406,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
 
   it('serializes buyer cancellation and seller acceptance with no refund and no double stock release', async () => {
     const f = await fixture();
-    const [order] = await cod.place(f.buyer.id, f.checkout.id, 230000);
+    const [order] = await cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 230000,
+    });
     const result = await Promise.allSettled([
       orders.cancelCodPending(f.buyer.id, order.id),
       orders.accept(f.owner.id, f.shop.id, order.id),
@@ -417,13 +425,15 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     const first = await fixture();
     for (let i = 0; i < 5; i++) {
       const f = i === 0 ? first : await fixture(first.buyer);
-      const [order] = await cod.place(f.buyer.id, f.checkout.id, 230000);
+      const [order] = await cod.place(f.buyer.id, f.checkout.id, {
+        expectedTotal: 230000,
+      });
       await orders.cancelCodPending(f.buyer.id, order.id);
       await orders.cancelCodPending(f.buyer.id, order.id);
     }
     const next = await fixture(first.buyer);
     await expect(
-      cod.place(first.buyer.id, next.checkout.id, 230000),
+      cod.place(first.buyer.id, next.checkout.id, { expectedTotal: 230000 }),
     ).rejects.toThrow('COD is temporarily restricted');
     expect(await orders.buyerList(first.buyer.id, {})).toHaveLength(5);
   });

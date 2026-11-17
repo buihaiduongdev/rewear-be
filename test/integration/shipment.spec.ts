@@ -9,7 +9,6 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { Order } from '@/modules/order/entities/order.entity';
-import { OrderAccess } from '@/modules/order/order.access';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -46,20 +45,18 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const db = database.dataSource;
-    const access = new OrderAccess();
+
     const orders = new OrderService(
       db,
-      access,
       new WalletService(db),
       new CodPolicy(db),
     );
     shipments = new ShipmentService(
       db,
-      access,
       orders,
       client as unknown as GhnShipmentClient,
     );
-    cancellations = new ShipmentCancellationService(db, access, orders);
+    cancellations = new ShipmentCancellationService(db, orders);
   });
   afterAll(async () => database?.destroy());
 

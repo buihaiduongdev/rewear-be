@@ -84,9 +84,9 @@ describe('MediaService', () => {
   const productService = {
     findOne: jest.fn(),
     findPublishedMedia: jest.fn(),
-    findOneForManagement: jest.fn(),
+    findManagedProduct: jest.fn(),
     assertEditable: jest.fn(),
-    lockForManagement: jest.fn(),
+    lockProduct: jest.fn(),
     markContentChanged: jest.fn(),
   };
   const storageService = {
@@ -144,9 +144,9 @@ describe('MediaService', () => {
       }),
     ).resolves.toEqual(ticket);
 
-    expect(productService.findOneForManagement).toHaveBeenCalledWith(
+    expect(productService.findManagedProduct).toHaveBeenCalledWith(
       productId,
-      userId,
+      undefined,
     );
     expect(storageService.createUploadTicket).toHaveBeenCalledWith({
       contentType: 'image/jpeg',
@@ -302,7 +302,7 @@ describe('MediaService', () => {
     ]);
 
     await expect(
-      service.setCover(productId, secondMediaId, userId),
+      service.setCover(productId, secondMediaId),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
