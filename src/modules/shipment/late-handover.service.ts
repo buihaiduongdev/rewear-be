@@ -84,21 +84,23 @@ export class LateHandoverService {
       shopId: order.shopId,
       memberRole: ShopMemberRole.OWNER,
     });
-    for (const recipientId of new Set([
-      order.buyerId,
-      ...(owner ? [owner.userId] : []),
-    ])) {
+    const recipientIds = Array.from(
+      new Set([order.buyerId, ...(owner ? [owner.userId] : [])]),
+    );
+    if (recipientIds.length > 0) {
       await manager
         .createQueryBuilder()
         .insert()
         .into(FulfillmentNotice)
-        .values({
-          orderId: row.orderId,
-          recipientId,
-          action,
-          reason,
-          createdAt: now,
-        })
+        .values(
+          recipientIds.map((recipientId) => ({
+            orderId: row.orderId,
+            recipientId,
+            action,
+            reason,
+            createdAt: now,
+          })),
+        )
         .orIgnore()
         .execute();
     }
