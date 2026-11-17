@@ -129,21 +129,29 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         );
       }
       await manager.save(checkout);
-      for (const order of groups.values()) {
+      const orderList = Array.from(groups.values());
+      for (const order of orderList) {
         order.checkoutId = checkout.id;
-        await manager.save(order);
-        await manager.update(
-          Product,
-          {
-            id: In(order.items.map((i) => i.productId)),
-            status: ProductStatus.ACTIVE,
-          },
-          {
-            status: ProductStatus.HELD,
-            reservationId: checkout.id,
-            heldUntil: checkout.expiresAt,
-          },
+      }
+      if (orderList.length > 0) {
+        await manager.save(orderList);
+        const allProductIds = orderList.flatMap((o) =>
+          o.items.map((i) => i.productId),
         );
+        if (allProductIds.length > 0) {
+          await manager.update(
+            Product,
+            {
+              id: In(allProductIds),
+              status: ProductStatus.ACTIVE,
+            },
+            {
+              status: ProductStatus.HELD,
+              reservationId: checkout.id,
+              heldUntil: checkout.expiresAt,
+            },
+          );
+        }
       }
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
       if (cart && checkout.removedItems.length) {

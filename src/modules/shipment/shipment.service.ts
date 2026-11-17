@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import {
@@ -369,11 +369,12 @@ export class ShipmentService {
       // updated_date is not proven delivery event time; do not start 72h payout.
       await this.event(manager, order.id, ORDER_EVENT_ACTION.DELIVERED, now);
       if (order.paymentMethod === ORDER_PAYMENT_METHOD.COD) {
-        for (const item of order.items)
+        const itemIds = order.items.map((item) => item.productId);
+        if (itemIds.length > 0) {
           await manager.update(
             Product,
             {
-              id: item.productId,
+              id: In(itemIds),
               reservedOrderId: order.id,
               status: ProductStatus.HELD,
             },
@@ -384,6 +385,7 @@ export class ShipmentService {
               soldAt: now,
             },
           );
+        }
       }
     } else if (returnObserved) {
       order.status = ORDER_STATUS.RETURNS;
