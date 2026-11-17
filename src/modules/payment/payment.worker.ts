@@ -35,7 +35,7 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly db: DataSource,
-    private readonly payments: PaymentService,
+    private readonly paymentService: PaymentService,
     @Inject(MOMO_CLIENT) private readonly client: MomoSandboxClient | null,
   ) {}
 
@@ -81,7 +81,7 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
     await Promise.all(
       attempts.map(async (attempt) => {
         try {
-          await this.payments.queryAttempt(attempt.id);
+          await this.paymentService.queryAttempt(attempt.id);
         } catch {
           this.logger.warn({
             paymentId: attempt.id,

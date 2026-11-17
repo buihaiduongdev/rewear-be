@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -14,7 +13,7 @@ import z from 'zod';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { acceptOrderSchema } from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
@@ -49,7 +48,7 @@ import type {
 
 @ApiTags('Disputes')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@AuthenticatedAccess()
 @Controller()
 export class DisputeController {
   constructor(
@@ -122,7 +121,6 @@ export class DisputeController {
   }
 
   @Get('admin/disputes')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Serialize(z.array(disputeCaseViewSchema))
   adminList(@Query({ schema: disputeListSchema }) input: { offset: number }) {
@@ -130,7 +128,6 @@ export class DisputeController {
   }
 
   @Get('admin/disputes/:id')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Serialize(disputeCaseDetailSchema)
   adminDetail(
@@ -141,7 +138,6 @@ export class DisputeController {
   }
 
   @Post('admin/dispute-issues/:id/extend')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(200)
   @Serialize(disputeIssueViewSchema)
@@ -185,7 +181,6 @@ export class DisputeController {
   }
 
   @Get('admin/dispute-evidence/:id/download')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Serialize(disputeDownloadSchema)
   adminDownload(@Param('id', { schema: uuidSchema }) id: string) {

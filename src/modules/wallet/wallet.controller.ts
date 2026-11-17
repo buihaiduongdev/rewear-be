@@ -1,8 +1,8 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
-import { JwtAuthGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
 import { walletQuerySchema, walletViewSchema } from './schemas/wallet.schema';
@@ -11,10 +11,10 @@ import { WalletService } from './wallet.service';
 
 @ApiTags('Wallet')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly wallet: WalletService) {}
+  constructor(private readonly walletService: WalletService) {}
+  @AuthenticatedAccess()
   @Get('mine')
   @Serialize(walletViewSchema)
   mine(
@@ -22,6 +22,6 @@ export class WalletController {
     @Query({ schema: walletQuerySchema })
     input: WalletQueryInput,
   ) {
-    return this.wallet.mine(user.id, input);
+    return this.walletService.mine(user.id, input);
   }
 }

@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard } from '@/modules/auth/guards';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
 import { User } from '@/modules/user/entities';
 
 import { PickupLocationService } from './pickup-location.service';
@@ -15,27 +16,25 @@ import type { SavePickupLocationInput } from './schemas/pickup-location.schema';
 
 @ApiTags('PickupLocations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('shipping')
 export class PickupLocationController {
-  constructor(private readonly pickup: PickupLocationService) {}
+  constructor(private readonly pickupLocationService: PickupLocationService) {}
 
   @Get('shops/:shopId/pickup-location')
+  @RequirePermission(SHOP_PERMISSIONS.PICKUP_VIEW)
   @Serialize(pickupLocationResultSchema)
-  findShop(
-    @CurrentUser() user: User,
-    @Param('shopId', { schema: uuidSchema }) shopId: string,
-  ) {
-    return this.pickup.read(user.id, shopId);
+  findShop(@Param('shopId', { schema: uuidSchema }) shopId: string) {
+    return this.pickupLocationService.read(shopId);
   }
 
   @Put('shops/:shopId/pickup-location')
+  @RequirePermission(SHOP_PERMISSIONS.PICKUP_UPDATE)
   @Serialize(pickupLocationResultSchema)
   saveShop(
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Body({ schema: savePickupLocationSchema }) input: SavePickupLocationInput,
   ) {
-    return this.pickup.save(user.id, input, shopId);
+    return this.pickupLocationService.save(user.id, input, shopId);
   }
 }

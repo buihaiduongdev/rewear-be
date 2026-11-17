@@ -51,9 +51,9 @@ export class MediaService {
 
   async findForManagement(
     productId: string,
-    userId: string,
+    shopId?: string,
   ): Promise<ProductMediaView[]> {
-    await this.productService.findOneForManagement(productId, userId);
+    await this.productService.findManagedProduct(productId, shopId);
     return (
       await this.findProductLinks(this.mediaLinkRepository, productId)
     ).map((link) => this.toView(link));
@@ -64,12 +64,13 @@ export class MediaService {
     mediaId: string,
     userId: string,
     input: UpdateMediaMetadataInput,
+    shopId?: string,
   ): Promise<ProductMediaView> {
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        userId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const link = await manager.findOneOrFail(MediaLink, {
@@ -93,10 +94,11 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: CreateMediaUploadTicketInput,
+    shopId?: string,
   ): Promise<UploadTicket> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
@@ -121,10 +123,11 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: ConfirmMediaUploadInput,
+    shopId?: string,
   ): Promise<ProductMediaView> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     const mimeType = this.validateUploadMetadata(
@@ -139,10 +142,10 @@ export class MediaService {
     );
 
     const link = await this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       await this.productService.markContentChanged(manager, product);
       const existingMedia = await manager.findOne(Media, {
@@ -188,17 +191,18 @@ export class MediaService {
     productId: string,
     currentUserId: string,
     input: ReorderMediaInput,
+    shopId?: string,
   ): Promise<ProductMediaView[]> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const links = await this.findProductLinks(
@@ -233,18 +237,18 @@ export class MediaService {
   async setCover(
     productId: string,
     mediaId: string,
-    currentUserId: string,
+    shopId?: string,
   ): Promise<ProductMediaView> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     return this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       this.productService.assertEditable(product);
       const links = await this.findProductLinks(
@@ -270,18 +274,19 @@ export class MediaService {
   async delete(
     productId: string,
     mediaId: string,
-    currentUserId: string,
+    _currentUserId: string,
+    shopId?: string,
   ): Promise<void> {
-    const managedProduct = await this.productService.findOneForManagement(
+    const managedProduct = await this.productService.findManagedProduct(
       productId,
-      currentUserId,
+      shopId,
     );
     this.productService.assertEditable(managedProduct);
     const storageKey = await this.dataSource.transaction(async (manager) => {
-      const product = await this.productService.lockForManagement(
+      const product = await this.productService.lockProduct(
         manager,
         productId,
-        currentUserId,
+        shopId,
       );
       await this.productService.markContentChanged(manager, product);
       const links = await this.findProductLinks(

@@ -26,6 +26,7 @@ import { ShopStatus } from '@/modules/shop/enums';
 
 import { CodPolicy } from './policies/cod.policy';
 import { codOrderTotalSchema, placeCodSchema } from './schemas/cod.schema';
+import type { PlaceCodInput } from './types/cod.type';
 
 @Injectable()
 export class CodService {
@@ -35,7 +36,11 @@ export class CodService {
     private readonly policy: CodPolicy,
   ) {}
 
-  async place(buyerId: string, checkoutId: string, expectedTotal: number) {
+  async place(
+    buyerId: string,
+    checkoutId: string,
+    { expectedTotal }: PlaceCodInput,
+  ) {
     const existing = await this.db.getRepository(Order).find({
       where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
       order: { id: 'ASC' },

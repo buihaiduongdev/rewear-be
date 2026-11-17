@@ -53,6 +53,7 @@ import {
   firstReconciliationAt,
   providerOutcome,
 } from './policies/payment.policy';
+import type { CreatePaymentInput } from './schemas/payment.schema';
 
 @Injectable()
 export class PaymentService {
@@ -75,7 +76,11 @@ export class PaymentService {
     return new Date(now);
   }
 
-  async create(buyerId: string, checkoutId: string, requestId: string) {
+  async create(
+    buyerId: string,
+    checkoutId: string,
+    { requestId }: CreatePaymentInput,
+  ) {
     const gateway = this.gateway();
     const existing = await this.db.getRepository(PaymentAttempt).findOneBy({
       checkoutId,

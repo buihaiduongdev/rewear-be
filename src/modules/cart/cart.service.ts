@@ -12,11 +12,7 @@ import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import {
-  ShopMemberRole,
-  ShopMemberStatus,
-  ShopStatus,
-} from '@/modules/shop/enums';
+import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 
 import { Cart, CartItem } from './entities';
 import { CartAvailability } from './enums/cart-availability.enum';
@@ -51,7 +47,6 @@ export class CartService {
         shopId: product.shopId,
         userId,
         memberRole: ShopMemberRole.OWNER,
-        status: ShopMemberStatus.ACTIVE,
       });
       if (buyerOwnsProduct)
         throw new ForbiddenException('Cannot add your own product to the cart');
@@ -188,7 +183,6 @@ export class CartService {
       where: {
         userId,
         memberRole: ShopMemberRole.OWNER,
-        status: ShopMemberStatus.ACTIVE,
       },
       select: { shopId: true },
     });

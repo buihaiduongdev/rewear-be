@@ -59,3 +59,5 @@ export type {
   HandoverStop,
   CalendarInput,
 } from '../types/late-handover.type';
+
+export type HandoverResponseInput = z.output<typeof handoverResponseSchema>;

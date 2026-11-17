@@ -3,7 +3,6 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,21 +16,18 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import {
-  ShopMemberRole,
-  ShopMemberStatus,
-  ShopStatus,
-} from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
+import { ShopStatus } from '@/modules/shop/enums';
 
 import { Product, ProductModeration } from './entities';
 import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
+import type { SuspendProductInput } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
   ModerateProductInput,
@@ -53,6 +49,7 @@ export class ProductService {
     @InjectRepository(ShopMember)
     private readonly shopMemberRepository: Repository<ShopMember>,
     private readonly dataSource: DataSource,
+    private readonly authorizationService: AuthorizationService,
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
@@ -71,15 +68,25 @@ export class ProductService {
     currentUserId: string,
     query: PaginateQuery,
   ): Promise<Paginated<ProductView>> {
-    const ownedShops = await this.shopMemberRepository.find({
+    const memberships = await this.shopMemberRepository.find({
       where: {
         userId: currentUserId,
-        memberRole: ShopMemberRole.OWNER,
-        status: ShopMemberStatus.ACTIVE,
       },
       select: { shopId: true },
     });
-    const ownedShopIds = ownedShops.map(({ shopId }) => shopId);
+    const authorized = await Promise.all(
+      memberships.map(async ({ shopId }) => ({
+        shopId,
+        allowed: await this.authorizationService.hasPermission(
+          currentUserId,
+          shopId,
+          SHOP_PERMISSIONS.PRODUCT_VIEW,
+        ),
+      })),
+    );
+    const ownedShopIds = authorized
+      .filter(({ allowed }) => allowed)
+      .map(({ shopId }) => shopId);
     const queryBuilder = this.createProductQueryBuilder().where(
       ownedShopIds.length ? 'product.shopId IN (:...ownedShopIds)' : '1 = 0',
       ownedShopIds.length ? { ownedShopIds } : {},
@@ -104,54 +111,36 @@ export class ProductService {
     });
   }
 
-  async findOneForManagement(
-    id: string,
-    currentUserId: string,
-  ): Promise<ProductView> {
-    const product = await this.findManagedProduct(id);
-    await this.assertCanManage(product, currentUserId);
-    return product;
-  }
-
   async create(
     currentUserId: string,
     input: CreateProductInput,
   ): Promise<ProductView> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
-    await this.assertActiveShopOwner(input.shopId, currentUserId);
-    const product = await this.productRepository.save(
-      this.productRepository.create({
-        categoryId: input.categoryId ?? null,
-        shopId: input.shopId,
-        title: this.normalizeOptionalText(input.title),
-        description: this.normalizeOptionalText(input.description),
-        condition: input.condition ?? null,
-        size: this.normalizeOptionalText(input.size),
-        color: this.normalizeOptionalText(input.color),
-        brand: this.normalizeOptionalText(input.brand),
-        price: input.price ?? null,
-        measurements: input.measurements ?? {},
-        shippingPackage: input.shippingPackage ?? null,
-        repairs: this.normalizeOptionalText(input.repairs),
-        defects: input.defects ?? [],
-        status: ProductStatus.DRAFT,
-        publishedAt: null,
-        heldUntil: null,
-        soldAt: null,
-      }),
-    );
+    const product = await this.dataSource.transaction(async (manager) => {
+      await this.assertActiveShop(input.shopId, manager);
+      return manager.getRepository(Product).save(
+        manager.getRepository(Product).create({
+          categoryId: input.categoryId ?? null,
+          shopId: input.shopId,
+          title: this.normalizeOptionalText(input.title),
+          description: this.normalizeOptionalText(input.description),
+          condition: input.condition ?? null,
+          size: this.normalizeOptionalText(input.size),
+          color: this.normalizeOptionalText(input.color),
+          brand: this.normalizeOptionalText(input.brand),
+          price: input.price ?? null,
+          measurements: input.measurements ?? {},
+          shippingPackage: input.shippingPackage ?? null,
+          repairs: this.normalizeOptionalText(input.repairs),
+          defects: input.defects ?? [],
+          status: ProductStatus.DRAFT,
+          publishedAt: null,
+          heldUntil: null,
+          soldAt: null,
+        }),
+      );
+    });
     return this.findManagedProduct(product.id);
-  }
-
-  // All listing/media changes and review operations lock this same row.
-  async lockForManagement(
-    manager: EntityManager,
-    id: string,
-    userId: string,
-  ): Promise<Product> {
-    const product = await this.lockProduct(manager, id);
-    await this.assertCanManage(product, userId, manager);
-    return product;
   }
 
   assertEditable(product: Product): void {
@@ -186,9 +175,10 @@ export class ProductService {
     id: string,
     currentUserId: string,
     input: UpdateProductInput,
+    shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.lockForManagement(manager, id, currentUserId);
+      const product = await this.lockProduct(manager, id, shopId);
       this.assertEditable(product);
       if (input.categoryId)
         await this.assertActiveCategory(input.categoryId, manager);
@@ -283,9 +273,10 @@ export class ProductService {
     id: string,
     userId: string,
     input: UpdateProductStatusInput,
+    shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.lockForManagement(manager, id, userId);
+      const product = await this.lockProduct(manager, id, shopId);
       if (
         ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
       ) {
@@ -301,9 +292,9 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async submit(id: string, userId: string): Promise<ProductView> {
+  async submit(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.lockForManagement(manager, id, userId);
+      const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
@@ -332,9 +323,9 @@ export class ProductService {
     return this.findManagedProduct(id);
   }
 
-  async cancelSubmission(id: string, userId: string): Promise<ProductView> {
+  async cancelSubmission(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.lockForManagement(manager, id, userId);
+      const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.PENDING_REVIEW) {
         throw new ConflictException(
           'Only a pending submission can be cancelled',
@@ -357,7 +348,6 @@ export class ProductService {
     input: ModerateProductInput,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
       const moderation = await manager.findOneByOrFail(ProductModeration, {
         productId: id,
@@ -395,10 +385,9 @@ export class ProductService {
   async suspend(
     id: string,
     adminId: string,
-    reason: string,
+    { reason }: SuspendProductInput,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await this.assertAdmin(manager, adminId);
       const product = await this.lockProduct(manager, id);
       if (
         ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
@@ -423,29 +412,24 @@ export class ProductService {
 
   async findModeration(
     id: string,
-    userId: string,
-    admin = false,
+    shopId?: string,
   ): Promise<ProductModeration> {
-    if (admin) await this.assertAdmin(this.dataSource.manager, userId);
-    else await this.findOneForManagement(id, userId);
+    if (shopId) {
+      await this.findManagedProduct(id, shopId);
+    }
     return this.dataSource
       .getRepository(ProductModeration)
       .findOneByOrFail({ productId: id });
   }
 
-  async findForReview(id: string, adminId: string): Promise<ProductView> {
-    await this.assertAdmin(this.dataSource.manager, adminId);
+  async findForReview(id: string): Promise<ProductView> {
     await this.dataSource
       .getRepository(ProductModeration)
       .findOneByOrFail({ productId: id });
     return this.findManagedProduct(id);
   }
 
-  async findReviewQueue(
-    query: PaginateQuery,
-    adminId: string,
-  ): Promise<Paginated<ProductView>> {
-    await this.assertAdmin(this.dataSource.manager, adminId);
+  async findReviewQueue(query: PaginateQuery): Promise<Paginated<ProductView>> {
     const builder = this.createProductQueryBuilder().innerJoin(
       ProductModeration,
       'moderation',
@@ -459,23 +443,13 @@ export class ProductService {
     return this.paginateProducts(builder, query);
   }
 
-  private async assertAdmin(
+  lockProduct(
     manager: EntityManager,
-    userId: string,
-  ): Promise<void> {
-    const adminIsInactiveOrMissing = !(await manager.existsBy(User, {
-      id: userId,
-      role: UserRole.ADMIN,
-      status: UserStatus.ACTIVE,
-    }));
-    if (adminIsInactiveOrMissing) {
-      throw new ForbiddenException('Admin access required');
-    }
-  }
-
-  private lockProduct(manager: EntityManager, id: string): Promise<Product> {
+    id: string,
+    shopId?: string,
+  ): Promise<Product> {
     return manager.findOneOrFail(Product, {
-      where: { id },
+      where: shopId ? { id, shopId } : { id },
       lock: { mode: 'pessimistic_write' },
     });
   }
@@ -611,21 +585,13 @@ export class ProductService {
     return { ...result, data };
   }
 
-  private async findManagedProduct(id: string): Promise<ProductView> {
+  async findManagedProduct(id: string, shopId?: string): Promise<ProductView> {
     const product = await this.productRepository.findOneOrFail({
-      where: { id },
+      where: shopId ? { id, shopId } : { id },
       relations: { category: true, shop: true },
     });
     const [view] = await this.loadMedia([product]);
     return view;
-  }
-
-  private async assertCanManage(
-    product: Product,
-    currentUserId: string,
-    manager?: EntityManager,
-  ): Promise<void> {
-    await this.assertOwner(product.shopId, currentUserId, manager);
   }
 
   private assertActiveCategory(
@@ -635,15 +601,6 @@ export class ProductService {
     return (
       manager?.getRepository(Category) ?? this.categoryRepository
     ).findOneByOrFail({ id: categoryId, isActive: true });
-  }
-
-  private async assertActiveShopOwner(
-    shopId: string,
-    currentUserId: string,
-    manager?: EntityManager,
-  ): Promise<void> {
-    await this.assertActiveShop(shopId, manager);
-    await this.assertOwner(shopId, currentUserId, manager);
   }
 
   private async assertActiveShop(
@@ -656,22 +613,6 @@ export class ProductService {
     if (shop.status !== ShopStatus.ACTIVE) {
       throw new BadRequestException('Shop is not active');
     }
-  }
-
-  private async assertOwner(
-    shopId: string,
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<void> {
-    const owner = await (
-      manager?.getRepository(ShopMember) ?? this.shopMemberRepository
-    ).findOneBy({
-      shopId,
-      userId,
-      memberRole: ShopMemberRole.OWNER,
-      status: ShopMemberStatus.ACTIVE,
-    });
-    if (!owner) throw new ForbiddenException('Shop owner access required');
   }
 
   private normalizeOptionalText(value?: string | null): string | null {
