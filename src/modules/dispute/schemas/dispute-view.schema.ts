@@ -10,6 +10,11 @@ import {
   DISPUTE_KIND,
   DISPUTE_PARTY,
 } from '../constants/dispute.constant';
+import {
+  disputeAppealReviewViewSchema,
+  disputeAppealViewSchema,
+  disputeFinalDecisionViewSchema,
+} from './dispute-appeal-view.schema';
 import { disputeDecisionViewSchema } from './dispute-decision-view.schema';
 
 export const disputeIssueViewSchema = z.object({
@@ -62,6 +67,12 @@ export const disputeCaseViewSchema = z.object({
   issues: z.array(disputeIssueViewSchema),
 });
 export const disputeCaseDetailSchema = disputeCaseViewSchema.extend({
+  appeals: z.array(disputeAppealViewSchema),
+  appealReviews: z.array(disputeAppealReviewViewSchema),
+  finalDecisions: z.array(disputeFinalDecisionViewSchema),
+  appealAttachments: z.array(
+    z.object({ appealId: z.uuid(), evidenceId: z.uuid() }),
+  ),
   decisions: z.array(disputeDecisionViewSchema),
   messages: z.array(disputeMessageViewSchema),
   evidence: z.array(disputeEvidenceViewSchema),

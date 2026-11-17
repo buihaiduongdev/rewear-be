@@ -886,3 +886,11 @@
 - **Phạm vi:** Đưa main c08e17b (RBAC, mutation snapshots, constraint handling và media CTE) vào nhánh phân xử; giữ cả hai phần AI log, dùng AuthenticatedAccess/global PermissionGuard và giữ Roles ADMIN; fixture bỏ membership status đã được main loại bỏ.
 - **Kiểm chứng:** Local 51 suites / 413 Jest tests và 22 Node tests đạt; typecheck, Nest build, lint/format đạt. HTTP tests vẫn từ chối buyer/Owner gọi API Admin. Không reset DB dev hoặc thay quyền Admin cho seller.
 - **Giới hạn:** Đây là sửa tương thích trước merge PR #41, chưa phải triển khai xét lại. Kết quả CI của commit đồng bộ được kiểm tra riêng.
+
+### 2026-11-17 ? Dispute appeals and final conclusions
+
+- **Request and scope:** T?m requested merging PR #41, then implementing review of dispute decisions. PR #41 merged at 6ddfeb7; appeals are a separate feature branch/PR. Codex implemented the approved DISPUTE-APPEAL01?09 rules.
+- **AI-assisted changes:** Immutable/idempotent party appeals, private evidence links, combined Admin review with freshness tokens, independent reviewer/fallback reason, calendar recovery and SLA escalation, immutable final records and shared multi-issue hold restoration. Extracted persistence/history helpers and reused exported schemas/constants/types.
+- **Verification:** Dedicated local PostgreSQL and JWT HTTP tests: 54 suites / 435 Jest tests passed; 22 Node tests passed. TypeScript noEmit, Nest build, oxlint and Prettier checks passed. Read-only independent review found no actionable P1/P2 findings in the core appeal flow.
+- **Corrections:** Fixed a duplicate local declaration introduced while extracting history loading, then reran all 54 suites successfully.
+- **Limits and human review:** No live provider/storage integration or financial remedy execution. Pending-calendar filing preserves original filedAt and is later classified against the verified original deadline. New evidence IDs do not automatically establish substantive novelty. Human code/business review remains requested on the PR, not claimed complete.

@@ -2,8 +2,8 @@
 
 This slice implements intake and financial holds, private photo/video evidence,
 party responses and review SLA tracking. [Initial Admin adjudication](DISPUTE_ADJUDICATION.md)
-now records decisions and appeal windows separately. Appeals, return labels/
-inspection after sale, refund and bank payouts remain future work.
+records decisions and appeal windows separately. [Appeals and final conclusions](DISPUTE_APPEALS.md)
+are implemented; return labels, inspection, refunds and bank payouts remain future work.
 No automatic winner or refund is inferred from video, silence or elapsed SLA.
 
 ## Intake and money
@@ -126,7 +126,7 @@ The worker flags overdue review; after the five-day maximum it records
 escalation with a further one-business-day decision target. Funds remain held;
 silence and timeout never accept/reject the claim automatically. The actual
 initial decision workflow is documented in [DISPUTE_ADJUDICATION.md](DISPUTE_ADJUDICATION.md);
-appeals and final execution are still future work. Durable notices
+appeals are documented in [DISPUTE_APPEALS.md](DISPUTE_APPEALS.md); financial execution remains future work. Durable notices
 are available in the case read API; email/push delivery is not implemented.
 
 ## Read APIs and test scope

@@ -88,9 +88,9 @@ the persisted issue even if the order status is accidentally changed. Expiring
 another incomplete issue cannot close the case or free its funds. Passing the
 appeal deadline alone does not trigger a refund/release in this slice.
 
-Accepting appeals, combined review of both parties, final decisions, remedy
-execution and actual return/refund flows are the next steps. There is no claim
-that those workflows exist or that money can now move automatically.
+Appeals, combined review and final conclusions are implemented in
+[DISPUTE_APPEALS.md](DISPUTE_APPEALS.md). Remedy execution and actual return/refund
+flows remain future work; this workflow does not move money automatically.
 
 ## Responses and tests
 

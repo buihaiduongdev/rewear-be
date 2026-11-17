@@ -178,3 +178,9 @@ CORS to allow that header before testing direct uploads.
 Run `pnpm seed` to populate the configured database with development accounts,
 shops, categories and products. Run the seed on an empty development database.
 Seeded accounts use the password `RewearSeed123!`.
+
+## Dispute appeals
+
+Buyer/Shop appeals and final Admin conclusions are documented in
+[Dispute appeals](docs/orders/DISPUTE_APPEALS.md). Financial remedy execution
+remains a separate step.
