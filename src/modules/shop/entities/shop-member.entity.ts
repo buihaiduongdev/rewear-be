@@ -10,15 +10,14 @@ import {
 import { BaseEntity } from '@/common/entities';
 import { User } from '@/modules/user/entities';
 
-import { ShopMemberRole, ShopMemberStatus } from '../enums';
+import { ShopMemberRole } from '../enums';
 import { Shop } from './shop.entity';
 
 @Entity('shop_members')
-@Index('UQ_shop_members_shop_user', ['shopId', 'userId'], { unique: true })
-@Index('IDX_shop_members_user_id', ['userId'])
-@Index('UQ_shop_members_active_owner', ['shopId'], {
+@Index('UQ_shop_members_user', ['userId'], { unique: true })
+@Index('UQ_shop_members_owner', ['shopId'], {
   unique: true,
-  where: '"memberRole" = \'OWNER\' AND "status" = \'ACTIVE\'',
+  where: '"memberRole" = \'OWNER\'',
 })
 export class ShopMember extends BaseEntity {
   @Column('uuid')
@@ -37,13 +36,6 @@ export class ShopMember extends BaseEntity {
 
   @Column({ type: 'enum', enum: ShopMemberRole })
   memberRole: ShopMemberRole;
-
-  @Column({
-    type: 'enum',
-    enum: ShopMemberStatus,
-    default: ShopMemberStatus.ACTIVE,
-  })
-  status: ShopMemberStatus;
 
   @CreateDateColumn()
   joinedAt: Date;

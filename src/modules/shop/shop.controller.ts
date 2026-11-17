@@ -1,70 +1,65 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard } from '@/modules/auth/guards';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
+import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
+import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 import { User } from '@/modules/user/entities';
 
-import { Shop, ShopMember } from './entities';
+import { Shop } from './entities';
+import { shopListSchema, shopMemberListSchema, shopSchema } from './schemas';
 import {
-  shopListSchema,
-  shopMemberListSchema,
-  shopMemberSchema,
-  shopMembershipListSchema,
-  shopSchema,
-} from './schemas';
-import {
-  addShopStaffSchema,
   createShopSchema,
+  inviteSchema,
   updateShopSchema,
-  updateShopStaffSchema,
 } from './schemas/shop-input.schema';
 import type {
-  AddShopStaffInput,
   CreateShopInput,
+  InviteShopMemberInput,
   UpdateShopInput,
-  UpdateShopStaffInput,
 } from './schemas/shop-input.schema';
+import {
+  acceptedShopMemberSchema,
+  shopInvitationListSchema,
+  shopInvitationSchema,
+} from './schemas/shop-invitation.schema';
 import { ShopService } from './shop.service';
 
 @ApiTags('Shops')
-@Controller('shops')
+@Controller()
 export class ShopController {
   constructor(private readonly shopService: ShopService) {}
 
-  @Get()
+  @Get('shops')
+  @PublicAccess()
   @Serialize(shopListSchema)
   findAll(): Promise<Shop[]> {
     return this.shopService.findAll();
   }
 
-  @Get('me')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Serialize(shopMembershipListSchema)
-  findMine(@CurrentUser() currentUser: User): Promise<ShopMember[]> {
-    return this.shopService.findMyMemberships(currentUser.id);
-  }
-
-  @Get(':id')
+  @Get('shops/:shopId')
+  @PublicAccess()
   @Serialize(shopSchema)
-  findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<Shop> {
+  findOne(@Param('shopId', { schema: uuidSchema }) id: string): Promise<Shop> {
     return this.shopService.findOne(id);
   }
 
-  @Post()
+  @Post('shops')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @AuthenticatedAccess()
   @Serialize(shopSchema, { status: HttpStatus.CREATED })
   create(
     @CurrentUser() currentUser: User,
@@ -73,56 +68,96 @@ export class ShopController {
     return this.shopService.create(currentUser.id, input);
   }
 
-  @Patch(':id')
+  @Patch('shops/:shopId')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_UPDATE)
   @Serialize(shopSchema)
   update(
     @CurrentUser() currentUser: User,
-    @Param('id', { schema: uuidSchema }) id: string,
+    @Param('shopId', { schema: uuidSchema }) id: string,
     @Body({ schema: updateShopSchema }) input: UpdateShopInput,
   ): Promise<Shop> {
     return this.shopService.update(id, currentUser.id, input);
   }
 
-  @Get(':id/members')
+  @Get('shops/:shopId/members')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
   @Serialize(shopMemberListSchema)
-  findMembers(
-    @CurrentUser() currentUser: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ): Promise<ShopMember[]> {
-    return this.shopService.findMembers(id, currentUser.id);
+  findMembers(@Param('shopId', { schema: uuidSchema }) id: string) {
+    return this.shopService.findMembers(id);
   }
 
-  @Post(':id/members')
+  @Delete('shops/:shopId/members/:memberId')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Serialize(shopMemberSchema, { status: HttpStatus.CREATED })
-  addStaff(
-    @CurrentUser() currentUser: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: addShopStaffSchema }) input: AddShopStaffInput,
-  ): Promise<ShopMember> {
-    return this.shopService.addStaff(id, currentUser.id, input);
-  }
-
-  @Patch(':shopId/members/:memberId')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Serialize(shopMemberSchema)
-  updateStaff(
-    @CurrentUser() currentUser: User,
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeMember(
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Param('memberId', { schema: uuidSchema }) memberId: string,
-    @Body({ schema: updateShopStaffSchema }) input: UpdateShopStaffInput,
-  ): Promise<ShopMember> {
-    return this.shopService.updateStaff(
-      shopId,
-      memberId,
-      currentUser.id,
-      input,
-    );
+  ): Promise<void> {
+    return this.shopService.removeMember(shopId, memberId);
+  }
+
+  @ApiBearerAuth()
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
+  @Post('shops/:shopId/invitations')
+  @Serialize(shopInvitationSchema, { status: HttpStatus.CREATED })
+  invite(
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+    @Body({ schema: inviteSchema }) input: InviteShopMemberInput,
+  ) {
+    return this.shopService.invite(shopId, input);
+  }
+
+  @ApiBearerAuth()
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
+  @Get('shops/:shopId/invitations')
+  @Serialize(shopInvitationListSchema)
+  list(@Param('shopId', { schema: uuidSchema }) shopId: string) {
+    return this.shopService.list(shopId);
+  }
+
+  @ApiBearerAuth()
+  @AuthenticatedAccess()
+  @Post('shops/:shopId/leave')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  leave(
+    @CurrentUser() user: User,
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+  ) {
+    return this.shopService.leave(shopId, user.id);
+  }
+
+  @ApiBearerAuth()
+  @AuthenticatedAccess()
+  @Get('shop-invitations/me')
+  @Serialize(shopInvitationListSchema)
+  findMyInvitations(@CurrentUser() user: User) {
+    return this.shopService.findMyInvitations(user.id);
+  }
+
+  @ApiBearerAuth()
+  @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
+  @Post('shops/:shopId/invitations/:invitationId/revoke')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(shopInvitationSchema)
+  revoke(
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+    @Param('invitationId', { schema: uuidSchema }) invitationId: string,
+  ) {
+    return this.shopService.revoke(shopId, invitationId);
+  }
+
+  @ApiBearerAuth()
+  @AuthenticatedAccess()
+  @Post('shop-invitations/:invitationId/accept')
+  @HttpCode(HttpStatus.OK)
+  @Serialize(acceptedShopMemberSchema)
+  accept(
+    @CurrentUser() user: User,
+    @Param('invitationId', { schema: uuidSchema }) invitationId: string,
+  ) {
+    return this.shopService.accept(user.id, invitationId);
   }
 }

@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 
 import { AuthProvider } from '@/modules/auth/enums';
 import type { RegisterInput } from '@/modules/auth/schemas/auth-input.schema';
+import { ShopMember } from '@/modules/shop/entities';
 
 import { User } from './entities';
 import { UserRole, UserStatus } from './enums';
@@ -34,6 +35,8 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(ShopMember)
+    private readonly shopMemberRepository: Repository<ShopMember>,
   ) {}
 
   async register(input: RegisterInput): Promise<User> {
@@ -71,6 +74,24 @@ export class UserService {
 
   findById(id: string): Promise<User> {
     return this.userRepository.findOneByOrFail({ id });
+  }
+
+  async findProfile(id: string) {
+    const user = await this.findById(id);
+    const membership = await this.shopMemberRepository.findOne({
+      where: { userId: id },
+      relations: { shop: true },
+    });
+    return {
+      ...user,
+      shop: membership
+        ? {
+            id: membership.shop.id,
+            name: membership.shop.name,
+            memberRole: membership.memberRole,
+          }
+        : null,
+    };
   }
 
   async findByEmail(email: string, withPassword = false): Promise<User | null> {

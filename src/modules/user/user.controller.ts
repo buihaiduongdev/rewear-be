@@ -8,7 +8,6 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -21,12 +20,12 @@ import {
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
-import { JwtAuthGuard, RolesGuard } from '@/modules/auth/guards';
+import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 
 import { User } from './entities';
 import { UserRole } from './enums';
 import { USER_PAGINATION_CONFIG } from './pagination.config';
-import { userListSchema, userSchema } from './schemas';
+import { userListSchema, userProfileSchema, userSchema } from './schemas';
 import {
   createUserSchema,
   updateProfileSchema,
@@ -42,18 +41,19 @@ import { UserService } from './user.service';
 @ApiTags('Users')
 @ApiBearerAuth()
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @AuthenticatedAccess()
   @Get('me')
   @Roles(UserRole.USER, UserRole.ADMIN)
-  @Serialize(userSchema)
-  getMe(@CurrentUser() currentUser: User): Promise<User> {
-    return this.userService.findById(currentUser.id);
+  @Serialize(userProfileSchema)
+  getMe(@CurrentUser() currentUser: User) {
+    return this.userService.findProfile(currentUser.id);
   }
 
+  @AuthenticatedAccess()
   @Patch('me')
   @Roles(UserRole.USER, UserRole.ADMIN)
   @Serialize(userSchema)
@@ -64,6 +64,7 @@ export class UserController {
     return this.userService.updateProfile(currentUser.id, input);
   }
 
+  @AuthenticatedAccess()
   @Get()
   @Serialize(userListSchema)
   @ApiPaginationQuery(USER_PAGINATION_CONFIG)
@@ -71,12 +72,14 @@ export class UserController {
     return this.userService.findAll(query);
   }
 
+  @AuthenticatedAccess()
   @Get(':id')
   @Serialize(userSchema)
   findOne(@Param('id', { schema: uuidSchema }) id: string): Promise<User> {
     return this.userService.findById(id);
   }
 
+  @AuthenticatedAccess()
   @Post()
   @Serialize(userSchema, { status: HttpStatus.CREATED })
   create(
@@ -85,6 +88,7 @@ export class UserController {
     return this.userService.create(input);
   }
 
+  @AuthenticatedAccess()
   @Patch(':id')
   @Serialize(userSchema)
   update(
@@ -94,6 +98,7 @@ export class UserController {
     return this.userService.update(id, input);
   }
 
+  @AuthenticatedAccess()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', { schema: uuidSchema }) id: string): Promise<void> {

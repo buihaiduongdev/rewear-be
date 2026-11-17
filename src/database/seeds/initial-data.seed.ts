@@ -8,6 +8,7 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
+import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
@@ -74,6 +75,10 @@ export async function runInitialDataSeed(manager: EntityManager) {
       shopId: shop.id,
       userId: users[index + 2].id,
     });
+    await new ShopRoleService(manager.connection).initializeDefaultRoles(
+      shop.id,
+      manager,
+    );
     shops.push(shop);
   }
 
