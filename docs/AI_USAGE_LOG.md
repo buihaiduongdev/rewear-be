@@ -899,3 +899,14 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #47](https://github.com/buihaiduongdev/rewear-be/pull/47) trên branch `docs/submission-step3-standards`.
 
+### 2026-11-19 — Bổ sung seed dữ liệu địa chỉ người mua, kho lấy hàng người bán và giỏ hàng
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest
+- **Mục đích và phạm vi:** Bổ sung seed dữ liệu cho thực thể `UserAddress` (địa chỉ nhận hàng mặc định và phụ của người dùng), `PickupLocation` (địa chỉ kho lấy hàng của các shop) và giỏ hàng `Cart`/`CartItem` cho tài khoản người mua nhằm phục vụ luồng kiểm thử Checkout, xem giỏ hàng phân nhóm theo shop, tính phí vận chuyển GHN và luồng gom hàng lấy kiện.
+- **Prompt chính:** Rà soát và bổ sung seed dữ liệu địa chỉ giao nhận (UserAddress), kho lấy hàng của shop (PickupLocation) và giỏ hàng mẫu (Cart/CartItem) cho tài khoản buyer, tạo các factory tương ứng tuân thủ BaseFactory và liên kết đúng mã đơn vị hành chính Việt Nam, hỗ trợ lệnh db:reset và đảm bảo toàn bộ kiểm thử tích hợp seed và quality check vượt qua 100%.
+- **Đầu ra AI được sử dụng:** Tạo `src/database/factories/user-address.factory.ts`, `src/database/factories/pickup-location.factory.ts`, `src/database/factories/cart.factory.ts`, `src/database/factories/cart-item.factory.ts`; cập nhật danh mục địa chỉ và kho trong `src/database/seeds/catalog.ts`; tích hợp khởi tạo địa chỉ, kho và giỏ hàng 3 sản phẩm thuộc 2 shop khác nhau vào `src/database/seeds/initial-data.seed.ts` và hỗ trợ cờ `--fresh` trong `src/database/seeds/seed.runner.ts`; bổ sung script `db:reset` (`pnpm seed --fresh`) trong `package.json`; bổ sung assertions kiểm chứng trong `test/integration/seed.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tra cứu chính xác mã tỉnh/xã trong bảng đơn vị hành chính Việt Nam (`vietnam-administrative-divisions.ts`), đảm bảo tính hợp lệ của ràng buộc duy nhất một địa chỉ mặc định trên mỗi người dùng (`UQ_user_addresses_default_per_user`), một kho trên mỗi shop (`UQ_pickup_locations_shop`) và duy nhất một giỏ hàng trên mỗi người dùng (`UQ_carts_user`).
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build), `pnpm test:unit` pass 29/29 suites (236 tests), chạy integration test `test/integration/seed.spec.ts` pass 100% bao gồm cả `CartService.findMine(buyer.id)`.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #48](https://github.com/buihaiduongdev/rewear-be/pull/48) trên branch `feat/seed-addresses-and-pickup-locations`.
