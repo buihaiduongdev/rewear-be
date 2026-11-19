@@ -84,3 +84,155 @@ export const SEED_ACCOUNTS = [
 ] as const;
 
 export const DEFAULT_SEED_PASSWORD = 'RewearSeed123!';
+
+export const SEED_USER_ADDRESSES: {
+  accountKey: (typeof SEED_ACCOUNTS)[number]['key'];
+  recipientName: string;
+  phone: string;
+  addressLine1: string;
+  provinceCode: string;
+  provinceName: string;
+  wardCode: string;
+  wardName: string;
+  label?: string;
+  isDefault: boolean;
+}[] = [
+  {
+    accountKey: 'admin',
+    recipientName: 'Seed Admin',
+    phone: '0901112233',
+    addressLine1: '1 Hoàng Diệu',
+    provinceCode: '01',
+    provinceName: 'Thành phố Hà Nội',
+    wardCode: '00004',
+    wardName: 'Phường Ba Đình',
+    label: 'Trụ sở',
+    isDefault: true,
+  },
+  {
+    accountKey: 'buyer',
+    recipientName: 'Minh Anh',
+    phone: '0901234567',
+    addressLine1: '123 Nguyễn Huệ',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26743',
+    wardName: 'Phường Bến Thành',
+    label: 'Nhà riêng',
+    isDefault: true,
+  },
+  {
+    accountKey: 'buyer',
+    recipientName: 'Minh Anh (Văn phòng)',
+    phone: '0901234567',
+    addressLine1: '45 Lê Duẩn, Deutsches Haus',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26740',
+    wardName: 'Phường Sài Gòn',
+    label: 'Văn phòng',
+    isDefault: false,
+  },
+  {
+    accountKey: 'shop-owner-1',
+    recipientName: 'Linh Nguyễn',
+    phone: '0902223344',
+    addressLine1: '158 Đồng Khởi',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26743',
+    wardName: 'Phường Bến Thành',
+    label: 'Cửa hàng',
+    isDefault: true,
+  },
+  {
+    accountKey: 'shop-owner-2',
+    recipientName: 'Tuấn Trần',
+    phone: '0903334455',
+    addressLine1: '88 Hai Bà Trưng',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26740',
+    wardName: 'Phường Sài Gòn',
+    label: 'Cửa hàng',
+    isDefault: true,
+  },
+  {
+    accountKey: 'shop-owner-3',
+    recipientName: 'Hà Phạm',
+    phone: '0904445566',
+    addressLine1: '24 Tràng Tiền',
+    provinceCode: '01',
+    provinceName: 'Thành phố Hà Nội',
+    wardCode: '00082',
+    wardName: 'Phường Cửa Nam',
+    label: 'Cửa hàng',
+    isDefault: true,
+  },
+  {
+    accountKey: 'seller-1',
+    recipientName: 'Mai Lê',
+    phone: '0905556677',
+    addressLine1: '72 Lê Thánh Tôn',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26743',
+    wardName: 'Phường Bến Thành',
+    label: 'Nhà riêng',
+    isDefault: true,
+  },
+  {
+    accountKey: 'seller-2',
+    recipientName: 'An Võ',
+    phone: '0906667788',
+    addressLine1: '12 Tràng Thi',
+    provinceCode: '01',
+    provinceName: 'Thành phố Hà Nội',
+    wardCode: '00082',
+    wardName: 'Phường Cửa Nam',
+    label: 'Nhà riêng',
+    isDefault: true,
+  },
+];
+
+export const SEED_PICKUP_LOCATIONS: {
+  shopIndex: number;
+  contactName: string;
+  phone: string;
+  addressLine1: string;
+  provinceCode: string;
+  provinceName: string;
+  wardCode: string;
+  wardName: string;
+}[] = [
+  {
+    shopIndex: 0,
+    contactName: 'Kho Second Story (Linh Nguyễn)',
+    phone: '0909876541',
+    addressLine1: '158 Đồng Khởi, Bến Nghé, Quận 1',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26743',
+    wardName: 'Phường Bến Thành',
+  },
+  {
+    shopIndex: 1,
+    contactName: 'Kho The Vintage Edit (Tuấn Trần)',
+    phone: '0909876542',
+    addressLine1: '88 Hai Bà Trưng, Bến Nghé, Quận 1',
+    provinceCode: '79',
+    provinceName: 'Thành phố Hồ Chí Minh',
+    wardCode: '26740',
+    wardName: 'Phường Sài Gòn',
+  },
+  {
+    shopIndex: 2,
+    contactName: 'Kho Little Wardrobe (Hà Phạm)',
+    phone: '0909876543',
+    addressLine1: '24 Tràng Tiền, Hoàn Kiếm',
+    provinceCode: '01',
+    provinceName: 'Thành phố Hà Nội',
+    wardCode: '00082',
+    wardName: 'Phường Cửa Nam',
+  },
+];

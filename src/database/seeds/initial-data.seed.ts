@@ -1,14 +1,19 @@
 import type { EntityManager } from 'typeorm';
 
+import { CartItemFactory } from '@/database/factories/cart-item.factory';
+import { CartFactory } from '@/database/factories/cart.factory';
 import { CategoryFactory } from '@/database/factories/category.factory';
 import { MediaLinkFactory } from '@/database/factories/media-link.factory';
 import { MediaFactory } from '@/database/factories/media.factory';
+import { PickupLocationFactory } from '@/database/factories/pickup-location.factory';
 import { ProductModerationFactory } from '@/database/factories/product-moderation.factory';
 import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
+import { UserAddressFactory } from '@/database/factories/user-address.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
+import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
@@ -18,7 +23,9 @@ import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
+import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -26,7 +33,9 @@ import {
   DEFAULT_SEED_PASSWORD,
   SEED_ACCOUNTS,
   SEED_CATEGORIES,
+  SEED_PICKUP_LOCATIONS,
   SEED_SHOPS,
+  SEED_USER_ADDRESSES,
 } from './catalog';
 
 export async function runInitialDataSeed(manager: EntityManager) {
@@ -42,6 +51,14 @@ export async function runInitialDataSeed(manager: EntityManager) {
   );
   const mediaFactory = new MediaFactory(manager.getRepository(Media));
   const linkFactory = new MediaLinkFactory(manager.getRepository(MediaLink));
+  const userAddressFactory = new UserAddressFactory(
+    manager.getRepository(UserAddress),
+  );
+  const pickupLocationFactory = new PickupLocationFactory(
+    manager.getRepository(PickupLocation),
+  );
+  const cartFactory = new CartFactory(manager.getRepository(Cart));
+  const cartItemFactory = new CartItemFactory(manager.getRepository(CartItem));
 
   const users: User[] = [];
   for (const [index, account] of SEED_ACCOUNTS.entries()) {
@@ -154,5 +171,96 @@ export async function runInitialDataSeed(manager: EntityManager) {
       });
     }
   }
-  return { users, shops, categories, products };
+
+  const userByKey = new Map<string, User>();
+  for (const [index, account] of SEED_ACCOUNTS.entries()) {
+    userByKey.set(account.key, users[index]);
+  }
+
+  const userAddresses: UserAddress[] = [];
+  for (const addressData of SEED_USER_ADDRESSES) {
+    const user = userByKey.get(addressData.accountKey);
+    if (!user) continue;
+    userAddresses.push(
+      await userAddressFactory.create({
+        userId: user.id,
+        recipientName: addressData.recipientName,
+        phone: addressData.phone,
+        addressLine1: addressData.addressLine1,
+        provinceCode: addressData.provinceCode,
+        provinceName: addressData.provinceName,
+        wardCode: addressData.wardCode,
+        wardName: addressData.wardName,
+        label: addressData.label ?? null,
+        countryCode: 'VN',
+        isDefault: addressData.isDefault,
+      }),
+    );
+  }
+
+  const pickupLocations: PickupLocation[] = [];
+  for (const locationData of SEED_PICKUP_LOCATIONS) {
+    const shop = shops[locationData.shopIndex];
+    if (!shop) continue;
+    pickupLocations.push(
+      await pickupLocationFactory.create({
+        shopId: shop.id,
+        contactName: locationData.contactName,
+        phone: locationData.phone,
+        addressLine1: locationData.addressLine1,
+        provinceCode: locationData.provinceCode,
+        provinceName: locationData.provinceName,
+        wardCode: locationData.wardCode,
+        wardName: locationData.wardName,
+        countryCode: 'VN',
+      }),
+    );
+  }
+
+  // Seed cart with initial items for demo accounts (Admin and Buyer)
+  const admin = users[0];
+  const buyer = users[1];
+  const adminCart = await cartFactory.create({ userId: admin.id });
+  const buyerCart = await cartFactory.create({ userId: buyer.id });
+
+  const adminCartItems: CartItem[] = [
+    await cartItemFactory.create({
+      cartId: adminCart.id,
+      productId: products[0].id,
+    }),
+    await cartItemFactory.create({
+      cartId: adminCart.id,
+      productId: products[1].id,
+    }),
+    await cartItemFactory.create({
+      cartId: adminCart.id,
+      productId: products[6].id,
+    }),
+  ];
+
+  const buyerCartItems: CartItem[] = [
+    await cartItemFactory.create({
+      cartId: buyerCart.id,
+      productId: products[2].id,
+    }),
+    await cartItemFactory.create({
+      cartId: buyerCart.id,
+      productId: products[7].id,
+    }),
+  ];
+
+  const carts: Cart[] = [adminCart, buyerCart];
+  const cartItems: CartItem[] = [...adminCartItems, ...buyerCartItems];
+
+  return {
+    users,
+    shops,
+    categories,
+    products,
+    userAddresses,
+    pickupLocations,
+    carts,
+    cartItems,
+    cart: adminCart,
+  };
 }
