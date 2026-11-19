@@ -161,7 +161,11 @@ export class DisputeService {
         issue.status === DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE &&
         now >= issue.supplementBy;
       const isClosed = issue.status === DISPUTE_ISSUE_STATE.CLOSED_INCOMPLETE;
-      if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL)
+      const decisionRecorded =
+        issue.status !== DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE &&
+        issue.status !== DISPUTE_ISSUE_STATE.ACTIVE &&
+        issue.status !== DISPUTE_ISSUE_STATE.CLOSED_INCOMPLETE;
+      if (decisionRecorded)
         throw new ConflictException(
           'Initial decision is recorded; submit new evidence through appeal',
         );

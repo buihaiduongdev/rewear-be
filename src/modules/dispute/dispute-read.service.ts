@@ -9,6 +9,12 @@ import {
   DISPUTE_PARTY,
 } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
+import {
+  DisputeAppeal,
+  DisputeAppealEvidence,
+  DisputeAppealReview,
+  DisputeFinalDecision,
+} from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import {
   DisputeAttachment,
@@ -97,6 +103,10 @@ export class DisputeReadService {
         attachments: [],
         notices: [],
         decisions: [],
+        appeals: [],
+        appealAttachments: [],
+        appealReviews: [],
+        finalDecisions: [],
       };
     const messages = await manager.find(DisputeMessage, {
       where: { issueId: In(issueIds) },
@@ -108,8 +118,18 @@ export class DisputeReadService {
       where: { issueId: In(issueIds) },
       order: { createdAt: 'ASC', id: 'ASC' },
     });
+    const {
+      decisions,
+      appeals,
+      appealAttachments,
+      appealReviews,
+      finalDecisions,
+    } = await this.decisionHistory(manager, issueIds);
     const evidenceIds = [
-      ...new Set(attachments.map((attachment) => attachment.evidenceId)),
+      ...new Set([
+        ...attachments.map((attachment) => attachment.evidenceId),
+        ...appealAttachments.map((attachment) => attachment.evidenceId),
+      ]),
     ];
     const evidence = evidenceIds.length
       ? await manager.find(DisputeEvidence, { where: { id: In(evidenceIds) } })
@@ -120,10 +140,6 @@ export class DisputeReadService {
       take: 100,
       skip: offset,
     });
-    const decisions = await manager.find(DisputeDecision, {
-      where: { issueId: In(issueIds) },
-      order: { decidedAt: 'ASC', id: 'ASC' },
-    });
     return {
       ...row,
       issues,
@@ -132,6 +148,47 @@ export class DisputeReadService {
       attachments,
       notices,
       decisions,
+      appeals,
+      appealAttachments,
+      appealReviews,
+      finalDecisions,
+    };
+  }
+  private async decisionHistory(manager: EntityManager, issueIds: string[]) {
+    const decisions = await manager.find(DisputeDecision, {
+      where: { issueId: In(issueIds) },
+      order: { decidedAt: 'ASC', id: 'ASC' },
+    });
+    const decisionIds = decisions.map((decision) => decision.id);
+    const appeals = decisionIds.length
+      ? await manager.find(DisputeAppeal, {
+          where: { decisionId: In(decisionIds) },
+          order: { filedAt: 'ASC', id: 'ASC' },
+        })
+      : [];
+    const appealIds = appeals.map((appeal) => appeal.id);
+    const appealAttachments = appealIds.length
+      ? await manager.find(DisputeAppealEvidence, {
+          where: { appealId: In(appealIds) },
+          order: { id: 'ASC' },
+        })
+      : [];
+    const appealReviews = decisionIds.length
+      ? await manager.find(DisputeAppealReview, {
+          where: { decisionId: In(decisionIds) },
+        })
+      : [];
+    const finalDecisions = decisionIds.length
+      ? await manager.find(DisputeFinalDecision, {
+          where: { decisionId: In(decisionIds) },
+        })
+      : [];
+    return {
+      decisions,
+      appeals,
+      appealAttachments,
+      appealReviews,
+      finalDecisions,
     };
   }
 }

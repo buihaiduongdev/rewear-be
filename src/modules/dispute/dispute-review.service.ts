@@ -9,32 +9,31 @@ import {
   MoreThan,
 } from 'typeorm';
 
-import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 
 import {
   DISPUTE_ACTION,
-  DISPUTE_CASE_STATE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
   DISPUTE_POLICY,
-  OPEN_DISPUTE_STATES,
 } from './constants/dispute.constant';
-import { populateDecisionAppealDeadline } from './dispute-decision.lifecycle';
+import { reconcileAppeals } from './dispute-appeal.lifecycle';
+import { restoreDisputeCaseIfClear } from './dispute-finalization.lifecycle';
 import {
   notifyDispute,
   populateDisputeDeadlines,
   recordDisputeAction,
 } from './dispute.lifecycle';
-import {
-  DisputeCase,
-  DisputeIssue,
-  DisputeMessage,
-} from './entities/dispute.entity';
+import { DisputeDecision } from './entities/dispute-decision.entity';
+import { DisputeIssue, DisputeMessage } from './entities/dispute.entity';
 import { disputeExtensionSchema } from './schemas/dispute.schema';
 
-const openIssueStates = [...OPEN_DISPUTE_STATES];
+const clockIssueStates = [
+  DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
+  DISPUTE_ISSUE_STATE.ACTIVE,
+  DISPUTE_ISSUE_STATE.AWAITING_APPEAL,
+  DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
+];
 
 @Injectable()
 export class DisputeReviewService {
@@ -60,8 +59,15 @@ export class DisputeReviewService {
       if (supplementExpired) await this.closeIncomplete(manager, issue, now);
       if (issue.status === DISPUTE_ISSUE_STATE.ACTIVE)
         await this.updateSla(manager, issue, now);
-      if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL)
-        await populateDecisionAppealDeadline(manager, issue.id);
+      const appealClock =
+        issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL ||
+        issue.status === DISPUTE_ISSUE_STATE.APPEAL_REVIEW;
+      if (appealClock) {
+        const decision = await manager.findOneByOrFail(DisputeDecision, {
+          issueId: issue.id,
+        });
+        return (await reconcileAppeals(manager, decision.id, now)).issue;
+      }
       return issue;
     });
   }
@@ -88,21 +94,7 @@ export class DisputeReviewService {
       now,
       'Closed for incomplete evidence; no fault or refund decision',
     );
-    const hasOtherIssue = await manager.existsBy(DisputeIssue, {
-      caseId: issue.caseId,
-      status: In(openIssueStates),
-    });
-    if (hasOtherIssue) return;
-    const row = await manager.findOneByOrFail(DisputeCase, {
-      id: issue.caseId,
-    });
-    row.state = DISPUTE_CASE_STATE.CLOSED;
-    await manager.save(row);
-    const order = await manager.findOneByOrFail(Order, { id: row.orderId });
-    if (order.status === ORDER_STATUS.DISPUTE) {
-      order.status = row.previousOrderStatus;
-      await manager.save(order);
-    }
+    await restoreDisputeCaseIfClear(manager, issue.caseId);
   }
 
   private async updateSla(
@@ -228,7 +220,7 @@ export class DisputeReviewService {
     const rows = await this.db.manager.find(DisputeIssue, {
       select: { id: true },
       where: {
-        status: In(openIssueStates),
+        status: In(clockIssueStates),
         ...(this.cursor ? { id: MoreThan(this.cursor) } : {}),
       },
       order: { id: 'ASC' },

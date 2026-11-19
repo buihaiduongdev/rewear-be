@@ -16,6 +16,7 @@ import {
   DISPUTE_POLICY,
 } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
+import { DisputeAppealEvidence } from './entities/dispute-appeal.entity';
 import {
   DisputeAttachment,
   DisputeEvidence,
@@ -148,7 +149,13 @@ export class DisputeEvidenceService {
               ids: JSON.stringify([evidenceId]),
             })
             .getCount();
-      if (!attachment && !message)
+      const appealAttachment =
+        !attachment && !message
+          ? await manager
+              .getRepository(DisputeAppealEvidence)
+              .countBy({ evidenceId })
+          : 0;
+      if (!attachment && !message && !appealAttachment)
         throw new ForbiddenException('Evidence has not been submitted');
     }
     return this.signedDownload(row);

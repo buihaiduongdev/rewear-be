@@ -80,6 +80,7 @@ export class DisputeAccess {
               DISPUTE_ISSUE_STATE.ACTIVE,
               DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
               DISPUTE_ISSUE_STATE.AWAITING_APPEAL,
+              DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
             ]),
           },
         })
@@ -93,7 +94,11 @@ export class DisputeAccess {
         now < issue.supplementBy,
     );
     const pendingDecisionIds = issues
-      .filter((issue) => issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL)
+      .filter(
+        (issue) =>
+          issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL ||
+          issue.status === DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
+      )
       .map((issue) => issue.id);
     const decisions = pendingDecisionIds.length
       ? await manager.find(DisputeDecision, {
