@@ -3,6 +3,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import { Order } from '@/modules/order/entities/order.entity';
 
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
@@ -30,6 +31,10 @@ export class WalletService {
         throw new ConflictException('Refund ledger requires reconciliation');
       return existing;
     }
+    if (await manager.existsBy(DisputeRefundCredit, { orderId: order.id }))
+      throw new ConflictException(
+        'Order already has a dispute refund; cancellation needs reconciliation',
+      );
     let account = await manager.findOneBy(WalletAccount, {
       userId: order.buyerId,
     });
@@ -63,7 +68,15 @@ export class WalletService {
         take: input.limit ?? 100,
         skip: input.offset ?? 0,
       });
+      const disputeRefunds = await manager.find(DisputeRefundCredit, {
+        where: { buyerId: userId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take: input.limit ?? 100,
+        skip: input.offset ?? 0,
+      });
       return {
+        simulationBalance: account?.simulationBalance ?? 0,
+        disputeRefunds,
         balance: account?.balance ?? 0,
         currency: MONEY_CURRENCY.VND,
         credits,

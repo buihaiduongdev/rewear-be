@@ -10,6 +10,10 @@ import { DisputeAppealController } from './dispute-appeal.controller';
 import { DisputeAppealService } from './dispute-appeal.service';
 import { DisputeEvidenceService } from './dispute-evidence.service';
 import { DisputeReadService } from './dispute-read.service';
+import { DisputeRefundReadService } from './dispute-refund-read.service';
+import { DisputeRefundController } from './dispute-refund.controller';
+import { DisputeRefundService } from './dispute-refund.service';
+import { DisputeRefundWorker } from './dispute-refund.worker';
 import { DisputeReviewService } from './dispute-review.service';
 import { DisputeAccess } from './dispute.access';
 import { DisputeController } from './dispute.controller';
@@ -22,6 +26,12 @@ import {
   DisputeFinalDecision,
 } from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
+import {
+  DisputeRefund,
+  DisputeRefundConsent,
+  DisputeRefundCredit,
+  DisputeRefundIncidentUpdate,
+} from './entities/dispute-refund.entity';
 import {
   DisputeAttachment,
   DisputeAudit,
@@ -48,12 +58,17 @@ import {
       DisputeAppealEvidence,
       DisputeAppealReview,
       DisputeFinalDecision,
+      DisputeRefund,
+      DisputeRefundCredit,
+      DisputeRefundConsent,
+      DisputeRefundIncidentUpdate,
     ]),
   ],
   controllers: [
     DisputeController,
     DisputeAdjudicationController,
     DisputeAppealController,
+    DisputeRefundController,
   ],
   providers: [
     DisputeAccess,
@@ -64,6 +79,9 @@ import {
     DisputeWorker,
     DisputeAdjudicationService,
     DisputeAppealService,
+    DisputeRefundService,
+    DisputeRefundReadService,
+    DisputeRefundWorker,
     PrivateEvidenceStorage,
   ],
 })

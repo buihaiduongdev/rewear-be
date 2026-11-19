@@ -85,9 +85,14 @@ validation. This API does not yet allow withdrawing/spending available money.
 
 [Dispute intake, evidence and party responses](DISPUTES.md) now establish durable
 case holds under the same commerce lock, including timely disputes after early
-completion. Release also checks open issue records directly. Adjudication,
-appeals, fee corrections, post-release reversals, bank payouts, coins, exact GHN
-event ingestion and live Sandbox verification remain separate work.
+completion. Release also checks open issue records directly. [Adjudication](DISPUTE_ADJUDICATION.md), [appeals](DISPUTE_APPEALS.md) and
+[eligible dispute wallet refunds](DISPUTE_REFUNDS.md) are implemented. Return
+verification, carrier remedies, general fee corrections, bank payouts, coins,
+exact GHN event ingestion and live Sandbox verification remain separate work.
 
 Tests: integration, e2e and unit `order-settlement.spec.ts` suites, dedicated
 local PostgreSQL, real HTTP/JWT permission checks and exact time boundaries.
+
+## Wallet refund execution update
+
+[Exact-amount refund execution](DISPUTE_REFUNDS.md) now queues final plans, credits eligible wallets and adjusts seller settlement. Return/safety/carrier prerequisites remain pending until their own verified workflows are implemented.

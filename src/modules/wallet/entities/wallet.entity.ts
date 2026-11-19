@@ -9,6 +9,10 @@ import { WALLET_CREDIT_REASON } from '../constants/wallet.constant';
 import type { WalletCreditReason } from '../types/wallet.type';
 
 @Entity('wallet_accounts')
+@Check(
+  'CHK_wallet_simulation_balance_safe',
+  `"simulationBalance" >= 0 AND "simulationBalance" <= ${MAX_SAFE_BALANCE}`,
+)
 @Index(['userId'], { unique: true })
 @Check(
   'CHK_wallet_balance_safe',
@@ -30,6 +34,15 @@ export class WalletAccount extends BaseEntity {
     },
   })
   balance: number;
+
+  @Column('bigint', {
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => Number(value),
+    },
+  })
+  simulationBalance: number;
 }
 
 @Entity('wallet_credits')

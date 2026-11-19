@@ -44,10 +44,11 @@ export const disputeAppealInputSchema = z
     (data) => data.specificError !== null || data.evidenceIds.length > 0,
     'Appeal requires new evidence or a specific error',
   );
-export const disputeAppealConclusionSchema = disputeDecisionInputSchema.extend({
-  sameAdminReason: trimmedTextSchema
-    .min(1)
-    .max(2000)
-    .nullish()
-    .transform((value) => value ?? null),
-});
+export const disputeAppealConclusionSchema =
+  disputeDecisionInputSchema.safeExtend({
+    sameAdminReason: trimmedTextSchema
+      .min(1)
+      .max(2000)
+      .nullish()
+      .transform((value) => value ?? null),
+  });

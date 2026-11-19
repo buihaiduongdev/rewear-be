@@ -33,6 +33,7 @@ import {
   DisputeEvidence,
   DisputeIssue,
 } from './entities/dispute.entity';
+import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
 import { assertDisputeRemedy } from './policies/dispute-remedy.policy';
 import {
   disputeAppealConclusionSchema,
@@ -271,6 +272,12 @@ export class DisputeAppealService {
         data.sameAdminReason,
       );
       assertDisputeRemedy(state.issue.kind, data.outcome, data.responsibility);
+      assertDisputeRefundPlan(
+        state.issue.kind,
+        data.outcome,
+        state.decision.itemPrice,
+        data.refundPlan,
+      );
       return saveFinalDisputeDecision(
         manager,
         state.decision,
@@ -282,6 +289,7 @@ export class DisputeAppealService {
           requestFingerprint: fingerprint,
           reviewToken: data.reviewToken,
           outcome: data.outcome,
+          refundPlan: data.refundPlan ?? null,
           responsibility: data.responsibility,
           reason: data.reason,
           evidenceAssessment: data.evidenceAssessment,

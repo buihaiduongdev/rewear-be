@@ -70,3 +70,7 @@ routes and mocked private storage URLs. They cover replay/races, party limits,
 cutoff and calendar recovery, combined review, reviewer independence, evidence
 privacy, overdue holds, transactional rollback and multi-issue case restoration.
 No live MoMo, GHN or object-storage integration is claimed.
+
+## Wallet refund execution update
+
+[Exact-amount refund execution](DISPUTE_REFUNDS.md) now queues final plans, credits eligible wallets and adjusts seller settlement. Return/safety/carrier prerequisites remain pending until their own verified workflows are implemented.

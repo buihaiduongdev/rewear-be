@@ -102,3 +102,7 @@ Tests use dedicated local PostgreSQL and real JWT HTTP checks. They cover
 immutable replay/races, stale paged reviews, waiting for seller response,
 calendar recovery, multi-issue holds, rollback and missing-item return guards.
 No external provider calls are required or claimed.
+
+## Wallet refund execution update
+
+[Exact-amount refund execution](DISPUTE_REFUNDS.md) now queues final plans, credits eligible wallets and adjusts seller settlement. Return/safety/carrier prerequisites remain pending until their own verified workflows are implemented.

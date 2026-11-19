@@ -51,6 +51,7 @@ export async function loadAppealReview(
     initial: {
       id: decision.id,
       outcome: decision.outcome,
+      refundPlan: decision.refundPlan ?? null,
       responsibility: decision.responsibility,
       reason: decision.reason,
       basis: decision.basis,

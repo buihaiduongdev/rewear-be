@@ -45,6 +45,7 @@ export async function notifyDispute(
   action: DisputeAction,
   now: Date,
   reason: string,
+  eventKey = 'INITIAL',
 ) {
   for (const audience of Object.values(DISPUTE_NOTICE_AUDIENCE)) {
     await manager.save(
@@ -53,6 +54,7 @@ export async function notifyDispute(
         issueId,
         action,
         audience,
+        eventKey,
         reason,
         createdAt: now,
       }),

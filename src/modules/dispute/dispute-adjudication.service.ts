@@ -28,6 +28,7 @@ import {
   recordDisputeAction,
 } from './dispute.lifecycle';
 import { DisputeDecision } from './entities/dispute-decision.entity';
+import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
 import { disputeDecisionInputSchema } from './schemas/dispute-decision.schema';
 import type { DisputeDecisionInput } from './types/dispute-decision.type';
 
@@ -153,6 +154,12 @@ export class DisputeAdjudicationService {
       throw new ConflictException(
         'Missing item cannot require return; record the finding without inventing a return remedy',
       );
+    assertDisputeRefundPlan(
+      review.issue.kind,
+      data.outcome,
+      review.orderSnapshot.itemPrice,
+      data.refundPlan,
+    );
     await populateDisputeDeadlines(manager, review.issue);
     const sellerWindowOpen =
       !review.issue.sellerRespondBy || now <= review.issue.sellerRespondBy;
@@ -191,6 +198,7 @@ export class DisputeAdjudicationService {
         reason: data.reason,
         evidenceAssessment: data.evidenceAssessment,
         itemPrice: review.orderSnapshot.itemPrice,
+        refundPlan: data.refundPlan ?? null,
         remedyKey: `${review.order.id}:${review.issue.productId}`,
         decidedAt: now,
         notifiedAt: now,

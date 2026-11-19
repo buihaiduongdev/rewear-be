@@ -150,6 +150,7 @@ export async function reconcileAppeals(
         source: DISPUTE_FINAL_SOURCE.ORIGINAL_UNAPPEALED,
         actorId: null,
         outcome: decision.outcome,
+        refundPlan: decision.refundPlan ?? null,
         responsibility: decision.responsibility,
         reason: decision.reason,
         evidenceAssessment: decision.evidenceAssessment,

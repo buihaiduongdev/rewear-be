@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { requiresFulfillmentReview } from '@/modules/cod-reconciliation/policies/cod-funding.policy';
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
+import { orderRefundDebit } from '@/modules/dispute/dispute-refund-accounting';
 import {
   DisputeCase,
   DisputeIssue,
@@ -186,13 +187,24 @@ export class OrderSettlementService {
       if (!credit) return null;
       const canRelease = windowDue && verification?.mode === credit.mode;
       if (!canRelease) return null;
+      const refundDebit = await orderRefundDebit(
+        manager,
+        order.id,
+        order.shopId,
+        credit.mode,
+      );
+      if (refundDebit > credit.amount)
+        throw new ConflictException(
+          'Refund deductions exceed this order funding',
+        );
       const release = await manager.save(
         ShopSettlement,
         manager.create(ShopSettlement, {
           orderId,
           shopId: order.shopId,
           creditId: credit.id,
-          amount: credit.amount,
+          amount: credit.amount - refundDebit,
+          refundDebit,
           mode: credit.mode,
           createdAt: now,
         }),
