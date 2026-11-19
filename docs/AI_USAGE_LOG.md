@@ -886,3 +886,16 @@
 - **Phạm vi:** Đưa main c08e17b (RBAC, mutation snapshots, constraint handling và media CTE) vào nhánh phân xử; giữ cả hai phần AI log, dùng AuthenticatedAccess/global PermissionGuard và giữ Roles ADMIN; fixture bỏ membership status đã được main loại bỏ.
 - **Kiểm chứng:** Local 51 suites / 413 Jest tests và 22 Node tests đạt; typecheck, Nest build, lint/format đạt. HTTP tests vẫn từ chối buyer/Owner gọi API Admin. Không reset DB dev hoặc thay quyền Admin cho seller.
 - **Giới hạn:** Đây là sửa tương thích trước merge PR #41, chưa phải triển khai xét lại. Kết quả CI của commit đồng bộ được kiểm tra riêng.
+
+### 2026-11-18 — Chuẩn hóa tài liệu nộp Bước 3: loại bỏ hardcode và bổ sung kiến trúc dự phòng
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash).
+- **Mục đích và phạm vi:** Rà soát và chuẩn hóa toàn bộ bộ tài liệu nộp Bước 3 trên Cổng Quản lý Đề tài (`COMMITMENT_STEP3.MD`, `MUC_TIEU_DE_TAI.MD`, `PHAM_VI_DE_TAI.MD`, `LIST_TASK.MD`). Loại bỏ các chi tiết hardcode nhạy cảm (tên file spec test, tên file báo cáo UAT, số lượng trạng thái đơn hàng cụ thể) và bổ sung phương án dự phòng cùng kiến trúc mở rộng cho cổng thanh toán (MoMo Sandbox với Adapter dự phòng PayOS / VNPay) và đơn vị vận chuyển (GHN Sandbox với Carrier Adapter); xóa file gộp dư thừa `PORTAL_SUBMISSION.MD` do nội dung đã được phân tách đầy đủ thành các file con độc lập.
+- **Prompt chính:** Rà soát tài liệu nộp Bước 3, loại bỏ các chi tiết hardcode cụ thể tên file và trạng thái để tránh rủi ro thay đổi kỹ thuật sau này; bổ sung phương án dự phòng cho cổng thanh toán trực tuyến (PayOS, VNPay) và đơn vị vận chuyển theo mô hình Adapter Pattern; đồng bộ nhất quán giữa tất cả các văn bản nộp đề tài và loại bỏ file gộp trùng lặp.
+- **Đầu ra AI được sử dụng:** Cập nhật nội dung đồng bộ trên các tài liệu tại `docs/submission_docs/`: thay thế tên file test bằng mô tả bộ kiểm thử tích hợp E2E thương mại điện tử; thay thế 9 trạng thái đơn bằng mô hình State Machine đồng bộ; bổ sung ghi chú kiến trúc Adapter dự phòng cho thanh toán và vận chuyển; cập nhật bảng task Bước 3; xóa bỏ `PORTAL_SUBMISSION.MD`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu kỹ lưỡng rubric đánh giá của Khoa CNTT — HCMUTE, kiểm tra câu từ tiếng Việt hành văn chuẩn mực, đảm bảo khớp với các cam kết kỹ thuật thực tế của hệ thống.
+- **Cách kiểm chứng:** So khớp nội dung giữa `COMMITMENT_STEP3.MD`, `MUC_TIEU_DE_TAI.MD`, `PHAM_VI_DE_TAI.MD`, `LIST_TASK.MD`; kiểm tra định dạng Markdown và đường link tài liệu.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #47](https://github.com/buihaiduongdev/rewear-be/pull/47) trên branch `docs/submission-step3-standards`.
+
