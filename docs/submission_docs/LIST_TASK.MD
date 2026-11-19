@@ -25,7 +25,7 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
 | **FEAT-05** | **Đóng gói & Vận chuyển GHN Preview** | Quản lý quy chuẩn kiện hàng theo loại trang phục, Kho lấy hàng riêng của Shop, Báo giá cước GHN Sandbox theo từng kiện seller. | UC-09, UC-19 | **Dương** | Tâm | 10% | Đã xong | BE PR #21, #22, #23; FE PR #9, #10, #11 |
 | **FEAT-06** | **Thanh toán MoMo Sandbox** | Tích hợp MoMo (Create Payment, Callback IPN, Tra soát Query định kỳ trước khi hết 10p giữ hàng), Hoàn tiền online nếu quá hạn. | UC-10 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `PaymentModule` |
 | **FEAT-07** | **Giao hàng thu hộ COD & Vận đơn GHN** | Vận đơn GHN COD Sandbox, Seller xác nhận 24h, Xử lý hủy đơn và phí ship 2 chiều, Đối soát tiền COD sàn và nhà vận chuyển. | UC-10, UC-19 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `ShippingModule` |
-| **FEAT-08** | **Đơn hàng 9 trạng thái & Escrow 72h** | Quản lý vòng đời đơn 9 trạng thái, Cơ chế ký quỹ bảo vệ 72h sau khi giao hàng thành công, Xác nhận đã nhận hàng (Receipt confirmed). | UC-11, UC-19 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `OrderModule` |
+| **FEAT-08** | **Đơn hàng State Machine & Escrow 72h** | Quản lý vòng đời đơn theo mô hình State Machine đồng bộ, Cơ chế ký quỹ bảo vệ 72h sau khi giao hàng thành công, Xác nhận đã nhận hàng (Receipt confirmed). | UC-11, UC-19 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `OrderModule` |
 | **FEAT-09** | **Khiếu nại, Trả hàng & Admin Phân xử** | Buyer yêu cầu trả hàng, Tải bằng chứng ảnh/video unbox, SLA xử lý tranh chấp 3–5 ngày, Yêu cầu xét lại 2 ngày, Admin phân xử. | UC-12, UC-26 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25; `DisputeModule` |
 | **FEAT-10** | **Ví hoàn tiền, Rút tiền & Tương tác** | Ví hoàn tiền (Refund-only), Xu thưởng 0.5%, Yêu cầu rút tiền Seller & Admin duyệt UNC ngân hàng, Chat Buyer-Shop, Đánh giá shop, Notif, Report. | UC-13, UC-20, UC-FIN-03, QTV01 | **Tâm** | Dương | 10% | Đang hoàn thiện | PR #25, #26; `WalletModule` |
 
@@ -38,7 +38,7 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
 | Mã | Hạng mục Thiết kế / Quy trình / Minh chứng | Mô tả sản phẩm đầu ra | Người chính | Người hỗ trợ | Tỷ trọng | Trạng thái | Nguồn đối chiếu / Nộp |
 |---|---|---|---|---|---|---|---|
 | **DOC-01** | **Thiết kế Giao diện UI/UX & Prototype** | Xây dựng bộ Design System, Responsive Web (Desktop/Mobile), các trạng thái tương tác và Prototype hoàn chỉnh. | **Dương** | Tâm | 20% | Đã hoàn thành | Bản thiết kế `Re.wear-design` |
-| **DOC-02** | **Hệ thống Biểu đồ Thiết kế UML** | Bộ 28 biểu đồ PlantUML: 10 usecases, 6 sequences, 4 activities, 4 state machines, domain class diagrams. | **Tâm** | Dương | 20% | Đã hoàn thành | BE PR #6 (`docs/diagrams/`) |
+| **DOC-02** | **Hệ thống Biểu đồ Thiết kế UML** | Hệ thống biểu đồ PlantUML hoàn chỉnh: usecases, sequences, activities, state machines, domain class diagrams. | **Tâm** | Dương | 20% | Đã hoàn thành | BE PR #6 (`docs/diagrams/`) |
 | **DOC-03** | **Khảo sát người dùng & Phân tích thị trường** | Thiết kế form khảo sát, thu thập $\ge 30$ mẫu TP.HCM, phân tích số liệu, lập 2 User Persona và bảng so sánh 3 đối thủ. | **Tâm** | Dương | 15% | Đang thực hiện | `SURVEY_EVIDENCE.MD` |
 | **DOC-04** | **Đặc tả yêu cầu & Kiến trúc hệ thống (SRS/SDD)** | Soạn thảo tài liệu đặc tả SRS/SDD chuẩn IEEE, Từ điển dữ liệu, 5 yêu cầu phi chức năng định lượng, ma trận truy vết. | **Dương** | Tâm | 15% | Đang hoàn thiện | `SRS_SDD.MD` |
 | **DOC-05** | **Kế hoạch kiểm thử & Đảm bảo chất lượng** | Bảng kế hoạch test 4 tầng ánh xạ Acceptance Criteria, Unit/Integration test cases, Báo cáo Linter 0 lỗi, Gitleaks 0 leak. | **Dương** | Tâm | 15% | Đang hoàn thiện | `TEST_PLAN_AND_CASES.MD`, `quality_reports/` |
@@ -94,8 +94,8 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
 
 ### B. BÙI THÀNH TÂM (MSSV: 23110310) — Đóng góp: 50%
 
-1. **Thanh toán trực tuyến MoMo Sandbox (FEAT-06)**:
-   - Nghiên cứu và xây dựng adapter tích hợp MoMo Sandbox (Create Payment, Callback IPN, Query Status).
+1. **Thanh toán trực tuyến MoMo Sandbox & Cổng dự phòng (FEAT-06)**:
+   - Nghiên cứu và xây dựng adapter tích hợp thanh toán trực tuyến (ưu tiên MoMo Sandbox, có kiến trúc dự phòng sẵn sàng tích hợp PayOS / VNPay Sandbox; hỗ trợ Create Payment, Callback IPN, Query Status).
    - Xây dựng tiến trình worker tra soát giao dịch tự động trước khi hết 10 phút giữ hàng để xác nhận trạng thái tiền về sàn.
    - Xây dựng luồng hoàn tiền trực tiếp qua cổng thanh toán khi giao dịch đến muộn sau khi hệ thống đã nhả hàng giữ.
    - Xử lý kiểm tra chữ ký số HMAC-SHA256, bảo đảm tính bất biến của dòng tiền và xử lý an toàn lỗi timeout cổng thanh toán.
@@ -106,8 +106,8 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
    - Xử lý trách nhiệm chịu phí vận chuyển 2 chiều khi giao hàng thất bại hoặc người mua đổi ý; cơ chế giới hạn tần suất spam COD.
    - Thiết kế mô hình đối soát thu hộ COD giữa sàn và đối tác vận chuyển.
 
-3. **Vòng đời đơn hàng 9 trạng thái & Ký quỹ Escrow 72h (FEAT-08)**:
-   - Lập trình State Machine quản lý 9 trạng thái đơn hàng đồng bộ theo `order_state_machine.puml`.
+3. **Vòng đời đơn hàng State Machine & Ký quỹ Escrow 72h (FEAT-08)**:
+   - Lập trình State Machine quản lý các trạng thái đơn hàng đồng bộ theo `order_state_machine.puml`.
    - Xây dựng cơ chế ký quỹ (Escrow) giữ tiền 72 giờ từ khi đơn vị vận chuyển giao hàng thành công để bảo vệ người mua.
    - Xây dựng tính năng xác nhận đã nhận hàng sớm (Receipt confirmed) và đồng hồ đếm ngược 72h khiếu nại.
    - Xây dựng giao diện quản lý đơn hàng phía Buyer và Seller, in nhãn vận đơn GHN trực tiếp trên web.
@@ -125,7 +125,7 @@ Phạm vi công việc kỹ thuật được phân rã trực tiếp từ Bản 
    - Xây dựng hệ thống Chat Buyer - Shop (gắn kèm thẻ sản phẩm/đơn hàng), Chuông thông báo in-app & Email, Đánh giá shop 1–5 sao, Wishlist/Follow và Nút Báo cáo vi phạm (Report).
 
 6. **Mô hình hóa UML, Khảo sát người dùng & Nghiệm thu UAT (DOC-02, DOC-03, DOC-06)**:
-   - Phụ trách thiết kế hệ thống 28 biểu đồ PlantUML hoàn chỉnh: Usecases, Sequences, Activities, State Machines và Domain Model.
+   - Phụ trách thiết kế hệ thống biểu đồ PlantUML hoàn chỉnh: Usecases, Sequences, Activities, State Machines và Domain Model.
    - Thiết kế phiếu khảo sát Google Forms, thu thập $\ge 30$ phản hồi người dùng thời trang secondhand TP.HCM, phân tích số liệu và hoàn thiện `SURVEY_EVIDENCE.MD`.
    - Tổ chức thực nghiệm người dùng UAT với $\ge 10$ người dùng thật, tính toán chỉ số SUS ($\ge 80$), hoàn thiện hồ sơ kiểm soát AI và báo cáo luận văn tốt nghiệp.
 

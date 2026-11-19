@@ -894,3 +894,27 @@
 - **Verification:** Dedicated local PostgreSQL and JWT HTTP tests: 54 suites / 435 Jest tests passed; 22 Node tests passed. TypeScript noEmit, Nest build, oxlint and Prettier checks passed. Read-only independent review found no actionable P1/P2 findings in the core appeal flow.
 - **Corrections:** Fixed a duplicate local declaration introduced while extracting history loading, then reran all 54 suites successfully.
 - **Limits and human review:** No live provider/storage integration or financial remedy execution. Pending-calendar filing preserves original filedAt and is later classified against the verified original deadline. New evidence IDs do not automatically establish substantive novelty. Human code/business review remains requested on the PR, not claimed complete.
+
+### 2026-11-18 — Chuẩn hóa tài liệu nộp Bước 3: loại bỏ hardcode và bổ sung kiến trúc dự phòng
+
+- **Người thực hiện:** Bùi Hải Dương.
+- **Công cụ:** Antigravity (Gemini 3.8 Flash).
+- **Mục đích và phạm vi:** Rà soát và chuẩn hóa toàn bộ bộ tài liệu nộp Bước 3 trên Cổng Quản lý Đề tài (`COMMITMENT_STEP3.MD`, `MUC_TIEU_DE_TAI.MD`, `PHAM_VI_DE_TAI.MD`, `LIST_TASK.MD`). Loại bỏ các chi tiết hardcode nhạy cảm (tên file spec test, tên file báo cáo UAT, số lượng trạng thái đơn hàng cụ thể) và bổ sung phương án dự phòng cùng kiến trúc mở rộng cho cổng thanh toán (MoMo Sandbox với Adapter dự phòng PayOS / VNPay) và đơn vị vận chuyển (GHN Sandbox với Carrier Adapter); xóa file gộp dư thừa `PORTAL_SUBMISSION.MD` do nội dung đã được phân tách đầy đủ thành các file con độc lập.
+- **Prompt chính:** Rà soát tài liệu nộp Bước 3, loại bỏ các chi tiết hardcode cụ thể tên file và trạng thái để tránh rủi ro thay đổi kỹ thuật sau này; bổ sung phương án dự phòng cho cổng thanh toán trực tuyến (PayOS, VNPay) và đơn vị vận chuyển theo mô hình Adapter Pattern; đồng bộ nhất quán giữa tất cả các văn bản nộp đề tài và loại bỏ file gộp trùng lặp.
+- **Đầu ra AI được sử dụng:** Cập nhật nội dung đồng bộ trên các tài liệu tại `docs/submission_docs/`: thay thế tên file test bằng mô tả bộ kiểm thử tích hợp E2E thương mại điện tử; thay thế 9 trạng thái đơn bằng mô hình State Machine đồng bộ; bổ sung ghi chú kiến trúc Adapter dự phòng cho thanh toán và vận chuyển; cập nhật bảng task Bước 3; xóa bỏ `PORTAL_SUBMISSION.MD`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu kỹ lưỡng rubric đánh giá của Khoa CNTT — HCMUTE, kiểm tra câu từ tiếng Việt hành văn chuẩn mực, đảm bảo khớp với các cam kết kỹ thuật thực tế của hệ thống.
+- **Cách kiểm chứng:** So khớp nội dung giữa `COMMITMENT_STEP3.MD`, `MUC_TIEU_DE_TAI.MD`, `PHAM_VI_DE_TAI.MD`, `LIST_TASK.MD`; kiểm tra định dạng Markdown và đường link tài liệu.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #47](https://github.com/buihaiduongdev/rewear-be/pull/47) trên branch `docs/submission-step3-standards`.
+
+### 2026-11-19 — Bổ sung seed dữ liệu địa chỉ người mua, kho lấy hàng người bán và giỏ hàng
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest
+- **Mục đích và phạm vi:** Bổ sung seed dữ liệu cho thực thể `UserAddress` (địa chỉ nhận hàng mặc định và phụ của người dùng), `PickupLocation` (địa chỉ kho lấy hàng của các shop) và giỏ hàng `Cart`/`CartItem` cho tài khoản người mua nhằm phục vụ luồng kiểm thử Checkout, xem giỏ hàng phân nhóm theo shop, tính phí vận chuyển GHN và luồng gom hàng lấy kiện.
+- **Prompt chính:** Rà soát và bổ sung seed dữ liệu địa chỉ giao nhận (UserAddress), kho lấy hàng của shop (PickupLocation) và giỏ hàng mẫu (Cart/CartItem) cho tài khoản buyer, tạo các factory tương ứng tuân thủ BaseFactory và liên kết đúng mã đơn vị hành chính Việt Nam, hỗ trợ lệnh db:reset và đảm bảo toàn bộ kiểm thử tích hợp seed và quality check vượt qua 100%.
+- **Đầu ra AI được sử dụng:** Tạo `src/database/factories/user-address.factory.ts`, `src/database/factories/pickup-location.factory.ts`, `src/database/factories/cart.factory.ts`, `src/database/factories/cart-item.factory.ts`; cập nhật danh mục địa chỉ và kho trong `src/database/seeds/catalog.ts`; tích hợp khởi tạo địa chỉ, kho và giỏ hàng 3 sản phẩm thuộc 2 shop khác nhau vào `src/database/seeds/initial-data.seed.ts` và hỗ trợ cờ `--fresh` trong `src/database/seeds/seed.runner.ts`; bổ sung script `db:reset` (`pnpm seed --fresh`) trong `package.json`; bổ sung assertions kiểm chứng trong `test/integration/seed.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tra cứu chính xác mã tỉnh/xã trong bảng đơn vị hành chính Việt Nam (`vietnam-administrative-divisions.ts`), đảm bảo tính hợp lệ của ràng buộc duy nhất một địa chỉ mặc định trên mỗi người dùng (`UQ_user_addresses_default_per_user`), một kho trên mỗi shop (`UQ_pickup_locations_shop`) và duy nhất một giỏ hàng trên mỗi người dùng (`UQ_carts_user`).
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build), `pnpm test:unit` pass 29/29 suites (236 tests), chạy integration test `test/integration/seed.spec.ts` pass 100% bao gồm cả `CartService.findMine(buyer.id)`.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #48](https://github.com/buihaiduongdev/rewear-be/pull/48) trên branch `feat/seed-addresses-and-pickup-locations`.
