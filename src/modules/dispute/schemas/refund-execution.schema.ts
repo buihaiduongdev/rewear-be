@@ -30,6 +30,7 @@ export const refundExecutionViewSchema = z.object({
   eligibleAt: dateTimeSchema.nullable(),
   dueAt: dateTimeSchema.nullable(),
   completedAt: dateTimeSchema.nullable(),
+  executionAmount: vndAmountSchema.nullable(),
   alertedAt: dateTimeSchema.nullable(),
   responseDueAt: dateTimeSchema.nullable(),
   respondedAt: dateTimeSchema.nullable(),
@@ -57,6 +58,15 @@ export const refundIncidentViewSchema = z.object({
 });
 export const refundDetailViewSchema = z.object({
   finalDecisionId: z.uuid(),
+  returnCase: z
+    .object({
+      id: z.uuid(),
+      state: z.string(),
+      mode: z.string().nullable(),
+      handoverBy: dateTimeSchema.nullable(),
+      inspectionDueAt: dateTimeSchema.nullable(),
+    })
+    .nullable(),
   refundPlan: disputeRefundPlanSchema.nullable(),
   planToken: z.string(),
   approvedSellerDebit: vndAmountSchema.nullable(),

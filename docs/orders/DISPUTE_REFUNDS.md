@@ -20,13 +20,12 @@ Conditions are exported constants:
 | MISSING_ITEM | Accepted missing-item finding, full item amount, verified payment |
 | PARTIAL_AGREEMENT | Strictly partial amount and durable acceptance of that exact final plan by both parties |
 | SELLER_WAIVER | Full item amount and exact-plan acceptance by the Shop Owner; no extra buyer confirmation |
-| RETURN_REQUIRED | Pending the separate verified return/inspection workflow |
-| SAFETY_WAIVER | Pending the separate safety instruction/evidence verification workflow |
+| RETURN_REQUIRED | Verified return/inspection, accepted objection resolution or an independently verified equivalent return duty |
+| SAFETY_WAIVER | Concrete safety instructions, new buyer execution proof and fresh Admin verification |
 
 Missing-item issues may also use a voluntary partial agreement, but cannot
-require return of the missing item. Current execution handles SELLER responsibility.
-Carrier/other liability stays LIABILITY_REVIEW until its verified remedy/funding
-workflow exists. No unsafe return-ready or paid boolean is accepted from clients.
+require return of the missing item. Seller liability and explicitly verified carrier remedies are supported by
+[Returns and exceptions](DISPUTE_RETURNS.md); other unverified liability remains held. No unsafe return-ready or paid boolean is accepted from clients.
 
 The nullable optional field preserves old API clients/rows; null creates no
 financial entitlement. New clients must send the approved plan to enable payment.
@@ -110,5 +109,9 @@ in-app notice inbox, not an email/push delivery system.
 
 The project currently uses TypeORM synchronize; no production migration, historical
 financial repair or development database reset was performed. Tests exclusively
-use rewear_test. Live MoMo/GHN/storage, return labels/inspection, safety verification,
-carrier compensation, coins, wallet checkout and bank payouts remain separate work.
+use rewear_test. Live MoMo/GHN/storage verification, coins, wallet checkout and bank payouts remain separate work.
+Return labels/inspection, safety and evidenced carrier compensation are implemented in [DISPUTE_RETURNS.md](DISPUTE_RETURNS.md).
+
+## Post-adjudication return update
+
+[Returns and verified exceptions](DISPUTE_RETURNS.md) now provide reverse booking, handover/inspection/objection clocks, safety execution verification, carrier loss/refusal remedies and independent evidenced compensation. These feed exact wallet refund conditions; no live provider or external bank payment is claimed.

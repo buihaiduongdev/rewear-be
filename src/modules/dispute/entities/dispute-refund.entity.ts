@@ -12,6 +12,9 @@ import { DisputeFinalDecision } from './dispute-appeal.entity';
 @Index(['status', 'id'])
 @Index(['orderId'])
 export class DisputeRefund extends BaseEntity {
+  @Column({ type: 'integer', nullable: true })
+  executionAmount: number | null;
+
   @Column('uuid')
   finalDecisionId: string;
   @ManyToOne(() => DisputeFinalDecision, { onDelete: 'RESTRICT' })

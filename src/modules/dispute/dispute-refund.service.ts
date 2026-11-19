@@ -10,7 +10,6 @@ import {
   DISPUTE_DECISION_OUTCOME,
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
-  DISPUTE_RESPONSIBILITY,
 } from './constants/dispute.constant';
 import {
   REFUND_EXECUTION_POLICY as POLICY,
@@ -18,7 +17,6 @@ import {
   REFUND_STATE,
 } from './constants/refund-execution.constant';
 import { DISPUTE_REFUND_CONDITION as CONDITION } from './constants/refund.constant';
-import { decisionFingerprint } from './dispute-decision-review';
 import { executeDisputeRefund } from './dispute-refund-execution';
 import { refundFunding } from './dispute-refund-funding';
 import { queueDisputeRefund } from './dispute-refund.lifecycle';
@@ -32,6 +30,12 @@ import {
 } from './entities/dispute-refund.entity';
 import { DisputeIssue } from './entities/dispute.entity';
 import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
+import {
+  exactRefundPlanToken,
+  resolveRefundCondition,
+} from './returns/refund-condition.integration';
+import { closeExpiredReturnRefund } from './returns/refund-return.integration';
+import type { ReturnGate } from './returns/types/return.type';
 import { refundConsentSchema } from './schemas/refund-execution.schema';
 
 @Injectable()
@@ -41,11 +45,7 @@ export class DisputeRefundService {
   constructor(private readonly db: DataSource) {}
 
   planToken(final: DisputeFinalDecision) {
-    return decisionFingerprint({
-      id: final.id,
-      remedyKey: final.remedyKey,
-      refundPlan: final.refundPlan,
-    });
+    return exactRefundPlanToken(final);
   }
   private async lock(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
@@ -67,7 +67,7 @@ export class DisputeRefundService {
     });
     if (
       !prepared ||
-      prepared.status === REFUND_STATE.SUCCEEDED ||
+      prepared.status !== REFUND_STATE.PENDING ||
       prepared.blockedReason
     )
       return prepared;
@@ -80,7 +80,7 @@ export class DisputeRefundService {
       );
       if (
         !refund ||
-        refund.status === REFUND_STATE.SUCCEEDED ||
+        refund.status !== REFUND_STATE.PENDING ||
         refund.blockedReason ||
         !funding
       )
@@ -108,8 +108,10 @@ export class DisputeRefundService {
       id: refund?.orderId ?? final.remedyKey.split(':')[0],
     });
     let funding: Awaited<ReturnType<typeof refundFunding>> = null;
+    let gate: ReturnGate | null = null;
+    let carrierMode: string | null = null;
     const context = () => ({ final, refund, issue, order, funding });
-    if (!refund || refund.status === REFUND_STATE.SUCCEEDED) return context();
+    if (!refund || refund.status !== REFUND_STATE.PENDING) return context();
     const plan = final.refundPlan;
     refund.blockedReason = null;
     if (!plan) refund.blockedReason = REFUND_BLOCK.PLAN_MISSING;
@@ -129,12 +131,43 @@ export class DisputeRefundService {
         initial.basis.commissionBasisPoints === order.commissionBasisPoints &&
         issue.status === DISPUTE_ISSUE_STATE.AWAITING_EXECUTION;
       if (!snapshotMatches) refund.blockedReason = REFUND_BLOCK.SOURCE_REVIEW;
-      else if (final.responsibility !== DISPUTE_RESPONSIBILITY.SELLER)
-        refund.blockedReason = REFUND_BLOCK.LIABILITY_REVIEW;
-      else refund.blockedReason = await this.conditionBlock(manager, final);
+      else {
+        const condition = await resolveRefundCondition(manager, final, now);
+        gate = condition.gate;
+        carrierMode = condition.carrierMode;
+        refund.blockedReason = condition.blockedReason;
+        if (!refund.blockedReason && gate?.status === 'CLOSED') {
+          await closeExpiredReturnRefund(manager, refund, final, issue, now);
+          return context();
+        }
+        if (
+          !refund.blockedReason &&
+          gate?.status === 'READY' &&
+          gate.amount === 0
+        ) {
+          await closeExpiredReturnRefund(
+            manager,
+            refund,
+            final,
+            issue,
+            now,
+            'Verified per-item buyer fault leaves no eligible unexecuted refund; no wallet money credited or recovered',
+            DISPUTE_ACTION.RETURN_CLOSED_NO_REFUND,
+          );
+          return context();
+        }
+        refund.executionAmount = gate?.amount ?? plan.amount;
+      }
       if (!refund.blockedReason) {
         funding = await refundFunding(manager, order, now);
         if (!funding) refund.blockedReason = REFUND_BLOCK.PAYMENT_UNVERIFIED;
+        else if (
+          (gate?.mode && gate.mode !== funding.mode) ||
+          (carrierMode && carrierMode !== funding.mode)
+        ) {
+          refund.blockedReason = REFUND_BLOCK.SOURCE_REVIEW;
+          funding = null;
+        }
       }
     }
     if (funding) {
@@ -145,6 +178,7 @@ export class DisputeRefundService {
       const start = Math.max(
         final.finalizedAt.getTime(),
         funding.verifiedAt.getTime(),
+        gate?.at?.getTime() ?? 0,
         ...consents
           .filter(
             (c) =>
@@ -159,29 +193,7 @@ export class DisputeRefundService {
     await manager.save(refund);
     return context();
   }
-  private async conditionBlock(
-    manager: EntityManager,
-    final: DisputeFinalDecision,
-  ) {
-    const condition = final.refundPlan!.condition;
-    if (condition === CONDITION.MISSING_ITEM) return null;
-    const needsConsent =
-      condition === CONDITION.PARTIAL_AGREEMENT ||
-      condition === CONDITION.SELLER_WAIVER;
-    if (!needsConsent) return REFUND_BLOCK.CONDITIONS_PENDING;
-    const consents = await manager.find(DisputeRefundConsent, {
-      where: {
-        finalDecisionId: final.id,
-        planFingerprint: this.planToken(final),
-      },
-    });
-    const agreed = new Set(consents.map((row) => row.party));
-    const consentSatisfied =
-      agreed.has(DISPUTE_PARTY.SELLER) &&
-      (condition === CONDITION.SELLER_WAIVER ||
-        agreed.has(DISPUTE_PARTY.BUYER));
-    return consentSatisfied ? null : REFUND_BLOCK.CONSENT_PENDING;
-  }
+
   async consent(userId: string, finalId: string, input: { planToken: string }) {
     const data = refundConsentSchema.parse(input);
     return this.db.transaction(async (manager) => {
@@ -213,7 +225,7 @@ export class DisputeRefundService {
         party,
       });
       if (replay) return refund;
-      if (refund.status === REFUND_STATE.SUCCEEDED)
+      if (refund.status !== REFUND_STATE.PENDING)
         throw new ConflictException('Refund already executed');
       await manager.save(
         DisputeRefundConsent,

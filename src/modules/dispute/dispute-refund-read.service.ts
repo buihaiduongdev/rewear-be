@@ -20,6 +20,7 @@ import {
 } from './entities/dispute-refund.entity';
 import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
 import { refundAllocation } from './policies/refund-allocation.policy';
+import { DisputeReturn } from './returns/entities/dispute-return.entity';
 import { refundIncidentSchema } from './schemas/refund-execution.schema';
 
 @Injectable()
@@ -78,7 +79,11 @@ export class DisputeRefundReadService {
             take: 50,
           })
         : [];
+      const returnCase = await manager.findOneBy(DisputeReturn, {
+        remedyKey: final.remedyKey,
+      });
       return {
+        returnCase,
         finalDecisionId: finalId,
         refundPlan: final.refundPlan ?? null,
         planToken: this.refunds.planToken(final),

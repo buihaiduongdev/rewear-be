@@ -19,6 +19,11 @@ import type {
 } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import { shopRefundDeductions } from '@/modules/dispute/dispute-refund-accounting';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
+import {
+  CarrierCompensationReceipt,
+  ReturnShippingCharge,
+} from '@/modules/dispute/returns/entities/return-exception.entity';
 
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import { ShopSettlement } from './entities/shop-settlement.entity';
@@ -88,7 +93,26 @@ export class ShopFinanceService {
     const deductions = await shopRefundDeductions(manager, shopId, mode);
     const lateDebit =
       deductions.settled - Number(releasedRow?.refundDebit ?? 0);
-    const available = released - lateDebit;
+    const carrierReceipts = await manager.find(CarrierCompensationReceipt, {
+      where: { shopId, mode },
+    });
+    const carrierCompensation = carrierReceipts.reduce(
+      (sum, receipt) => sum + receipt.amount,
+      0,
+    );
+    const returnCharges = await manager.find(ReturnShippingCharge, {
+      where: { shopId, mode },
+    });
+    const nettedCompensation = carrierReceipts
+      .filter(
+        (receipt) => receipt.kind === CARRIER_RECEIPT_KIND.VERIFIED_NETTING,
+      )
+      .reduce((sum, receipt) => sum + receipt.amount, 0);
+    const returnFeePayable =
+      returnCharges.reduce((sum, charge) => sum + charge.amount, 0) -
+      nettedCompensation;
+    const available =
+      released - lateDebit + carrierCompensation - nettedCompensation;
     const held = funded - deductions.funded - released + lateDebit;
     const receivable = Number(pendingRow?.total ?? 0) - deductions.receivable;
     const hasInvalidHeldTotal = !safeBalanceSchema.safeParse(held).success;
@@ -104,7 +128,13 @@ export class ShopFinanceService {
       hasInvalidFundedTotal;
     if (exceedsSafeRange)
       throw new ConflictException('Shop totals exceed safe amount range');
-    return { held, receivable, available };
+    return {
+      held,
+      receivable,
+      available,
+      carrierCompensation,
+      returnFeePayable,
+    };
   }
 
   private async readHistory(
@@ -137,7 +167,21 @@ export class ShopFinanceService {
       take: 100,
       skip: offset,
     });
+    const carrierReceipts = await manager.find(CarrierCompensationReceipt, {
+      where: { shopId, mode },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 100,
+      skip: offset,
+    });
+    const returnCharges = await manager.find(ReturnShippingCharge, {
+      where: { shopId, mode },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 100,
+      skip: offset,
+    });
     return {
+      carrierReceipts,
+      returnCharges,
       refunds,
       settlements: settlements.map(({ id, orderId, amount, createdAt }) => ({
         id,

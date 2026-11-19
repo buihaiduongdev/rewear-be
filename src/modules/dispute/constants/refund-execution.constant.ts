@@ -3,6 +3,7 @@ import ms from 'ms';
 export const REFUND_STATE = {
   PENDING: 'PENDING',
   SUCCEEDED: 'SUCCEEDED',
+  CLOSED_NO_REFUND: 'CLOSED_NO_REFUND',
 } as const;
 export const REFUND_BLOCK = {
   PLAN_MISSING: 'PLAN_MISSING',

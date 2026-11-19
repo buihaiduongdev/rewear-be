@@ -74,3 +74,7 @@ No live MoMo, GHN or object-storage integration is claimed.
 ## Wallet refund execution update
 
 [Exact-amount refund execution](DISPUTE_REFUNDS.md) now queues final plans, credits eligible wallets and adjusts seller settlement. Return/safety/carrier prerequisites remain pending until their own verified workflows are implemented.
+
+## Post-adjudication return update
+
+[Returns and verified exceptions](DISPUTE_RETURNS.md) now provide reverse booking, handover/inspection/objection clocks, safety execution verification, carrier loss/refusal remedies and independent evidenced compensation. These feed exact wallet refund conditions; no live provider or external bank payment is claimed.

@@ -47,12 +47,15 @@ export async function executeDisputeRefund(
       'Refund source changed; reconciliation required',
     );
   const paid = previous.reduce((sum, row) => sum + row.amount, 0);
-  const allocation = refundAllocation(
-    final.itemPrice,
-    final.refundPlan!.amount,
-    paid,
-    order.commissionBasisPoints,
-  );
+  const allocation =
+    refund.executionAmount === 0
+      ? { amount: 0, commissionReversed: 0, sellerDebit: 0 }
+      : refundAllocation(
+          final.itemPrice,
+          refund.executionAmount ?? final.refundPlan!.amount,
+          paid,
+          order.commissionBasisPoints,
+        );
   // Zero means this same item's entitlement was already fulfilled by another issue.
   const orderCredits = await manager.find(DisputeRefundCredit, {
     where: { orderId: order.id, mode: funding.mode },

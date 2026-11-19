@@ -144,3 +144,7 @@ Tests cover dedicated PostgreSQL transactions/holds, HTTP JWT/privacy/ownership,
 missing evidence/calendar recovery, reply/SLA clocks, idempotency/concurrency,
 rollback and cutoff after lock wait. Storage I/O is mocked; signed command
 contracts are tested separately. No real MoMo/GHN/R2 execution is claimed.
+
+## Post-adjudication return update
+
+[Returns and verified exceptions](DISPUTE_RETURNS.md) now provide reverse booking, handover/inspection/objection clocks, safety execution verification, carrier loss/refusal remedies and independent evidenced compensation. These feed exact wallet refund conditions; no live provider or external bank payment is claimed.
