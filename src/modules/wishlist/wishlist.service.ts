@@ -7,6 +7,7 @@ import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
+import { ShopStatus } from '@/modules/shop/enums';
 
 import { WishlistItem } from './entities';
 import type { WishlistView } from './schemas/wishlist.schema';
@@ -38,17 +39,19 @@ export class WishlistService {
 
     const mappedItems = items.map((item) => {
       const p = item.product;
+      const isShopActive =
+        !p?.shop || !p.shop.status || p.shop.status === ShopStatus.ACTIVE;
+      const isCategoryActive = !p?.category || p.category.isActive !== false;
       const availability =
-        !p ||
-        p.status === ProductStatus.REJECTED ||
-        p.status === ProductStatus.DRAFT ||
-        p.status === ProductStatus.SUSPENDED
+        !p || !isShopActive || !isCategoryActive
           ? CartAvailability.UNAVAILABLE
-          : p.status === ProductStatus.HELD
-            ? CartAvailability.HELD
-            : p.status === ProductStatus.SOLD
-              ? CartAvailability.SOLD
-              : CartAvailability.AVAILABLE;
+          : p.status === ProductStatus.ACTIVE
+            ? CartAvailability.AVAILABLE
+            : p.status === ProductStatus.HELD
+              ? CartAvailability.HELD
+              : p.status === ProductStatus.SOLD
+                ? CartAvailability.SOLD
+                : CartAvailability.UNAVAILABLE;
 
       return {
         id: item.id,
