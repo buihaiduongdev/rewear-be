@@ -25,6 +25,7 @@ import { ShopModule } from './modules/shop';
 import { ShopFinanceModule } from './modules/shop-finance/shop-finance.module';
 import { UserModule } from './modules/user';
 import { UserAddressModule } from './modules/user-address';
+import { WishlistModule } from './modules/wishlist';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { UserAddressModule } from './modules/user-address';
     MediaModule,
     UserModule,
     UserAddressModule,
+    WishlistModule,
     AuthModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],

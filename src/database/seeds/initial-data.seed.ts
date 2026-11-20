@@ -126,6 +126,15 @@ export async function runInitialDataSeed(manager: EntityManager) {
       condition: status === ProductStatus.DRAFT ? null : ProductCondition.GOOD,
       price:
         status === ProductStatus.DRAFT ? null : 120000 + (index % 12) * 35000,
+      shippingPackage:
+        status === ProductStatus.DRAFT
+          ? null
+          : {
+              weightGrams: 300 + (index % 5) * 50,
+              lengthCm: 25,
+              widthCm: 20,
+              heightCm: 5,
+            },
       status,
       publishedAt: [
         ProductStatus.ACTIVE,

@@ -59,7 +59,7 @@ export class ShopRoleController {
   @Get('permissions')
   @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
   @Serialize(shopPermissionListSchema)
-  permissions() {
+  permissions(@Param('shopId', { schema: uuidSchema }) _shopId: string) {
     return ASSIGNABLE_SHOP_PERMISSION_KEYS;
   }
 
