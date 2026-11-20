@@ -97,6 +97,15 @@ export class ShopService {
     });
   }
 
+  async findMyMemberships(userId: string) {
+    const members = await this.shopMemberRepository.find({
+      where: { userId },
+      relations: { shop: true },
+      order: { joinedAt: 'DESC' },
+    });
+    return members.map((m) => ({ ...m, status: 'ACTIVE' }));
+  }
+
   async findMembers(
     shopId: string,
   ): Promise<(ShopMember & { roles: { id: string; name: string }[] })[]> {

@@ -29,6 +29,12 @@ export class ProductFactory extends BaseFactory<Product> {
       },
       repairs: null,
       defects: [],
+      shippingPackage: {
+        weightGrams: 350,
+        lengthCm: 25,
+        widthCm: 20,
+        heightCm: 5,
+      },
       status: ProductStatus.ACTIVE,
       publishedAt: new Date(),
       heldUntil: null,

@@ -918,3 +918,15 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build), `pnpm test:unit` pass 29/29 suites (236 tests), chạy integration test `test/integration/seed.spec.ts` pass 100% bao gồm cả `CartService.findMine(buyer.id)`.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #48](https://github.com/buihaiduongdev/rewear-be/pull/48) trên branch `feat/seed-addresses-and-pickup-locations`.
+
+### 2026-11-20 — Triển khai module Danh sách yêu thích (Wishlist) và khôi phục endpoint shop memberships
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), PostgreSQL, Jest
+- **Mục đích và phạm vi:** Triển khai module Wishlist hoàn chỉnh cho phép người mua lưu các sản phẩm yêu thích độc lập với giỏ hàng; khôi phục endpoint tra cứu danh sách shop mà người dùng hiện tại đang tham gia phục vụ thiết lập kho lấy hàng và phân quyền người bán; chuẩn hóa tham số OpenAPI cho phân quyền shop role.
+- **Prompt chính:** Triển khai module Wishlist theo kiến trúc module-first của NestJS với entity WishlistItem, các API xem danh sách, thêm và xóa sản phẩm yêu thích; khôi phục endpoint tra cứu danh sách shop của người dùng hiện tại; cập nhật unit test và đảm bảo 100% kiểm thử chất lượng vượt qua.
+- **Đầu ra AI được sử dụng:** Tạo entity `WishlistItem`, Zod schema, `WishlistService`, `WishlistController` và đăng ký `WishlistModule`; bổ sung endpoint `findMyMemberships` trong `ShopController` và schema `shopMembershipListSchema`; cập nhật unit test `wishlist.service.spec.ts` và integration test `seed.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng ranh giới nghiệp vụ độc lập giữa Wishlist và Cart, kiểm soát validation ràng buộc khóa ngoại sản phẩm và phân quyền người dùng JWT.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint, prettier, tsc, nest build) đạt 0 lỗi, `pnpm test:unit` và `test/integration/seed.spec.ts` pass 100%.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** [PR #50](https://github.com/buihaiduongdev/rewear-be/pull/50) trên branch `feat/wishlist`.

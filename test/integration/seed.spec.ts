@@ -38,10 +38,10 @@ describe('Seed data (PostgreSQL)', () => {
     expect(seed.shops).toHaveLength(3);
     expect(seed.categories).toHaveLength(6);
     expect(seed.products).toHaveLength(36);
-    expect(seed.userAddresses).toHaveLength(8);
+    expect(seed.userAddresses).toHaveLength(13);
     expect(seed.pickupLocations).toHaveLength(3);
     expect(seed.cartItems).toHaveLength(5);
-    expect(await db.getRepository(UserAddress).count()).toBe(8);
+    expect(await db.getRepository(UserAddress).count()).toBe(13);
     expect(await db.getRepository(PickupLocation).count()).toBe(3);
     expect(await db.getRepository(Cart).count()).toBe(2);
     expect(await db.getRepository(CartItem).count()).toBe(5);
