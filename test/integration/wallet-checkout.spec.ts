@@ -431,11 +431,9 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await first.db.getRepository(Checkout).update(first.checkout.id, {
       requestedProductIds: [first.product.id, second.product.id],
     });
-    await first.db
-      .getRepository(Checkout)
-      .update(first.checkout.id, {
-        requestedProductIds: [first.product.id, second.product.id],
-      });
+    await first.db.getRepository(Checkout).update(first.checkout.id, {
+      requestedProductIds: [first.product.id, second.product.id],
+    });
     await first.db
       .getRepository(CheckoutOrder)
       .update(

@@ -115,21 +115,19 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
       items: [],
       sellerConfirmBy: new Date(Date.now() + 86400000),
     });
-    await db
-      .getRepository(PaymentAttempt)
-      .update(payment.id, {
-        orders: [
-          {
-            checkoutOrderId: order.checkoutOrderId,
-            shopId: shop.id,
-            shopName: shop.name,
-            subtotal: order.subtotal,
-            shippingFee: order.shippingFee,
-            address: order.address,
-            items: order.items,
-          },
-        ],
-      });
+    await db.getRepository(PaymentAttempt).update(payment.id, {
+      orders: [
+        {
+          checkoutOrderId: order.checkoutOrderId,
+          shopId: shop.id,
+          shopName: shop.name,
+          subtotal: order.subtotal,
+          shippingFee: order.shippingFee,
+          address: order.address,
+          items: order.items,
+        },
+      ],
+    });
   });
   afterAll(async () => app?.close());
 
