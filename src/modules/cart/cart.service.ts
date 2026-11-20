@@ -11,18 +11,16 @@ import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import {
+  evaluateProductAvailability,
+  isProductDisplayable,
+} from '@/modules/product/machines/product-availability.machine';
 import { Shop, ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
+import { ShopMemberRole } from '@/modules/shop/enums';
 
 import { Cart, CartItem } from './entities';
 import { CartAvailability } from './enums/cart-availability.enum';
 import type { CartView } from './schemas/cart.schema';
-
-const DISPLAYABLE_STATES = [
-  ProductStatus.ACTIVE,
-  ProductStatus.HELD,
-  ProductStatus.SOLD,
-];
 
 @Injectable()
 export class CartService {
@@ -95,15 +93,9 @@ export class CartService {
   }
 
   private canDisplay(product: Product): boolean {
-    return (
-      DISPLAYABLE_STATES.includes(product.status) &&
-      !!product.title &&
-      product.price !== null &&
-      product.price > 0 &&
-      product.condition !== null &&
-      product.category?.isActive === true &&
-      product.shop?.status === ShopStatus.ACTIVE
-    );
+    return isProductDisplayable(product, {
+      requireCompleteMetadata: true,
+    });
   }
 
   private populateCartView(
@@ -117,16 +109,10 @@ export class CartService {
     for (const item of items) {
       const product = item.product;
       const displayable = this.canDisplay(product);
-      const own = ownedShops.has(product.shopId);
-      const availability = !displayable
-        ? CartAvailability.UNAVAILABLE
-        : own
-          ? CartAvailability.OWN_PRODUCT
-          : product.status === ProductStatus.HELD
-            ? CartAvailability.HELD
-            : product.status === ProductStatus.SOLD
-              ? CartAvailability.SOLD
-              : CartAvailability.AVAILABLE;
+      const availability = evaluateProductAvailability(product, {
+        ownedShopIds: ownedShops,
+        requireCompleteMetadata: true,
+      });
       const shop = displayable
         ? { id: product.shopId, name: product.shop.name }
         : null;
