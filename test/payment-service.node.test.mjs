@@ -20,6 +20,7 @@ class PaymentRefund {}
 class Order {}
 class OrderEvent {}
 class WalletCheckoutHold {}
+class FeePaymentCapture {}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
@@ -44,6 +45,7 @@ const deps = {
   Order,
   OrderEvent,
   WalletCheckoutHold,
+  FeePaymentCapture,
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,

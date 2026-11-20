@@ -3,6 +3,8 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { CodRemittance } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { FEE_STATUS } from '@/modules/fees/constants/fee.constant';
+import { FeeAssessment } from '@/modules/fees/entities/fee.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { DISPUTE_RESPONSIBILITY } from '../constants/dispute.constant';
@@ -292,6 +294,7 @@ export class ReturnCarrierService {
             returnId: returned.id,
             orderId: ctx.order.id,
             shopId: ctx.order.shopId,
+            waybillCode: returned.labelCode,
             mode: data.mode,
             kind: data.kind,
             amount: data.amount,
@@ -321,6 +324,15 @@ export class ReturnCarrierService {
         orderId: exception.orderId,
         mode: exception.mode,
       });
+      const feeReview = await manager.existsBy(FeeAssessment, {
+        sourceId: charge.id,
+        mode: data.mode,
+        status: FEE_STATUS.REVIEW,
+      });
+      if (feeReview)
+        throw new ConflictException(
+          'Contested return fees cannot receive new carrier netting during review',
+        );
       const returned = await manager.findOneByOrFail(DisputeReturn, {
         id: charge.returnId,
       });

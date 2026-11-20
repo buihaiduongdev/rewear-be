@@ -122,3 +122,8 @@ provider giả lập. Không có chuyển khoản thật, tài khoản MoMo/GHN 
 cam kết SLA vận hành production. Chưa chạy migration production; dự án hiện
 dùng cơ chế schema development của TypeORM. Cần rà schema/backfill dữ liệu
 cũ trước triển khai thật, đặc biệt nguồn ví chưa có mode và chứng từ ngân hàng.
+
+
+## Verified fees and debt update
+
+[Fees and debt](FEES_AND_DEBT.md) now provides prior-disclosure snapshots, verified invoice assessment, Buyer wallet/MoMo payments, same-Shop available-fund offsets, objections/corrections and source refunds. New payout requests settle collectible Shop fees before allocation; existing payout locks remain protected. Missing legacy disclosure/waybill snapshots are not repaired automatically. Unsupported small provider refunds remain pending review rather than being reported completed.

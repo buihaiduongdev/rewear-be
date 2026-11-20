@@ -7,5 +7,6 @@ export interface PayoutSourceRow {
   net: string;
   paid: string;
   reserved: string;
+  feeSpent: string;
   blocked: boolean;
 }

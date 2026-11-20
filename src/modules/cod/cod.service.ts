@@ -6,6 +6,9 @@ import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { assertFeeCodEligibility } from '@/modules/fees/settlement/fee-cod-gate';
+import { settleShopFees } from '@/modules/fees/settlement/fee-offset';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
   ORDER_EVENT_ACTION,
@@ -121,6 +124,11 @@ export class CodService {
         snapshots,
       );
       await this.policy.assertCanPlace(manager, buyerId, ids.length, now);
+      const feeShopIds = [...new Set(snapshots.map((row) => row.shopId))];
+      for (const shopId of feeShopIds)
+        for (const mode of Object.values(RECONCILIATION_MODE))
+          await settleShopFees(manager, shopId, mode, now);
+      await assertFeeCodEligibility(manager, buyerId, feeShopIds, now);
       const orders = await this.createOrders(
         manager,
         buyerId,

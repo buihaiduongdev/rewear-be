@@ -171,3 +171,8 @@ TypeORM synchronize is the project's current DB setup. No production migration,
 historical financial repair or development database reset is included. The worker
 polls returns through pending refund conditions; tests invoke scans explicitly to
 avoid racing fixtures. Payment/return evidence modes must match before money moves.
+
+
+## Verified fees and debt update
+
+[Fees and debt](FEES_AND_DEBT.md) now provides prior-disclosure snapshots, verified invoice assessment, Buyer wallet/MoMo payments, same-Shop available-fund offsets, objections/corrections and source refunds. New payout requests settle collectible Shop fees before allocation; existing payout locks remain protected. Missing legacy disclosure/waybill snapshots are not repaired automatically. Unsupported small provider refunds remain pending review rather than being reported completed.

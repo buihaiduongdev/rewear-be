@@ -2,6 +2,7 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
+import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   ORDER_CANCEL_STATE,
@@ -21,6 +22,7 @@ export const rejectOrderSchema = z.strictObject({
 });
 export const acceptOrderSchema = z.strictObject({});
 export const orderSchema = z.object({
+  feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   paymentId: z.uuid().nullable(),
   walletDebitId: z.uuid().nullable(),

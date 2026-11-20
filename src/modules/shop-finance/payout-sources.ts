@@ -7,6 +7,11 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
 import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
+import {
+  FEE_COLLECTION_METHOD,
+  FEE_REFUND_STATE,
+} from '@/modules/fees/constants/fee.constant';
+import { feeSourceBalance } from '@/modules/fees/settlement/policies/fee-source-balance.policy';
 
 import { PAYOUT_SOURCE_KIND } from './constants/payout-source.constant';
 import {
@@ -14,7 +19,6 @@ import {
   PAYOUT_STATUS,
 } from './payouts/constants/payout.constant';
 import type { PayoutSource } from './payouts/types/payout.type';
-import { payoutSourceBalance } from './policies/payout-source-balance.policy';
 import type { PayoutSourceRow } from './types/payout-source.type';
 
 /** Sources remain attributable after late refunds; debt never consumes another order. */
@@ -34,6 +38,11 @@ export async function readPayoutSources(
       UNION ALL
       SELECT $10::varchar, c.id, c."orderId", c.amount
       FROM carrier_compensation_receipts c WHERE c."shopId"=$1 AND c.mode=$2 AND c.kind=$3
+      UNION ALL
+      SELECT $11::varchar, r.id, f."orderId", r.amount FROM fee_refunds r
+      JOIN fee_assessments f ON f.id=r."feeId"
+      WHERE f."shopId"=$1 AND f.mode=$2 AND r.mode=$2 AND r.state=$12
+        AND r.method=ANY($13::varchar[])
     )
     SELECT s.*,
       COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
@@ -41,10 +50,13 @@ export async function readPayoutSources(
       COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
         WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2
           AND p.status=ANY($5::varchar[]) AND ($6::uuid IS NULL OR p.id<>$6)),0) AS reserved,
-      (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
+      COALESCE((SELECT SUM(a.amount) FROM fee_offset_allocations a JOIN fee_collections c ON c.id=a."collectionId"
+        JOIN fee_assessments f ON f.id=c."feeId"
+        WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND c.mode=$2 AND f."shopId"=$1 AND f.mode=$2),0) AS "feeSpent",
+      (s.kind<>$11 AND (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
         WHERE c."orderId"=s."orderId" AND i.status=ANY($7::varchar[]))
        OR EXISTS(SELECT 1 FROM dispute_returns r WHERE r."orderId"=s."orderId" AND r.state<>ALL($8::varchar[])
-         AND NOT EXISTS(SELECT 1 FROM dispute_return_exceptions e WHERE e."returnId"=r.id))) AS blocked
+         AND NOT EXISTS(SELECT 1 FROM dispute_return_exceptions e WHERE e."returnId"=r.id)))) AS blocked
     FROM sources s ORDER BY s.kind,s."sourceId"`,
     [
       shopId,
@@ -57,6 +69,12 @@ export async function readPayoutSources(
       [RETURN_STATE.READY, RETURN_STATE.EXPIRED],
       PAYOUT_SOURCE_KIND.SETTLEMENT,
       PAYOUT_SOURCE_KIND.COMPENSATION,
+      PAYOUT_SOURCE_KIND.FEE_CORRECTION,
+      FEE_REFUND_STATE.SUCCEEDED,
+      [
+        FEE_COLLECTION_METHOD.SHOP_OFFSET,
+        FEE_COLLECTION_METHOD.CARRIER_NETTING,
+      ],
     ],
   );
   const result = {
@@ -67,13 +85,17 @@ export async function readPayoutSources(
     reviewHeld: 0,
     payoutLocked: 0,
     paidOut: 0,
+    feeDebited: 0,
+    feeSourceDebt: 0,
   };
   for (const row of rows) {
     const paid = Number(row.paid),
       reserved = Number(row.reserved);
-    const balance = payoutSourceBalance(
+    const feeSpent = Number(row.feeSpent);
+    const balance = feeSourceBalance(
       Number(row.net),
       paid,
+      feeSpent,
       reserved,
       row.blocked,
     );
@@ -82,10 +104,12 @@ export async function readPayoutSources(
       'paidOutDebt',
       'heldShortfall',
       'reviewHeld',
+      'feeSourceDebt',
     ] as const)
       result[key] += balance[key];
     result.payoutLocked += reserved;
     result.paidOut += paid;
+    result.feeDebited += feeSpent;
     if (balance.available > 0)
       result.sources.push({
         kind: row.kind,
@@ -103,6 +127,8 @@ export async function readPayoutSources(
       result.reviewHeld,
       result.payoutLocked,
       result.paidOut,
+      result.feeDebited,
+      result.feeSourceDebt,
     ].every((amount) => safeBalanceSchema.safeParse(amount).success)
   )
     throw new ConflictException('Payout totals exceed safe amount range');
@@ -116,10 +142,12 @@ export async function encumberedOrderSettlement(
   mode: ReconciliationMode,
 ) {
   const [row] = await manager.query(
-    `SELECT COALESCE(SUM(a.amount),0) AS amount
-    FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
-    WHERE a."orderId"=$1 AND a.mode=$2 AND p.mode=$2 AND a.kind=$3
-      AND p.status=ANY($4::varchar[])`,
+    `SELECT COALESCE(SUM(amount),0) AS amount FROM (
+      SELECT a.amount FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
+      WHERE a."orderId"=$1 AND a.mode=$2 AND p.mode=$2 AND a.kind=$3 AND p.status=ANY($4::varchar[])
+      UNION ALL SELECT a.amount FROM fee_offset_allocations a JOIN fee_collections c ON c.id=a."collectionId"
+      WHERE a."orderId"=$1 AND a.mode=$2 AND c.mode=$2 AND a.kind=$3
+    ) spent`,
     [
       orderId,
       mode,

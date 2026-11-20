@@ -137,6 +137,8 @@ export class CarrierCompensationReceipt extends BaseEntity {
 @Index(['mode', 'invoiceReference'], { unique: true })
 @Check('CHK_return_shipping_charge_positive', '"amount" > 0')
 export class ReturnShippingCharge extends BaseEntity {
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  waybillCode: string | null;
   @Column('uuid')
   returnId: string;
   @ManyToOne(() => DisputeReturn, { onDelete: 'RESTRICT' })

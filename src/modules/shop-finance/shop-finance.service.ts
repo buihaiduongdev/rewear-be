@@ -28,6 +28,10 @@ import {
   CarrierCompensationReceipt,
   ReturnShippingCharge,
 } from '@/modules/dispute/returns/entities/return-exception.entity';
+import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
+import { FeeAssessment } from '@/modules/fees/entities/fee.entity';
+import { feeOutstanding } from '@/modules/fees/fee-accounting';
+import { returnFeeOutstanding } from '@/modules/fees/settlement/fee-return-bridge';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
@@ -72,6 +76,14 @@ export class ShopFinanceService {
     const { carrierCompensation, returnFeePayable } =
       await this.readCarrierTotals(manager, shopId, mode);
     const payoutFunds = await readPayoutSources(manager, shopId, mode);
+    const feeRows = await manager.findBy(FeeAssessment, {
+      shopId,
+      mode,
+      party: FEE_PARTY.SHOP,
+    });
+    let feePayable = 0;
+    for (const fee of feeRows)
+      feePayable += await feeOutstanding(manager, fee.id);
     const { available } = payoutFunds;
     const held = funded - deductions.funded - released + lateDebit;
     const receivable = pending - deductions.receivable;
@@ -99,6 +111,9 @@ export class ShopFinanceService {
       paidOutDebt: payoutFunds.paidOutDebt,
       heldShortfall: payoutFunds.heldShortfall,
       reviewHeld: payoutFunds.reviewHeld,
+      feePayable,
+      feeDebited: payoutFunds.feeDebited,
+      feeSourceDebt: payoutFunds.feeSourceDebt,
     };
   }
 
@@ -167,14 +182,21 @@ export class ShopFinanceService {
     const returnCharges = await manager.find(ReturnShippingCharge, {
       where: { shopId, mode },
     });
-    const nettedCompensation = carrierReceipts
-      .filter(
-        (receipt) => receipt.kind === CARRIER_RECEIPT_KIND.VERIFIED_NETTING,
-      )
-      .reduce((sum, receipt) => sum + receipt.amount, 0);
-    const returnFeePayable =
-      returnCharges.reduce((sum, charge) => sum + charge.amount, 0) -
-      nettedCompensation;
+    let returnFeePayable = 0;
+    for (const charge of returnCharges) {
+      const chargeNetting = carrierReceipts
+        .filter(
+          (row) =>
+            row.chargeId === charge.id &&
+            row.kind === CARRIER_RECEIPT_KIND.VERIFIED_NETTING,
+        )
+        .reduce((sum, row) => sum + row.amount, 0);
+      returnFeePayable += await returnFeeOutstanding(
+        manager,
+        charge,
+        charge.amount - chargeNetting,
+      );
+    }
     return { carrierCompensation, returnFeePayable };
   }
 

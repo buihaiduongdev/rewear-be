@@ -7,6 +7,7 @@ import {
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
+import { settleShopFees } from '@/modules/fees/settlement/fee-offset';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
@@ -300,6 +301,7 @@ export class ShopPayoutService {
         ownerId: userId,
         bankAccountId: data.bankAccountId,
       });
+      await settleShopFees(manager, shopId, data.mode, now);
       const funds = await readPayoutSources(manager, shopId, data.mode);
       const allocations = allocatePayout(funds.sources, data.amount);
       const payout = await manager.save(

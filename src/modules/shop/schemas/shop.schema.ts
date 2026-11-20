@@ -15,6 +15,18 @@ export const shopSchema = z.object({
 
 export const shopListSchema = z.array(shopSchema);
 
+export const shopMembershipSchema = z.object({
+  id: z.uuid(),
+  shopId: z.uuid(),
+  userId: z.uuid(),
+  memberRole: z.enum(ShopMemberRole),
+  status: z.string().default('ACTIVE'),
+  joinedAt: dateTimeSchema,
+  shop: shopSchema,
+});
+
+export const shopMembershipListSchema = z.array(shopMembershipSchema);
+
 export const shopMemberRoleItemSchema = z.object({
   id: z.uuid(),
   name: z.string(),

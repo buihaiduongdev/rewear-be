@@ -19,6 +19,7 @@ import {
   CHECKOUT_REMOVAL_REASON,
   CHECKOUT_STATUS,
 } from '@/modules/checkout/constants/checkout.constant';
+import { snapshotFeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
@@ -82,6 +83,9 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       if (previous) {
         const replaySelectionHasChanged =
           previous.addressId !== input.addressId ||
+          (previous.feeDisclosure?.buyerAcceptedAt
+            ? previous.feeDisclosure.policyId
+            : undefined) !== input.feePolicyId ||
           JSON.stringify(previous.requestedProductIds) !==
             JSON.stringify(productIds);
         if (replaySelectionHasChanged) {
@@ -104,7 +108,17 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       await this.lockProductEligibility(manager, products);
       const cartView = await this.cartService.readCart(manager, buyerId);
 
+      const [{ disclosureNow }] = await manager.query(
+        'SELECT clock_timestamp() AS "disclosureNow"',
+      );
+      const feeDisclosure = await snapshotFeeDisclosure(
+        manager,
+        input,
+        [...new Set(products.map((product) => product.shopId))],
+        new Date(disclosureNow),
+      );
       const checkout = manager.create(Checkout, {
+        feeDisclosure,
         buyerId,
         requestId: input.requestId,
         addressId: input.addressId,

@@ -54,6 +54,7 @@ test('pricing requires a current complete server quote and snapshots Shop money,
     [
       {
         checkoutOrderId: 'order',
+        feeDisclosure: null,
         shopId: 'shop',
         shopName: 'Shop',
         subtotal: 200000,

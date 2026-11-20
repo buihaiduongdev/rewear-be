@@ -20,6 +20,7 @@ import type {
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { FeePaymentCapture } from '@/modules/fees/payments/entities/fee-payment.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
   ORDER_EVENT_ACTION,
@@ -342,6 +343,15 @@ export class PaymentService {
     await this.db.transaction(async (manager) => {
       const now = await this.lock(manager);
       const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
+      const captureAlreadyFundsFees =
+        result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
+        (await manager.existsBy(FeePaymentCapture, {
+          providerTransId: String(result.transId),
+        }));
+      if (captureAlreadyFundsFees)
+        throw new ConflictException(
+          'MoMo capture already belongs to a fee payment',
+        );
       const attemptIsSettled = (
         [
           PAYMENT_ATTEMPT_STATE.PAID,
@@ -506,6 +516,7 @@ export class PaymentService {
       manager.create(Order, {
         checkoutOrderId,
         checkoutId: checkout.id,
+        feeDisclosure: snapshot.feeDisclosure ?? null,
         paymentMethod: ORDER_PAYMENT_METHOD.MOMO,
         paymentId: attempt.id,
         buyerId: attempt.buyerId,

@@ -6,6 +6,7 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import type { MomoNotification } from '@/infrastructure/payment/momo-sandbox.client';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
+import { FeePaymentService } from '@/modules/fees/payments/fee-payment.service';
 import { User } from '@/modules/user/entities';
 
 import { PaymentService } from './payment.service';
@@ -19,7 +20,10 @@ import {
 @ApiTags('Payments')
 @Controller()
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly feePayments: FeePaymentService,
+  ) {}
 
   @AuthenticatedAccess()
   @Post('checkouts/:id/payments/momo')
@@ -61,6 +65,8 @@ export class PaymentController {
   @Post('payments/momo/ipn')
   @HttpCode(204)
   async ipn(@Body({ schema: momoIpnSchema }) input: MomoNotification) {
-    await this.paymentService.ipn(input);
+    if (await this.feePayments.handles(input.orderId))
+      await this.feePayments.ipn(input);
+    else await this.paymentService.ipn(input);
   }
 }

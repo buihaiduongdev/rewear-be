@@ -3,24 +3,32 @@ import z from 'zod';
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
+import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   CHECKOUT_MAX_ITEMS,
   CHECKOUT_STATUS,
 } from '../constants/checkout.constant';
 
-export const createCheckoutSchema = z.strictObject({
-  requestId: z.uuid(),
-  addressId: z.uuid(),
-  productIds: z
-    .array(z.uuid())
-    .min(1)
-    .max(CHECKOUT_MAX_ITEMS)
-    .refine(
-      (ids) => new Set(ids).size === ids.length,
-      'Duplicate products are not allowed',
-    ),
-});
+export const createCheckoutSchema = z
+  .strictObject({
+    feePolicyId: z.uuid().optional(),
+    feeTermsAccepted: z.literal(true).optional(),
+    requestId: z.uuid(),
+    addressId: z.uuid(),
+    productIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(CHECKOUT_MAX_ITEMS)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        'Duplicate products are not allowed',
+      ),
+  })
+  .refine(
+    (input) => Boolean(input.feePolicyId) === Boolean(input.feeTermsAccepted),
+    'Fee policy and explicit acceptance must be supplied together',
+  );
 
 const addressSchema = z.object({
   recipientName: z.string(),
@@ -36,6 +44,7 @@ const addressSchema = z.object({
   deliveryInstructions: z.string().nullable(),
 });
 export const checkoutSchema = z.object({
+  feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   status: z.enum(CHECKOUT_STATUS),
   expiresAt: dateTimeSchema.nullable(),

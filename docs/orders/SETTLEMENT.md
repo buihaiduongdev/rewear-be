@@ -97,3 +97,8 @@ local PostgreSQL, real HTTP/JWT permission checks and exact time boundaries.
 ## Wallet refund execution update
 
 [Exact-amount refund execution](DISPUTE_REFUNDS.md) queues final plans, credits eligible wallets and adjusts seller settlement. [Verified return/safety/carrier workflows](DISPUTE_RETURNS.md) establish execution prerequisites.
+
+
+## Verified fees and debt update
+
+[Fees and debt](FEES_AND_DEBT.md) now provides prior-disclosure snapshots, verified invoice assessment, Buyer wallet/MoMo payments, same-Shop available-fund offsets, objections/corrections and source refunds. New payout requests settle collectible Shop fees before allocation; existing payout locks remain protected. Missing legacy disclosure/waybill snapshots are not repaired automatically. Unsupported small provider refunds remain pending review rather than being reported completed.

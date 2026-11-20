@@ -20,7 +20,12 @@ import { PublicAccess } from '@/modules/authorization/decorators/public-access.d
 import { User } from '@/modules/user/entities';
 
 import { Shop } from './entities';
-import { shopListSchema, shopMemberListSchema, shopSchema } from './schemas';
+import {
+  shopListSchema,
+  shopMemberListSchema,
+  shopMembershipListSchema,
+  shopSchema,
+} from './schemas';
 import {
   createShopSchema,
   inviteSchema,
@@ -48,6 +53,14 @@ export class ShopController {
   @Serialize(shopListSchema)
   findAll(): Promise<Shop[]> {
     return this.shopService.findAll();
+  }
+
+  @Get('shops/me')
+  @ApiBearerAuth()
+  @AuthenticatedAccess()
+  @Serialize(shopMembershipListSchema)
+  findMine(@CurrentUser() currentUser: User) {
+    return this.shopService.findMyMemberships(currentUser.id);
   }
 
   @Get('shops/:shopId')

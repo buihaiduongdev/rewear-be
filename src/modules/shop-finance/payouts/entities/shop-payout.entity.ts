@@ -3,7 +3,11 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
-import type { PayoutStatus, RecipientSnapshot } from '../types/payout.type';
+import type {
+  PayoutSource,
+  PayoutStatus,
+  RecipientSnapshot,
+} from '../types/payout.type';
 
 @Entity('shop_payouts')
 @Index('UQ_shop_payout_active', ['shopId'], {
@@ -68,7 +72,7 @@ export class ShopPayoutAllocation extends BaseEntity {
   @JoinColumn({ name: 'payoutId' })
   payout: ShopPayout;
   @Column({ type: 'varchar', length: 20 })
-  kind: 'SETTLEMENT' | 'COMPENSATION';
+  kind: PayoutSource['kind'];
   @Column('uuid')
   sourceId: string;
   @Column('uuid')
