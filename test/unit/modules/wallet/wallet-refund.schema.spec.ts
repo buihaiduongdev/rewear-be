@@ -2,6 +2,7 @@ import { orderRefundSchema } from '@/modules/wallet/schemas/wallet-refund.schema
 
 describe('order cancellation refund validation', () => {
   it.each([
+    { subtotal: 1000, shippingFee: 300, coinDiscount: 100, total: 1200 },
     { subtotal: 0, shippingFee: 0, total: 0 },
     { subtotal: 2147483647, shippingFee: 0, total: 2147483647 },
   ])('accepts valid VND snapshots including boundaries: %j', (input) => {

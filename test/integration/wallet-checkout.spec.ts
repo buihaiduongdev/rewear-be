@@ -17,6 +17,10 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import {
+  CoinGrant,
+  CoinOrderDebit,
+} from '@/modules/coins/core/entities/coin.entity';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
@@ -212,6 +216,407 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       .getRepository(WalletCredit)
       .save({ userId: buyerId, orderId: order.id, amount: 230000, mode });
   }
+  async function coinSelection(
+    buyerId: string,
+    checkoutId: string,
+    mode: 'EVIDENCE' | 'SIMULATION',
+  ) {
+    const db = database.dataSource;
+    const grant = await db.getRepository(CoinGrant).save({
+      buyerId,
+      mode,
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 20000,
+      expiresAt: new Date(Date.now() + 1000),
+    });
+    const checkoutService = new CheckoutService(db, {} as CartService);
+    await checkoutService.selectCoins(buyerId, checkoutId, {
+      requestId: randomUUID(),
+      amount: 20000,
+      mode,
+    });
+    return grant;
+  }
+
+  it('captures wallet remainder and burns held coins even when source expires during the live checkout', async () => {
+    const { db, buyer, checkout } = await fixture();
+    await fund(buyer.id);
+    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    await db
+      .getRepository(CoinGrant)
+      .update(grant.id, { expiresAt: new Date(Date.now() - 1000) });
+    const hold = await wallet.reserve(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+      mode: 'EVIDENCE',
+      expectedTotal: 210000,
+    });
+    expect(hold.amount).toBe(210000);
+    await wallet.confirm(buyer.id, hold.id);
+    const order = await db
+      .getRepository(Order)
+      .findOneByOrFail({ checkoutId: checkout.id });
+    expect(order).toMatchObject({
+      subtotal: 200000,
+      shippingFee: 30000,
+      total: 210000,
+      coinDiscount: 20000,
+      coinMode: 'EVIDENCE',
+    });
+    expect(
+      await db
+        .getRepository(CoinOrderDebit)
+        .findOneByOrFail({ orderId: order.id }),
+    ).toMatchObject({ amount: 20000, mode: 'EVIDENCE' });
+    expect(
+      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 0, spent: 20000 });
+  });
+
+  it('charges MoMo only the remainder and freezes coins while provider outcome is unresolved', async () => {
+    const { db, buyer, checkout } = await fixture();
+    await coinSelection(buyer.id, checkout.id, 'SIMULATION');
+    const pricing = new PaymentPricing(
+      new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+    );
+    const momo = new PaymentService(
+      db,
+      client as unknown as MomoSandboxClient,
+      pricing,
+    );
+    const attempt = await momo.create(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+    });
+    expect(attempt.amount).toBe(210000);
+    await expect(
+      new CheckoutService(db, {} as CartService).selectCoins(
+        buyer.id,
+        checkout.id,
+        { requestId: randomUUID(), amount: 0, mode: 'SIMULATION' },
+      ),
+    ).rejects.toThrow('Resolve payment');
+    await momo.applyResult(attempt.id, {
+      partnerCode: 'MOMO',
+      requestId: attempt.id,
+      orderId: attempt.id,
+      amount: 210000,
+      resultCode: 0,
+      transId: 123456789,
+    });
+    const order = await db
+      .getRepository(Order)
+      .findOneByOrFail({ checkoutId: checkout.id });
+    expect(order).toMatchObject({
+      total: 210000,
+      subtotal: 200000,
+      coinDiscount: 20000,
+    });
+    expect(
+      await db
+        .getRepository(CoinOrderDebit)
+        .findOneByOrFail({ orderId: order.id }),
+    ).toMatchObject({ mode: 'SIMULATION', amount: 20000 });
+  });
+
+  it('credits gross cancellation money once while consumed coins remain spent', async () => {
+    const { db, buyer, checkout } = await fixture();
+    await fund(buyer.id);
+    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    const hold = await wallet.reserve(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+      mode: 'EVIDENCE',
+      expectedTotal: 210000,
+    });
+    await wallet.confirm(buyer.id, hold.id);
+    const order = await db
+      .getRepository(Order)
+      .findOneByOrFail({ checkoutId: checkout.id });
+    const refunds = new WalletService(db);
+    await db.transaction(async (manager) => {
+      const first = await refunds.creditCancellation(manager, order);
+      const replay = await refunds.creditCancellation(manager, order);
+      expect(first?.id).toBe(replay?.id);
+      expect(first).toMatchObject({ amount: 230000, mode: 'EVIDENCE' });
+    });
+    expect(
+      await db
+        .getRepository(WalletAccount)
+        .findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 250000, heldBalance: 0 });
+    expect(
+      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 0, spent: 20000 });
+  });
+
+  it('credits gross wallet cancellation with coins once and leaves consumed coins spent', async () => {
+    const { db, buyer, checkout } = await fixture();
+    await fund(buyer.id);
+    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    const hold = await wallet.reserve(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+      mode: 'EVIDENCE',
+      expectedTotal: 210000,
+    });
+    await wallet.confirm(buyer.id, hold.id);
+    const order = await db
+      .getRepository(Order)
+      .findOneByOrFail({ checkoutId: checkout.id });
+    const credits = new WalletService(db);
+    await db.transaction(async (manager) => {
+      const first = await credits.creditCancellation(manager, order);
+      const second = await credits.creditCancellation(manager, order);
+      expect(first?.id).toBe(second?.id);
+      expect(first).toMatchObject({ amount: 230000, mode: 'EVIDENCE' });
+    });
+    expect(
+      await db
+        .getRepository(WalletAccount)
+        .findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 250000, heldBalance: 0 });
+    expect(
+      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ spent: 20000, held: 0 });
+  });
+
+  it('rejects mixed wallet mode without moving either money or the selected coin hold', async () => {
+    const { db, buyer, checkout } = await fixture();
+    await fund(buyer.id, 'SIMULATION');
+    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    await expect(
+      wallet.reserve(buyer.id, checkout.id, {
+        requestId: randomUUID(),
+        mode: 'SIMULATION',
+        expectedTotal: 210000,
+      }),
+    ).rejects.toThrow('same mode');
+    expect(
+      await db
+        .getRepository(WalletCheckoutHold)
+        .countBy({ checkoutId: checkout.id }),
+    ).toBe(0);
+    expect(
+      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 20000, spent: 0 });
+    expect(
+      await db
+        .getRepository(WalletAccount)
+        .findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ simulationBalance: 230000, simulationHeldBalance: 0 });
+  });
+
+  it.each(['cancel', 'expire'] as const)(
+    'releases expired-source held lots on checkout %s without reviving them',
+    async (action) => {
+      const { db, buyer, checkout } = await fixture();
+      const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+      const expiry = new Date(Date.now() - 1000);
+      await db.getRepository(CoinGrant).update(grant.id, { expiresAt: expiry });
+      const service = new CheckoutService(db, {} as CartService);
+      if (action === 'cancel') await service.cancel(buyer.id, checkout.id);
+      else {
+        await db
+          .getRepository(Checkout)
+          .update(checkout.id, { expiresAt: expiry });
+        await service.expire();
+      }
+      expect(
+        await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+      ).toMatchObject({ held: 0, spent: 0, expiresAt: expiry });
+    },
+  );
+
+  it('allocates multi-Shop checkout discount over gross items with exact total', async () => {
+    const first = await fixture();
+    const second = await fixture();
+    await first.db
+      .getRepository(CheckoutOrder)
+      .update(
+        { checkoutId: second.checkout.id },
+        { checkoutId: first.checkout.id },
+      );
+    await first.db.getRepository(Product).update(second.product.id, {
+      reservationId: first.checkout.id,
+      heldUntil: first.checkout.expiresAt,
+    });
+    await first.db
+      .getRepository(Checkout)
+      .update(second.checkout.id, { status: 'CANCELLED' });
+    await first.db.getRepository(CoinGrant).save({
+      buyerId: first.buyer.id,
+      mode: 'SIMULATION',
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 40000,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    await new CheckoutService(first.db, {} as CartService).selectCoins(
+      first.buyer.id,
+      first.checkout.id,
+      { requestId: randomUUID(), amount: 40000, mode: 'SIMULATION' },
+    );
+    const pricing = new PaymentPricing(
+      new ShippingQuoteService(
+        first.db,
+        carrier as unknown as GhnSandboxAdapter,
+      ),
+    );
+    const momo = new PaymentService(
+      first.db,
+      client as unknown as MomoSandboxClient,
+      pricing,
+    );
+    const attempt = await momo.create(first.buyer.id, first.checkout.id, {
+      requestId: randomUUID(),
+    });
+    expect(attempt.amount).toBe(420000);
+    const saved = await first.db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: attempt.id });
+    expect(saved.orders).toHaveLength(2);
+    expect(saved.orders.map((row) => row.coinDiscount)).toEqual([20000, 20000]);
+    expect(
+      saved.orders
+        .flatMap((row) => row.items)
+        .reduce((sum, row) => sum + (row.coinDiscount ?? 0), 0),
+    ).toBe(40000);
+    expect(saved.orders.map((row) => row.subtotal)).toEqual([200000, 200000]);
+  });
+
+  it('requires conscious coin reduction when the selected discount puts MoMo below its minimum', async () => {
+    const f = await fixture();
+    const snapshot = await f.db
+      .getRepository(CheckoutOrder)
+      .findOneByOrFail({ checkoutId: f.checkout.id });
+    await f.db.getRepository(CheckoutOrder).update(snapshot.id, {
+      subtotal: 1000,
+      shippingFee: 0,
+      items: snapshot.items.map((item) => ({ ...item, price: 1000 })),
+    });
+    carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
+    await f.db.getRepository(CoinGrant).save({
+      buyerId: f.buyer.id,
+      mode: 'SIMULATION',
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 100,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    const service = new CheckoutService(f.db, {} as CartService);
+    await service.selectCoins(f.buyer.id, f.checkout.id, {
+      requestId: randomUUID(),
+      amount: 100,
+      mode: 'SIMULATION',
+    });
+    const pricing = new PaymentPricing(
+      new ShippingQuoteService(f.db, carrier as unknown as GhnSandboxAdapter),
+    );
+    const momo = new PaymentService(
+      f.db,
+      client as unknown as MomoSandboxClient,
+      pricing,
+    );
+    await expect(
+      momo.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
+    ).rejects.toThrow('outside MoMo limits');
+    expect(
+      await f.db.getRepository(Checkout).findOneByOrFail({ id: f.checkout.id }),
+    ).toMatchObject({ coinDiscount: 100 });
+    expect(
+      await f.db
+        .getRepository(PaymentAttempt)
+        .countBy({ checkoutId: f.checkout.id }),
+    ).toBe(0);
+    await service.selectCoins(f.buyer.id, f.checkout.id, {
+      requestId: randomUUID(),
+      amount: 0,
+      mode: 'SIMULATION',
+    });
+    expect(
+      (
+        await momo.create(f.buyer.id, f.checkout.id, {
+          requestId: randomUUID(),
+        })
+      ).amount,
+    ).toBe(1000);
+  });
+
+  it('retains an explicit coin selection when MoMo remainder falls below its minimum', async () => {
+    const { db, buyer, checkout } = await fixture();
+    const snapshot = await db
+      .getRepository(CheckoutOrder)
+      .findOneByOrFail({ checkoutId: checkout.id });
+    snapshot.subtotal = 1000;
+    snapshot.items[0].price = 1000;
+    await db.getRepository(CheckoutOrder).save(snapshot);
+    carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
+    const grant = await db.getRepository(CoinGrant).save({
+      buyerId: buyer.id,
+      mode: 'SIMULATION',
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 100,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    const selection = new CheckoutService(db, {} as CartService);
+    await selection.selectCoins(buyer.id, checkout.id, {
+      requestId: randomUUID(),
+      amount: 100,
+      mode: 'SIMULATION',
+    });
+    const pricing = new PaymentPricing(
+      new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+    );
+    await expect(
+      new PaymentService(
+        db,
+        client as unknown as MomoSandboxClient,
+        pricing,
+      ).create(buyer.id, checkout.id, { requestId: randomUUID() }),
+    ).rejects.toThrow('outside MoMo limits');
+    expect(
+      await db.getRepository(Checkout).findOneByOrFail({ id: checkout.id }),
+    ).toMatchObject({ coinDiscount: 100 });
+    expect(
+      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 100, spent: 0 });
+    expect(
+      await db
+        .getRepository(PaymentAttempt)
+        .countBy({ checkoutId: checkout.id }),
+    ).toBe(0);
+  });
+
+  it('serializes competing coin selections across two live checkouts', async () => {
+    const first = await fixture();
+    const second = await fixture();
+    await first.db
+      .getRepository(Checkout)
+      .update(second.checkout.id, { buyerId: first.buyer.id });
+    const grant = await first.db.getRepository(CoinGrant).save({
+      buyerId: first.buyer.id,
+      mode: 'EVIDENCE',
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 20000,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    const service = new CheckoutService(first.db, {} as CartService);
+    const results = await Promise.allSettled(
+      [first.checkout.id, second.checkout.id].map((id) =>
+        service.selectCoins(first.buyer.id, id, {
+          requestId: randomUUID(),
+          amount: 20000,
+          mode: 'EVIDENCE',
+        }),
+      ),
+    );
+    expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((row) => row.status === 'rejected')).toHaveLength(1);
+    expect(
+      await first.db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 20000, spent: 0 });
+  });
+
   it('reserves full verified balance and captures once without extending inventory TTL', async () => {
     const { db, buyer, checkout, product } = await fixture();
     await fund(buyer.id);

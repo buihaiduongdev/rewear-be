@@ -2,6 +2,7 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
@@ -22,6 +23,8 @@ export const rejectOrderSchema = z.strictObject({
 });
 export const acceptOrderSchema = z.strictObject({});
 export const orderSchema = z.object({
+  coinDiscount: z.number().int().nonnegative().default(0),
+  coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
   feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   paymentId: z.uuid().nullable(),

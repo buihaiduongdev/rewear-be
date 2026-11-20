@@ -22,6 +22,7 @@ export type CheckoutAddress = {
   deliveryInstructions: string | null;
 };
 export type CheckoutItem = {
+  coinDiscount?: number;
   shippingPackage: ResolvedShippingPackage | null;
   productId: string;
   title: string;

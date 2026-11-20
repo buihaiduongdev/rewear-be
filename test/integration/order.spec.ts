@@ -111,6 +111,8 @@ describe('paid order acceptance with PostgreSQL', () => {
       requestId: randomUUID(),
       amount: 230000,
       orders: [],
+      capturedAmount: 230000,
+      providerTransId: randomUUID(),
       state: 'PAID',
       nextQueryAt: new Date(),
       paidAt: new Date(),
@@ -118,6 +120,7 @@ describe('paid order acceptance with PostgreSQL', () => {
     const order = await db.getRepository(Order).save({
       checkoutOrderId: randomUUID(),
       paymentId: payment.id,
+      checkoutId: checkout.id,
       buyerId: buyer.id,
       shopId: shop.id,
       shopName: shop.name,
@@ -139,6 +142,20 @@ describe('paid order acceptance with PostgreSQL', () => {
       ],
       sellerConfirmBy: new Date(Date.now() + 86400000),
     });
+    Object.assign(payment, {
+      orders: [
+        {
+          checkoutOrderId: order.checkoutOrderId,
+          shopId: shop.id,
+          shopName: shop.name,
+          subtotal: order.subtotal,
+          shippingFee: order.shippingFee,
+          address: order.address,
+          items: order.items,
+        },
+      ],
+    });
+    await db.getRepository(PaymentAttempt).save(payment);
     await db.getRepository(Product).update(product.id, {
       status: ProductStatus.SOLD,
       soldOrderId: order.id,
@@ -256,9 +273,22 @@ describe('paid order acceptance with PostgreSQL', () => {
       checkoutOrderId: randomUUID(),
       items: [],
     });
-    await f.db
-      .getRepository(PaymentAttempt)
-      .update(f.payment.id, { amount: 460000 });
+    await f.db.getRepository(PaymentAttempt).update(f.payment.id, {
+      amount: 460000,
+      capturedAmount: 460000,
+      orders: [
+        ...f.payment.orders,
+        {
+          checkoutOrderId: sibling.checkoutOrderId,
+          shopId: sibling.shopId,
+          shopName: sibling.shopName,
+          subtotal: sibling.subtotal,
+          shippingFee: sibling.shippingFee,
+          address: sibling.address,
+          items: sibling.items,
+        },
+      ],
+    });
     await Promise.all([
       service.reject(f.owner.id, f.shop.id, f.order.id, {
         reason: 'Cannot fulfil',

@@ -5,6 +5,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -106,6 +107,8 @@ export class WalletCheckoutService {
         throw new ConflictException(
           'Resolve external payment before choosing wallet',
         );
+      if ((checkout.coinDiscount ?? 0) > 0 && checkout.coinMode !== input.mode)
+        throw new ConflictException('Wallet and coins must use the same mode');
       const orders = await this.pricing.snapshot(manager, checkout, quote);
       const amount = walletCheckoutTotal(orders, input.expectedTotal);
       const stockCheckedAt = await this.validateStock(
@@ -211,6 +214,16 @@ export class WalletCheckoutService {
       }
       const debit = await this.captureHeldFunds(manager, hold, stockCheckedAt);
       await this.createOrders(manager, hold, checkout, debit, stockCheckedAt);
+      const createdOrders = await manager.find(Order, {
+        where: { checkoutId: checkout.id },
+      });
+      await new CoinService().consumeCheckoutCoins(
+        manager,
+        checkout.id,
+        createdOrders,
+        hold.mode,
+        stockCheckedAt,
+      );
       checkout.status = CHECKOUT_STATUS.PAID;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
@@ -281,7 +294,10 @@ export class WalletCheckoutService {
           walletDebitId: debit.id,
           paymentMethod: ORDER_PAYMENT_METHOD.WALLET,
           status: ORDER_STATUS.PENDING,
-          total: snapshot.subtotal + snapshot.shippingFee,
+          total:
+            snapshot.subtotal +
+            snapshot.shippingFee -
+            (snapshot.coinDiscount ?? 0),
           commissionBasisPoints: ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS,
           sellerConfirmBy: new Date(
             now.getTime() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,

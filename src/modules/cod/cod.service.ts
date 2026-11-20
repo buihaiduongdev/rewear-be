@@ -7,6 +7,7 @@ import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { assertFeeCodEligibility } from '@/modules/fees/settlement/fee-cod-gate';
 import { settleShopFees } from '@/modules/fees/settlement/fee-offset';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
@@ -114,7 +115,7 @@ export class CodService {
       const snapshots = await this.pricing.snapshot(manager, checkout, quote);
       this.assertExpectedTotal(
         snapshots.map((order) => ({
-          total: order.subtotal + order.shippingFee,
+          total: order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
         })),
         expectedTotal,
       );
@@ -136,6 +137,7 @@ export class CodService {
         snapshots,
         now,
       );
+      await new CoinService().commitCodCoins(manager, checkout.id, orders, now);
       checkout.status = CHECKOUT_STATUS.COD_PLACED;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
@@ -242,7 +244,8 @@ export class CodService {
   ) {
     const orders: Order[] = [];
     for (const snapshot of snapshots) {
-      const total = snapshot.subtotal + snapshot.shippingFee;
+      const total =
+        snapshot.subtotal + snapshot.shippingFee - (snapshot.coinDiscount ?? 0);
       if (!codOrderTotalSchema.safeParse(total).success)
         throw new ConflictException('Order total is outside COD limits');
       const order = await manager.save(

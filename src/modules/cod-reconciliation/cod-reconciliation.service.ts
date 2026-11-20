@@ -5,6 +5,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import type { ReconciliationReviewReason } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/return-exception.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
@@ -280,6 +281,8 @@ export class CodReconciliationService {
     if (isInvalidCollectionTime)
       throw new ConflictException('Invalid collection time');
     const money = reconciliationMoney(order);
+    if (data.collectedAmount === order.total && (order.coinDiscount ?? 0) > 0)
+      await new CoinService().consumeOrderCoins(manager, order, data.mode, now);
     const isInvalidExpectedAmount = order.total <= 0;
     if (isInvalidExpectedAmount)
       throw new ConflictException('COD expected amount must be positive');

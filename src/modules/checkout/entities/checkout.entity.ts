@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 import { User } from '@/modules/user/entities';
 
@@ -14,6 +15,10 @@ import type {
 @Index('UQ_checkout_buyer_request', ['buyerId', 'requestId'], { unique: true })
 @Index('IDX_checkout_expiry', ['status', 'expiresAt'])
 export class Checkout extends BaseEntity {
+  @Column({ type: 'integer', default: 0 })
+  coinDiscount: number;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  coinMode: ReconciliationMode | null;
   @Column({ type: 'jsonb', nullable: true })
   feeDisclosure: FeeDisclosure | null;
   @Column({ default: false })

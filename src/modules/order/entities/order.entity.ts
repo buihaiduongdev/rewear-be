@@ -5,6 +5,7 @@ import type {
   CheckoutAddress,
   CheckoutItem,
 } from '@/modules/checkout/types/checkout.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { WalletDebit } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
@@ -27,6 +28,10 @@ import type {
 @Index(['shopId', 'status', 'createdAt'])
 @Index(['status', 'sellerConfirmBy'])
 export class Order extends BaseEntity {
+  @Column({ type: 'integer', default: 0 })
+  coinDiscount: number;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  coinMode: ReconciliationMode | null;
   @Column({ type: 'jsonb', nullable: true })
   feeDisclosure: FeeDisclosure | null;
   @Column({ type: 'uuid', nullable: true })

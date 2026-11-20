@@ -15,6 +15,11 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import {
+  CoinGrant,
+  CoinOrderDebit,
+  CoinReservation,
+} from '@/modules/coins/core/entities/coin.entity';
 import { Order } from '@/modules/order/entities/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
@@ -158,6 +163,48 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     });
     return { db, buyer, owner, shop, product, checkout };
   }
+
+  it('commits coins to COD order holds and keeps collection net without spending before collection', async () => {
+    const f = await fixture();
+    const grant = await f.db.getRepository(CoinGrant).save({
+      buyerId: f.buyer.id,
+      mode: 'EVIDENCE',
+      source: 'PROGRAM',
+      sourceId: randomUUID(),
+      amount: 20000,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    await new CheckoutService(f.db, {} as CartService).selectCoins(
+      f.buyer.id,
+      f.checkout.id,
+      { requestId: randomUUID(), amount: 20000, mode: 'EVIDENCE' },
+    );
+    const [order] = await cod.place(f.buyer.id, f.checkout.id, {
+      expectedTotal: 210000,
+    });
+    expect(order).toMatchObject({
+      subtotal: 200000,
+      shippingFee: 30000,
+      total: 210000,
+      coinDiscount: 20000,
+      coinMode: 'EVIDENCE',
+    });
+    expect(
+      await f.db.getRepository(CoinOrderDebit).countBy({ orderId: order.id }),
+    ).toBe(0);
+    expect(
+      await f.db
+        .getRepository(CoinReservation)
+        .findOneByOrFail({ orderId: order.id, state: 'COD' }),
+    ).toMatchObject({ amount: 20000, expiresAt: null });
+    await f.db
+      .getRepository(Checkout)
+      .update(f.checkout.id, { expiresAt: new Date(Date.now() - 1000) });
+    await new CheckoutService(f.db, {} as CartService).expire();
+    expect(
+      await f.db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
+    ).toMatchObject({ held: 20000, spent: 0 });
+  });
 
   it('rejects reserved stock whose moderation is no longer approved', async () => {
     for (const status of [ProductModerationStatus.PENDING, null]) {

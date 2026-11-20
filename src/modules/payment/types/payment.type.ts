@@ -2,6 +2,7 @@ import type {
   CheckoutAddress,
   CheckoutItem,
 } from '@/modules/checkout/types/checkout.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import type {
@@ -24,6 +25,8 @@ export type CaptureDisposition =
   (typeof PAYMENT_CAPTURE_DISPOSITION)[keyof typeof PAYMENT_CAPTURE_DISPOSITION];
 
 export interface PaymentOrderSnapshot {
+  coinDiscount?: number;
+  coinMode?: ReconciliationMode | null;
   feeDisclosure?: FeeDisclosure | null;
   checkoutOrderId: string;
   shopId: string;

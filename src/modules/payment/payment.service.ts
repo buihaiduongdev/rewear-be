@@ -20,6 +20,8 @@ import type {
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { FeePaymentCapture } from '@/modules/fees/payments/entities/fee-payment.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
@@ -188,9 +190,15 @@ export class PaymentService {
       );
     checkout.walletPaymentSelected = false;
     await manager.save(checkout);
+    if (
+      (checkout.coinDiscount ?? 0) > 0 &&
+      checkout.coinMode !== RECONCILIATION_MODE.SIMULATION
+    )
+      throw new ConflictException('MoMo Sandbox requires simulation coins');
     const orders = await this.pricing.snapshot(manager, checkout, quote);
     const amount = orders.reduce(
-      (sum, order) => sum + order.subtotal + order.shippingFee,
+      (sum, order) =>
+        sum + order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
       0,
     );
     const amountIsOutsideMomoLimits =
@@ -466,6 +474,14 @@ export class PaymentService {
         ),
       }),
       ownsAllProducts:
+        attempt.orders.reduce(
+          (sum, row) => sum + (row.coinDiscount ?? 0),
+          0,
+        ) === (checkout.coinDiscount ?? 0) &&
+        attempt.orders.every(
+          (row) =>
+            !(row.coinDiscount ?? 0) || row.coinMode === checkout.coinMode,
+        ) &&
         !checkout.walletPaymentSelected &&
         (!checkout.walletSelectedAt ||
           attempt.createdAt >= checkout.walletSelectedAt) &&
@@ -484,6 +500,16 @@ export class PaymentService {
     for (const snapshot of attempt.orders) {
       await this.createCapturedOrder(manager, attempt, checkout, snapshot, now);
     }
+    const createdOrders = await manager.find(Order, {
+      where: { checkoutId: checkout.id },
+    });
+    await new CoinService().consumeCheckoutCoins(
+      manager,
+      checkout.id,
+      createdOrders,
+      RECONCILIATION_MODE.SIMULATION,
+      now,
+    );
     checkout.status = CHECKOUT_STATUS.PAID;
     await manager.save(checkout);
     const cart = await manager.findOneBy(Cart, {
@@ -524,7 +550,9 @@ export class PaymentService {
         shopName,
         subtotal,
         shippingFee,
-        total: subtotal + shippingFee,
+        coinDiscount: snapshot.coinDiscount ?? 0,
+        coinMode: snapshot.coinMode ?? null,
+        total: subtotal + shippingFee - (snapshot.coinDiscount ?? 0),
         address,
         items,
         status: ORDER_STATUS.PENDING,
