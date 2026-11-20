@@ -13,6 +13,10 @@ import type {
 @Index('UQ_checkout_buyer_request', ['buyerId', 'requestId'], { unique: true })
 @Index('IDX_checkout_expiry', ['status', 'expiresAt'])
 export class Checkout extends BaseEntity {
+  @Column({ default: false })
+  walletPaymentSelected: boolean;
+  @Column({ type: 'timestamptz', nullable: true })
+  walletSelectedAt: Date | null;
   @Column('uuid')
   buyerId: string;
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

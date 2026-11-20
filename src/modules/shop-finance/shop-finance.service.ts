@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
@@ -24,9 +28,12 @@ import {
   CarrierCompensationReceipt,
   ReturnShippingCharge,
 } from '@/modules/dispute/returns/entities/return-exception.entity';
+import { ShopMember } from '@/modules/shop/entities';
+import { ShopMemberRole } from '@/modules/shop/enums';
 
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import { ShopSettlement } from './entities/shop-settlement.entity';
+import { readPayoutSources } from './payout-sources';
 
 @Injectable()
 export class ShopFinanceService {
@@ -35,6 +42,13 @@ export class ShopFinanceService {
     const data = financeListSchema.parse(input);
     const mode = data.mode ?? RECONCILIATION_MODE.EVIDENCE;
     return this.db.transaction('REPEATABLE READ', async (manager) => {
+      const owner = await manager.existsBy(ShopMember, {
+        shopId,
+        userId,
+        memberRole: ShopMemberRole.OWNER,
+      });
+      if (!owner)
+        throw new ForbiddenException('Shop finance Owner access required');
       const totals = await this.readTotals(manager, shopId, mode);
       const history = await this.readHistory(
         manager,
@@ -47,6 +61,48 @@ export class ShopFinanceService {
   }
 
   private async readTotals(
+    manager: EntityManager,
+    shopId: string,
+    mode: ReconciliationMode,
+  ) {
+    const { funded, released, releasedRefundDebit, pending } =
+      await this.readFundingTotals(manager, shopId, mode);
+    const deductions = await shopRefundDeductions(manager, shopId, mode);
+    const lateDebit = deductions.settled - releasedRefundDebit;
+    const { carrierCompensation, returnFeePayable } =
+      await this.readCarrierTotals(manager, shopId, mode);
+    const payoutFunds = await readPayoutSources(manager, shopId, mode);
+    const { available } = payoutFunds;
+    const held = funded - deductions.funded - released + lateDebit;
+    const receivable = pending - deductions.receivable;
+    const hasInvalidHeldTotal = !safeBalanceSchema.safeParse(held).success;
+    const hasInvalidReceivableTotal =
+      !safeBalanceSchema.safeParse(receivable).success;
+    const hasInvalidAvailableTotal =
+      !safeBalanceSchema.safeParse(available).success;
+    const hasInvalidFundedTotal = !safeBalanceSchema.safeParse(funded).success;
+    const exceedsSafeRange =
+      hasInvalidHeldTotal ||
+      hasInvalidReceivableTotal ||
+      hasInvalidAvailableTotal ||
+      hasInvalidFundedTotal;
+    if (exceedsSafeRange)
+      throw new ConflictException('Shop totals exceed safe amount range');
+    return {
+      held,
+      receivable,
+      available,
+      carrierCompensation,
+      returnFeePayable,
+      payoutLocked: payoutFunds.payoutLocked,
+      paidOut: payoutFunds.paidOut,
+      paidOutDebt: payoutFunds.paidOutDebt,
+      heldShortfall: payoutFunds.heldShortfall,
+      reviewHeld: payoutFunds.reviewHeld,
+    };
+  }
+
+  private async readFundingTotals(
     manager: EntityManager,
     shopId: string,
     mode: ReconciliationMode,
@@ -88,11 +144,19 @@ export class ShopFinanceService {
         mode,
       })
       .getRawOne<{ total: string; refundDebit: string }>();
-    const funded = Number(heldRow?.total ?? 0);
-    const released = Number(releasedRow?.total ?? 0);
-    const deductions = await shopRefundDeductions(manager, shopId, mode);
-    const lateDebit =
-      deductions.settled - Number(releasedRow?.refundDebit ?? 0);
+    return {
+      funded: Number(heldRow?.total ?? 0),
+      released: Number(releasedRow?.total ?? 0),
+      releasedRefundDebit: Number(releasedRow?.refundDebit ?? 0),
+      pending: Number(pendingRow?.total ?? 0),
+    };
+  }
+
+  private async readCarrierTotals(
+    manager: EntityManager,
+    shopId: string,
+    mode: ReconciliationMode,
+  ) {
     const carrierReceipts = await manager.find(CarrierCompensationReceipt, {
       where: { shopId, mode },
     });
@@ -111,30 +175,7 @@ export class ShopFinanceService {
     const returnFeePayable =
       returnCharges.reduce((sum, charge) => sum + charge.amount, 0) -
       nettedCompensation;
-    const available =
-      released - lateDebit + carrierCompensation - nettedCompensation;
-    const held = funded - deductions.funded - released + lateDebit;
-    const receivable = Number(pendingRow?.total ?? 0) - deductions.receivable;
-    const hasInvalidHeldTotal = !safeBalanceSchema.safeParse(held).success;
-    const hasInvalidReceivableTotal =
-      !safeBalanceSchema.safeParse(receivable).success;
-    const hasInvalidAvailableTotal =
-      !safeBalanceSchema.safeParse(available).success;
-    const hasInvalidFundedTotal = !safeBalanceSchema.safeParse(funded).success;
-    const exceedsSafeRange =
-      hasInvalidHeldTotal ||
-      hasInvalidReceivableTotal ||
-      hasInvalidAvailableTotal ||
-      hasInvalidFundedTotal;
-    if (exceedsSafeRange)
-      throw new ConflictException('Shop totals exceed safe amount range');
-    return {
-      held,
-      receivable,
-      available,
-      carrierCompensation,
-      returnFeePayable,
-    };
+    return { carrierCompensation, returnFeePayable };
   }
 
   private async readHistory(

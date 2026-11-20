@@ -23,6 +23,7 @@ export const acceptOrderSchema = z.strictObject({});
 export const orderSchema = z.object({
   id: z.uuid(),
   paymentId: z.uuid().nullable(),
+  walletDebitId: z.uuid().nullable(),
   paymentMethod: z.enum(ORDER_PAYMENT_METHOD),
   checkoutId: z.uuid().nullable(),
   handoverBy: dateTimeSchema.nullable(),

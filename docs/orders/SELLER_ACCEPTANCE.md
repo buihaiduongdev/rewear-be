@@ -85,7 +85,7 @@ This acceptance slice stops at `preparing` or `cancelled`. Subsequent shipment,
 COD reconciliation and [72-hour settlement](SETTLEMENT.md) slices now implement
 the corresponding downstream workflows. The nine-state type reserves
 the remaining shipment/dispute states, but no arbitrary state-update route is
-exposed. Dispute adjudication, coins, wallet spending, withdrawals and full Shop
-RBAC remain separate work. Existing orders have no coin discounts, so cancellation credits the
+exposed. [Disputes](DISPUTES.md) and [wallet spending/manual withdrawals](WALLET_CHECKOUT_AND_PAYOUTS.md)
+are implemented in downstream modules. Coins and full Shop RBAC remain separate work. Existing orders have no coin discounts, so cancellation credits the
 saved order total; future coin integration must follow REFUND-SESSION-02 rather
 than blindly refunding only net cash.

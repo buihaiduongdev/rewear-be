@@ -1,0 +1,4 @@
+export const PAYOUT_SOURCE_KIND = {
+  SETTLEMENT: 'SETTLEMENT',
+  COMPENSATION: 'COMPENSATION',
+} as const;

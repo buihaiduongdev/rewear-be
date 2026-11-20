@@ -6,6 +6,7 @@ import {
   safeBalanceSchema,
   vndAmountSchema,
 } from '@/common/schemas/money.schema';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
 import { WALLET_CREDIT_REASON } from '../constants/wallet.constant';
@@ -22,6 +23,12 @@ export const walletQuerySchema = z.strictObject({
 export const walletViewSchema = z.object({
   balance: walletBalanceSchema,
   simulationBalance: walletBalanceSchema,
+  heldBalance: walletBalanceSchema,
+  simulationHeldBalance: walletBalanceSchema,
+  spendableBalance: walletBalanceSchema,
+  simulationSpendableBalance: walletBalanceSchema,
+  quarantinedBalance: walletBalanceSchema,
+  simulationQuarantinedBalance: walletBalanceSchema,
   disputeRefunds: z.array(refundCreditViewSchema),
   currency: z.literal(MONEY_CURRENCY.VND),
   credits: z.array(
@@ -30,6 +37,7 @@ export const walletViewSchema = z.object({
       orderId: z.uuid(),
       amount: vndAmountSchema.positive(),
       reason: z.enum(WALLET_CREDIT_REASON),
+      mode: z.enum(RECONCILIATION_MODE).nullable(),
       createdAt: dateTimeSchema,
     }),
   ),

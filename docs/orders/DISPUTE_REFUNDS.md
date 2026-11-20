@@ -109,7 +109,8 @@ in-app notice inbox, not an email/push delivery system.
 
 The project currently uses TypeORM synchronize; no production migration, historical
 financial repair or development database reset was performed. Tests exclusively
-use rewear_test. Live MoMo/GHN/storage verification, coins, wallet checkout and bank payouts remain separate work.
+use rewear_test. Live MoMo/GHN/storage verification and coins remain separate work.
+[Wallet checkout and manual bank payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) now consume certified balances with separate real/simulation pools and attributable withdrawal allocations.
 Return labels/inspection, safety and evidenced carrier compensation are implemented in [DISPUTE_RETURNS.md](DISPUTE_RETURNS.md).
 
 ## Post-adjudication return update

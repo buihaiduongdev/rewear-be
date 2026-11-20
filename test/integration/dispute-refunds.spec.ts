@@ -26,6 +26,11 @@ import {
 } from '@/modules/payment/entities/payment.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
+import {
+  ShopPayout,
+  ShopPayoutAllocation,
+} from '@/modules/shop-finance/payouts/entities/shop-payout.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
 import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
@@ -145,6 +150,63 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
       .findOneByOrFail({ userId: f.buyer.id });
     expect(account.balance).toBe(0);
     expect(account.simulationBalance).toBe(100001);
+  });
+  it('funds buyer refunds without counting settlement cash already reserved for a Shop payout', async () => {
+    const f = await fixture();
+    await new CodReconciliationService(f.db).recordRemittance(f.admin.id, {
+      requestId: randomUUID(),
+      reference: randomUUID(),
+      mode: 'EVIDENCE',
+      netAmount: f.order.total,
+      receivedAt: new Date().toISOString(),
+      reason: 'Received order cash',
+      evidence: 'Matched bank receipt',
+      allocations: [
+        { orderId: f.order.id, cashAmount: f.order.total, feeDeducted: 0 },
+      ],
+    });
+    const funded = await f.db
+      .getRepository(ShopLedgerEntry)
+      .findOneByOrFail({ orderId: f.order.id });
+    const settlement = await f.db.getRepository(ShopSettlement).save({
+      orderId: f.order.id,
+      shopId: f.shop.id,
+      creditId: funded.id,
+      mode: 'EVIDENCE',
+      amount: funded.amount,
+      refundDebit: 0,
+    });
+    const payout = await f.db.getRepository(ShopPayout).save({
+      shopId: f.shop.id,
+      ownerId: f.owner.id,
+      requestId: randomUUID(),
+      bankAccountId: randomUUID(),
+      recipientSnapshot: {},
+      mode: 'EVIDENCE',
+      status: 'PROCESSING',
+      amount: 60000,
+    });
+    await f.db.getRepository(ShopPayoutAllocation).save({
+      payoutId: payout.id,
+      kind: 'SETTLEMENT',
+      sourceId: settlement.id,
+      orderId: f.order.id,
+      mode: 'EVIDENCE',
+      amount: 60000,
+    });
+    await service.refresh(f.final.id);
+    expect(
+      await f.db
+        .getRepository(DisputeRefundCredit)
+        .findOneByOrFail({ orderId: f.order.id }),
+    ).toMatchObject({ amount: 100001, advanceAmount: 60000 });
+    expect(
+      await new ShopFinanceService(f.db).view(f.owner.id, f.shop.id, {}),
+    ).toMatchObject({
+      available: 0,
+      payoutLocked: 60000,
+      heldShortfall: 60000,
+    });
   });
   it('does not assume a required return happened', async () => {
     const f = await fixture('EVIDENCE', 'RETURN_REQUIRED');

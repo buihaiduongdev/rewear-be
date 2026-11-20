@@ -28,7 +28,11 @@ export const ORDER_CANCEL_STATE = {
   CLOSED: 'CLOSED',
 } as const;
 
-export const ORDER_PAYMENT_METHOD = { MOMO: 'MOMO', COD: 'COD' } as const;
+export const ORDER_PAYMENT_METHOD = {
+  MOMO: 'MOMO',
+  COD: 'COD',
+  WALLET: 'WALLET',
+} as const;
 
 export const ORDER_EVENT_ACTION = {
   RECEIPT_CONFIRMED: 'RECEIPT_CONFIRMED',

@@ -8,7 +8,7 @@ allocation and the Shop money foundation. It follows
 Collection/remittance records create held liabilities. The separate
 [72-hour settlement workflow](SETTLEMENT.md) now verifies Admin-evidenced delivery
 times and releases eligible held funds internally. Refund/dispute adjudication
-and bank payouts remain separate work. Delivery status, `codCollectedAt` and `carrierTransferredAt`
+and [manual bank payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) use their own verified workflows. Delivery status, `codCollectedAt` and `carrierTransferredAt`
 alone do not prove money was received in Rewear's bank account.
 
 ## Verification modes

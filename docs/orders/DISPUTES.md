@@ -3,7 +3,8 @@
 This slice implements intake and financial holds, private photo/video evidence,
 party responses and review SLA tracking. [Initial Admin adjudication](DISPUTE_ADJUDICATION.md)
 records decisions and appeal windows separately. [Appeals and final conclusions](DISPUTE_APPEALS.md)
-are implemented; return labels, inspection, refunds and bank payouts remain future work.
+are implemented. [Verified returns](DISPUTE_RETURNS.md), [wallet refunds](DISPUTE_REFUNDS.md)
+and [wallet checkout/manual Shop payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) provide the downstream workflows.
 No automatic winner or refund is inferred from video, silence or elapsed SLA.
 
 ## Intake and money

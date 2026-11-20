@@ -23,6 +23,8 @@ import {
 } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
 
 import { CodPolicy } from './policies/cod.policy';
 import { codOrderTotalSchema, placeCodSchema } from './schemas/cod.schema';
@@ -81,6 +83,15 @@ export class CodService {
       }
       if (checkout.status !== CHECKOUT_STATUS.HELD)
         throw new ConflictException('An active checkout is required');
+      if (
+        await manager.existsBy(WalletCheckoutHold, {
+          checkoutId,
+          state: WALLET_HOLD_STATE.HELD,
+        })
+      )
+        throw new ConflictException(
+          'Release wallet reservation before choosing COD',
+        );
       const attempts = await manager.find(PaymentAttempt, {
         where: { checkoutId },
       });

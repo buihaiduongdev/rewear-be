@@ -29,7 +29,10 @@ export async function refundFunding(
   const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
   if (!shipment) return null;
   const money = reconciliationMoney(order);
-  if (order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO) {
+  if (
+    order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO ||
+    order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
+  ) {
     const credit = await new OrderFundingService().heldCredit(
       manager,
       order,

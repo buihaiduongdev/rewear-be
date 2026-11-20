@@ -4,6 +4,7 @@ import { EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { Order } from '@/modules/order/entities/order.entity';
+import { encumberedOrderSettlement } from '@/modules/shop-finance/payout-sources';
 import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
 import { walletBalanceSchema } from '@/modules/wallet/schemas/wallet.schema';
 
@@ -66,7 +67,9 @@ export async function executeDisputeRefund(
   );
   const cashAvailable = Math.max(
     0,
-    funding.itemFundsAvailable - cashAlreadyAllocated,
+    funding.itemFundsAvailable -
+      cashAlreadyAllocated -
+      (await encumberedOrderSettlement(manager, order.id, funding.mode)),
   );
   const credit = await manager.save(
     DisputeRefundCredit,
@@ -124,7 +127,11 @@ async function creditBuyerWallet(
   const field =
     mode === RECONCILIATION_MODE.SIMULATION ? 'simulationBalance' : 'balance';
   const balance = account[field] + amount;
-  if (!walletBalanceSchema.safeParse(balance).success)
+  const held =
+    mode === RECONCILIATION_MODE.SIMULATION
+      ? (account.simulationHeldBalance ?? 0)
+      : (account.heldBalance ?? 0);
+  if (!walletBalanceSchema.safeParse(balance + held).success)
     throw new ConflictException('Wallet refund exceeds safe balance');
   account[field] = balance;
   await manager.save(account);
