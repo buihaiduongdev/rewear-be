@@ -2,12 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
-import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
-import { ProductCondition, ProductStatus } from '@/modules/product/enums';
-import { ShopStatus } from '@/modules/shop/enums';
+import { ProductCondition } from '@/modules/product/enums';
+import { evaluateProductAvailability } from '@/modules/product/machines/product-availability.machine';
 
 import { WishlistItem } from './entities';
 import type { WishlistView } from './schemas/wishlist.schema';
@@ -39,19 +38,7 @@ export class WishlistService {
 
     const mappedItems = items.map((item) => {
       const p = item.product;
-      const isShopActive =
-        !p?.shop || !p.shop.status || p.shop.status === ShopStatus.ACTIVE;
-      const isCategoryActive = !p?.category || p.category.isActive !== false;
-      const availability =
-        !p || !isShopActive || !isCategoryActive
-          ? CartAvailability.UNAVAILABLE
-          : p.status === ProductStatus.ACTIVE
-            ? CartAvailability.AVAILABLE
-            : p.status === ProductStatus.HELD
-              ? CartAvailability.HELD
-              : p.status === ProductStatus.SOLD
-                ? CartAvailability.SOLD
-                : CartAvailability.UNAVAILABLE;
+      const availability = evaluateProductAvailability(p);
 
       return {
         id: item.id,
