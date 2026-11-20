@@ -930,3 +930,16 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint, prettier, tsc, nest build) đạt 0 lỗi, `pnpm test:unit` và `test/integration/seed.spec.ts` pass 100%.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #50](https://github.com/buihaiduongdev/rewear-be/pull/50) trên branch `feat/wishlist`.
+
+
+### 2026-11-20 — Chuẩn hóa các máy trạng thái nghiệp vụ và quy tắc khả dụng bằng XState
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash), XState v5, Jest
+- **Mục đích và phạm vi:** Tái cấu trúc các logic trạng thái phân mảnh và điều kiện lồng nhau (khả dụng sản phẩm, vòng đời duyệt bài đăng, quy trình xử lý đơn hàng) thành các máy trạng thái hữu hạn (Finite State Machine) chuẩn XState đặt trong thư mục `machines/` của từng module, đảm bảo tính nhất quán và ngăn chặn nhảy cóc trạng thái trái phép.
+- **Prompt chính:** Rà soát và chuyển đổi các điều kiện logic trạng thái lồng nhau sang máy trạng thái hữu hạn sử dụng thư viện XState; xây dựng product-availability machine, product-lifecycle machine và order-fulfillment machine theo chuẩn best practices của XState; tích hợp vào CartService và WishlistService, bổ sung bộ unit test và đảm bảo toàn bộ kiểm thử chất lượng vượt qua.
+- **Đầu ra AI được sử dụng:** Cài đặt `xstate`; tạo `src/modules/product/machines/product-availability.machine.ts`, `src/modules/product/machines/product-lifecycle.machine.ts`, `src/modules/order/machines/order-fulfillment.machine.ts`; cập nhật `src/modules/cart/cart.service.ts` và `src/modules/wishlist/wishlist.service.ts`; tạo các bộ kiểm thử đơn vị `test/unit/modules/product/product-availability.machine.spec.ts`, `test/unit/modules/product/product-lifecycle.machine.spec.ts`, `test/unit/modules/order/order-fulfillment.machine.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng loại bỏ lớp abstraction trung gian không cần thiết, tổ chức chuẩn thư mục `machines/` theo khuyến nghị của Stately, kiểm soát chặt chẽ các guards nghiệp vụ (hạn chót xác nhận đơn 24h, đếm ngược 72h khiếu nại, trạng thái shop/danh mục) và bảo toàn 100% hợp đồng API hiện có.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint, prettier, tsc, nest build) đạt 0 lỗi, `pnpm test:unit` pass 100% 33 suites (274 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Đề xuất ban đầu bọc thêm một tầng `.policy` bên ngoài machine gây dư thừa tầng trung gian; đã tinh gọn trực tiếp theo chuẩn XState.
+- **Minh chứng:** [PR #51](https://github.com/buihaiduongdev/rewear-be/pull/51) trên branch `refact/app-state-machines`.
