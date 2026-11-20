@@ -428,6 +428,14 @@ describe('Wallet full checkout (PostgreSQL)', () => {
   it('allocates multi-Shop checkout discount over gross items with exact total', async () => {
     const first = await fixture();
     const second = await fixture();
+    await first.db.getRepository(Checkout).update(first.checkout.id, {
+      requestedProductIds: [first.product.id, second.product.id],
+    });
+    await first.db
+      .getRepository(Checkout)
+      .update(first.checkout.id, {
+        requestedProductIds: [first.product.id, second.product.id],
+      });
     await first.db
       .getRepository(CheckoutOrder)
       .update(

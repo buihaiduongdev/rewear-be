@@ -18,7 +18,6 @@ import {
   createCoinProgramSchema,
   issueCoinProgramSchema,
 } from './schemas/coin-program.schema';
-import type { CreateCoinProgram } from './types/coin-program.type';
 
 @ApiBearerAuth()
 @ApiTags('coins')
@@ -67,9 +66,13 @@ export class CoinProgramController {
   @Post('admin/programs')
   create(
     @CurrentUser() user: User,
-    @Body({ schema: createCoinProgramSchema }) input: CreateCoinProgram,
+    @Body({ schema: createCoinProgramSchema })
+    input: z.infer<typeof createCoinProgramSchema>,
   ) {
-    return this.api.create(user.id, input);
+    return this.api.create(user.id, {
+      ...input,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+    });
   }
   @Post('admin/programs/:id/activate')
   activate(

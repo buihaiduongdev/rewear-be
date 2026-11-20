@@ -6,7 +6,7 @@ export const createCoinProgramSchema = z.object({
   audience: z.string().trim().min(1),
   budget: z.number().int().nonnegative().max(2147483647),
   mode: z.enum(['EVIDENCE', 'SIMULATION']),
-  expiresAt: z.coerce.date().nullable(),
+  expiresAt: z.iso.datetime().nullable(),
 });
 export const issueCoinProgramSchema = z.object({
   requestId: z.uuid(),

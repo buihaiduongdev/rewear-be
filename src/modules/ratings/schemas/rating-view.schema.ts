@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { dateTimeSchema } from '@/common/schemas/date-time.schema';
+
 import { RATING_MODES } from '../constants/rating.constant';
 
 export const publicRatingSchema = z.object({
@@ -10,7 +12,7 @@ export const publicRatingSchema = z.object({
   mediaIds: z.array(z.uuid()),
   reply: z.string().nullable(),
   revision: z.number().int(),
-  updatedAt: z.coerce.date(),
+  updatedAt: dateTimeSchema,
   mode: z.enum(RATING_MODES),
   verifiedTransaction: z.boolean(),
 });
@@ -21,7 +23,7 @@ export const privateRatingSchema = publicRatingSchema.extend({
   mediaHidden: z.boolean(),
   replyHidden: z.boolean(),
   invalidated: z.boolean(),
-  createdAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
 });
 export const shopReplyRatingSchema = publicRatingSchema.extend({
   replyHidden: z.boolean(),
@@ -44,8 +46,8 @@ export const ratingVersionSchema = z.object({
   kind: z.enum(['BUYER', 'REPLY']),
   revision: z.number().int(),
   snapshot: z.record(z.string(), z.unknown()),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 export const ratingNoticeSchema = z.object({
   id: z.uuid(),
@@ -53,8 +55,8 @@ export const ratingNoticeSchema = z.object({
   shopId: z.uuid(),
   revision: z.number().int(),
   kind: z.string(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
 });
 export const ratingMediaViewSchema = z.object({
   id: z.uuid(),
@@ -67,10 +69,10 @@ export const ratingUploadTicketSchema = z.object({
   uploadUrl: z.url(),
   method: z.literal('PUT'),
   headers: z.record(z.string(), z.string()),
-  expiresAt: z.coerce.date(),
+  expiresAt: dateTimeSchema,
 });
 export const ratingDownloadSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
-  expiresAt: z.coerce.date(),
+  expiresAt: dateTimeSchema,
 });
