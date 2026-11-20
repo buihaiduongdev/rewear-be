@@ -8,6 +8,7 @@ import { Order } from '@/modules/order/entities/order.entity';
 import { CoinProgramMistake } from '../programs/entities/coin-program.entity';
 import { allocateLots } from './coin-allocation';
 import {
+  COIN_POLICY,
   COIN_RELEASE_CAUSE,
   COIN_RESERVATION_STATE,
   COIN_SOURCE,
@@ -81,7 +82,7 @@ export class CoinService {
     const subtotal =
       checkout.subtotal ??
       orders.reduce((sum, order) => sum + order.subtotal, 0);
-    if (amount > Math.floor(subtotal / 10))
+    if (amount > Math.floor(subtotal / COIN_POLICY.SUBTOTAL_LIMIT_DIVISOR))
       throw new BadRequestException('Coins exceed 10% of merchandise subtotal');
     await this.releaseCheckoutCoins(manager, checkout.id, now);
     const grants = await manager.findBy(CoinGrant, {
@@ -473,7 +474,7 @@ export class CoinService {
           recovered: 0,
           recoveryTarget: Math.max(0, grant.recoveryTarget - grant.recovered),
           buyerRestored: false,
-          expiresAt: new Date(now.getTime() + 7 * 86400000),
+          expiresAt: new Date(now.getTime() + COIN_POLICY.RESTORATION_MS),
         }),
       );
       await this.movement(manager, child.id, 'RESTORE', remainder, row.orderId);
@@ -630,7 +631,11 @@ export class CoinService {
   }
 
   private validAmount(amount: number) {
-    if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647)
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < 0 ||
+      amount > COIN_POLICY.MAX_POSTGRES_AMOUNT
+    )
       throw new BadRequestException('Invalid coin amount');
   }
 }

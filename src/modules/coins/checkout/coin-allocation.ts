@@ -1,6 +1,8 @@
 import { ConflictException } from '@nestjs/common';
 
-export const COIN_DISCOUNT_DIVISOR = 10;
+import { COIN_POLICY } from '../core/constants/coin.constant';
+
+export const COIN_DISCOUNT_DIVISOR = COIN_POLICY.SUBTOTAL_LIMIT_DIVISOR;
 export function allocateCoins(
   rows: { id: string; amount: number }[],
   amount: number,
@@ -10,7 +12,7 @@ export function allocateCoins(
   if (
     !Number.isSafeInteger(amount) ||
     amount < 0 ||
-    BigInt(amount) > (cap ? total / 10n : total)
+    BigInt(amount) > (cap ? total / BigInt(COIN_DISCOUNT_DIVISOR) : total)
   )
     throw new ConflictException('Coins exceed item subtotal limit');
   const parts = rows.map((row) => ({

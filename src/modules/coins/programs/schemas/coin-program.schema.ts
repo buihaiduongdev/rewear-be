@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
+import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
+
 export const createCoinProgramSchema = z.object({
   name: z.string().trim().min(1),
   reason: z.string().trim().min(1),
   audience: z.string().trim().min(1),
-  budget: z.number().int().nonnegative().max(2147483647),
+  budget: z.number().int().nonnegative().max(MAX_VND_AMOUNT),
   mode: z.enum(['EVIDENCE', 'SIMULATION']),
   expiresAt: z.iso.datetime().nullable(),
 });
@@ -15,7 +17,7 @@ export const issueCoinProgramSchema = z.object({
     .array(
       z.object({
         buyerId: z.uuid(),
-        amount: z.number().int().positive().max(2147483647),
+        amount: z.number().int().positive().max(MAX_VND_AMOUNT),
       }),
     )
     .min(1),
@@ -24,10 +26,10 @@ export const coinProgramReasonSchema = z.object({
   reason: z.string().trim().min(1),
 });
 export const coinProgramBudgetSchema = coinProgramReasonSchema.extend({
-  budget: z.number().int().nonnegative().max(2147483647),
+  budget: z.number().int().nonnegative().max(MAX_VND_AMOUNT),
 });
 export const coinProgramCorrectionSchema = z.object({
-  amount: z.number().int().positive().max(2147483647),
+  amount: z.number().int().positive().max(MAX_VND_AMOUNT),
   evidence: z.string().trim().min(1),
 });
 

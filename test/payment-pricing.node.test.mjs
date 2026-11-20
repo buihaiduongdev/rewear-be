@@ -20,10 +20,18 @@ const allocationSource = (
     'utf8',
   )
 ).replace(/^import.*;\s*/gm, '');
+const { COIN_POLICY } = await loadTypeScriptModule(
+  new URL(
+    '../src/modules/coins/core/constants/coin.constant.ts',
+    import.meta.url,
+  ),
+);
 const { allocateCoins } = await import(
   'data:text/javascript;base64,' +
     Buffer.from(
-      'const ConflictException = Error;\n' +
+      'const ConflictException = Error;\nconst COIN_POLICY = ' +
+        JSON.stringify(COIN_POLICY) +
+        ';\n' +
         stripTypeScriptTypes(allocationSource, { mode: 'transform' }),
     ).toString('base64')
 );

@@ -5,6 +5,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import {
+  COIN_POLICY,
   COIN_PROGRAM_STATUS,
   COIN_SOURCE,
 } from '../core/constants/coin.constant';
@@ -62,7 +63,7 @@ export class CoinProgramService {
       !input.audience.trim() ||
       !Number.isSafeInteger(input.budget) ||
       input.budget < 0 ||
-      input.budget > 2147483647 ||
+      input.budget > COIN_POLICY.MAX_POSTGRES_AMOUNT ||
       (input.expiresAt && input.expiresAt <= now)
     )
       throw new BadRequestException('Invalid coin program');
@@ -132,7 +133,7 @@ export class CoinProgramService {
     if (
       !Number.isSafeInteger(budget) ||
       budget < program.issued ||
-      budget > 2147483647
+      budget > COIN_POLICY.MAX_POSTGRES_AMOUNT
     )
       throw new BadRequestException(
         'Budget cannot be lower than cumulative issued coins',
@@ -186,7 +187,7 @@ export class CoinProgramService {
         (row) =>
           !Number.isSafeInteger(row.amount) ||
           row.amount <= 0 ||
-          row.amount > 2147483647,
+          row.amount > COIN_POLICY.MAX_POSTGRES_AMOUNT,
       )
     )
       throw new BadRequestException('Invalid recipients');
