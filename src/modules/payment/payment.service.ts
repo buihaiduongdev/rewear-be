@@ -20,6 +20,7 @@ import type {
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { FeePaymentCapture } from '@/modules/fees/payments/entities/fee-payment.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
   ORDER_EVENT_ACTION,
@@ -31,6 +32,8 @@ import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
 
 import {
   PAYMENT_MAX_AMOUNT,
@@ -174,6 +177,17 @@ export class PaymentService {
       throw new ConflictException(
         'Resolve the previous payment or the three-attempt limit before trying again',
       );
+    if (
+      await manager.existsBy(WalletCheckoutHold, {
+        checkoutId,
+        state: WALLET_HOLD_STATE.HELD,
+      })
+    )
+      throw new ConflictException(
+        'Release wallet reservation before choosing MoMo',
+      );
+    checkout.walletPaymentSelected = false;
+    await manager.save(checkout);
     const orders = await this.pricing.snapshot(manager, checkout, quote);
     const amount = orders.reduce(
       (sum, order) => sum + order.subtotal + order.shippingFee,
@@ -329,6 +343,15 @@ export class PaymentService {
     await this.db.transaction(async (manager) => {
       const now = await this.lock(manager);
       const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
+      const captureAlreadyFundsFees =
+        result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
+        (await manager.existsBy(FeePaymentCapture, {
+          providerTransId: String(result.transId),
+        }));
+      if (captureAlreadyFundsFees)
+        throw new ConflictException(
+          'MoMo capture already belongs to a fee payment',
+        );
       const attemptIsSettled = (
         [
           PAYMENT_ATTEMPT_STATE.PAID,
@@ -443,7 +466,11 @@ export class PaymentService {
         ),
       }),
       ownsAllProducts:
-        shopsActive && this.ownsProducts(checkout, expectedIds, products),
+        !checkout.walletPaymentSelected &&
+        (!checkout.walletSelectedAt ||
+          attempt.createdAt >= checkout.walletSelectedAt) &&
+        shopsActive &&
+        this.ownsProducts(checkout, expectedIds, products),
     });
   }
 
@@ -489,6 +516,7 @@ export class PaymentService {
       manager.create(Order, {
         checkoutOrderId,
         checkoutId: checkout.id,
+        feeDisclosure: snapshot.feeDisclosure ?? null,
         paymentMethod: ORDER_PAYMENT_METHOD.MOMO,
         paymentId: attempt.id,
         buyerId: attempt.buyerId,

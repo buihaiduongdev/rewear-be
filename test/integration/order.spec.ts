@@ -277,10 +277,10 @@ describe('paid order acceptance with PostgreSQL', () => {
     ).toBe('pending');
     expect(
       await f.db.query(
-        'SELECT balance FROM wallet_accounts WHERE "userId" = $1',
+        'SELECT balance, "simulationBalance" FROM wallet_accounts WHERE "userId" = $1',
         [f.buyer.id],
       ),
-    ).toEqual([{ balance: '230000' }]);
+    ).toEqual([{ balance: '0', simulationBalance: '230000' }]);
     expect(
       await f.db.query(
         'SELECT amount FROM wallet_credits WHERE "orderId" = $1',

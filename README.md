@@ -182,5 +182,5 @@ Seeded accounts use the password `RewearSeed123!`.
 ## Dispute appeals
 
 Buyer/Shop appeals and final Admin conclusions are documented in
-[Dispute appeals](docs/orders/DISPUTE_APPEALS.md). Financial remedy execution
-remains a separate step.
+[Dispute appeals](docs/orders/DISPUTE_APPEALS.md). Eligible wallet execution is documented in
+[Dispute refunds](docs/orders/DISPUTE_REFUNDS.md); [return verification and exceptions](docs/orders/DISPUTE_RETURNS.md) are implemented. Full-checkout wallet payments and manual Shop bank payouts are documented in [Wallet checkout and payouts](docs/orders/WALLET_CHECKOUT_AND_PAYOUTS.md). Verified fees, objections, source refunds and COD-only debt restrictions are documented in [Fees and debt](docs/orders/FEES_AND_DEBT.md).

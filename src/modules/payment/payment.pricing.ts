@@ -65,6 +65,7 @@ export class PaymentPricing {
         );
       return {
         checkoutOrderId: order.id,
+        feeDisclosure: checkout.feeDisclosure ?? null,
         shopId: order.shopId,
         shopName: order.shop.name,
         subtotal: order.subtotal,

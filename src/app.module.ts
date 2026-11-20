@@ -15,6 +15,9 @@ import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconc
 import { CodModule } from './modules/cod/cod.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DisputeModule } from './modules/dispute/dispute.module';
+import { FeeDisclosureModule } from './modules/fees/disclosure/fee-disclosure.module';
+import { FeeModule } from './modules/fees/fee.module';
+import { FeeSettlementModule } from './modules/fees/settlement/fee-settlement.module';
 import { MediaModule } from './modules/media';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
@@ -39,6 +42,9 @@ import { WishlistModule } from './modules/wishlist';
     AuthorizationModule,
     OrderModule,
     DisputeModule,
+    FeeDisclosureModule,
+    FeeModule,
+    FeeSettlementModule,
     CodModule,
     CodReconciliationModule,
     ShopFinanceModule,

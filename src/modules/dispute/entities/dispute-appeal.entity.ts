@@ -10,6 +10,7 @@ import type {
   DisputeDecisionOutcome,
   DisputeResponsibility,
 } from '../types/dispute-decision.type';
+import type { DisputeRefundPlan } from '../types/dispute-refund-plan.type';
 import type { DisputeParty } from '../types/dispute.type';
 import { DisputeDecision } from './dispute-decision.entity';
 import { DisputeEvidence } from './dispute.entity';
@@ -143,6 +144,9 @@ export class DisputeFinalDecision extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   sameAdminReason: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  refundPlan: DisputeRefundPlan | null;
 
   @Column('integer')
   itemPrice: number;

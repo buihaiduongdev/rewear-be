@@ -19,10 +19,14 @@ import {
   CHECKOUT_REMOVAL_REASON,
   CHECKOUT_STATUS,
 } from '@/modules/checkout/constants/checkout.constant';
+import { snapshotFeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
@@ -79,6 +83,9 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       if (previous) {
         const replaySelectionHasChanged =
           previous.addressId !== input.addressId ||
+          (previous.feeDisclosure?.buyerAcceptedAt
+            ? previous.feeDisclosure.policyId
+            : undefined) !== input.feePolicyId ||
           JSON.stringify(previous.requestedProductIds) !==
             JSON.stringify(productIds);
         if (replaySelectionHasChanged) {
@@ -101,7 +108,17 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       await this.lockProductEligibility(manager, products);
       const cartView = await this.cartService.readCart(manager, buyerId);
 
+      const [{ disclosureNow }] = await manager.query(
+        'SELECT clock_timestamp() AS "disclosureNow"',
+      );
+      const feeDisclosure = await snapshotFeeDisclosure(
+        manager,
+        input,
+        [...new Set(products.map((product) => product.shopId))],
+        new Date(disclosureNow),
+      );
       const checkout = manager.create(Checkout, {
+        feeDisclosure,
         buyerId,
         requestId: input.requestId,
         addressId: input.addressId,
@@ -328,6 +345,19 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       { reservationId: checkout.id, status: ProductStatus.HELD },
       { status: ProductStatus.ACTIVE, heldUntil: null, reservationId: null },
     );
+    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    const holds = await manager.find(WalletCheckoutHold, {
+      where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+    });
+    for (const hold of holds)
+      await releaseWalletHold(
+        manager,
+        hold,
+        new Date(now),
+        status === CHECKOUT_STATUS.EXPIRED
+          ? WALLET_HOLD_STATE.EXPIRED
+          : WALLET_HOLD_STATE.RELEASED,
+      );
     checkout.status = status;
     await manager.save(checkout);
   }

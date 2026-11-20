@@ -380,8 +380,8 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       (await db.getRepository(Product).findOneByOrFail({ id: product.id }))
         .status,
     ).toBe(ProductStatus.ACTIVE);
-    expect((await new WalletService(db).mine(buyer.id, {})).balance).toBe(
-      230000,
-    );
+    expect(
+      (await new WalletService(db).mine(buyer.id, {})).simulationBalance,
+    ).toBe(230000);
   });
 });

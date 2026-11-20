@@ -22,6 +22,8 @@ import {
   DisputeEvidence,
   DisputeMessage,
 } from './entities/dispute.entity';
+import { ReturnEvidenceLink } from './returns/entities/dispute-return.entity';
+import { DisputeRemedyEvidenceLink } from './returns/entities/return-exception.entity';
 import { disputeUploadSchema } from './schemas/dispute.schema';
 import type { DisputeUploadInput } from './types/dispute.type';
 
@@ -155,7 +157,19 @@ export class DisputeEvidenceService {
               .getRepository(DisputeAppealEvidence)
               .countBy({ evidenceId })
           : 0;
-      if (!attachment && !message && !appealAttachment)
+      const returnProof = await this.db.manager
+        .getRepository(ReturnEvidenceLink)
+        .countBy({ evidenceId });
+      const remedyProof = await this.db.manager
+        .getRepository(DisputeRemedyEvidenceLink)
+        .countBy({ evidenceId, orderId: row.orderId });
+      if (
+        !attachment &&
+        !message &&
+        !appealAttachment &&
+        !returnProof &&
+        !remedyProof
+      )
         throw new ForbiddenException('Evidence has not been submitted');
     }
     return this.signedDownload(row);

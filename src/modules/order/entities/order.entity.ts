@@ -5,7 +5,9 @@ import type {
   CheckoutAddress,
   CheckoutItem,
 } from '@/modules/checkout/types/checkout.type';
+import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { WalletDebit } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
 
 import {
   ORDER_PAYMENT_METHOD,
@@ -25,6 +27,13 @@ import type {
 @Index(['shopId', 'status', 'createdAt'])
 @Index(['status', 'sellerConfirmBy'])
 export class Order extends BaseEntity {
+  @Column({ type: 'jsonb', nullable: true })
+  feeDisclosure: FeeDisclosure | null;
+  @Column({ type: 'uuid', nullable: true })
+  walletDebitId: string | null;
+  @ManyToOne(() => WalletDebit, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'walletDebitId' })
+  walletDebit: WalletDebit | null;
   @Column({ type: 'timestamptz', nullable: true })
   receiptConfirmedAt: Date | null;
 

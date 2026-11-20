@@ -7,6 +7,7 @@ import {
   DISPUTE_DECISION_OUTCOME,
   DISPUTE_RESPONSIBILITY,
 } from '../constants/dispute.constant';
+import { disputeRefundPlanSchema } from './dispute-refund-plan.schema';
 
 export const disputeDecisionViewSchema = z.object({
   id: z.uuid(),
@@ -17,6 +18,7 @@ export const disputeDecisionViewSchema = z.object({
   reason: z.string(),
   evidenceAssessment: z.string(),
   itemPrice: vndAmountSchema,
+  refundPlan: disputeRefundPlanSchema.nullish(),
   remedyKey: z.string(),
   decidedAt: dateTimeSchema,
   notifiedAt: dateTimeSchema,

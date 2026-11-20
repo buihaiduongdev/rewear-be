@@ -5,6 +5,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import type { ReconciliationReviewReason } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/return-exception.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
@@ -311,6 +312,15 @@ export class CodReconciliationService {
     data: RemittanceInput,
     requestFingerprint: string,
   ) {
+    if (
+      await manager.existsBy(CarrierCompensationReceipt, {
+        mode: data.mode,
+        reference: data.reference,
+      })
+    )
+      throw new ConflictException(
+        'Receipt reference already allocated to carrier compensation',
+      );
     const existing = await manager.findOneBy(CodRemittance, [
       { requestId: data.requestId },
       { mode: data.mode, reference: data.reference },

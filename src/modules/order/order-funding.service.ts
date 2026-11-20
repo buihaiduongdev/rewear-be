@@ -19,6 +19,7 @@ import {
 } from '@/modules/payment/entities/payment.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
 import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
 
 import { ORDER_PAYMENT_METHOD, ORDER_POLICY } from './constants/order.constant';
@@ -34,10 +35,54 @@ export class OrderFundingService {
     const money = reconciliationMoney(order);
     if (order.paymentMethod === ORDER_PAYMENT_METHOD.COD)
       return this.codCredit(manager, order, shipment, money.sellerNet);
+    if (order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET)
+      return this.walletCredit(manager, order, money.sellerNet);
     if (order.paymentMethod !== ORDER_PAYMENT_METHOD.MOMO) return null;
     return this.momoCredit(manager, order, money.sellerNet);
   }
 
+  private async walletCredit(
+    manager: EntityManager,
+    order: Order,
+    sellerNet: number,
+  ) {
+    const debit = await verifiedWalletCapture(manager, order);
+    if (
+      !debit ||
+      !order.deliveryObservedAt ||
+      debit.createdAt > order.deliveryObservedAt ||
+      order.commissionBasisPoints !==
+        ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS
+    )
+      return null;
+    let credit = await manager.findOneBy(ShopLedgerEntry, {
+      orderId: order.id,
+    });
+    if (!credit)
+      credit = await manager.save(
+        ShopLedgerEntry,
+        manager.create(ShopLedgerEntry, {
+          orderId: order.id,
+          shopId: order.shopId,
+          collectionId: null,
+          mode: debit.mode,
+          type: SHOP_LEDGER_TYPE.WALLET_FUNDED_HELD,
+          amount: sellerNet,
+          actorId: null,
+        }),
+      );
+    if (
+      credit.type !== SHOP_LEDGER_TYPE.WALLET_FUNDED_HELD ||
+      credit.mode !== debit.mode ||
+      credit.shopId !== order.shopId ||
+      credit.collectionId !== null ||
+      credit.amount !== sellerNet
+    )
+      throw new ConflictException(
+        'Shop wallet funding requires reconciliation',
+      );
+    return credit;
+  }
   private async codCredit(
     manager: EntityManager,
     order: Order,

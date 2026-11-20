@@ -3,7 +3,8 @@
 This slice implements intake and financial holds, private photo/video evidence,
 party responses and review SLA tracking. [Initial Admin adjudication](DISPUTE_ADJUDICATION.md)
 records decisions and appeal windows separately. [Appeals and final conclusions](DISPUTE_APPEALS.md)
-are implemented; return labels, inspection, refunds and bank payouts remain future work.
+are implemented. [Verified returns](DISPUTE_RETURNS.md), [wallet refunds](DISPUTE_REFUNDS.md)
+and [wallet checkout/manual Shop payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) provide the downstream workflows.
 No automatic winner or refund is inferred from video, silence or elapsed SLA.
 
 ## Intake and money
@@ -144,3 +145,7 @@ Tests cover dedicated PostgreSQL transactions/holds, HTTP JWT/privacy/ownership,
 missing evidence/calendar recovery, reply/SLA clocks, idempotency/concurrency,
 rollback and cutoff after lock wait. Storage I/O is mocked; signed command
 contracts are tested separately. No real MoMo/GHN/R2 execution is claimed.
+
+## Post-adjudication return update
+
+[Returns and verified exceptions](DISPUTE_RETURNS.md) now provide reverse booking, handover/inspection/objection clocks, safety execution verification, carrier loss/refusal remedies and independent evidenced compensation. These feed exact wallet refund conditions; no live provider or external bank payment is claimed.

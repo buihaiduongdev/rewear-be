@@ -7,6 +7,7 @@ import type {
   DisputeDecisionOutcome,
   DisputeResponsibility,
 } from '../types/dispute-decision.type';
+import type { DisputeRefundPlan } from '../types/dispute-refund-plan.type';
 import { DisputeIssue } from './dispute.entity';
 
 @Entity('dispute_decisions')
@@ -44,6 +45,9 @@ export class DisputeDecision extends BaseEntity {
 
   @Column('text')
   evidenceAssessment: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  refundPlan: DisputeRefundPlan | null;
 
   @Column('integer')
   itemPrice: number;

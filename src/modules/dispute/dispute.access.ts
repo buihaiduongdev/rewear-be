@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { EntityManager, In } from 'typeorm';
+import { EntityManager, In, IsNull } from 'typeorm';
 
 import {
   ORDER_POLICY,
@@ -17,6 +17,8 @@ import {
 } from './constants/dispute.constant';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
+import { DisputeReturn } from './returns/entities/dispute-return.entity';
+import { DisputeSafetyWaiver } from './returns/entities/return-exception.entity';
 
 @Injectable()
 export class DisputeAccess {
@@ -117,7 +119,23 @@ export class DisputeAccess {
     const sellerCanUpload =
       party.party === DISPUTE_PARTY.SELLER &&
       (hasActiveIssue || canPrepareAppeal);
-    const canUpload = buyerCanUpload || sellerCanUpload;
+    const returnWindow = await manager.existsBy(DisputeReturn, {
+      orderId,
+      state: In([
+        'WAITING_LABEL',
+        'AWAITING_HANDOVER',
+        'PAUSED',
+        'IN_TRANSIT',
+        'INSPECTION',
+        'OBJECTION',
+      ]),
+    });
+    const safetyWindow = await manager.existsBy(DisputeSafetyWaiver, {
+      orderId,
+      fulfilledAt: IsNull(),
+    });
+    const canUpload =
+      buyerCanUpload || sellerCanUpload || returnWindow || safetyWindow;
     if (!canUpload)
       throw new ConflictException('No open dispute evidence window');
     return party;

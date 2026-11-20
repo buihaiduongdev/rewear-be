@@ -188,8 +188,11 @@ export class DisputeMessage extends BaseEntity {
 }
 
 @Entity('dispute_notices')
-@Index(['issueId', 'action', 'audience'], { unique: true })
+@Index(['issueId', 'action', 'audience', 'eventKey'], { unique: true })
 export class DisputeNotice extends BaseEntity {
+  @Column({ type: 'varchar', length: 64, default: 'INITIAL' })
+  eventKey: string;
+
   @Column('uuid')
   issueId: string;
 

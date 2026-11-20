@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
 import { CheckoutModule } from '@/modules/checkout/checkout.module';
+import { FeePaymentModule } from '@/modules/fees/payments/fee-payment.module';
 import { Order } from '@/modules/order/entities/order.entity';
 
 import { PaymentAttempt, PaymentRefund } from './entities/payment.entity';
@@ -15,6 +16,7 @@ import { PaymentWorker } from './payment.worker';
 @Module({
   imports: [
     CheckoutModule,
+    FeePaymentModule,
     TypeOrmModule.forFeature([PaymentAttempt, PaymentRefund, Order]),
   ],
   controllers: [PaymentController],

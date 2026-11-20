@@ -10,6 +10,7 @@ import {
   DISPUTE_ISSUE_STATE,
   OPEN_DISPUTE_STATES,
 } from './constants/dispute.constant';
+import { queueDisputeRefund } from './dispute-refund.lifecycle';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
 import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
@@ -52,13 +53,15 @@ export async function saveFinalDisputeDecision(
     | 'requestFingerprint'
     | 'reviewToken'
     | 'reviewLate'
-  >,
+  > &
+    Partial<Pick<DisputeFinalDecision, 'refundPlan'>>,
   now: Date,
 ) {
   const final = await manager.save(
     DisputeFinalDecision,
     manager.create(DisputeFinalDecision, {
       ...result,
+      refundPlan: result.refundPlan ?? null,
       decisionId: decision.id,
       issueId: issue.id,
       itemPrice: decision.itemPrice,
@@ -86,6 +89,7 @@ export async function saveFinalDisputeDecision(
     now,
     result.reason,
   );
+  await queueDisputeRefund(manager, final);
   await restoreDisputeCaseIfClear(manager, issue.caseId);
   return final;
 }

@@ -115,6 +115,13 @@ credits are implemented in [COD_RECONCILIATION.md](COD_RECONCILIATION.md).
 The [72-hour settlement workflow](SETTLEMENT.md) now supports Admin-evidenced
 delivery timestamps, receipt confirmation and safe internal ledger release.
 Automatic bank feeds, exact carrier delivery event ingestion,
-coins, fault/fee adjudication, wallet spending and frontend screens remain
+coins, general fee collection and frontend screens remain
 separate implementation work. Existing moderation/package changes from main
 are retained; COD placement and resale require `ProductModeration.APPROVED`.
+
+[Wallet checkout and manual Shop payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) now implement wallet spending and source-attributed withdrawals. [Verified disputes/returns](DISPUTE_RETURNS.md) cover post-adjudication remedies.
+
+
+## Verified fees and debt update
+
+[Fees and debt](FEES_AND_DEBT.md) now provides prior-disclosure snapshots, verified invoice assessment, Buyer wallet/MoMo payments, same-Shop available-fund offsets, objections/corrections and source refunds. New payout requests settle collectible Shop fees before allocation; existing payout locks remain protected. Missing legacy disclosure/waybill snapshots are not repaired automatically. Unsupported small provider refunds remain pending review rather than being reported completed.

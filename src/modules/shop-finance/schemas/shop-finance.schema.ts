@@ -10,6 +10,11 @@ import {
   collectionViewSchema,
   vndSchema,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import {
+  carrierReceiptViewSchema,
+  returnShippingChargeViewSchema,
+} from '@/modules/dispute/returns/schemas/return-exception.schema';
+import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
 export const shopFinanceViewSchema = z.object({
   shopId: z.uuid(),
@@ -17,6 +22,19 @@ export const shopFinanceViewSchema = z.object({
   held: safeBalanceSchema,
   receivable: safeBalanceSchema,
   available: safeBalanceSchema,
+  payoutLocked: safeBalanceSchema,
+  paidOut: safeBalanceSchema,
+  paidOutDebt: safeBalanceSchema,
+  heldShortfall: safeBalanceSchema,
+  reviewHeld: safeBalanceSchema,
+  feePayable: safeBalanceSchema,
+  feeDebited: safeBalanceSchema,
+  feeSourceDebt: safeBalanceSchema,
+  carrierCompensation: safeBalanceSchema,
+  returnFeePayable: safeBalanceSchema,
+  carrierReceipts: z.array(carrierReceiptViewSchema),
+  returnCharges: z.array(returnShippingChargeViewSchema),
+  refunds: z.array(refundCreditViewSchema),
   settlements: z.array(
     z.object({
       id: z.uuid(),

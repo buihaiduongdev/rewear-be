@@ -39,4 +39,7 @@ export class ShopSettlement extends BaseEntity {
 
   @Column('integer')
   amount: number;
+
+  @Column({ type: 'integer', default: 0 })
+  refundDebit: number;
 }

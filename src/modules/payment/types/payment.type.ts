@@ -2,6 +2,7 @@ import type {
   CheckoutAddress,
   CheckoutItem,
 } from '@/modules/checkout/types/checkout.type';
+import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import type {
   PAYMENT_ATTEMPT_STATE,
@@ -23,6 +24,7 @@ export type CaptureDisposition =
   (typeof PAYMENT_CAPTURE_DISPOSITION)[keyof typeof PAYMENT_CAPTURE_DISPOSITION];
 
 export interface PaymentOrderSnapshot {
+  feeDisclosure?: FeeDisclosure | null;
   checkoutOrderId: string;
   shopId: string;
   shopName: string;

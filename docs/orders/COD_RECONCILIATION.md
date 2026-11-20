@@ -8,7 +8,7 @@ allocation and the Shop money foundation. It follows
 Collection/remittance records create held liabilities. The separate
 [72-hour settlement workflow](SETTLEMENT.md) now verifies Admin-evidenced delivery
 times and releases eligible held funds internally. Refund/dispute adjudication
-and bank payouts remain separate work. Delivery status, `codCollectedAt` and `carrierTransferredAt`
+and [manual bank payouts](WALLET_CHECKOUT_AND_PAYOUTS.md) use their own verified workflows. Delivery status, `codCollectedAt` and `carrierTransferredAt`
 alone do not prove money was received in Rewear's bank account.
 
 ## Verification modes
@@ -125,3 +125,8 @@ constraints. No financial field is writable by the Owner.
 
 Tests use dedicated PostgreSQL, real JWT role checks and hand-checked money
 fixtures. There is no live bank or GHN reconciliation API test in this slice.
+
+
+## Verified fees and debt update
+
+[Fees and debt](FEES_AND_DEBT.md) now provides prior-disclosure snapshots, verified invoice assessment, Buyer wallet/MoMo payments, same-Shop available-fund offsets, objections/corrections and source refunds. New payout requests settle collectible Shop fees before allocation; existing payout locks remain protected. Missing legacy disclosure/waybill snapshots are not repaired automatically. Unsupported small provider refunds remain pending review rather than being reported completed.

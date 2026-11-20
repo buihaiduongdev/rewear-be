@@ -19,6 +19,8 @@ class PaymentAttempt {}
 class PaymentRefund {}
 class Order {}
 class OrderEvent {}
+class WalletCheckoutHold {}
+class FeePaymentCapture {}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
@@ -30,6 +32,9 @@ const deps = {
   ...(await load('../src/modules/checkout/constants/checkout.constant.ts')),
   ...(await load('../src/common/constants/money.constant.ts')),
   ...(await load('../src/modules/order/constants/order.constant.ts')),
+  ...(await load(
+    '../src/modules/wallet/checkout/constants/wallet-checkout.constant.ts',
+  )),
   Checkout,
   Product,
   Shop,
@@ -39,6 +44,8 @@ const deps = {
   PaymentRefund,
   Order,
   OrderEvent,
+  WalletCheckoutHold,
+  FeePaymentCapture,
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,
