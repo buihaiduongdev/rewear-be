@@ -8,7 +8,7 @@ export const PRODUCT_PAGINATION_CONFIG: PaginateConfig<Product> = {
     ['createdAt', 'DESC'],
     ['id', 'DESC'],
   ],
-  searchableColumns: ['title', 'description', 'brand'],
+  searchableColumns: ['title', 'brand', 'shop.name'],
   filterableColumns: {
     categoryId: [FilterOperator.EQ],
     shopId: [FilterOperator.EQ],

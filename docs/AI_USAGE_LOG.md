@@ -992,3 +992,15 @@
 - **Review:** Cross-review found and fixed per-order allocation rounding guards, missing MoMo cancellation capture proof, reward recovery blocked by later open issues, missing reward notices, and stale promotion mistake expense after released holds. Program reports use one repeatable snapshot. No composite reputation formula added.
 - **Validation:** Targeted PostgreSQL coin/rating/refund tests and unit tests run against dedicated rewear_test. Full local build/typecheck and app-level tests are blocked by missing xstate from newly merged main; registry access is blocked in this agent environment. PR CI must establish full frozen-install regression status. Final PR description records latest counts. MoMo/GHN/private storage integration remains mocked; no live transaction or developer database reset.
 - **Documentation:** docs/orders/COINS_AND_SHOP_RATINGS.md. Human review requested; no human approval asserted.
+
+### 2026-11-21 — Tối ưu hóa các cột tìm kiếm sản phẩm và bổ sung tìm kiếm theo tên Shop
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Tối ưu hóa hiệu năng truy vấn tìm kiếm sản phẩm tại backend, loại bỏ quét chuỗi văn bản dài trên cột description để tránh làm chậm database và giảm nhiễu kết quả tìm kiếm; đồng thời bổ sung tìm kiếm theo tên Shop (shop.name) khớp với hành vi tìm kiếm của thanh công cụ frontend.
+- **Prompt chính:** Rà soát cấu hình tìm kiếm trong PRODUCT_PAGINATION_CONFIG, loại bỏ description khỏi searchableColumns để tránh Full Table Scan và giảm delay khi tìm kiếm; bổ sung shop.name để hỗ trợ tìm kiếm sản phẩm theo tên người bán, đảm bảo toàn bộ kiểm thử chất lượng vượt qua.
+- **Đầu ra AI được sử dụng:** Cập nhật `src/modules/product/pagination.config.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đánh giá ảnh hưởng hiệu năng của toán tử ILIKE trên trường TEXT và kiểm tra tính tương thích quan hệ relation `shop.name` qua query builder của nestjs-paginate.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR trên branch `refact/optimize-product-search-columns`.
