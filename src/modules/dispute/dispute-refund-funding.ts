@@ -9,6 +9,7 @@ import {
 import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/order-fingerprint.policy';
+import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -52,6 +53,8 @@ export async function refundFunding(
     orderId: order.id,
   });
   if (!collection) return null;
+  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode)))
+    return null;
   const reviewAcceptable =
     collection.reviewReason === null ||
     collection.reviewReason ===
@@ -90,7 +93,8 @@ export async function refundFunding(
   );
   const itemFundsAvailable = Math.min(
     order.subtotal,
-    Math.max(0, collection.cashReceived - reservedShipping),
+    Math.max(0, collection.cashReceived - reservedShipping) +
+      (order.coinDiscount ?? 0),
   );
   return {
     mode: collection.mode,

@@ -2,8 +2,6 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { EntityManager } from 'typeorm';
 
-import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
-import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
@@ -12,11 +10,8 @@ import {
 import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/order-fingerprint.policy';
-import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
+import { verifiedMomoCapture } from '@/modules/payment/verified-momo-capture';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
@@ -47,6 +42,8 @@ export class OrderFundingService {
     sellerNet: number,
   ) {
     const debit = await verifiedWalletCapture(manager, order);
+    if (!debit || !(await verifiedOrderCoinDebit(manager, order, debit.mode)))
+      return null;
     if (
       !debit ||
       !order.deliveryObservedAt ||
@@ -93,6 +90,8 @@ export class OrderFundingService {
       orderId: order.id,
     });
     if (!collection) return null;
+    if (!(await verifiedOrderCoinDebit(manager, order, collection.mode)))
+      return null;
     const hasFullReceipt =
       collection.cashReceived + collection.feeDeducted === order.total;
     const matchesSnapshot =
@@ -127,48 +126,22 @@ export class OrderFundingService {
     order: Order,
     sellerNet: number,
   ) {
-    if (!order.paymentId) return null;
-    const payment = await manager.findOneBy(PaymentAttempt, {
-      id: order.paymentId,
-    });
-    if (!payment) return null;
-    const checkout = await manager.findOneBy(Checkout, {
-      id: payment.checkoutId,
-    });
-    const hasRefund = await manager.existsBy(PaymentRefund, {
-      paymentId: payment.id,
-      providerTransId: payment.providerTransId ?? '',
-    });
-    const snapshot = payment.orders.find(
-      (row) => row.checkoutOrderId === order.checkoutOrderId,
-    );
-    const captureVerified =
-      payment.state === PAYMENT_ATTEMPT_STATE.PAID &&
-      payment.providerTransId &&
-      payment.paidAt &&
-      order.deliveryObservedAt &&
-      payment.paidAt <= order.deliveryObservedAt &&
-      payment.capturedAmount === payment.amount &&
-      payment.amount ===
-        payment.orders.reduce(
-          (sum, row) => sum + row.subtotal + row.shippingFee,
-          0,
-        ) &&
-      payment.buyerId === order.buyerId &&
-      payment.checkoutId === order.checkoutId &&
-      checkout?.status === CHECKOUT_STATUS.PAID &&
-      checkout.buyerId === order.buyerId &&
-      !hasRefund;
-    const snapshotMatches =
-      snapshot &&
-      order.commissionBasisPoints ===
-        ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS &&
-      snapshot.shopId === order.shopId &&
-      snapshot.subtotal === order.subtotal &&
-      snapshot.shippingFee === order.shippingFee &&
-      JSON.stringify(snapshot.items) === JSON.stringify(order.items);
-    const canFund = captureVerified && snapshotMatches;
-    if (!canFund) return null;
+    if (!order.deliveryObservedAt) return null;
+    const payment = await verifiedMomoCapture(manager, order);
+    if (
+      !payment ||
+      !payment.paidAt ||
+      payment.paidAt > order.deliveryObservedAt
+    )
+      return null;
+    if (
+      !(await verifiedOrderCoinDebit(
+        manager,
+        order,
+        RECONCILIATION_MODE.SIMULATION,
+      ))
+    )
+      return null;
     let credit = await manager.findOneBy(ShopLedgerEntry, {
       orderId: order.id,
     });

@@ -3,6 +3,7 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
 import { Order } from '@/modules/order/entities/order.entity';
 import { encumberedOrderSettlement } from '@/modules/shop-finance/payout-sources';
 import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
@@ -92,6 +93,7 @@ export async function executeDisputeRefund(
       funding.mode,
       allocation.amount,
     );
+  await adjustPurchaseReward(manager, order, now);
   refund.status = REFUND_STATE.SUCCEEDED;
   refund.blockedReason = null;
   refund.completedAt = now;

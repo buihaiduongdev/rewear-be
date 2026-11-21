@@ -19,7 +19,11 @@ import {
   CHECKOUT_REMOVAL_REASON,
   CHECKOUT_STATUS,
 } from '@/modules/checkout/constants/checkout.constant';
+import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { snapshotFeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure';
+import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
+import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
@@ -30,6 +34,7 @@ import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
+import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
 import type { CreateCheckoutInput } from './types/checkout.type';
 import type { CheckoutAddress } from './types/checkout.type';
 
@@ -295,6 +300,63 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     return snapshot;
   }
 
+  async selectCoins(
+    buyerId: string,
+    id: string,
+    input: SelectCheckoutCoinsInput,
+  ) {
+    return this.db.transaction(async (manager) => {
+      await this.lock(manager);
+      await this.expireDue(manager);
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
+      if (
+        checkout.status !== CHECKOUT_STATUS.HELD ||
+        !checkout.expiresAt ||
+        checkout.expiresAt <= now
+      )
+        throw new ConflictException('An active checkout is required');
+      const attempts = await manager.find(PaymentAttempt, {
+        where: { checkoutId: id },
+      });
+      if (
+        attempts.some(
+          (row) =>
+            row.state !== PAYMENT_ATTEMPT_STATE.FAILED &&
+            row.state !== PAYMENT_ATTEMPT_STATE.REFUNDED,
+        ) ||
+        (await manager.existsBy(WalletCheckoutHold, {
+          checkoutId: id,
+          state: WALLET_HOLD_STATE.HELD,
+        }))
+      )
+        throw new ConflictException(
+          'Resolve payment reservations before changing coins',
+        );
+      const orders = await manager.find(CheckoutOrder, {
+        where: { checkoutId: id },
+      });
+      await new CoinService().reserveCheckoutCoins(
+        manager,
+        {
+          ...checkout,
+          subtotal: orders.reduce((sum, row) => sum + row.subtotal, 0),
+        },
+        input.amount,
+        input.mode,
+        input.requestId,
+        now,
+      );
+      checkout.coinDiscount = input.amount;
+      checkout.coinMode = input.amount ? input.mode : null;
+      await manager.save(checkout);
+      return this.view(manager, checkout);
+    });
+  }
+
   async findMine(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
       await this.lock(manager);
@@ -358,6 +420,11 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
           ? WALLET_HOLD_STATE.EXPIRED
           : WALLET_HOLD_STATE.RELEASED,
       );
+    await new CoinService().releaseCheckoutCoins(
+      manager,
+      checkout.id,
+      new Date(now),
+    );
     checkout.status = status;
     await manager.save(checkout);
   }
@@ -368,9 +435,32 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       relations: { shop: true },
       order: { id: 'ASC' },
     });
+    const allocation = allocateCoins(
+      orders.map((order) => ({ id: order.id, amount: order.subtotal })),
+      checkout.coinDiscount ?? 0,
+    );
     return {
       ...checkout,
-      orders: orders.map((order) => ({ ...order, shopName: order.shop.name })),
+      orders: orders.map((order) => {
+        const coinDiscount = allocation.get(order.id) ?? 0;
+        const items = allocateCoins(
+          order.items.map((item) => ({
+            id: item.productId,
+            amount: item.price,
+          })),
+          coinDiscount,
+          false,
+        );
+        return {
+          ...order,
+          coinDiscount,
+          items: order.items.map((item) => ({
+            ...item,
+            coinDiscount: items.get(item.productId) ?? 0,
+          })),
+          shopName: order.shop.name,
+        };
+      }),
       subtotal: orders.reduce((total, order) => total + order.subtotal, 0),
       currency: MONEY_CURRENCY.VND,
       paymentReady: false as const,

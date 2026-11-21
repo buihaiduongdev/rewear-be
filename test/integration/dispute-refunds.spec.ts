@@ -4,6 +4,10 @@ import { MAX_SAFE_BALANCE } from '@/common/constants/money.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinGrant } from '@/modules/coins/core/entities/coin.entity';
+import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
+import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities/coin-reward.entity';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
@@ -17,6 +21,8 @@ import {
   DisputeCase,
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
+import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
+import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { Order } from '@/modules/order/entities/order.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
@@ -141,6 +147,61 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
       (await f.db.getRepository(DisputeCase).findOneByOrFail({ id: f.row.id }))
         .state,
     ).toBe('CLOSED');
+  });
+  it('recovers an earlier purchase reward after a final goods refund without waiting for carrier remittance', async () => {
+    const f = await fixture();
+    const deliveredAt = f.order.deliveryObservedAt!;
+    const disputeDeadlineAt = new Date(
+      deliveredAt.getTime() + ORDER_POLICY.DISPUTE_WINDOW_MS,
+    );
+    await f.db.getRepository(Order).update(f.order.id, {
+      deliveryVerifiedAt: deliveredAt,
+      disputeDeadlineAt,
+    });
+    await f.db.getRepository(OrderDeliveryVerification).save({
+      orderId: f.order.id,
+      deliveredAt,
+      disputeDeadlineAt,
+      mode: 'EVIDENCE',
+      actorId: f.admin.id,
+      reason: 'Verified delivery',
+      evidence: 'Signed handoff',
+    });
+    await f.db
+      .getRepository(DisputeIssue)
+      .update(f.issue.id, { status: 'RESOLVED_NO_REFUND' });
+    const rewards = new CoinRewardService(f.db, new CoinService());
+    const reward = await rewards.evaluate(f.order.id);
+    expect(reward?.entitlement).toBe(500);
+    await f.db
+      .getRepository(DisputeIssue)
+      .update(f.issue.id, { status: 'AWAITING_EXECUTION' });
+    await service.refresh(f.final.id);
+    expect(
+      await f.db
+        .getRepository(CoinRewardAdjustmentNotice)
+        .findBy({ orderId: f.order.id }),
+    ).toEqual([
+      expect.objectContaining({
+        entitlement: 0,
+        previousEntitlement: 500,
+        pendingRecovery: 0,
+        recovered: 500,
+      }),
+    ]);
+    expect(await rewards.evaluate(f.order.id)).toMatchObject({
+      entitlement: 0,
+    });
+    expect(
+      await f.db
+        .getRepository(CoinRewardAdjustmentNotice)
+        .countBy({ orderId: f.order.id }),
+    ).toBe(1);
+    expect(
+      await f.db
+        .getRepository(CoinGrant)
+        .findOneByOrFail({ id: reward!.grantId }),
+    ).toMatchObject({ amount: 500, recovered: 500 });
   });
   it('keeps simulated money isolated from spendable evidenced balance', async () => {
     const f = await fixture('SIMULATION');

@@ -4,6 +4,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -314,6 +315,17 @@ export class OrderService {
   ) {
     if (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD)
       await this.walletService.creditCancellation(manager, order);
+    else {
+      const buyerCancellation =
+        reason === ORDER_CANCELLATION_REASON.BUYER_CANCELLED ||
+        reason === ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED;
+      await new CoinService().releaseOrderCoins(
+        manager,
+        order,
+        buyerCancellation ? 'BUYER_CHANGE' : 'SELLER',
+        now,
+      );
+    }
     order.stockReleaseReviewIds = await this.releaseStock(manager, order);
     order.status = ORDER_STATUS.CANCELLED;
     order.cancelledAt = now;

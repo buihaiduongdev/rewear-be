@@ -6,6 +6,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import type { ShippingQuoteResult } from '@/modules/checkout/types/shipping-quote.type';
+import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
 
 import {
   SHIPPING_QUOTE_MAX_AGE_MS,
@@ -50,6 +51,10 @@ export class PaymentPricing {
       new Set(quote.orders.map((row) => row.orderId)).size !== orders.length
     )
       throw new ConflictException('Refresh the shipping quote before paying');
+    const allocation = allocateCoins(
+      orders.map((order) => ({ id: order.id, amount: order.subtotal })),
+      checkout.coinDiscount ?? 0,
+    );
     const snapshots = orders.map((order) => {
       const row = quote.orders.find((item) => item.orderId === order.id);
       if (
@@ -63,7 +68,15 @@ export class PaymentPricing {
         throw new ConflictException(
           'Only fully quoted Shop orders can be paid',
         );
+      const coinDiscount = allocation.get(order.id) ?? 0;
+      const itemAllocation = allocateCoins(
+        order.items.map((item) => ({ id: item.productId, amount: item.price })),
+        coinDiscount,
+        false,
+      );
       return {
+        coinDiscount,
+        coinMode: checkout.coinMode ?? null,
         checkoutOrderId: order.id,
         feeDisclosure: checkout.feeDisclosure ?? null,
         shopId: order.shopId,
@@ -71,7 +84,10 @@ export class PaymentPricing {
         subtotal: order.subtotal,
         shippingFee: row.fee!,
         address: order.address,
-        items: order.items,
+        items: order.items.map((item) => ({
+          ...item,
+          coinDiscount: itemAllocation.get(item.productId) ?? 0,
+        })),
       };
     });
     const total = snapshots.reduce(

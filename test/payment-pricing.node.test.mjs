@@ -11,9 +11,34 @@ const constants = await loadTypeScriptModule(
     import.meta.url,
   ),
 );
+const allocationSource = (
+  await readFile(
+    new URL(
+      '../src/modules/coins/checkout/coin-allocation.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+).replace(/^import.*;\s*/gm, '');
+const { COIN_POLICY } = await loadTypeScriptModule(
+  new URL(
+    '../src/modules/coins/core/constants/coin.constant.ts',
+    import.meta.url,
+  ),
+);
+const { allocateCoins } = await import(
+  'data:text/javascript;base64,' +
+    Buffer.from(
+      'const ConflictException = Error;\nconst COIN_POLICY = ' +
+        JSON.stringify(COIN_POLICY) +
+        ';\n' +
+        stripTypeScriptTypes(allocationSource, { mode: 'transform' }),
+    ).toString('base64')
+);
 let quote;
 globalThis.__paymentPricingDependencies = {
   ...constants,
+  allocateCoins,
   ConflictException: Error,
   CheckoutOrder: class {},
 };
@@ -26,7 +51,7 @@ const source = (
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '');
 const { PaymentPricing } = await import(
-  `data:text/javascript;base64,${Buffer.from(`const { ConflictException, CheckoutOrder, SHIPPING_QUOTE_STATUS, SHIPPING_QUOTE_ORDER_STATUS, SHIPPING_QUOTE_MAX_AGE_MS } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`const { allocateCoins, ConflictException, CheckoutOrder, SHIPPING_QUOTE_STATUS, SHIPPING_QUOTE_ORDER_STATUS, SHIPPING_QUOTE_MAX_AGE_MS } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
 );
 
 test('pricing requires a current complete server quote and snapshots Shop money, address and items', async () => {
@@ -53,6 +78,8 @@ test('pricing requires a current complete server quote and snapshots Shop money,
     await pricing.snapshot(manager, { id: 'checkout' }, prepared()),
     [
       {
+        coinDiscount: 0,
+        coinMode: null,
         checkoutOrderId: 'order',
         feeDisclosure: null,
         shopId: 'shop',
@@ -60,7 +87,7 @@ test('pricing requires a current complete server quote and snapshots Shop money,
         subtotal: 200000,
         shippingFee: 30000,
         address: order.address,
-        items: order.items,
+        items: order.items.map((item) => ({ ...item, coinDiscount: 0 })),
       },
     ],
   );

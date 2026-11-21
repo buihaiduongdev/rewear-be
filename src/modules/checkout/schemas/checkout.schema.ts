@@ -3,6 +3,7 @@ import z from 'zod';
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
@@ -44,6 +45,8 @@ const addressSchema = z.object({
   deliveryInstructions: z.string().nullable(),
 });
 export const checkoutSchema = z.object({
+  coinDiscount: z.number().int().nonnegative().default(0),
+  coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
   feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   status: z.enum(CHECKOUT_STATUS),
@@ -53,6 +56,7 @@ export const checkoutSchema = z.object({
   address: addressSchema,
   orders: z.array(
     z.object({
+      coinDiscount: z.number().int().nonnegative().default(0),
       id: z.uuid(),
       shopId: z.uuid(),
       shopName: z.string(),
@@ -62,6 +66,7 @@ export const checkoutSchema = z.object({
           shippingPackage: resolvedShippingPackageSchema
             .nullable()
             .default(null),
+          coinDiscount: z.number().int().nonnegative().default(0),
           productId: z.uuid(),
           title: z.string(),
           price: z.number().int(),
@@ -80,3 +85,12 @@ export const checkoutSchema = z.object({
 });
 
 export type { CreateCheckoutInput } from '../types/checkout.type';
+
+export const selectCheckoutCoinsSchema = z.strictObject({
+  requestId: z.uuid(),
+  amount: z.number().int().nonnegative(),
+  mode: z.enum(RECONCILIATION_MODE),
+});
+export type SelectCheckoutCoinsInput = z.output<
+  typeof selectCheckoutCoinsSchema
+>;

@@ -42,7 +42,8 @@ export async function verifiedWalletCapture(
     hold.amount === debit.amount &&
     hold.amount ===
       hold.orders.reduce(
-        (sum, row) => sum + row.subtotal + row.shippingFee,
+        (sum, row) =>
+          sum + row.subtotal + row.shippingFee - (row.coinDiscount ?? 0),
         0,
       ) &&
     (!order.deliveryObservedAt || hold.capturedAt <= order.deliveryObservedAt);
@@ -57,7 +58,11 @@ export async function verifiedWalletCapture(
     snapshot?.shopId === order.shopId &&
     snapshot.subtotal === order.subtotal &&
     snapshot.shippingFee === order.shippingFee &&
-    order.total === order.subtotal + order.shippingFee &&
+    order.total ===
+      order.subtotal + order.shippingFee - (order.coinDiscount ?? 0) &&
+    (snapshot.coinDiscount ?? 0) === (order.coinDiscount ?? 0) &&
+    (snapshot.coinMode ?? null) === (order.coinMode ?? null) &&
+    (!(order.coinDiscount ?? 0) || order.coinMode === debit.mode) &&
     JSON.stringify(snapshot.items) === JSON.stringify(order.items) &&
     JSON.stringify(snapshot.address) === JSON.stringify(order.address);
   return captureMatches && checkoutMatches && snapshotMatches ? debit : null;

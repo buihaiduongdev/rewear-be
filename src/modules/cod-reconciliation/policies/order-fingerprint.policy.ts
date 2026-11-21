@@ -10,6 +10,9 @@ export function orderFundingFingerprint(order: Order, shipment: Shipment) {
     subtotal: order.subtotal,
     shippingFee: order.shippingFee,
     total: order.total,
+    ...((order.coinDiscount ?? 0) > 0
+      ? { coinDiscount: order.coinDiscount, coinMode: order.coinMode }
+      : {}),
     rate: order.commissionBasisPoints,
     items: order.items
       .map((item) => ({ productId: item.productId, price: item.price }))

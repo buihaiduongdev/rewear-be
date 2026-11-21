@@ -5,11 +5,12 @@ import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
 export function walletCheckoutTotal(
-  orders: { subtotal: number; shippingFee: number }[],
+  orders: { subtotal: number; shippingFee: number; coinDiscount?: number }[],
   expected: number,
 ) {
   const total = orders.reduce(
-    (sum, row) => sum + row.subtotal + row.shippingFee,
+    (sum, row) =>
+      sum + row.subtotal + row.shippingFee - (row.coinDiscount ?? 0),
     0,
   );
   if (

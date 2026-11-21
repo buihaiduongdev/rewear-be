@@ -21,6 +21,16 @@ class Order {}
 class OrderEvent {}
 class WalletCheckoutHold {}
 class FeePaymentCapture {}
+// Coin accounting is exercised against PostgreSQL in coin-core/wallet-checkout.
+// These isolated provider-state tests have no coin selection.
+class CoinService {
+  async consumeCheckoutCoins(_manager, _checkoutId, orders) {
+    assert.equal(
+      orders.reduce((sum, order) => sum + (order.coinDiscount ?? 0), 0),
+      0,
+    );
+  }
+}
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const deps = {
@@ -46,6 +56,8 @@ const deps = {
   OrderEvent,
   WalletCheckoutHold,
   FeePaymentCapture,
+  CoinService,
+  RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,

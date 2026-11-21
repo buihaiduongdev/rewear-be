@@ -7,6 +7,8 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 
 import { CheckoutService } from './checkout.service';
+import { selectCheckoutCoinsSchema } from './schemas/checkout.schema';
+import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
 import {
   checkoutSchema,
   createCheckoutSchema,
@@ -37,6 +39,19 @@ export class CheckoutController {
   ) {
     return this.shippingQuoteService.refresh(user.id, id);
   }
+  @AuthenticatedAccess()
+  @Post(':id/coins')
+  @HttpCode(200)
+  @Serialize(checkoutSchema)
+  selectCoins(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: selectCheckoutCoinsSchema })
+    input: SelectCheckoutCoinsInput,
+  ) {
+    return this.checkoutService.selectCoins(user.id, id, input);
+  }
+
   @AuthenticatedAccess()
   @Post()
   @HttpCode(200)

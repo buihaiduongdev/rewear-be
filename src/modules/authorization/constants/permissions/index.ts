@@ -2,8 +2,10 @@ import { CHAT_PERMISSIONS } from './chat-permissions.constant';
 import { ORDER_PERMISSIONS } from './order-permissions.constant';
 import { PICKUP_PERMISSIONS } from './pickup-permissions.constant';
 import { PRODUCT_PERMISSIONS } from './product-permissions.constant';
+import { RATING_PERMISSIONS } from './rating-permissions.constant';
 import { SHOP_MANAGEMENT_PERMISSIONS } from './shop-management-permissions.constant';
 
+export * from './rating-permissions.constant';
 export * from './chat-permissions.constant';
 export * from './order-permissions.constant';
 export * from './pickup-permissions.constant';
@@ -16,6 +18,7 @@ export const SHOP_PERMISSIONS = {
   ...ORDER_PERMISSIONS,
   ...PICKUP_PERMISSIONS,
   ...CHAT_PERMISSIONS,
+  ...RATING_PERMISSIONS,
 } as const;
 
 export type TShopPermission =

@@ -4,9 +4,11 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';
+import { verifiedMomoCapture } from '@/modules/payment/verified-momo-capture';
 
 import { verifiedWalletCapture } from './checkout/verified-wallet-capture';
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
@@ -26,15 +28,8 @@ export class WalletService {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     if (!orderRefundSchema.safeParse(order).success)
       throw new ConflictException('Invalid order refund amount');
-    if (order.total === 0) return null;
-    const existing = await manager.findOneBy(WalletCredit, {
-      orderId: order.id,
-    });
-    if (existing) {
-      if (existing.userId !== order.buyerId || existing.amount !== order.total)
-        throw new ConflictException('Refund ledger requires reconciliation');
-      return existing;
-    }
+    const refundAmount = order.subtotal + order.shippingFee;
+    if (refundAmount === 0) return null;
     if (await manager.existsBy(DisputeRefundCredit, { orderId: order.id }))
       throw new ConflictException(
         'Order already has a dispute refund; cancellation needs reconciliation',
@@ -43,13 +38,32 @@ export class WalletService {
       order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
         ? await verifiedWalletCapture(manager, order)
         : null;
-    const invalidSource =
-      order.paymentMethod !== ORDER_PAYMENT_METHOD.MOMO && !capture;
+    const momo =
+      order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO
+        ? await verifiedMomoCapture(manager, order)
+        : null;
+    const invalidSource = !momo && !capture;
     if (invalidSource)
       throw new ConflictException(
         'Cancellation payment source requires reconciliation',
       );
     const mode = capture?.mode ?? RECONCILIATION_MODE.SIMULATION;
+    if (!(await verifiedOrderCoinDebit(manager, order, mode)))
+      throw new ConflictException(
+        'Cancellation coin source requires reconciliation',
+      );
+    const existing = await manager.findOneBy(WalletCredit, {
+      orderId: order.id,
+    });
+    if (existing) {
+      if (
+        existing.userId !== order.buyerId ||
+        existing.amount !== refundAmount ||
+        existing.mode !== mode
+      )
+        throw new ConflictException('Refund ledger requires reconciliation');
+      return existing;
+    }
     let account = await manager.findOneBy(WalletAccount, {
       userId: order.buyerId,
     });
@@ -65,7 +79,7 @@ export class WalletService {
     const held = simulated
       ? account.simulationHeldBalance
       : account.heldBalance;
-    const balance = account[balanceField] + order.total;
+    const balance = account[balanceField] + refundAmount;
     if (!walletBalanceSchema.safeParse(balance + held).success)
       throw new ConflictException('Wallet balance requires reconciliation');
     const credit = await manager.save(
@@ -73,7 +87,7 @@ export class WalletService {
       manager.create(WalletCredit, {
         userId: order.buyerId,
         orderId: order.id,
-        amount: order.total,
+        amount: refundAmount,
         reason: WALLET_CREDIT_REASON.ORDER_CANCELLED,
         mode,
       }),

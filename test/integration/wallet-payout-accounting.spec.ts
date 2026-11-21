@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import {
   DisputeCase,
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
 import { Order } from '@/modules/order/entities/order.entity';
+import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import {
@@ -35,10 +37,47 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
   it('isolates new sandbox cancellations and leaves ambiguous legacy balances quarantined', async () => {
     const db = database.dataSource,
       f = await adjudicationFixture(db);
+    const checkout = await db.getRepository(Checkout).save({
+      buyerId: f.buyer.id,
+      requestId: randomUUID(),
+      addressId: randomUUID(),
+      requestedProductIds: f.order.items.map((row) => row.productId),
+      address: f.order.address,
+      status: 'PAID',
+      expiresAt: new Date(),
+      removedItems: [],
+    });
+    const payment = await db.getRepository(PaymentAttempt).save({
+      checkoutId: checkout.id,
+      buyerId: f.buyer.id,
+      requestId: randomUUID(),
+      state: 'PAID',
+      amount: f.order.total,
+      capturedAmount: f.order.total,
+      providerTransId: randomUUID(),
+      paidAt: new Date(f.order.deliveryObservedAt!.getTime() - 1000),
+      nextQueryAt: new Date(),
+      orders: [
+        {
+          checkoutOrderId: f.order.checkoutOrderId,
+          shopId: f.shop.id,
+          shopName: f.shop.name,
+          subtotal: f.order.subtotal,
+          shippingFee: f.order.shippingFee,
+          address: f.order.address,
+          items: f.order.items,
+        },
+      ],
+    });
+    Object.assign(f.order, { paymentMethod: 'MOMO' });
+    f.order.paymentId = payment.id;
+    f.order.checkoutId = checkout.id;
+    await db.getRepository(Order).save(f.order);
     const wallet = new WalletService(db);
-    await db.transaction((m) =>
-      wallet.creditCancellation(m, { ...f.order, paymentMethod: 'MOMO' }),
-    );
+    const persistedOrder = await db
+      .getRepository(Order)
+      .findOneByOrFail({ id: f.order.id });
+    await db.transaction((m) => wallet.creditCancellation(m, persistedOrder));
     const account = await db
       .getRepository(WalletAccount)
       .findOneByOrFail({ userId: f.buyer.id });
