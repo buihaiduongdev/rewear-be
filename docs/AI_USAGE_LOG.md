@@ -1004,3 +1004,20 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR trên branch `refact/optimize-product-search-columns`.
+
+### 2026-11-22 — Bổ sung trường logoUrl vào Shop entity và tích hợp trả về logo Shop trong API Product/Cart/Wishlist
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Chuẩn hóa cơ sở dữ liệu và API cho phép lưu trữ và trả về logo Shop chính thức từ backend, loại bỏ hoàn toàn cơ chế lưu logo tạm bợ bằng localStorage phía client.
+- **Prompt chính:** update thẳng entity luôn ko cần viết migration
+- **Đầu ra AI được sử dụng:**
+  - Cập nhật `src/modules/shop/entities/shop.entity.ts`: thêm cột `logoUrl: string | null` (varchar 2048, nullable).
+  - Cập nhật `src/modules/shop/schemas/shop.schema.ts` và `src/modules/shop/schemas/shop-input.schema.ts`: thêm `logoUrl` vào input và output response của Shop.
+  - Cập nhật `src/modules/shop/shop.service.ts`: lưu `logoUrl` khi tạo và cập nhật shop.
+  - Cập nhật `src/modules/product/schemas/product.schema.ts`: trả kèm `logoUrl` trong object `shop` của mỗi sản phẩm.
+  - Đồng bộ `cart.service.ts`, `wishlist.service.ts`, `shop.factory.ts` và cập nhật các unit test tương ứng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đảm bảo tính tương thích ngược, giá trị mặc định là `null` khi shop chưa có logo.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Commit trên branch `refact/optimize-product-search-columns`.

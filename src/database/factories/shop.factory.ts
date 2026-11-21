@@ -11,6 +11,7 @@ export class ShopFactory extends BaseFactory<Shop> {
     return {
       name: faker.company.name(),
       description: faker.company.catchPhrase(),
+      logoUrl: faker.image.avatar(),
       status: ShopStatus.ACTIVE,
     };
   }
