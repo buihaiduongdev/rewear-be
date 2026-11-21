@@ -2,12 +2,15 @@ import { BadRequestException } from '@nestjs/common';
 
 import type { EntityManager } from 'typeorm';
 
+import { Category } from '@/modules/category/entities';
 import { Order } from '@/modules/order/entities/order.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { Shop } from '@/modules/shop/entities';
+import { ShopStatus } from '@/modules/shop/enums';
 
 import { CHAT_CARD } from '../constants/chat.constant';
 import type { ChatConversation } from '../entities/chat.entity';
@@ -42,7 +45,17 @@ export async function chatCardSnapshot(
       productId: product.id,
       status: ProductModerationStatus.APPROVED,
     }));
-  if (!product || !approved)
+  const publicContext =
+    product?.categoryId &&
+    (await manager.existsBy(Category, {
+      id: product.categoryId,
+      isActive: true,
+    })) &&
+    (await manager.existsBy(Shop, {
+      id: conversation.shopId,
+      status: ShopStatus.ACTIVE,
+    }));
+  if (!product || !approved || !publicContext)
     throw new BadRequestException(
       'Product card must be a public approved listing of this Shop',
     );
