@@ -1001,3 +1001,12 @@
 - **Review:** Independent reviewer identified unresolved dispute navigation and missing simulation mode on fulfillment; corrected with typed targets and shared order-source mode resolver, plus PostgreSQL regression. Human review not asserted.
 - **Validation:** Local targeted PostgreSQL/unit tests, lint, formatting and typecheck diagnostics checked; full local app/build remain blocked by missing xstate dependency from main. Full CI on final PR commit is required; final PR description records results. DB tests use rewear_test serially; no developer database reset.
 - **Docs:** docs/orders/NOTIFICATIONS.md; plan docs/superpowers/plans/2026-11-21-central-notifications.md.
+
+### 2026-11-21 — Buyer–Shop chat backend
+
+- **Authority:** Tâm requested remaining backend1 (Chat), following settled CHAT-SESSION-01..03: one buyer/Shop thread, text/image/video and contextual cards; chat video may serve as dispute evidence. New feat/buyer-shop-chat branch/PR only, not merged.
+- **Core:** Active participant/current chat.manage enforcement, unique conversation and sender-scoped request replay, immutable sequence messages, bounded polling/history, shared Shop and buyer monotonic read cursors, server-owned card snapshots and privacy projections. Existing conversations continue for support when Shop stops new business; no self-Shop thread creation.
+- **Media/evidence:** Private PUT tickets, HEAD/ETag validation, attach-once, attachment-only signed reading; same-party/order/window checked explicit import to READY dispute evidence with retained provenance. No arbitrary media URL or implicit Staff dispute permission. Notification transaction uses safe CHAT target, no raw chat content or per-message email.
+- **Review:** Independent read-only review found no blocking correctness/security finding; clarified inactive-Shop support behavior in docs. No human approval asserted.
+- **Validation:** Targeted serial rewear_test chat/media/notification tests, schema/OpenAPI unit checks and lint/type diagnostics run. Full local app build remains blocked by missing xstate from main; final integrated CI result recorded in PR. Storage fake only, no live objects/messages sent through tooling.
+- **Docs:** docs/orders/CHAT.md; design/plan docs/superpowers/plans/2026-11-21-buyer-shop-chat.md.

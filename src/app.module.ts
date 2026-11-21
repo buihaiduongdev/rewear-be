@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
+import { ChatModule } from './modules/chat/chat.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconciliation.module';
 import { CodModule } from './modules/cod/cod.module';
@@ -41,6 +42,7 @@ import { WishlistModule } from './modules/wishlist';
     AdministrativeDivisionModule,
     CategoryModule,
     CartModule,
+    ChatModule,
     CheckoutModule,
     PaymentModule,
     AuthorizationModule,
