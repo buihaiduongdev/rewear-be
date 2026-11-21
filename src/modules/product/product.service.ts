@@ -21,6 +21,7 @@ import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
+import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
@@ -378,6 +379,7 @@ export class ProductService {
         input.decision === 'REJECT' ? input.reason!.trim() : null;
       await manager.save(ProductModeration, moderation);
       await manager.save(Product, product);
+      await notifyProductReview(manager, product, moderation);
     });
     return this.findManagedProduct(id);
   }
