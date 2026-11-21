@@ -1010,3 +1010,11 @@
 - **Review:** Independent read-only review found no blocking correctness/security finding; clarified inactive-Shop support behavior in docs. No human approval asserted.
 - **Validation:** Targeted serial rewear_test chat/media/notification tests, schema/OpenAPI unit checks and lint/type diagnostics run. Full local app build remains blocked by missing xstate from main; final integrated CI result recorded in PR. Storage fake only, no live objects/messages sent through tooling.
 - **Docs:** docs/orders/CHAT.md; design/plan docs/superpowers/plans/2026-11-21-buyer-shop-chat.md.
+
+### 2026-11-21 — Follow Shop and public followed-Shop feed
+
+- **Authority:** Tâm requested remaining backend1 Follow Shop. Existing WISHLIST-FOLLOW-SESSION-01 requires private followed-Shop list and access to new goods; kept separate from product Wishlist, reputation and public follower identities. New feat/follow-shops branch/PR only, not merged.
+- **Implementation:** Unique actor/Shop relation, serialized idempotent PUT/DELETE, authenticated active-account state/list and newest-products feed. Existing inactive-Shop follows remain removable and replay preserves original followedAt; new inactive follows denied. RR snapshots, bounded pagination and deterministic tie order. Feed enforces current follows plus public product/moderation/category/Shop/price/publication visibility, and excludes retired/non-image covers. No private seller details or storage keys exposed, no unsolicited email fanout.
+- **Review:** Independent read-only reviewer found no important actionable bug. No human approval asserted.
+- **Validation:** Local5 PostgreSQL tests and2 schema/OpenAPI unit tests pass; full HTTP/build/typecheck require CI because xstate remains missing locally. Final integrated CI results recorded in PR. Tests use rewear_test serially; no developer database reset or external provider calls.
+- **Docs:** docs/orders/SHOP_FOLLOWS.md; plan docs/superpowers/plans/2026-11-21-follow-shops.md. Frontend outside this PR.

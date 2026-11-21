@@ -31,6 +31,7 @@ import { ShipmentModule } from './modules/shipment/shipment.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
 import { ShopFinanceModule } from './modules/shop-finance/shop-finance.module';
+import { ShopFollowModule } from './modules/shop-follows/shop-follow.module';
 import { UserModule } from './modules/user';
 import { UserAddressModule } from './modules/user-address';
 import { WishlistModule } from './modules/wishlist';
@@ -57,6 +58,7 @@ import { WishlistModule } from './modules/wishlist';
     RatingsModule,
     CodReconciliationModule,
     ShopFinanceModule,
+    ShopFollowModule,
     ShopModule,
     ShippingModule,
     ShipmentModule,
