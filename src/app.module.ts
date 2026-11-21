@@ -21,6 +21,7 @@ import { FeeDisclosureModule } from './modules/fees/disclosure/fee-disclosure.mo
 import { FeeModule } from './modules/fees/fee.module';
 import { FeeSettlementModule } from './modules/fees/settlement/fee-settlement.module';
 import { MediaModule } from './modules/media';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ProductModule } from './modules/product';
@@ -59,6 +60,7 @@ import { WishlistModule } from './modules/wishlist';
     ShipmentModule,
     ProductModule,
     MediaModule,
+    NotificationModule,
     UserModule,
     UserAddressModule,
     WishlistModule,

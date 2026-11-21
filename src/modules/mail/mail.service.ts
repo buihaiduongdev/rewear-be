@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
+import ms from 'ms';
 import nodemailer, { Transporter } from 'nodemailer';
 
 import { ConfigService } from '@/modules/config';
+import type { Notification } from '@/modules/notifications/entities/notification.entity';
 
 import { getResetPasswordTemplate, getVerifyEmailTemplate } from './templates';
 
@@ -17,6 +19,9 @@ export class MailService {
       port: config.port,
       secure: config.secure,
       auth: { user: config.user, pass: config.password },
+      connectionTimeout: ms('15s'),
+      greetingTimeout: ms('15s'),
+      socketTimeout: ms('30s'),
     });
   }
 
@@ -40,5 +45,23 @@ export class MailService {
       subject: 'Reset your password - RE.WEAR',
       html: getResetPasswordTemplate(url.toString()),
     });
+  }
+
+  async sendNotificationEmail(
+    email: string,
+    notice: Pick<Notification, 'title' | 'body' | 'mode'>,
+    jobId: string,
+  ): Promise<void> {
+    const simulated = notice.mode === 'SIMULATION';
+    const url = new URL('/notifications', this.configService.mail.frontendUrl);
+    const result = await this.transporter.sendMail({
+      from: this.configService.mail.from,
+      to: email,
+      messageId: `<rewear-notification-${jobId}@notifications.rewear>`,
+      subject: `${simulated ? '[MÔ PHỎNG] ' : ''}${notice.title} - RE.WEAR`,
+      text: `${notice.body}\n\n${simulated ? 'Đây là thông báo từ giao dịch mô phỏng.\n\n' : ''}Đăng nhập Rewear để xem chi tiết: ${url.toString()}`,
+    });
+    if (!result.accepted?.length || result.rejected?.length)
+      throw new Error('Notification email not accepted');
   }
 }
