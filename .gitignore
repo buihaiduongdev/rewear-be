@@ -9,4 +9,10 @@ coverage/
 .tmp/
 graphify-out/
 docs/superpowers/
+terraform/
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+*.tfvars.json
 

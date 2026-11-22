@@ -109,7 +109,7 @@ describe('WishlistService', () => {
           size: 'L',
           color: 'Beige',
           coverUrl: 'https://cdn.example.com/cover.jpg',
-          shop: { id: 'shop-1', name: 'Vintage Shop' },
+          shop: { id: 'shop-1', name: 'Vintage Shop', logoUrl: null },
         },
       });
     });

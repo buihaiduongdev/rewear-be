@@ -8,6 +8,7 @@ export const shopSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
+  logoUrl: z.string().nullable().default(null),
   status: z.enum(ShopStatus),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,

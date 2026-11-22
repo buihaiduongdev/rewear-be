@@ -56,6 +56,7 @@ export class ShopService {
         manager.create(Shop, {
           name: input.name,
           description: input.description || null,
+          logoUrl: input.logoUrl || null,
           status: ShopStatus.ACTIVE,
         }),
       );
@@ -92,6 +93,8 @@ export class ShopService {
           input.description !== undefined
             ? input.description || null
             : undefined,
+        logoUrl:
+          input.logoUrl !== undefined ? input.logoUrl || null : undefined,
       });
       return repository.save(shop);
     });
