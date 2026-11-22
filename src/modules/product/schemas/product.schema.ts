@@ -44,6 +44,7 @@ export const productSchema = z.object({
   shop: z.object({
     id: z.uuid(),
     name: z.string(),
+    logoUrl: z.string().nullable().default(null),
   }),
 });
 

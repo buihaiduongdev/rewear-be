@@ -993,6 +993,34 @@
 - **Validation:** Targeted PostgreSQL coin/rating/refund tests and unit tests run against dedicated rewear_test. Full local build/typecheck and app-level tests are blocked by missing xstate from newly merged main; registry access is blocked in this agent environment. PR CI must establish full frozen-install regression status. Final PR description records latest counts. MoMo/GHN/private storage integration remains mocked; no live transaction or developer database reset.
 - **Documentation:** docs/orders/COINS_AND_SHOP_RATINGS.md. Human review requested; no human approval asserted.
 
+### 2026-11-21 — Tối ưu hóa các cột tìm kiếm sản phẩm và bổ sung tìm kiếm theo tên Shop
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Tối ưu hóa hiệu năng truy vấn tìm kiếm sản phẩm tại backend, loại bỏ quét chuỗi văn bản dài trên cột description để tránh làm chậm database và giảm nhiễu kết quả tìm kiếm. Giữ các cột tìm kiếm trực tiếp có index gồm `title` và `brand`.
+- **Prompt chính:** Rà soát cấu hình tìm kiếm trong PRODUCT_PAGINATION_CONFIG, loại bỏ description khỏi searchableColumns để tránh Full Table Scan và giảm delay khi tìm kiếm; tối ưu hóa các cột tìm kiếm và đảm bảo toàn bộ kiểm thử chất lượng vượt qua.
+- **Đầu ra AI được sử dụng:** Cập nhật `src/modules/product/pagination.config.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đánh giá ảnh hưởng hiệu năng của toán tử ILIKE trên trường TEXT và kiểm tra tính tương thích query builder của nestjs-paginate.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test` (100 test suites, 755 tests) pass 100%.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu AI đề xuất cấu hình `shop.name` vào `searchableColumns` mà không cấu hình relations trong nestjs-paginate khiến query builder tìm bảng `product_shop_rel` gây lỗi 500 khi gọi `/api/products?search=...`. Đã phát hiện qua CI e2e test và sửa lại `searchableColumns: ['title', 'brand']`.
+- **Minh chứng:** PR #56, branch `refact/optimize-product-search-columns`.
+
+### 2026-11-22 — Bổ sung trường logoUrl vào Shop entity và tích hợp trả về logo Shop trong API Product/Cart/Wishlist
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Chuẩn hóa cơ sở dữ liệu và API cho phép lưu trữ và trả về logo Shop chính thức từ backend, loại bỏ hoàn toàn cơ chế lưu logo tạm bợ bằng localStorage phía client.
+- **Prompt chính:** Cập nhật trực tiếp trường logoUrl vào Shop entity không cần viết migration, đồng bộ các schema request/response của Shop và trả về logoUrl của shop trong API sản phẩm, giỏ hàng và danh sách yêu thích.
+- **Đầu ra AI được sử dụng:**
+  - Cập nhật `src/modules/shop/entities/shop.entity.ts`: thêm cột `logoUrl: string | null` (varchar 2048, nullable).
+  - Cập nhật `src/modules/shop/schemas/shop.schema.ts` và `src/modules/shop/schemas/shop-input.schema.ts`: thêm `logoUrl` vào input và output response của Shop.
+  - Cập nhật `src/modules/shop/shop.service.ts`: lưu `logoUrl` khi tạo và cập nhật shop.
+  - Cập nhật `src/modules/product/schemas/product.schema.ts`: trả kèm `logoUrl` trong object `shop` của mỗi sản phẩm.
+  - Đồng bộ `cart.service.ts`, `wishlist.service.ts`, `shop.factory.ts` và cập nhật các unit test tương ứng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đảm bảo tính tương thích ngược, giá trị mặc định là `null` khi shop chưa có logo.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #56, branch `refact/optimize-product-search-columns`.
 ### 2026-11-21 — Central notifications and durable important-event email
 
 - **Authority:** Tâm requested implementing central notifications after PR52 merge. Existing NOTIF-SESSION-01 defines in-app and important-event email. New branch feat/central-notifications; new PR only, not merged.
@@ -1018,6 +1046,18 @@
 - **Review:** Independent read-only reviewer found no important actionable bug. No human approval asserted.
 - **Validation:** Local5 PostgreSQL tests and2 schema/OpenAPI unit tests pass; full HTTP/build/typecheck require CI because xstate remains missing locally. Final integrated CI results recorded in PR. Tests use rewear_test serially; no developer database reset or external provider calls.
 - **Docs:** docs/orders/SHOP_FOLLOWS.md; plan docs/superpowers/plans/2026-11-21-follow-shops.md. Frontend outside this PR.
+
+### 2026-11-22 — Bổ sung dữ liệu seed cho đơn hàng và tương tác
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Bổ sung dữ liệu phát triển cho đơn COD, danh sách yêu thích, theo dõi shop, hội thoại và thông báo.
+- **Prompt chính:** Bổ sung dữ liệu seed còn thiếu, tổ chức theo pattern factory hiện có và đồng bộ đơn COD với luồng nghiệp vụ.
+- **Đầu ra AI được sử dụng:** Factory cho các entity mới, dữ liệu seed liên kết checkout và đơn COD, tương tác buyer–shop và kiểm thử PostgreSQL.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu dùng pattern factory hiện có và kiểm tra sự đồng bộ với luồng COD.
+- **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
+- **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
 
 ### 2026-11-22 — Product and Shop violation reports
 

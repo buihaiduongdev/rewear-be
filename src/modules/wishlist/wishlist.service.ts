@@ -54,7 +54,13 @@ export class WishlistService {
               size: p.size,
               color: p.color,
               coverUrl: coverUrls.get(p.id) ?? null,
-              shop: p.shop ? { id: p.shop.id, name: p.shop.name } : null,
+              shop: p.shop
+                ? {
+                    id: p.shop.id,
+                    name: p.shop.name,
+                    logoUrl: p.shop.logoUrl ?? null,
+                  }
+                : null,
             }
           : null,
       };

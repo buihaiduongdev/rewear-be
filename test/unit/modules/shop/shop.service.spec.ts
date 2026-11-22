@@ -14,6 +14,7 @@ describe('ShopService', () => {
     id: 'f844ab9a-6f7a-4495-bc34-064bf3bf32d5',
     name: 'Re.wear Closet',
     description: null,
+    logoUrl: null,
     status: ShopStatus.ACTIVE,
     members: [],
     createdAt: new Date('2026-10-18T00:00:00.000Z'),
@@ -145,6 +146,7 @@ describe('ShopService', () => {
     expect(entityManager.create).toHaveBeenNthCalledWith(1, Shop, {
       name: 'Re.wear Closet',
       description: null,
+      logoUrl: null,
       status: ShopStatus.ACTIVE,
     });
     expect(entityManager.create).toHaveBeenNthCalledWith(2, ShopMember, {
