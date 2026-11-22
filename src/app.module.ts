@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CartModule } from './modules/cart';
 import { CategoryModule } from './modules/category';
+import { ChatModule } from './modules/chat/chat.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconciliation.module';
 import { CodModule } from './modules/cod/cod.module';
@@ -21,6 +22,7 @@ import { FeeDisclosureModule } from './modules/fees/disclosure/fee-disclosure.mo
 import { FeeModule } from './modules/fees/fee.module';
 import { FeeSettlementModule } from './modules/fees/settlement/fee-settlement.module';
 import { MediaModule } from './modules/media';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ProductModule } from './modules/product';
@@ -29,6 +31,7 @@ import { ShipmentModule } from './modules/shipment/shipment.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
 import { ShopFinanceModule } from './modules/shop-finance/shop-finance.module';
+import { ShopFollowModule } from './modules/shop-follows/shop-follow.module';
 import { UserModule } from './modules/user';
 import { UserAddressModule } from './modules/user-address';
 import { WishlistModule } from './modules/wishlist';
@@ -40,6 +43,7 @@ import { WishlistModule } from './modules/wishlist';
     AdministrativeDivisionModule,
     CategoryModule,
     CartModule,
+    ChatModule,
     CheckoutModule,
     PaymentModule,
     AuthorizationModule,
@@ -54,11 +58,13 @@ import { WishlistModule } from './modules/wishlist';
     RatingsModule,
     CodReconciliationModule,
     ShopFinanceModule,
+    ShopFollowModule,
     ShopModule,
     ShippingModule,
     ShipmentModule,
     ProductModule,
     MediaModule,
+    NotificationModule,
     UserModule,
     UserAddressModule,
     WishlistModule,
