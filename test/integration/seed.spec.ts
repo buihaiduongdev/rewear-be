@@ -88,7 +88,7 @@ describe('Seed data (PostgreSQL)', () => {
     expect(await db.getRepository(PickupLocation).count()).toBe(3);
     expect(await db.getRepository(Cart).count()).toBe(2);
     expect(await db.getRepository(CartItem).count()).toBe(5);
-    expect(await db.getRepository(MediaLink).count()).toBe(108);
+    expect(await db.getRepository(MediaLink).count()).toBe(39);
     const admin = await db.getRepository(User).findOneOrFail({
       where: { id: seed.users[0].id },
       select: { id: true, password: true },
@@ -138,7 +138,7 @@ describe('Seed data (PostgreSQL)', () => {
       result.data.every(
         (product) =>
           product.status === ProductStatus.ACTIVE &&
-          product.mediaCount === 3 &&
+          product.mediaCount === 1 &&
           product.coverUrl,
       ),
     ).toBe(true);

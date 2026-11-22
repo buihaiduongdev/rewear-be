@@ -1058,3 +1058,16 @@
 - **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
 - **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
+
+### 2026-11-22 — Làm mới dữ liệu seed sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cải thiện dữ liệu sản phẩm mẫu và ảnh minh họa cho trang mua sắm.
+- **Prompt chính:** Cập nhật seed sản phẩm thực tế hơn, mô tả đầy đủ hơn và chỉ dùng ảnh trang phục, phụ kiện không có người.
+- **Đầu ra AI được sử dụng:** Nội dung, màu, size và số đo theo loại sản phẩm; thay ảnh váy; bỏ các góc ảnh lặp và cập nhật sản phẩm trong đơn seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu ảnh không có người và nội dung đủ để xem tổng quan.
+- **Cách kiểm chứng:** Đối chiếu schema và ảnh nguồn; `git diff --check`. Không chạy test hoặc reset cơ sở dữ liệu theo yêu cầu người dùng.
+- **Giới hạn:** Các sản phẩm là dữ liệu minh họa; sáu ảnh được dùng lặp theo danh mục. Dữ liệu cũ chỉ thay đổi khi chạy lại seed fresh.
+- **Nguồn ảnh váy:** [mdreza jalali, Unsplash](https://unsplash.com/photos/blue-floral-dress-hanging-on-a-rack-outdoors-clothesline-2EKY6Nrm6cQ).
+- **Minh chứng:** branch `buihaiduongdev/seed-catalog-refresh`.
