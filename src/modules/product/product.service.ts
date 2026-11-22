@@ -28,6 +28,7 @@ import { ShopStatus } from '@/modules/shop/enums';
 import { Product, ProductModeration } from './entities';
 import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
+import { suspendProductForModeration } from './policies/suspend-product.policy';
 import type { SuspendProductInput } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
@@ -390,24 +391,7 @@ export class ProductService {
     { reason }: SuspendProductInput,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.lockProduct(manager, id);
-      if (
-        ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
-      ) {
-        throw new ConflictException(
-          'Only an available listing can be suspended',
-        );
-      }
-      if (!reason.trim())
-        throw new BadRequestException('A suspension reason is required');
-      const moderation = await manager.findOneByOrFail(ProductModeration, {
-        productId: id,
-      });
-      moderation.status = ProductModerationStatus.SUSPENDED;
-      moderation.reason = reason.trim();
-      await manager.save(ProductModeration, moderation);
-      product.status = ProductStatus.SUSPENDED;
-      await manager.save(Product, product);
+      await suspendProductForModeration(manager, id, reason);
     });
     return this.findManagedProduct(id);
   }
