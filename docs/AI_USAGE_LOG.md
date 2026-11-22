@@ -1058,3 +1058,12 @@
 - **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
 - **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
+
+### 2026-11-22 — Verified wallet excess recovery and objections
+
+- **Authority:** Tâm requested implementing remaining backend1, wallet overcredit recovery. Follows WALLET-REFUND-EXCESS-VERIFY-01 and WALLET-EXCESS-* decisions. New feat/wallet-excess-recovery branch; Reports PR58 remains unmerged and is not a dependency.
+- **Accounting:** Admin verifies an original cancellation/dispute/fee wallet refund and correct entitlement, preserving immutable credit entries. Separate collections/returns, conservative available-source recovery, no negative balances, no held-stock/checkout cancellation or purchase restriction. New refunds offset oldest eligible liabilities exactly once, preserving evidence/simulation isolation.
+- **Review/payment:** Seven-day objection, shared approved-calendar two-business-day review and one-day escalation update, requested supplements, explicit withdrawal, versioned correction and automatic original-source returns. Sandbox attempts/captures/reservations/refunds handle inflight objections, duplicate/mismatch/overlap and ambiguous provider results without top-ups or resubmission. Existing IPN dispatch and cross-domain capture guards extended; no live MoMo call from tooling.
+- **Review:** Independent reviewer identified later-decision escalation state and completed refunds crowding the active incident queue; both corrected with regression coverage. Final review is automated, not human approval.
+- **Validation:** Targeted serial rewear_test recovery/dispute/fee PostgreSQL regression, strict schema/OpenAPI tests, lint/format/type diagnostics; final PR records latest counts and integrated CI. Full local app checks remain blocked by main's missing xstate dependency. No developer database reset, SMTP or provider transaction.
+- **Docs:** docs/orders/WALLET_EXCESS_RECOVERY.md. Frontend and real Sandbox account verification remain separate work.

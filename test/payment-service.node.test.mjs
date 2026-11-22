@@ -21,6 +21,7 @@ class Order {}
 class OrderEvent {}
 class WalletCheckoutHold {}
 class FeePaymentCapture {}
+class ExcessCapture {}
 // Coin accounting is exercised against PostgreSQL in coin-core/wallet-checkout.
 // These isolated provider-state tests have no coin selection.
 class CoinService {
@@ -56,6 +57,7 @@ const deps = {
   OrderEvent,
   WalletCheckoutHold,
   FeePaymentCapture,
+  ExcessCapture,
   CoinService,
   RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
@@ -192,6 +194,20 @@ const paid = (id, transId = 12345, amount = 230000) => ({
   amount,
   transId,
   resultCode: 0,
+});
+
+test('a recovery capture cannot fund a checkout payment', async () => {
+  const f = setup();
+  const attempt = await f.service.create('buyer', 'checkout', {
+    requestId: 'request',
+  });
+  f.rows(ExcessCapture).push({ providerTransId: '12345' });
+  await assert.rejects(
+    f.service.applyResult(attempt.id, paid(attempt.id)),
+    /belongs to wallet recovery/,
+  );
+  assert.equal(f.rows(Order).length, 0);
+  assert.equal(f.checkout.status, 'HELD');
 });
 
 test('same client request, including concurrent calls, creates only one provider request', async () => {

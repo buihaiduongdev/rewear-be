@@ -5,6 +5,8 @@ import { EntityManager } from 'typeorm';
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import { walletPoolFields } from '@/modules/wallet/checkout/policies/wallet-checkout.policy';
 import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { EXCESS_SOURCE } from '@/modules/wallet/excess/constants/excess.constant';
+import { offsetExcessRefund } from '@/modules/wallet/excess/policies/excess-accounting.policy';
 
 import {
   FEE_COLLECTION_METHOD,
@@ -64,6 +66,8 @@ export async function settleInternalFeeRefund(
   refund.state = FEE_REFUND_STATE.SUCCEEDED;
   refund.completedAt = now;
   await manager.save(refund);
+  if (refund.method === FEE_COLLECTION_METHOD.WALLET)
+    await offsetExcessRefund(manager, EXCESS_SOURCE.FEE_REFUND, refund.id);
 }
 
 async function refundBuyerWallet(manager: EntityManager, refund: FeeRefund) {

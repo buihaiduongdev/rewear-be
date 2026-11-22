@@ -12,6 +12,14 @@ import { FeeWalletDebit } from '@/modules/fees/settlement/entities/fee-settlemen
 
 import { WalletDebit } from './checkout/entities/wallet-checkout.entity';
 import { WalletAccount, WalletCredit } from './entities/wallet.entity';
+import {
+  EXCESS_METHOD,
+  EXCESS_PAYMENT_STATE,
+} from './excess/constants/excess.constant';
+import {
+  ExcessCollection,
+  ExcessReturn,
+} from './excess/entities/excess.entity';
 import { walletProvenance } from './policies/wallet-provenance.policy';
 
 /** Caller holds commerce lock for writes; display may use a repeatable-read snapshot. */
@@ -50,12 +58,28 @@ export async function verifiedWalletFunds(
     ],
   );
   const simulation = mode === RECONCILIATION_MODE.SIMULATION;
+  const recoveryDebits = Number(
+    (await manager.sum(ExcessCollection, 'amount', {
+      buyerId: userId,
+      mode,
+      method: EXCESS_METHOD.WALLET,
+    })) ?? 0,
+  );
+  const recoveryReturns = Number(
+    (await manager.sum(ExcessReturn, 'amount', {
+      buyerId: userId,
+      mode,
+      method: EXCESS_METHOD.WALLET,
+      state: EXCESS_PAYMENT_STATE.SUCCEEDED,
+    })) ?? 0,
+  );
   return walletProvenance(
     (simulation ? account?.simulationBalance : account?.balance) ?? 0,
     (simulation ? account?.simulationHeldBalance : account?.heldBalance) ?? 0,
     Number(disputeCredits ?? 0) +
       Number(cancellations ?? 0) +
-      Number(feeCredits.amount),
-    Number(debits ?? 0) + Number(feeDebits ?? 0),
+      Number(feeCredits.amount) +
+      recoveryReturns,
+    Number(debits ?? 0) + Number(feeDebits ?? 0) + recoveryDebits,
   );
 }

@@ -8,6 +8,7 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 import { FeePaymentService } from '@/modules/fees/payments/fee-payment.service';
 import { User } from '@/modules/user/entities';
+import { ExcessPaymentService } from '@/modules/wallet/excess/payments/excess-payment.service';
 
 import { PaymentService } from './payment.service';
 import type { CreatePaymentInput } from './schemas/payment.schema';
@@ -23,6 +24,7 @@ export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly feePayments: FeePaymentService,
+    private readonly excessPayments: ExcessPaymentService,
   ) {}
 
   @AuthenticatedAccess()
@@ -65,7 +67,9 @@ export class PaymentController {
   @Post('payments/momo/ipn')
   @HttpCode(204)
   async ipn(@Body({ schema: momoIpnSchema }) input: MomoNotification) {
-    if (await this.feePayments.handles(input.orderId))
+    if (await this.excessPayments.handles(input.orderId))
+      await this.excessPayments.ipn(input);
+    else if (await this.feePayments.handles(input.orderId))
       await this.feePayments.ipn(input);
     else await this.paymentService.ipn(input);
   }

@@ -36,6 +36,7 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { ExcessCapture } from '@/modules/wallet/excess/entities/excess.entity';
 
 import {
   PAYMENT_MAX_AMOUNT,
@@ -351,6 +352,15 @@ export class PaymentService {
     await this.db.transaction(async (manager) => {
       const now = await this.lock(manager);
       const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
+      const captureFundsRecovery =
+        result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
+        (await manager.existsBy(ExcessCapture, {
+          providerTransId: String(result.transId),
+        }));
+      if (captureFundsRecovery)
+        throw new ConflictException(
+          'MoMo capture already belongs to wallet recovery',
+        );
       const captureAlreadyFundsFees =
         result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
         (await manager.existsBy(FeePaymentCapture, {
