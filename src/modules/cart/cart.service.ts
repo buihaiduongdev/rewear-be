@@ -114,7 +114,11 @@ export class CartService {
         requireCompleteMetadata: true,
       });
       const shop = displayable
-        ? { id: product.shopId, name: product.shop.name }
+        ? {
+            id: product.shopId,
+            name: product.shop.name,
+            logoUrl: product.shop.logoUrl ?? null,
+          }
         : null;
       const key = shop?.id ?? 'UNAVAILABLE';
       let group = groups.get(key);

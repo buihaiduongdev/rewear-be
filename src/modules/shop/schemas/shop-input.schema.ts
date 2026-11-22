@@ -11,11 +11,13 @@ import { ShopStatus } from '../enums';
 export const createShopSchema = z.strictObject({
   name: trimmedTextSchema.min(1).max(100),
   description: optionalInput(trimmedTextSchema.max(1000)),
+  logoUrl: optionalInput(trimmedTextSchema.max(2048)),
 });
 
 export const updateShopSchema = createShopSchema.partial().extend({
   name: optionalInput(createShopSchema.shape.name),
   status: optionalInput(z.enum(ShopStatus)),
+  logoUrl: optionalInput(trimmedTextSchema.max(2048)),
 });
 
 export type CreateShopInput = z.output<typeof createShopSchema>;
