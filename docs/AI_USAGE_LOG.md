@@ -1057,4 +1057,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu dùng pattern factory hiện có và kiểm tra sự đồng bộ với luồng COD.
 - **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
-- **Minh chứng:** Branch `feat/seed-commerce-data`; chưa mở PR do kiểm thử toàn bộ chưa đạt.
+- **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
