@@ -16,3 +16,6 @@ terraform/
 *.tfvars
 *.tfvars.json
 
+
+# Local Terraform state and provider files
+/terraform/
