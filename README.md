@@ -176,7 +176,10 @@ CORS to allow that header before testing direct uploads.
 ## Development seed
 
 Run `pnpm seed` to populate the configured database with development accounts,
-shops, categories and products. Run the seed on an empty development database.
+shops, categories, products, wishlist items, shop follows, buyer–shop chats,
+notifications and one pending COD order per seeded shop. Run the
+seed on an empty development database. Pending orders expire after the normal
+24-hour seller confirmation window.
 Seeded accounts use the password `RewearSeed123!`.
 
 ## Dispute appeals
