@@ -1071,3 +1071,14 @@
 - **Giới hạn:** Các sản phẩm là dữ liệu minh họa; sáu ảnh được dùng lặp theo danh mục. Dữ liệu cũ chỉ thay đổi khi chạy lại seed fresh.
 - **Nguồn ảnh váy:** [mdreza jalali, Unsplash](https://unsplash.com/photos/blue-floral-dress-hanging-on-a-rack-outdoors-clothesline-2EKY6Nrm6cQ).
 - **Minh chứng:** branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Bổ sung tài liệu và sửa định dạng PR seed
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cập nhật tài liệu đang chỉnh sửa, bỏ qua dữ liệu Terraform cục bộ và sửa lỗi định dạng trong PR seed.
+- **Prompt chính:** Đưa tài liệu chưa commit vào PR seed, thêm quy tắc ignore Terraform và xử lý lỗi format của CI.
+- **Đầu ra AI được sử dụng:** Sao chép tài liệu tiến độ từ checkout chính, thêm quy tắc ignore thư mục Terraform và định dạng lại hai file seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu giữ tài liệu hiện có và không đưa dữ liệu Terraform cục bộ lên PR.
+- **Cách kiểm chứng:** Đối chiếu nội dung tài liệu với bản local; kiểm tra quy tắc Git ignore, Prettier trên hai file lỗi và `git diff --check`. Không chạy test theo yêu cầu người dùng.
+- **Minh chứng:** PR #60; branch `buihaiduongdev/seed-catalog-refresh`.

@@ -160,14 +160,8 @@ export async function runInitialDataSeed(manager: EntityManager) {
     const product = await productFactory.create({
       categoryId: status === ProductStatus.DRAFT ? null : category.id,
       shopId: shops[shopIndex].id,
-      title:
-        status === ProductStatus.DRAFT
-          ? null
-          : item.title,
-      description:
-        status === ProductStatus.DRAFT
-          ? null
-          : item.description,
+      title: status === ProductStatus.DRAFT ? null : item.title,
+      description: status === ProductStatus.DRAFT ? null : item.description,
       condition: status === ProductStatus.DRAFT ? null : ProductCondition.GOOD,
       color: status === ProductStatus.DRAFT ? null : item.color,
       size: status === ProductStatus.DRAFT ? null : item.size,
