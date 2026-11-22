@@ -28,6 +28,10 @@ async function run() {
     result.shops.forEach((shop) => {
       console.log(`  - ${shop.name}`);
     });
+    console.log(`Seeded ${result.orders.length} pending orders.`);
+    console.log(
+      `Seeded ${result.wishlist.length} wishlist items, ${result.follows.length} shop follows and ${result.conversations.length} conversations.`,
+    );
     console.log(`Seeded ${result.userAddresses.length} user addresses.`);
     console.log(
       `Seeded ${result.pickupLocations.length} shop pickup locations.`,

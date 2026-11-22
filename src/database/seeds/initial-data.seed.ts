@@ -1,22 +1,47 @@
+import { createHash, randomUUID } from 'node:crypto';
+
 import type { EntityManager } from 'typeorm';
 
 import { CartItemFactory } from '@/database/factories/cart-item.factory';
 import { CartFactory } from '@/database/factories/cart.factory';
 import { CategoryFactory } from '@/database/factories/category.factory';
+import { ChatConversationFactory } from '@/database/factories/chat-conversation.factory';
+import { ChatMessageFactory } from '@/database/factories/chat-message.factory';
+import { CheckoutOrderFactory } from '@/database/factories/checkout-order.factory';
+import { CheckoutFactory } from '@/database/factories/checkout.factory';
 import { MediaLinkFactory } from '@/database/factories/media-link.factory';
 import { MediaFactory } from '@/database/factories/media.factory';
+import { OrderFactory } from '@/database/factories/order.factory';
 import { PickupLocationFactory } from '@/database/factories/pickup-location.factory';
 import { ProductModerationFactory } from '@/database/factories/product-moderation.factory';
 import { ProductFactory } from '@/database/factories/product.factory';
+import { ShopFollowFactory } from '@/database/factories/shop-follow.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserAddressFactory } from '@/database/factories/user-address.factory';
 import { UserFactory } from '@/database/factories/user.factory';
+import { WishlistItemFactory } from '@/database/factories/wishlist-item.factory';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
+import { notifyChatMessage } from '@/modules/chat/chat-message.notification';
+import { CHAT_SIDE } from '@/modules/chat/constants/chat.constant';
+import {
+  ChatConversation,
+  ChatMessage,
+} from '@/modules/chat/entities/chat.entity';
+import { sendChatSchema } from '@/modules/chat/schemas/chat.schema';
+import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
+import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
+import {
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+  ORDER_POLICY,
+  ORDER_STATUS,
+} from '@/modules/order/constants';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductCondition,
@@ -24,10 +49,12 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
+import { ShopFollow } from '@/modules/shop-follows/entities/shop-follow.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
+import { WishlistItem } from '@/modules/wishlist/entities';
 
 import {
   DEFAULT_SEED_PASSWORD,
@@ -59,6 +86,23 @@ export async function runInitialDataSeed(manager: EntityManager) {
   );
   const cartFactory = new CartFactory(manager.getRepository(Cart));
   const cartItemFactory = new CartItemFactory(manager.getRepository(CartItem));
+  const checkoutFactory = new CheckoutFactory(manager.getRepository(Checkout));
+  const checkoutOrderFactory = new CheckoutOrderFactory(
+    manager.getRepository(CheckoutOrder),
+  );
+  const orderFactory = new OrderFactory(manager.getRepository(Order));
+  const wishlistItemFactory = new WishlistItemFactory(
+    manager.getRepository(WishlistItem),
+  );
+  const shopFollowFactory = new ShopFollowFactory(
+    manager.getRepository(ShopFollow),
+  );
+  const chatConversationFactory = new ChatConversationFactory(
+    manager.getRepository(ChatConversation),
+  );
+  const chatMessageFactory = new ChatMessageFactory(
+    manager.getRepository(ChatMessage),
+  );
 
   const users: User[] = [];
   for (const [index, account] of SEED_ACCOUNTS.entries()) {
@@ -258,6 +302,143 @@ export async function runInitialDataSeed(manager: EntityManager) {
     }),
   ];
 
+  // Pending COD orders keep their own reserved products, separate from the demo carts.
+  const buyerAddress = userAddresses.find(
+    (address) => address.userId === buyer.id && address.isDefault,
+  );
+  if (!buyerAddress) throw new Error('Seed buyer must have a default address');
+  const orders: Order[] = [];
+  for (const [index, shop] of shops.entries()) {
+    const sellerConfirmBy = new Date(
+      Date.now() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
+    );
+    const product = await productFactory.create({
+      categoryId: categories[index].id,
+      shopId: shop.id,
+      title: `Seed order item ${index + 1}`,
+      status: ProductStatus.HELD,
+      heldUntil: null,
+    });
+    await moderationFactory.create({
+      productId: product.id,
+      status: ProductModerationStatus.APPROVED,
+      reason: null,
+    });
+    const subtotal = product.price!;
+    const shippingFee = 30000;
+    const address = {
+      recipientName: buyerAddress.recipientName,
+      phone: buyerAddress.phone,
+      addressLine1: buyerAddress.addressLine1,
+      addressLine2: null,
+      countryCode: buyerAddress.countryCode,
+      provinceCode: buyerAddress.provinceCode,
+      provinceName: buyerAddress.provinceName,
+      wardCode: buyerAddress.wardCode,
+      wardName: buyerAddress.wardName,
+      postalCode: null,
+      deliveryInstructions: null,
+    };
+    const items = [
+      {
+        productId: product.id,
+        title: product.title!,
+        price: subtotal,
+        size: product.size,
+        condition: product.condition!,
+        coverUrl: null,
+        shippingPackage: product.shippingPackage,
+      },
+    ];
+    const checkout = await checkoutFactory.create({
+      buyerId: buyer.id,
+      requestId: randomUUID(),
+      addressId: buyerAddress.id,
+      address,
+      requestedProductIds: [product.id],
+      status: CHECKOUT_STATUS.COD_PLACED,
+      expiresAt: null,
+      removedItems: [],
+    });
+    const checkoutOrder = await checkoutOrderFactory.create({
+      checkoutId: checkout.id,
+      shopId: shop.id,
+      address,
+      items,
+      subtotal,
+      shippingFee,
+    });
+    const order = await orderFactory.create({
+      checkoutId: checkout.id,
+      checkoutOrderId: checkoutOrder.id,
+      paymentMethod: ORDER_PAYMENT_METHOD.COD,
+      buyerId: buyer.id,
+      shopId: shop.id,
+      shopName: shop.name,
+      status: ORDER_STATUS.PENDING,
+      subtotal,
+      shippingFee,
+      total: subtotal + shippingFee,
+      sellerConfirmBy,
+      address,
+      items,
+    });
+    await manager.getRepository(OrderEvent).save({
+      orderId: order.id,
+      action: ORDER_EVENT_ACTION.PLACED,
+      actorId: buyer.id,
+      reason: null,
+    });
+    await manager
+      .getRepository(Product)
+      .update(product.id, { reservedOrderId: order.id });
+    orders.push(order);
+  }
+
+  const wishlist: WishlistItem[] = [];
+  for (const product of [products[0], products[6], products[12]]) {
+    wishlist.push(
+      await wishlistItemFactory.create({
+        userId: buyer.id,
+        productId: product.id,
+      }),
+    );
+  }
+  const follows: ShopFollow[] = [];
+  const conversations: ChatConversation[] = [];
+  for (const shop of shops) {
+    follows.push(
+      await shopFollowFactory.create({ userId: buyer.id, shopId: shop.id }),
+    );
+    const conversation = await chatConversationFactory.create({
+      buyerId: buyer.id,
+      shopId: shop.id,
+      lastSequence: 1,
+      buyerReadSequence: 1,
+      shopReadSequence: 0,
+      lastMessageAt: new Date(),
+    });
+    const payload = sendChatSchema.parse({
+      clientMessageId: randomUUID(),
+      text: 'Hello! Is this item still available?',
+    });
+    const message = await chatMessageFactory.create({
+      conversationId: conversation.id,
+      sequence: 1,
+      senderId: buyer.id,
+      senderSide: CHAT_SIDE.BUYER,
+      clientMessageId: payload.clientMessageId,
+      fingerprint: createHash('sha256')
+        .update(JSON.stringify(payload))
+        .digest('hex'),
+      text: payload.text,
+      mediaIds: payload.mediaIds,
+      card: null,
+    });
+    await notifyChatMessage(manager, conversation, message);
+    conversations.push(conversation);
+  }
+
   const carts: Cart[] = [adminCart, buyerCart];
   const cartItems: CartItem[] = [...adminCartItems, ...buyerCartItems];
 
@@ -270,6 +451,10 @@ export async function runInitialDataSeed(manager: EntityManager) {
     pickupLocations,
     carts,
     cartItems,
+    orders,
+    wishlist,
+    follows,
+    conversations,
     cart: adminCart,
   };
 }

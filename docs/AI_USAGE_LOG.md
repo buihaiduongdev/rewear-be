@@ -1046,3 +1046,15 @@
 - **Review:** Independent read-only reviewer found no important actionable bug. No human approval asserted.
 - **Validation:** Local5 PostgreSQL tests and2 schema/OpenAPI unit tests pass; full HTTP/build/typecheck require CI because xstate remains missing locally. Final integrated CI results recorded in PR. Tests use rewear_test serially; no developer database reset or external provider calls.
 - **Docs:** docs/orders/SHOP_FOLLOWS.md; plan docs/superpowers/plans/2026-11-21-follow-shops.md. Frontend outside this PR.
+
+### 2026-11-22 — Bổ sung dữ liệu seed cho đơn hàng và tương tác
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Bổ sung dữ liệu phát triển cho đơn COD, danh sách yêu thích, theo dõi shop, hội thoại và thông báo.
+- **Prompt chính:** Bổ sung dữ liệu seed còn thiếu, tổ chức theo pattern factory hiện có và đồng bộ đơn COD với luồng nghiệp vụ.
+- **Đầu ra AI được sử dụng:** Factory cho các entity mới, dữ liệu seed liên kết checkout và đơn COD, tương tác buyer–shop và kiểm thử PostgreSQL.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu dùng pattern factory hiện có và kiểm tra sự đồng bộ với luồng COD.
+- **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
+- **Minh chứng:** Branch `feat/seed-commerce-data`; chưa mở PR do kiểm thử toàn bộ chưa đạt.
