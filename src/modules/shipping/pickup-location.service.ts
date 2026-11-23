@@ -62,8 +62,9 @@ export class PickupLocationService {
 
   async save(userId: string, input: SavePickupLocationInput, shopId: string) {
     return this.db.transaction(async (manager) => {
-      const address = this.administrativeDivisionService.resolveAddress(
-        input.provinceCode,
+      const address = await this.administrativeDivisionService.resolveAddress(
+        input.provinceId,
+        input.districtId,
         input.wardCode,
       );
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
@@ -78,7 +79,8 @@ export class PickupLocationService {
           'contactName',
           'phone',
           'addressLine1',
-          'provinceCode',
+          'provinceId',
+          'districtId',
           'wardCode',
         ].some(
           (key) =>
@@ -102,14 +104,17 @@ export class PickupLocationService {
       return { location: await manager.save(PickupLocation, location) };
     });
   }
+
   async ghnProvinces() {
-    return this.ghn.provinces();
+    return this.administrativeDivisionService.findAllProvinces();
   }
   async ghnDistricts(provinceId: number) {
-    return this.ghn.districts(provinceId);
+    return this.administrativeDivisionService.findDistrictsByProvinceId(
+      provinceId,
+    );
   }
   async ghnWards(districtId: number) {
-    return this.ghn.wards(districtId);
+    return this.administrativeDivisionService.findWardsByDistrictId(districtId);
   }
 
   async disconnectGhn(shopId: string) {
@@ -136,16 +141,7 @@ export class PickupLocationService {
     });
   }
 
-  async connectGhn(shopId: string, input: ConnectGhnShopInput) {
-    const provinces = await this.ghn.provinces();
-    if (!provinces.some((p) => p.id === input.provinceId))
-      throw new BadRequestException('Invalid GHN province');
-    const districts = await this.ghn.districts(input.provinceId);
-    if (!districts.some((d) => d.id === input.districtId))
-      throw new BadRequestException('Invalid GHN district');
-    const wards = await this.ghn.wards(input.districtId);
-    if (!wards.some((w) => w.id === input.wardCode))
-      throw new BadRequestException('Invalid GHN ward');
+  async connectGhn(shopId: string, input?: ConnectGhnShopInput) {
     const prepared = await this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         shopId,
@@ -157,13 +153,18 @@ export class PickupLocationService {
         throw new ConflictException(
           'GHN connection already exists or requires review',
         );
+      const districtId = input?.districtId ?? location.districtId;
+      const wardCode = input?.wardCode ?? location.wardCode;
+      if (!districtId || !wardCode) {
+        throw new BadRequestException('Pickup address is incomplete');
+      }
       const shop = await manager.findOneByOrFail(Shop, { id: shopId });
       const attempt = {
         name: shop.name,
         phone: location.phone,
         address: location.addressLine1,
-        districtId: input.districtId,
-        wardCode: input.wardCode,
+        districtId,
+        wardCode,
       };
       location.ghnSyncStatus = 'CREATING';
       location.ghnSyncStartedAt = new Date();

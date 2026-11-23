@@ -14,8 +14,10 @@ export type CheckoutAddress = {
   addressLine1: string;
   addressLine2: string | null;
   countryCode: string;
-  provinceCode: string;
+  provinceId: number;
   provinceName: string;
+  districtId: number;
+  districtName: string;
   wardCode: string;
   wardName: string;
   postalCode: string | null;

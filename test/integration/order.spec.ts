@@ -271,6 +271,7 @@ describe('paid order acceptance with PostgreSQL', () => {
       id: randomUUID(),
       shopId: otherShop.id,
       checkoutOrderId: randomUUID(),
+      orderCode: `RW-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
       items: [],
     });
     await f.db.getRepository(PaymentAttempt).update(f.payment.id, {

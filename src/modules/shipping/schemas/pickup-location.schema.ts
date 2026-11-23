@@ -8,7 +8,8 @@ export const savePickupLocationSchema = createUserAddressSchema
   .pick({
     phone: true,
     addressLine1: true,
-    provinceCode: true,
+    provinceId: true,
+    districtId: true,
     wardCode: true,
   })
   .extend({ contactName: trimmedTextSchema.min(1).max(100) });
@@ -28,8 +29,10 @@ export const pickupLocationSchema = z.object({
   phone: z.string(),
   addressLine1: z.string(),
   countryCode: z.literal('VN'),
-  provinceCode: z.string(),
+  provinceId: z.number().int().positive(),
   provinceName: z.string(),
+  districtId: z.number().int().positive(),
+  districtName: z.string(),
   wardCode: z.string(),
   wardName: z.string(),
   createdAt: dateTimeSchema,
@@ -39,9 +42,12 @@ export const pickupLocationResultSchema = z.object({
   location: pickupLocationSchema.nullable(),
 });
 
-export const connectGhnShopSchema = z.strictObject({
-  provinceId: z.number().int().positive(),
-  districtId: z.number().int().positive(),
-  wardCode: z.string().trim().min(1).max(20),
-});
+export const connectGhnShopSchema = z
+  .object({
+    provinceId: z.number().int().positive().optional(),
+    districtId: z.number().int().positive().optional(),
+    wardCode: z.string().trim().min(1).max(20).optional(),
+  })
+  .optional()
+  .default({});
 export type ConnectGhnShopInput = z.output<typeof connectGhnShopSchema>;

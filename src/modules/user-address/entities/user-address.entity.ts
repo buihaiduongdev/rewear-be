@@ -35,11 +35,17 @@ export class UserAddress extends BaseEntity {
   @Column({ length: 2, default: 'VN' })
   countryCode: string;
 
-  @Column({ length: 20 })
-  provinceCode: string;
+  @Column({ type: 'integer' })
+  provinceId: number;
 
   @Column({ length: 100 })
   provinceName: string;
+
+  @Column({ type: 'integer' })
+  districtId: number;
+
+  @Column({ length: 100 })
+  districtName: string;
 
   @Column({ length: 20 })
   wardCode: string;

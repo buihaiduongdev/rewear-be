@@ -202,7 +202,9 @@ describe('commerce behavior with PostgreSQL', () => {
       divisions,
       new GhnShopClient(),
     );
-    const wardCode = divisions.findWardsByProvinceCode('01')[0].code;
+    const provinceId = 201;
+    const districtId = 1489;
+    const wardCode = '1A0206';
 
     const first = await pickup.save(
       user.id,
@@ -210,7 +212,8 @@ describe('commerce behavior with PostgreSQL', () => {
         contactName: 'Pickup contact',
         phone: '0912345678',
         addressLine1: '45 Test Street',
-        provinceCode: '01',
+        provinceId,
+        districtId,
         wardCode,
       },
       shop.id,
@@ -221,7 +224,8 @@ describe('commerce behavior with PostgreSQL', () => {
         contactName: 'Updated contact',
         phone: '0912345678',
         addressLine1: '45 Test Street',
-        provinceCode: '01',
+        provinceId,
+        districtId,
         wardCode,
       },
       shop.id,
@@ -232,7 +236,9 @@ describe('commerce behavior with PostgreSQL', () => {
       shopId: shop.id,
       contactName: 'Updated contact',
       countryCode: 'VN',
-      provinceName: divisions.resolveAddress('01', wardCode).provinceName,
+      provinceId: 201,
+      districtId: 1489,
+      wardCode: '1A0206',
     });
     expect(
       await db.getRepository(PickupLocation).countBy({ shopId: shop.id }),

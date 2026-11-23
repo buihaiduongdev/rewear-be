@@ -2,77 +2,133 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
-import {
-  type AdministrativeProvince,
-  type AdministrativeWard,
-  VIETNAM_PROVINCES,
-  VIETNAM_WARDS,
-} from './data';
+import { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
+
+import snapshot from './data/ghn-divisions-snapshot.json';
+
+export interface AdministrativeProvince {
+  id: number;
+  name: string;
+}
+
+export interface AdministrativeDistrict {
+  id: number;
+  name: string;
+  provinceId: number;
+}
+
+export interface AdministrativeWard {
+  code: string;
+  name: string;
+  districtId: number;
+}
 
 export interface ResolvedVietnamAddress {
-  provinceCode: string;
+  provinceId: number;
   provinceName: string;
+  districtId: number;
+  districtName: string;
   wardCode: string;
   wardName: string;
 }
 
 @Injectable()
 export class AdministrativeDivisionService {
-  private readonly provinceByCode = new Map(
-    VIETNAM_PROVINCES.map((province) => [province.code, province]),
+  constructor(@Optional() private readonly ghn?: GhnShopClient) {}
+
+  private readonly provincesSnapshot: AdministrativeProvince[] =
+    snapshot.provinces;
+  private readonly districtsSnapshot: AdministrativeDistrict[] =
+    snapshot.districts;
+  private readonly wardsSnapshot: AdministrativeWard[] = snapshot.wards;
+
+  private readonly provinceById = new Map<number, AdministrativeProvince>(
+    snapshot.provinces.map((p) => [p.id, p]),
   );
 
-  private readonly wardByCode = new Map(
-    VIETNAM_WARDS.map((ward) => [ward.code, ward]),
-  );
-
-  private readonly wardsByProvinceCode = VIETNAM_WARDS.reduce(
-    (wardsByProvinceCode, ward) => {
-      const wards = wardsByProvinceCode.get(ward.provinceCode) ?? [];
-      wards.push(ward);
-      wardsByProvinceCode.set(ward.provinceCode, wards);
-      return wardsByProvinceCode;
-    },
-    new Map<string, AdministrativeWard[]>(),
-  );
-
-  findAllProvinces(): readonly AdministrativeProvince[] {
-    return VIETNAM_PROVINCES;
+  async findAllProvinces(): Promise<readonly AdministrativeProvince[]> {
+    if (this.ghn) {
+      try {
+        const remote = await this.ghn.provinces();
+        if (remote?.length) {
+          remote.forEach((p) => this.provinceById.set(p.id, p));
+          return remote;
+        }
+      } catch {}
+    }
+    return this.provincesSnapshot;
   }
 
-  findWardsByProvinceCode(provinceCode: string): readonly AdministrativeWard[] {
-    if (!this.provinceByCode.has(provinceCode)) {
+  async findDistrictsByProvinceId(
+    provinceId: number,
+  ): Promise<readonly AdministrativeDistrict[]> {
+    if (this.ghn) {
+      try {
+        const remote = await this.ghn.districts(provinceId);
+        if (remote?.length) {
+          return remote.map((d) => ({
+            id: d.id,
+            name: d.name,
+            provinceId,
+          }));
+        }
+      } catch {}
+    }
+    const matched = this.districtsSnapshot.filter(
+      (d) => d.provinceId === provinceId,
+    );
+    if (!matched.length && !this.provinceById.has(provinceId)) {
       throw new NotFoundException('Administrative province not found');
     }
-
-    return this.wardsByProvinceCode.get(provinceCode) ?? [];
+    return matched;
   }
 
-  resolveAddress(
-    provinceCode: string,
+  async findWardsByDistrictId(
+    districtId: number,
+  ): Promise<readonly AdministrativeWard[]> {
+    if (this.ghn) {
+      try {
+        const remote = await this.ghn.wards(districtId);
+        if (remote?.length) {
+          return remote.map((w) => ({
+            code: w.id,
+            name: w.name,
+            districtId,
+          }));
+        }
+      } catch {}
+    }
+    const matched = this.wardsSnapshot.filter(
+      (w) => w.districtId === districtId,
+    );
+    return matched;
+  }
+
+  async resolveAddress(
+    provinceId: number,
+    districtId: number,
     wardCode: string,
-  ): ResolvedVietnamAddress {
-    const province = this.provinceByCode.get(provinceCode);
-    if (!province) {
-      throw new BadRequestException('Invalid province code');
-    }
+  ): Promise<ResolvedVietnamAddress> {
+    const provinces = await this.findAllProvinces();
+    const province = provinces.find((p) => p.id === provinceId);
+    if (!province) throw new BadRequestException('Invalid province ID');
 
-    const ward = this.wardByCode.get(wardCode);
-    if (!ward) {
-      throw new BadRequestException('Invalid ward code');
-    }
+    const districts = await this.findDistrictsByProvinceId(provinceId);
+    const district = districts.find((d) => d.id === districtId);
+    if (!district) throw new BadRequestException('Invalid district ID');
 
-    if (ward.provinceCode !== province.code) {
-      throw new BadRequestException(
-        'Ward does not belong to the selected province',
-      );
-    }
+    const wards = await this.findWardsByDistrictId(districtId);
+    const ward = wards.find((w) => w.code === wardCode);
+    if (!ward) throw new BadRequestException('Invalid ward code');
 
     return {
-      provinceCode: province.code,
+      provinceId: province.id,
       provinceName: province.name,
+      districtId: district.id,
+      districtName: district.name,
       wardCode: ward.code,
       wardName: ward.name,
     };

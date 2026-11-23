@@ -66,7 +66,11 @@ export async function quoteInputs(
               phone: pickup.phone,
               addressLine1: pickup.addressLine1,
               countryCode: pickup.countryCode,
+              provinceId: pickup.provinceId,
               provinceName: pickup.provinceName,
+              districtId: pickup.districtId,
+              districtName: pickup.districtName,
+              wardCode: pickup.wardCode,
               wardName: pickup.wardName,
             },
             to: {
@@ -79,7 +83,11 @@ export async function quoteInputs(
                 .filter(Boolean)
                 .join(', '),
               countryCode: order.address.countryCode,
+              provinceId: order.address.provinceId,
               provinceName: order.address.provinceName,
+              districtId: order.address.districtId,
+              districtName: order.address.districtName,
+              wardCode: order.address.wardCode,
               wardName: order.address.wardName,
             },
             parcel: row.parcel,

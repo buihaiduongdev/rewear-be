@@ -510,6 +510,7 @@
 - **Cách kiểm chứng:** Đối chiếu với nhánh `audit`; `pnpm check`, 115 unit test và 29 HTTP test pass; 79 test PostgreSQL bị skip. Kết nối PostgreSQL tạm với `DB_SSL=false` thành công. Các thông tin khảo sát và xác nhận cần được đối chiếu với nguồn gốc.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu chỉ khôi phục một file thay vì toàn bộ thay đổi liên quan; đã đưa cả các phần còn lại vào PR riêng.
 - **Minh chứng:** Commit nguồn `e82ad1c`; [PR #30](https://github.com/buihaiduongdev/rewear-be/pull/30).
+
 ### 2026-11-11 — Chuẩn hóa sanitization chuỗi đầu vào bằng trimmedTextSchema
 
 - **Người thực hiện:** Bùi Hải Dương
@@ -603,6 +604,7 @@
 - **Kiểm chứng thực hiện:** Sau khi người dùng cài dependencies/PostgreSQL: typecheck, Nest build và 23 Jest suites/140 tests pass với DB local riêng `rewear_test` trên PostgreSQL 18; 22 test Node pass. Riêng 3 test payment integration kiểm tra IPN đồng thời/lặp, tiền sau hủy, sai số tiền và quyền truy cập buyer. Oxlint pass; format toàn repo pass với `--end-of-line auto` để giữ xuống dòng Windows, source thay đổi đã format bình thường; `git diff --check` pass. Có cảnh báo deprecation của pg về query chồng trên client, không có test fail; CI PostgreSQL 16 cần kết quả riêng. HTTP MoMo vẫn giả lập, chưa có credentials hoặc kiểm thử MoMo thật.
 - **Review và sửa lỗi:** Review độc lập phát hiện tên file entity không khớp glob TypeORM, thiếu nghĩa vụ refund cho transId thu thêm và race query trong lúc create làm mất payUrl. Đã đổi sang `payment.entity.ts`, lưu refund theo transId thực thu, giữ payUrl cho attempt chưa ngã ngũ và thêm regression test. Thêm test tránh báo REFUNDED khi còn nghĩa vụ khác, hoặc mở lại nghĩa vụ đã hoàn chỉ vì notification lặp.
 - **Giới hạn:** Chưa có credentials; chưa triển khai toàn bộ seller/order lifecycle, escrow/wallet/xu, notification/Admin UI. PR #32 chưa merge và thay contract báo phí; boundary `PaymentPricing.snapshot` cần thích ứng sau khi PR đó được chốt. Chi tiết tại `docs/payments/MOMO_SANDBOX.md`.
+
 ### 2026-11-13 — Chuẩn hóa xử lý dữ liệu và luồng bán hàng theo shop
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -653,6 +655,7 @@
 - **Review và sửa lỗi:** Review độc lập phát hiện escalation 30 phút chỉ chạy khi GHN trả kết quả; đã tách theo clock DB và kiểm thử toàn bộ query thất bại. Test mở rộng phát hiện báo phí song song có thể hoàn tất sau COD_PLACED và làm retry báo lỗi; đã trả lại order đã commit, có regression đồng bộ bằng Promise. Worker cô lập lỗi deadline và polling.
 - **Giới hạn:** Chưa có coins/thu phí và phản đối phí, đối soát tiền COD về ngân hàng, quyết toán 72 giờ, thông báo/UI Admin, return/interception API và luồng xin buyer đồng ý giao trễ. Quá hạn bàn giao hiện giữ khóa/chặn booking và hiện hồ sơ cần xét; không giả lập hoàn tiền hoặc tự mở hàng để thay các bước còn thiếu. deliveryObservedAt không phải thời điểm giao đã xác minh để quyết toán. Chi tiết API/phạm vi tại docs/orders/COD_GHN_SANDBOX.md.
 - **Review trên GitHub:** Gom trạng thái, payment method, lý do hủy, trạng thái yêu cầu hủy và action thành constant chung; type/schema/entity/service dùng lại cùng nguồn, giữ nguyên giá trị API. Các ý kiến decorator, findOneOrFail và schema tiền đã được xử lý ở commit trước. Không tự đánh dấu người dùng đã review hoặc merge.
+
 ### 2026-11-14 — Tính thông tin ảnh sản phẩm trong service
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -688,6 +691,7 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 146 Jest tests với PostgreSQL, gồm kiểm tra gửi lại và từ chối version cũ.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu đề xuất Cart truy vấn moderation; đã sửa theo hướng Cart chỉ dùng trạng thái sản phẩm.
 - **Minh chứng:** [PR #34](https://github.com/buihaiduongdev/rewear-be/pull/34).
+
 ### 2026-11-14 — Đơn giản hóa cấu trúc thông số đóng gói vận chuyển (Shipping Package)
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -699,7 +703,6 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Nest build), `pnpm test:unit` pass 19 suites, 133 tests.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #35](https://github.com/buihaiduongdev/rewear-be/pull/35), branch `refactor/simplify-shipping-package`.
-
 
 ### 2026-11-15 — Tổ chức lại seed và factory
 
@@ -724,6 +727,7 @@
 - **Cách kiểm chứng:** `pnpm check`, 22 Node tests và 140 Jest tests; chạy seed và kiểm tra lệnh migration với PostgreSQL.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần refactor seed trước đã để database thành hai thư mục; đã gom lại.
 - **Minh chứng:** [PR #38](https://github.com/buihaiduongdev/rewear-be/pull/38), nhánh `refactor/database-structure`.
+
 ### 2026-11-15 — Tách hằng số media và đơn giản hóa kiểm tra storage key
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -735,7 +739,6 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Nest build), `pnpm test:unit` pass 18 suites, 132 tests.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #37, branch `refactor/simplify-media-confirm`.
-
 
 ### 2026-11-15 — Phân quyền thành viên shop
 
@@ -749,6 +752,7 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu cho rằng cần chờ chốt thiết kế RBAC mà chưa đối chiếu quyết định trong tài liệu.
 - **Giới hạn:** Chưa nối giao diện FE và thông báo lời mời.
 - **Minh chứng:** [PR #39](https://github.com/buihaiduongdev/rewear-be/pull/39), nhánh `feat/shop-rbac`.
+
 ### 2026-11-15 — Giao COD trễ và xử lý sự cố GHN
 
 - **Người thực hiện:** Bùi Thành Tâm (yêu cầu triển khai); Codex hỗ trợ mã và kiểm thử.
@@ -868,6 +872,7 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier, tsc, nest build) và `pnpm test:unit` pass 100% (29/29 test suites, 235 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** Nhánh `refactor/batch-in-queries`.
+
 ### 2026-11-17 — Tối ưu hóa cập nhật thứ tự ảnh kéo thả bằng PostgreSQL CTE và unnest WITH ORDINALITY
 
 - **Người thực hiện:** Bùi Hải Dương.
@@ -961,7 +966,6 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** [PR #50](https://github.com/buihaiduongdev/rewear-be/pull/50) trên branch `feat/wishlist`.
 
-
 ### 2026-11-20 — Chuẩn hóa các máy trạng thái nghiệp vụ và quy tắc khả dụng bằng XState
 
 - **Người thực hiện:** Bùi Hải Dương
@@ -1021,6 +1025,7 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #56, branch `refact/optimize-product-search-columns`.
+
 ### 2026-11-21 — Central notifications and durable important-event email
 
 - **Authority:** Tâm requested implementing central notifications after PR52 merge. Existing NOTIF-SESSION-01 defines in-app and important-event email. New branch feat/central-notifications; new PR only, not merged.
@@ -1111,4 +1116,16 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Sửa lỗi mock trong unit test `return-booking.spec.ts` và `shop-logo.service.spec.ts`, xác nhận quy tắc chuyển đổi trạng thái kết nối và nghiệm thu toàn bộ kiểm thử.
 - **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 lỗi, Prettier format 100%, tsc noEmit, nest build) đạt; 64 unit test suites (424 tests) và 23 Node payment tests pass 100%.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện mock thiếu `db.getRepository` trong test logo và thiếu `accountId` trong `ReturnBookingService.refresh` test; đã sửa và kiểm thử pass.
+- **Minh chứng:** PR #62; branch `buihaiduongdev/ghn-pickup-shops`.
+
+### 2026-11-24 — Tái cấu trúc mô hình địa chỉ 3 cấp và tối ưu hóa tính cước GHN
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Chuyển đổi toàn bộ hệ thống địa chỉ (người dùng, điểm lấy hàng, checkout) từ mô hình 2 cấp sang chuẩn 3 cấp hành chính Việt Nam (Tỉnh/Thành phố, Quận/Huyện, Phường/Xã) tương thích chuẩn GHN; loại bỏ khớp chuỗi mờ khi tính cước và sửa lỗi xung đột mã đơn hàng trong kiểm thử tích hợp.
+- **Prompt chính:** Tái cấu trúc hệ thống địa chỉ về mô hình 3 cấp thống nhất, kết nối trực tiếp mã tỉnh, huyện, xã với API GHN mà không cần form nhập địa chỉ riêng biệt cho đơn vị vận chuyển, sửa lỗi trùng orderCode trong các kiểm thử tích hợp và đồng bộ mã nguồn.
+- **Đầu ra AI được sử dụng:** Cập nhật `AdministrativeDivisionModule` với 3 cấp và dữ liệu snapshot dự phòng, cập nhật các entity/schema `UserAddress`, `PickupLocation`, `CheckoutAddress`, loại bỏ resolve chuỗi trong `GhnSandboxAdapter` và truyền thẳng mã địa bàn, cập nhật các integration test bị trùng mã đơn hàng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định nghĩa cấu trúc snapshot hành chính chuẩn, kiểm thử trực tiếp API tính cước GHN sandbox đảm bảo response 200, rà soát và cô lập các trường hợp clone đơn hàng trong test suite.
+- **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 warnings/errors, Prettier check pass, TypeScript noEmit pass, Nest build pass), chạy unit test administrative-division, ghn-sandbox và payment core pass 100%.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh gọi API GHN preview ban đầu thiếu tiền tố địa bàn dẫn đến lỗi 400; đã phát hiện và chuẩn hóa truyền đầy đủ `from_district_id`, `from_ward_code`, `to_district_id`, `to_ward_code`.
 - **Minh chứng:** PR #62; branch `buihaiduongdev/ghn-pickup-shops`.

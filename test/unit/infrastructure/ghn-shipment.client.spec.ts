@@ -10,8 +10,12 @@ const address = {
   phone: '0912345678',
   addressLine1: 'Test street',
   countryCode: 'VN',
-  provinceName: 'Province',
-  wardName: 'Ward',
+  provinceId: 201,
+  provinceName: 'Hà Nội',
+  districtId: 1489,
+  districtName: 'Quận Hoàn Kiếm',
+  wardCode: '1A0206',
+  wardName: 'Phường Hàng Bài',
 };
 const input: CarrierQuoteInput = {
   from: address,
