@@ -1091,3 +1091,12 @@
 - **Review:** Independent read-only review found no important actionable issue. Human approval is not asserted.
 - **Validation:** Local9 PostgreSQL integration tests and9 schema/Product unit tests pass; lint checked. HTTP/OpenAPI tests added. Full local app/build/typecheck remain blocked by missing xstate from merged main; final integrated CI evidence belongs in the PR. DB tests use rewear_test serially and media uses a storage fake, without live uploads or developer DB reset.
 - **Docs:** docs/orders/VIOLATION_REPORTS.md. Frontend outside this PR.
+
+### 2026-11-22 — Verified wallet excess recovery and objections
+
+- **Authority:** Tâm requested implementing remaining backend1, wallet overcredit recovery. Follows WALLET-REFUND-EXCESS-VERIFY-01 and WALLET-EXCESS-* decisions. New feat/wallet-excess-recovery branch; Reports PR58 remains unmerged and is not a dependency.
+- **Accounting:** Admin verifies an original cancellation/dispute/fee wallet refund and correct entitlement, preserving immutable credit entries. Separate collections/returns, conservative available-source recovery, no negative balances, no held-stock/checkout cancellation or purchase restriction. New refunds offset oldest eligible liabilities exactly once, preserving evidence/simulation isolation.
+- **Review/payment:** Seven-day objection, shared approved-calendar two-business-day review and one-day escalation update, requested supplements, explicit withdrawal, versioned correction and automatic original-source returns. Sandbox attempts/captures/reservations/refunds handle inflight objections, duplicate/mismatch/overlap and ambiguous provider results without top-ups or resubmission. Existing IPN dispatch and cross-domain capture guards extended; no live MoMo call from tooling.
+- **Review:** Independent reviewer identified later-decision escalation state and completed refunds crowding the active incident queue; both corrected with regression coverage. Final review is automated, not human approval.
+- **Validation:** Targeted serial rewear_test recovery/dispute/fee PostgreSQL regression, strict schema/OpenAPI tests, lint/format/type diagnostics; final PR records latest counts and integrated CI. Full local app checks remain blocked by main's missing xstate dependency. No developer database reset, SMTP or provider transaction.
+- **Docs:** docs/orders/WALLET_EXCESS_RECOVERY.md. Frontend and real Sandbox account verification remain separate work.

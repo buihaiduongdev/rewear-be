@@ -33,6 +33,7 @@ import { ShopMember } from '@/modules/shop/entities/shop-member.entity';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
+import { ExcessCapture } from '@/modules/wallet/excess/entities/excess.entity';
 
 import {
   FEE_COLLECTION_METHOD,
@@ -317,6 +318,9 @@ export class FeePaymentService {
       if (!Number.isSafeInteger(result.transId) || result.transId <= 0)
         throw new ConflictException('Invalid capture');
       if (
+        (await manager.existsBy(ExcessCapture, {
+          providerTransId: String(result.transId),
+        })) ||
         (await manager.existsBy(PaymentAttempt, {
           providerTransId: String(result.transId),
         })) ||

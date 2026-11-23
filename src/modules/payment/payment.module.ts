@@ -5,6 +5,7 @@ import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client'
 import { CheckoutModule } from '@/modules/checkout/checkout.module';
 import { FeePaymentModule } from '@/modules/fees/payments/fee-payment.module';
 import { Order } from '@/modules/order/entities/order.entity';
+import { WalletExcessModule } from '@/modules/wallet/excess/wallet-excess.module';
 
 import { PaymentAttempt, PaymentRefund } from './entities/payment.entity';
 import { MOMO_CLIENT, readMomoSettings } from './payment.config';
@@ -15,6 +16,7 @@ import { PaymentWorker } from './payment.worker';
 
 @Module({
   imports: [
+    WalletExcessModule,
     CheckoutModule,
     FeePaymentModule,
     TypeOrmModule.forFeature([PaymentAttempt, PaymentRefund, Order]),

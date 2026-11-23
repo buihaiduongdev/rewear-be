@@ -13,6 +13,8 @@ import { verifiedMomoCapture } from '@/modules/payment/verified-momo-capture';
 import { verifiedWalletCapture } from './checkout/verified-wallet-capture';
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
 import { WalletAccount, WalletCredit } from './entities/wallet.entity';
+import { EXCESS_SOURCE } from './excess/constants/excess.constant';
+import { offsetExcessRefund } from './excess/policies/excess-accounting.policy';
 import { orderRefundSchema } from './schemas/wallet-refund.schema';
 import { walletBalanceSchema } from './schemas/wallet.schema';
 import type { WalletQueryInput } from './types/wallet.type';
@@ -94,6 +96,7 @@ export class WalletService {
     );
     account[balanceField] = balance;
     await manager.save(account);
+    await offsetExcessRefund(manager, EXCESS_SOURCE.CANCELLATION, credit.id);
     return credit;
   }
 
