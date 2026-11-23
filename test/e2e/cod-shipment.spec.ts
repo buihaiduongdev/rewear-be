@@ -149,6 +149,8 @@ describe('COD to carrier and cancellation HTTP flow', () => {
       deliveryInstructions: null,
     };
     await db.getRepository(PickupLocation).save({
+      ghnShopId: 123,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Shop',
       phone: address.phone,

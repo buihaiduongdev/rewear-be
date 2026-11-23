@@ -161,7 +161,7 @@ export class ReturnBookingService {
       try {
         await this.observe(
           claimed,
-          await this.carrier.query(claimed.clientCode),
+          await this.carrier.query(claimed.clientCode, claimed.accountId),
         );
       } catch {
         this.logger.warn({
@@ -231,7 +231,8 @@ export class ReturnBookingService {
       const forward = await manager.findOneByOrFail(Shipment, {
         orderId: row.orderId,
       });
-      const accountId = Number(process.env.GHN_SANDBOX_SHOP_ID);
+      const accountId =
+        forward.input.ghnShopId ?? Number(process.env.GHN_SANDBOX_SHOP_ID);
       if (
         !Number.isSafeInteger(accountId) ||
         accountId <= 0 ||
@@ -268,11 +269,14 @@ export class ReturnBookingService {
     if (claim.row.state === STATE.BOOKED) return claim.row;
     if (!claim.create) return this.refresh(adminId, claim.row.returnId);
     try {
-      const created = await this.carrier.create(claim.row.payload);
+      const created = await this.carrier.create(
+        claim.row.payload,
+        claim.row.accountId,
+      );
       // Confirm account, client code, and prepaid terms before publishing a label.
       return await this.observe(
         claim.row,
-        await this.carrier.query(claim.row.clientCode),
+        await this.carrier.query(claim.row.clientCode, claim.row.accountId),
         created.orderCode,
       );
     } catch {
@@ -298,7 +302,10 @@ export class ReturnBookingService {
       returnId,
       active: true,
     });
-    return this.observe(row, await this.carrier.query(row.clientCode));
+    return this.observe(
+      row,
+      await this.carrier.query(row.clientCode, row.accountId),
+    );
   }
   private validateSnapshot(
     expected: ReturnBooking,
@@ -344,7 +351,7 @@ export class ReturnBookingService {
       throw new ConflictException(
         'Confirmed cancellation of known parcel required',
       );
-    const snapshot = await this.carrier.query(old.clientCode);
+    const snapshot = await this.carrier.query(old.clientCode, old.accountId);
     this.validateSnapshot(old, snapshot);
     if (snapshot.status !== GHN_SHIPMENT_STATUS.CANCEL)
       throw new ConflictException('Carrier has not confirmed cancellation');
@@ -497,7 +504,10 @@ export class ReturnBookingService {
     if (row?.reviewRequired)
       throw new ConflictException('Return label requires review');
     if (row)
-      row = await this.observe(row, await this.carrier.query(row.clientCode));
+      row = await this.observe(
+        row,
+        await this.carrier.query(row.clientCode, row.accountId),
+      );
     if (
       !row?.orderCode ||
       row.state !== STATE.BOOKED ||
@@ -505,6 +515,6 @@ export class ReturnBookingService {
       row.observedStatus !== GHN_SHIPMENT_STATUS.READY_TO_PICK
     )
       throw new ConflictException('Confirmed return label required');
-    return this.carrier.print(row.orderCode);
+    return this.carrier.print(row.orderCode, row.accountId);
   }
 }

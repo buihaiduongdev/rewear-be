@@ -106,6 +106,8 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       deliveryInstructions: null,
     };
     await db.getRepository(PickupLocation).save({
+      ghnShopId: 123,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Shop',
       phone: address.phone,
@@ -382,7 +384,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     status = 'picked';
     await due(booked.id);
     await shipments.reconcile(booked.id);
-    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode);
+    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode, 123);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
         .status,

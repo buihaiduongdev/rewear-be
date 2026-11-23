@@ -21,6 +21,7 @@ import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserAddressFactory } from '@/database/factories/user-address.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { WishlistItemFactory } from '@/database/factories/wishlist-item.factory';
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
@@ -33,6 +34,7 @@ import {
 import { sendChatSchema } from '@/modules/chat/schemas/chat.schema';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { Media, MediaLink } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import {
@@ -41,6 +43,7 @@ import {
   ORDER_POLICY,
   ORDER_STATUS,
 } from '@/modules/order/constants';
+import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -48,6 +51,8 @@ import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { SHIPMENT_STATE } from '@/modules/shipment/constants/shipment.constant';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopFollow } from '@/modules/shop-follows/entities/shop-follow.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -86,11 +91,6 @@ export async function runInitialDataSeed(manager: EntityManager) {
   );
   const cartFactory = new CartFactory(manager.getRepository(Cart));
   const cartItemFactory = new CartItemFactory(manager.getRepository(CartItem));
-  const checkoutFactory = new CheckoutFactory(manager.getRepository(Checkout));
-  const checkoutOrderFactory = new CheckoutOrderFactory(
-    manager.getRepository(CheckoutOrder),
-  );
-  const orderFactory = new OrderFactory(manager.getRepository(Order));
   const wishlistItemFactory = new WishlistItemFactory(
     manager.getRepository(WishlistItem),
   );
@@ -302,17 +302,137 @@ export async function runInitialDataSeed(manager: EntityManager) {
     }),
   ];
 
-  // Pending COD orders keep their own reserved products, separate from the demo carts.
+  const orders = await seedBuyerOrders(manager, {
+    users,
+    shops,
+    categories,
+    userAddresses,
+    pickupLocations,
+  });
+
+  const wishlist: WishlistItem[] = [];
+  for (const product of [products[0], products[6], products[12]]) {
+    wishlist.push(
+      await wishlistItemFactory.create({
+        userId: buyer.id,
+        productId: product.id,
+      }),
+    );
+  }
+  const follows: ShopFollow[] = [];
+  const conversations: ChatConversation[] = [];
+  for (const shop of shops) {
+    follows.push(
+      await shopFollowFactory.create({ userId: buyer.id, shopId: shop.id }),
+    );
+    const conversation = await chatConversationFactory.create({
+      buyerId: buyer.id,
+      shopId: shop.id,
+      lastSequence: 1,
+      buyerReadSequence: 1,
+      shopReadSequence: 0,
+      lastMessageAt: new Date(),
+    });
+    const payload = sendChatSchema.parse({
+      clientMessageId: randomUUID(),
+      text: 'Hello! Is this item still available?',
+    });
+    const message = await chatMessageFactory.create({
+      conversationId: conversation.id,
+      sequence: 1,
+      senderId: buyer.id,
+      senderSide: CHAT_SIDE.BUYER,
+      clientMessageId: payload.clientMessageId,
+      fingerprint: createHash('sha256')
+        .update(JSON.stringify(payload))
+        .digest('hex'),
+      text: payload.text,
+      mediaIds: payload.mediaIds,
+      card: null,
+    });
+    await notifyChatMessage(manager, conversation, message);
+    conversations.push(conversation);
+  }
+
+  const carts: Cart[] = [adminCart, buyerCart];
+  const cartItems: CartItem[] = [...adminCartItems, ...buyerCartItems];
+
+  return {
+    users,
+    shops,
+    categories,
+    products,
+    userAddresses,
+    pickupLocations,
+    carts,
+    cartItems,
+    orders,
+    wishlist,
+    follows,
+    conversations,
+    cart: adminCart,
+  };
+}
+
+export async function seedBuyerOrders(
+  manager: EntityManager,
+  {
+    users,
+    shops,
+    categories,
+    userAddresses,
+    pickupLocations,
+  }: {
+    users: User[];
+    shops: Shop[];
+    categories: Category[];
+    userAddresses: UserAddress[];
+    pickupLocations: PickupLocation[];
+  },
+) {
+  const buyer = users[1];
+  const productFactory = new ProductFactory(manager.getRepository(Product));
+  const moderationFactory = new ProductModerationFactory(
+    manager.getRepository(ProductModeration),
+  );
+  const mediaFactory = new MediaFactory(manager.getRepository(Media));
+  const linkFactory = new MediaLinkFactory(manager.getRepository(MediaLink));
+  const checkoutFactory = new CheckoutFactory(manager.getRepository(Checkout));
+  const checkoutOrderFactory = new CheckoutOrderFactory(
+    manager.getRepository(CheckoutOrder),
+  );
+  const orderFactory = new OrderFactory(manager.getRepository(Order));
+  // Demo COD orders keep their own reserved products, separate from the demo carts.
   const buyerAddress = userAddresses.find(
     (address) => address.userId === buyer.id && address.isDefault,
   );
   if (!buyerAddress) throw new Error('Seed buyer must have a default address');
   const orders: Order[] = [];
-  for (const [index, shop] of shops.entries()) {
+  const orderFixtures = [
+    ...shops.map((shop, index) => ({
+      shop,
+      index,
+      status: ORDER_STATUS.PENDING,
+    })),
+    { shop: shops[0], index: 0, status: ORDER_STATUS.PREPARING },
+    { shop: shops[1], index: 1, status: ORDER_STATUS.SHIPPING },
+    { shop: shops[2], index: 2, status: ORDER_STATUS.DELIVERED },
+  ];
+  for (const { shop, index, status } of orderFixtures) {
+    const existing = await manager
+      .getRepository(Order)
+      .findOneBy({ buyerId: buyer.id, shopId: shop.id, status });
+    if (existing) {
+      orders.push(existing);
+      continue;
+    }
     const sellerConfirmBy = new Date(
       Date.now() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
     );
     const item = SEED_CATEGORIES[index];
+    const accepted = status !== ORDER_STATUS.PENDING;
+    const delivered = status === ORDER_STATUS.DELIVERED;
+    const inTransit = status === ORDER_STATUS.SHIPPING || delivered;
     const product = await productFactory.create({
       categoryId: categories[index].id,
       shopId: shop.id,
@@ -322,8 +442,9 @@ export async function runInitialDataSeed(manager: EntityManager) {
       size: item.size,
       brand: null,
       measurements: item.measurements,
-      status: ProductStatus.HELD,
+      status: delivered ? ProductStatus.SOLD : ProductStatus.HELD,
       heldUntil: null,
+      soldAt: null,
     });
     await moderationFactory.create({
       productId: product.id,
@@ -393,7 +514,7 @@ export async function runInitialDataSeed(manager: EntityManager) {
       buyerId: buyer.id,
       shopId: shop.id,
       shopName: shop.name,
-      status: ORDER_STATUS.PENDING,
+      status,
       subtotal,
       shippingFee,
       total: subtotal + shippingFee,
@@ -401,78 +522,109 @@ export async function runInitialDataSeed(manager: EntityManager) {
       address,
       items,
     });
+    const now = order.createdAt;
+    const milestone = {
+      acceptedAt: accepted ? now : null,
+      handoverBy: accepted
+        ? new Date(now.getTime() + ORDER_POLICY.HANDOVER_WINDOW_MS)
+        : null,
+      deliveryObservedAt: delivered ? now : null,
+      deliveryVerifiedAt: delivered ? now : null,
+      disputeDeadlineAt: delivered
+        ? new Date(now.getTime() + ORDER_POLICY.DISPUTE_WINDOW_MS)
+        : null,
+    };
+    await manager.getRepository(Order).update(order.id, milestone);
+    Object.assign(order, milestone);
     await manager.getRepository(OrderEvent).save({
       orderId: order.id,
       action: ORDER_EVENT_ACTION.PLACED,
       actorId: buyer.id,
       reason: null,
     });
+    if (accepted) {
+      await manager.getRepository(OrderEvent).save({
+        orderId: order.id,
+        action: ORDER_EVENT_ACTION.ACCEPTED,
+        actorId: users[index + 2].id,
+        reason: null,
+      });
+    }
+    if (inTransit) {
+      const pickup = pickupLocations.find(
+        (location) => location.shopId === shop.id,
+      );
+      if (!pickup || !product.shippingPackage) {
+        throw new Error('Seed shipment must have a pickup location and parcel');
+      }
+      const from = {
+        name: pickup.contactName,
+        phone: pickup.phone,
+        addressLine1: pickup.addressLine1,
+        countryCode: pickup.countryCode,
+        provinceName: pickup.provinceName,
+        wardName: pickup.wardName,
+      };
+      const to = {
+        name: buyerAddress.recipientName,
+        phone: buyerAddress.phone,
+        addressLine1: buyerAddress.addressLine1,
+        countryCode: buyerAddress.countryCode,
+        provinceName: buyerAddress.provinceName,
+        wardName: buyerAddress.wardName,
+      };
+      // This is a local fixture, not a carrier booking; never schedule polling.
+      await manager.getRepository(Shipment).save({
+        orderId: order.id,
+        state: SHIPMENT_STATE.BOOKED,
+        orderCode: null,
+        payload: { seed: true, simulated: true },
+        input: { from, to, parcel: product.shippingPackage, value: subtotal },
+        quotedParcel: product.shippingPackage,
+        codAmount: order.total,
+        providerStatus: delivered
+          ? GHN_SHIPMENT_STATUS.DELIVERED
+          : GHN_SHIPMENT_STATUS.PICKED,
+        providerUpdatedAt: now,
+        pickedObservedAt: now,
+        nextQueryAt: null,
+      });
+      await manager.getRepository(OrderEvent).save({
+        orderId: order.id,
+        action: ORDER_EVENT_ACTION.SHIPPING,
+        actorId: null,
+        reason: null,
+      });
+      if (delivered) {
+        await manager.getRepository(OrderDeliveryVerification).save({
+          orderId: order.id,
+          deliveredAt: now,
+          disputeDeadlineAt: new Date(
+            now.getTime() + ORDER_POLICY.DISPUTE_WINDOW_MS,
+          ),
+          mode: RECONCILIATION_MODE.SIMULATION,
+          actorId: users[0].id,
+          reason: 'Simulated delivery for demo orders',
+          evidence: 'Seed fixture; not a carrier record',
+        });
+        await manager.getRepository(OrderEvent).save({
+          orderId: order.id,
+          action: ORDER_EVENT_ACTION.DELIVERED,
+          actorId: null,
+          reason: null,
+        });
+      }
+    }
     await manager
       .getRepository(Product)
-      .update(product.id, { reservedOrderId: order.id });
+      .update(
+        product.id,
+        delivered
+          ? { soldOrderId: order.id, soldAt: now }
+          : { reservedOrderId: order.id },
+      );
     orders.push(order);
   }
 
-  const wishlist: WishlistItem[] = [];
-  for (const product of [products[0], products[6], products[12]]) {
-    wishlist.push(
-      await wishlistItemFactory.create({
-        userId: buyer.id,
-        productId: product.id,
-      }),
-    );
-  }
-  const follows: ShopFollow[] = [];
-  const conversations: ChatConversation[] = [];
-  for (const shop of shops) {
-    follows.push(
-      await shopFollowFactory.create({ userId: buyer.id, shopId: shop.id }),
-    );
-    const conversation = await chatConversationFactory.create({
-      buyerId: buyer.id,
-      shopId: shop.id,
-      lastSequence: 1,
-      buyerReadSequence: 1,
-      shopReadSequence: 0,
-      lastMessageAt: new Date(),
-    });
-    const payload = sendChatSchema.parse({
-      clientMessageId: randomUUID(),
-      text: 'Hello! Is this item still available?',
-    });
-    const message = await chatMessageFactory.create({
-      conversationId: conversation.id,
-      sequence: 1,
-      senderId: buyer.id,
-      senderSide: CHAT_SIDE.BUYER,
-      clientMessageId: payload.clientMessageId,
-      fingerprint: createHash('sha256')
-        .update(JSON.stringify(payload))
-        .digest('hex'),
-      text: payload.text,
-      mediaIds: payload.mediaIds,
-      card: null,
-    });
-    await notifyChatMessage(manager, conversation, message);
-    conversations.push(conversation);
-  }
-
-  const carts: Cart[] = [adminCart, buyerCart];
-  const cartItems: CartItem[] = [...adminCartItems, ...buyerCartItems];
-
-  return {
-    users,
-    shops,
-    categories,
-    products,
-    userAddresses,
-    pickupLocations,
-    carts,
-    cartItems,
-    orders,
-    wishlist,
-    follows,
-    conversations,
-    cart: adminCart,
-  };
+  return orders;
 }

@@ -133,6 +133,8 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .getRepository(ShopMember)
       .save(memberFactory.build({ shopId: shop.id, userId: seller.id }));
     await db.getRepository(PickupLocation).save({
+      ghnShopId: 123,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Seller',
       phone: '0912345678',

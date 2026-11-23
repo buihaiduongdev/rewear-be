@@ -131,6 +131,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       heldUntil: checkout.expiresAt,
     });
     await db.getRepository(PickupLocation).save({
+      ghnShopId: 123,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Shop owner',
       phone: address.phone,

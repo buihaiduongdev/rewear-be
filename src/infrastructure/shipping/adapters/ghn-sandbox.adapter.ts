@@ -14,6 +14,7 @@ export type CarrierAddress = {
   wardName: string;
 };
 export type CarrierQuoteInput = {
+  ghnShopId?: number;
   from: CarrierAddress;
   to: CarrierAddress;
   parcel: {
@@ -66,14 +67,19 @@ export class GhnSandboxAdapter {
       throw new Error('CARRIER_NOT_CONFIGURED');
     return { token, shop };
   }
-  private async request(path: string, signal: AbortSignal, body?: unknown) {
+  private async request(
+    path: string,
+    signal: AbortSignal,
+    body?: unknown,
+    ghnShopId?: number,
+  ) {
     const { token, shop } = this.config();
     try {
       const response = await fetch(`${origin}${path}`, {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
           Token: token,
-          ShopId: String(shop),
+          ShopId: String(ghnShopId ?? shop),
           'Content-Type': 'application/json',
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -210,7 +216,12 @@ export class GhnSandboxAdapter {
   ): Promise<{ fee: number; estimatedDeliveryAt: string | null }> {
     const payload = await this.buildPayload(input, signal);
     const parsed = previewSchema.safeParse(
-      await this.request('/v2/shipping-order/preview', signal, payload),
+      await this.request(
+        '/v2/shipping-order/preview',
+        signal,
+        payload,
+        input.ghnShopId,
+      ),
     );
     if (!parsed.success) throw new Error('CARRIER_UNAVAILABLE');
     return {

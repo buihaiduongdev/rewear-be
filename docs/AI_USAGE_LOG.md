@@ -1100,3 +1100,15 @@
 - **Review:** Independent reviewer identified later-decision escalation state and completed refunds crowding the active incident queue; both corrected with regression coverage. Final review is automated, not human approval.
 - **Validation:** Targeted serial rewear_test recovery/dispute/fee PostgreSQL regression, strict schema/OpenAPI tests, lint/format/type diagnostics; final PR records latest counts and integrated CI. Full local app checks remain blocked by main's missing xstate dependency. No developer database reset, SMTP or provider transaction.
 - **Docs:** docs/orders/WALLET_EXCESS_RECOVERY.md. Frontend and real Sandbox account verification remain separate work.
+
+### 2026-11-24 — Kết nối GHN Shop cho địa chỉ lấy hàng và quản lý logo shop
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Triển khai cơ chế liên kết địa chỉ lấy hàng người bán với GHN Shop ID (`GhnShopClient`), hỗ trợ admin đối soát trạng thái kết nối, cập nhật endpoint upload logo shop và tối ưu hóa runner seed đơn hàng demo.
+- **Prompt chính:** Hoàn thiện tích hợp kết nối GHN Shop cho địa chỉ lấy hàng của người bán, thêm API đối soát cho Admin, tích hợp tải lên logo shop qua storage ticket, cập nhật kiểm thử unit/integration và tạo PR.
+- **Đầu ra AI được sử dụng:** Các controller/service `GhnConnectionAdminController`, `GhnShopClient`, `ShopLogoController`, `ShopLogoService`, cập nhật entity `PickupLocation`, snapshot GHN shop vào `Shipment`/`ReturnBooking`, mở rộng `seed.runner.ts` hỗ trợ `--orders-only`, và bổ sung bộ kiểm thử liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Sửa lỗi mock trong unit test `return-booking.spec.ts` và `shop-logo.service.spec.ts`, xác nhận quy tắc chuyển đổi trạng thái kết nối và nghiệm thu toàn bộ kiểm thử.
+- **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 lỗi, Prettier format 100%, tsc noEmit, nest build) đạt; 64 unit test suites (424 tests) và 23 Node payment tests pass 100%.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện mock thiếu `db.getRepository` trong test logo và thiếu `accountId` trong `ReturnBookingService.refresh` test; đã sửa và kiểm thử pass.
+- **Minh chứng:** Branch `buihaiduongdev/ghn-pickup-shops`.

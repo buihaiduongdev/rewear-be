@@ -16,6 +16,14 @@ export type SavePickupLocationInput = z.output<typeof savePickupLocationSchema>;
 
 export const pickupLocationSchema = z.object({
   id: z.uuid(),
+  ghnShopId: z.number().int().positive().nullable(),
+  ghnSyncStatus: z.enum([
+    'NOT_CONNECTED',
+    'CREATING',
+    'CONNECTED',
+    'UNKNOWN',
+    'STALE',
+  ]),
   contactName: z.string(),
   phone: z.string(),
   addressLine1: z.string(),
@@ -30,3 +38,10 @@ export const pickupLocationSchema = z.object({
 export const pickupLocationResultSchema = z.object({
   location: pickupLocationSchema.nullable(),
 });
+
+export const connectGhnShopSchema = z.strictObject({
+  provinceId: z.number().int().positive(),
+  districtId: z.number().int().positive(),
+  wardCode: z.string().trim().min(1).max(20),
+});
+export type ConnectGhnShopInput = z.output<typeof connectGhnShopSchema>;
