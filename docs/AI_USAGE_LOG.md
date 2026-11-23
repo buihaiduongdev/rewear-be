@@ -1059,6 +1059,84 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
 - **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
 
+### 2026-11-22 — Làm mới dữ liệu seed sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cải thiện dữ liệu sản phẩm mẫu và ảnh minh họa cho trang mua sắm.
+- **Prompt chính:** Cập nhật seed sản phẩm thực tế hơn, mô tả đầy đủ hơn và chỉ dùng ảnh trang phục, phụ kiện không có người.
+- **Đầu ra AI được sử dụng:** Nội dung, màu, size và số đo theo loại sản phẩm; thay ảnh váy; bỏ các góc ảnh lặp và cập nhật sản phẩm trong đơn seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu ảnh không có người và nội dung đủ để xem tổng quan.
+- **Cách kiểm chứng:** Đối chiếu schema và ảnh nguồn; `git diff --check`. Không chạy test hoặc reset cơ sở dữ liệu theo yêu cầu người dùng.
+- **Giới hạn:** Các sản phẩm là dữ liệu minh họa; sáu ảnh được dùng lặp theo danh mục. Dữ liệu cũ chỉ thay đổi khi chạy lại seed fresh.
+- **Nguồn ảnh váy:** [mdreza jalali, Unsplash](https://unsplash.com/photos/blue-floral-dress-hanging-on-a-rack-outdoors-clothesline-2EKY6Nrm6cQ).
+- **Minh chứng:** branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Bổ sung tài liệu và sửa định dạng PR seed
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cập nhật tài liệu đang chỉnh sửa, bỏ qua dữ liệu Terraform cục bộ và sửa lỗi định dạng trong PR seed.
+- **Prompt chính:** Đưa tài liệu chưa commit vào PR seed, thêm quy tắc ignore Terraform và xử lý lỗi format của CI.
+- **Đầu ra AI được sử dụng:** Sao chép tài liệu tiến độ từ checkout chính, thêm quy tắc ignore thư mục Terraform và định dạng lại hai file seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu giữ tài liệu hiện có và không đưa dữ liệu Terraform cục bộ lên PR.
+- **Cách kiểm chứng:** Đối chiếu nội dung tài liệu với bản local; kiểm tra quy tắc Git ignore, Prettier trên hai file lỗi và `git diff --check`. Không chạy test theo yêu cầu người dùng.
+- **Minh chứng:** PR #60; branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Bổ sung trường logoUrl vào Shop entity và tích hợp trả về logo Shop trong API Product/Cart/Wishlist
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Chuẩn hóa cơ sở dữ liệu và API cho phép lưu trữ và trả về logo Shop chính thức từ backend, loại bỏ hoàn toàn cơ chế lưu logo tạm bợ bằng localStorage phía client.
+- **Prompt chính:** Cập nhật trực tiếp trường logoUrl vào Shop entity không cần viết migration, đồng bộ các schema request/response của Shop và trả về logoUrl của shop trong API sản phẩm, giỏ hàng và danh sách yêu thích.
+- **Đầu ra AI được sử dụng:**
+  - Cập nhật `src/modules/shop/entities/shop.entity.ts`: thêm cột `logoUrl: string | null` (varchar 2048, nullable).
+  - Cập nhật `src/modules/shop/schemas/shop.schema.ts` và `src/modules/shop/schemas/shop-input.schema.ts`: thêm `logoUrl` vào input và output response của Shop.
+  - Cập nhật `src/modules/shop/shop.service.ts`: lưu `logoUrl` khi tạo và cập nhật shop.
+  - Cập nhật `src/modules/product/schemas/product.schema.ts`: trả kèm `logoUrl` trong object `shop` của mỗi sản phẩm.
+  - Đồng bộ `cart.service.ts`, `wishlist.service.ts`, `shop.factory.ts` và cập nhật các unit test tương ứng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đảm bảo tính tương thích ngược, giá trị mặc định là `null` khi shop chưa có logo.
+- **Cách kiểm chứng:** Chạy `pnpm check` (oxlint 0 lỗi, prettier check, tsc, nest build) pass 100%, `pnpm test:unit` pass 100% 56 test suites (406 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #56, branch `refact/optimize-product-search-columns`.
+### 2026-11-21 — Central notifications and durable important-event email
+
+- **Authority:** Tâm requested implementing central notifications after PR52 merge. Existing NOTIF-SESSION-01 defines in-app and important-event email. New branch feat/central-notifications; new PR only, not merged.
+- **Implementation:** Transactional recipient inbox/event/email intent with payload replay checks, recipient-only pagination/unread/read APIs and current Shop permission/Admin-role checks. Bounded restart-safe source projection for orders and lifecycle, invitations, disputes, fees, fulfillment, reward adjustment and Shop rating edits; direct product review publication preserves intermediate decisions. Historical important-source emails suppressed using durable activation checkpoint. Safe typed targets and simulation mode, no evidence/storage or recipient leakage.
+- **Email:** Leased SKIP LOCKED jobs, bounded retry/backoff, permission revalidation, stable Message-ID and text-only generic authenticated link. Real SMTP is not invoked in tooling/tests. Exactly-once SMTP delivery is not claimed. Shop-application approval source remains absent and is documented, not fabricated.
+- **Review:** Independent reviewer identified unresolved dispute navigation and missing simulation mode on fulfillment; corrected with typed targets and shared order-source mode resolver, plus PostgreSQL regression. Human review not asserted.
+- **Validation:** Local targeted PostgreSQL/unit tests, lint, formatting and typecheck diagnostics checked; full local app/build remain blocked by missing xstate dependency from main. Full CI on final PR commit is required; final PR description records results. DB tests use rewear_test serially; no developer database reset.
+- **Docs:** docs/orders/NOTIFICATIONS.md; plan docs/superpowers/plans/2026-11-21-central-notifications.md.
+
+### 2026-11-21 — Buyer–Shop chat backend
+
+- **Authority:** Tâm requested remaining backend1 (Chat), following settled CHAT-SESSION-01..03: one buyer/Shop thread, text/image/video and contextual cards; chat video may serve as dispute evidence. New feat/buyer-shop-chat branch/PR only, not merged.
+- **Core:** Active participant/current chat.manage enforcement, unique conversation and sender-scoped request replay, immutable sequence messages, bounded polling/history, shared Shop and buyer monotonic read cursors, server-owned card snapshots and privacy projections. Existing conversations continue for support when Shop stops new business; no self-Shop thread creation.
+- **Media/evidence:** Private PUT tickets, HEAD/ETag validation, attach-once, attachment-only signed reading; same-party/order/window checked explicit import to READY dispute evidence with retained provenance. No arbitrary media URL or implicit Staff dispute permission. Notification transaction uses safe CHAT target, no raw chat content or per-message email.
+- **Review:** Independent read-only review found no blocking correctness/security finding; clarified inactive-Shop support behavior in docs. No human approval asserted.
+- **Validation:** Targeted serial rewear_test chat/media/notification tests, schema/OpenAPI unit checks and lint/type diagnostics run. Full local app build remains blocked by missing xstate from main; final integrated CI result recorded in PR. Storage fake only, no live objects/messages sent through tooling.
+- **Docs:** docs/orders/CHAT.md; design/plan docs/superpowers/plans/2026-11-21-buyer-shop-chat.md.
+
+### 2026-11-21 — Follow Shop and public followed-Shop feed
+
+- **Authority:** Tâm requested remaining backend1 Follow Shop. Existing WISHLIST-FOLLOW-SESSION-01 requires private followed-Shop list and access to new goods; kept separate from product Wishlist, reputation and public follower identities. New feat/follow-shops branch/PR only, not merged.
+- **Implementation:** Unique actor/Shop relation, serialized idempotent PUT/DELETE, authenticated active-account state/list and newest-products feed. Existing inactive-Shop follows remain removable and replay preserves original followedAt; new inactive follows denied. RR snapshots, bounded pagination and deterministic tie order. Feed enforces current follows plus public product/moderation/category/Shop/price/publication visibility, and excludes retired/non-image covers. No private seller details or storage keys exposed, no unsolicited email fanout.
+- **Review:** Independent read-only reviewer found no important actionable bug. No human approval asserted.
+- **Validation:** Local5 PostgreSQL tests and2 schema/OpenAPI unit tests pass; full HTTP/build/typecheck require CI because xstate remains missing locally. Final integrated CI results recorded in PR. Tests use rewear_test serially; no developer database reset or external provider calls.
+- **Docs:** docs/orders/SHOP_FOLLOWS.md; plan docs/superpowers/plans/2026-11-21-follow-shops.md. Frontend outside this PR.
+
+### 2026-11-22 — Bổ sung dữ liệu seed cho đơn hàng và tương tác
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Bổ sung dữ liệu phát triển cho đơn COD, danh sách yêu thích, theo dõi shop, hội thoại và thông báo.
+- **Prompt chính:** Bổ sung dữ liệu seed còn thiếu, tổ chức theo pattern factory hiện có và đồng bộ đơn COD với luồng nghiệp vụ.
+- **Đầu ra AI được sử dụng:** Factory cho các entity mới, dữ liệu seed liên kết checkout và đơn COD, tương tác buyer–shop và kiểm thử PostgreSQL.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu dùng pattern factory hiện có và kiểm tra sự đồng bộ với luồng COD.
+- **Cách kiểm chứng:** `pnpm check` và test seed PostgreSQL đạt; test đơn seed xác nhận, từ chối và trả sản phẩm về trạng thái bán được. `pnpm test` có 790 test đạt, 7 test thuộc fee lifecycle thất bại; chạy riêng suite này trên origin/main sạch tái hiện cùng 7 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
+- **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
+
 ### 2026-11-22 — Product and Shop violation reports
 
 - **Authority:** Tâm requested remaining backend1 Reports, implementing REPORT-SESSION-01. New feat/violation-reports branch/PR only; no merge authorization for the new PR.
