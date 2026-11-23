@@ -57,7 +57,9 @@ export class ShopService {
           name: input.name,
           description: input.description || null,
           logoUrl: input.logoUrl || null,
-          status: ShopStatus.ACTIVE,
+          status: ShopStatus.PENDING,
+          onboardingRequired: true,
+          approvedAt: null,
         }),
       );
       try {
@@ -85,8 +87,17 @@ export class ShopService {
     input: UpdateShopInput,
   ): Promise<Shop> {
     return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const repository = manager.getRepository(Shop);
       const shop = await repository.findOneByOrFail({ id: shopId });
+      if (
+        input.status !== undefined &&
+        shop.onboardingRequired &&
+        !shop.approvedAt
+      )
+        throw new ForbiddenException(
+          'Shop application approval is required before changing availability',
+        );
       repository.merge(shop, {
         ...input,
         description:

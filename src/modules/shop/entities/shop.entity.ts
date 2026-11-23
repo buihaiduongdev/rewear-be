@@ -7,6 +7,11 @@ import { ShopMember } from './shop-member.entity';
 
 @Entity('shops')
 export class Shop extends BaseEntity {
+  @Column({ default: false })
+  onboardingRequired: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  approvedAt: Date | null;
   @Column({ length: 100 })
   name: string;
 

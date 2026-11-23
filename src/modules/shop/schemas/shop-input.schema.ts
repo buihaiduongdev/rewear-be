@@ -16,7 +16,7 @@ export const createShopSchema = z.strictObject({
 
 export const updateShopSchema = createShopSchema.partial().extend({
   name: optionalInput(createShopSchema.shape.name),
-  status: optionalInput(z.enum(ShopStatus)),
+  status: optionalInput(z.enum([ShopStatus.ACTIVE, ShopStatus.INACTIVE])),
   logoUrl: optionalInput(trimmedTextSchema.max(2048)),
 });
 
