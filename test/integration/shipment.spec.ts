@@ -107,8 +107,9 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       postalCode: null,
       deliveryInstructions: null,
     };
+    const ghnShopId = Math.floor(Math.random() * 900000) + 100000;
     await db.getRepository(PickupLocation).save({
-      ghnShopId: Math.floor(Math.random() * 900000) + 100000,
+      ghnShopId,
       ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Shop',
@@ -176,7 +177,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     client.query.mockImplementation(async (id: string) => ({
       clientCode: id,
       orderCode: carrierCode,
-      shopId: 123,
+      shopId: ghnShopId,
       status,
       updatedAt: new Date().toISOString(),
       codAmount: amount,
@@ -188,7 +189,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     }));
     client.cancel.mockResolvedValue(true);
     client.requestReturn.mockResolvedValue(true);
-    return { db, buyer, owner, shop, order, product };
+    return { db, buyer, owner, shop, order, product, ghnShopId };
   }
   async function due(id: string) {
     await database.dataSource
@@ -388,7 +389,10 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     status = 'picked';
     await due(booked.id);
     await shipments.reconcile(booked.id);
-    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode, 123);
+    expect(client.requestReturn).toHaveBeenCalledWith(
+      carrierCode,
+      f.ghnShopId,
+    );
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
         .status,
