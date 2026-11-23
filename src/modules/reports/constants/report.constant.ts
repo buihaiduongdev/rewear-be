@@ -1,0 +1,48 @@
+import ms from 'ms';
+
+export const REPORT_TARGET = { PRODUCT: 'PRODUCT', SHOP: 'SHOP' } as const;
+export const REPORT_REASON = {
+  COUNTERFEIT: 'COUNTERFEIT',
+  PROHIBITED_ITEM: 'PROHIBITED_ITEM',
+  MISLEADING_CONTENT: 'MISLEADING_CONTENT',
+  OFFENSIVE_CONTENT: 'OFFENSIVE_CONTENT',
+  FRAUD: 'FRAUD',
+  OTHER: 'OTHER',
+} as const;
+export const REPORT_STATUS = {
+  OPEN: 'OPEN',
+  IN_REVIEW: 'IN_REVIEW',
+  RESOLVED: 'RESOLVED',
+} as const;
+export const REPORT_OUTCOME = {
+  CONFIRMED: 'CONFIRMED',
+  DISMISSED: 'DISMISSED',
+} as const;
+export const REPORT_MEASURE = {
+  NONE: 'NONE',
+  SUSPEND_PRODUCT: 'SUSPEND_PRODUCT',
+  DEACTIVATE_SHOP: 'DEACTIVATE_SHOP',
+} as const;
+export const REPORT_ACTION = {
+  SUBMITTED: 'SUBMITTED',
+  SUPPLEMENTED: 'SUPPLEMENTED',
+  CLAIMED: 'CLAIMED',
+  RESOLVED: 'RESOLVED',
+} as const;
+export const REPORT_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export const REPORT_POLICY = {
+  DEFAULT_PAGE_SIZE: 50,
+  MAX_PAGE_SIZE: 100,
+  MAX_EVIDENCE: 6,
+  IMAGE_BYTES: 10 * 1024 * 1024,
+  UPLOAD_TTL_MS: ms('15m'),
+  DAY_MS: ms('1d'),
+  UPLOADS_PER_USER_DAY: 200,
+  DESCRIPTION_LENGTH: 4000,
+  REASON_LENGTH: 2000,
+  ADMIN_NOTE_LENGTH: 5000,
+} as const;

@@ -1082,3 +1082,12 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu giữ tài liệu hiện có và không đưa dữ liệu Terraform cục bộ lên PR.
 - **Cách kiểm chứng:** Đối chiếu nội dung tài liệu với bản local; kiểm tra quy tắc Git ignore, Prettier trên hai file lỗi và `git diff --check`. Không chạy test theo yêu cầu người dùng.
 - **Minh chứng:** PR #60; branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Product and Shop violation reports
+
+- **Authority:** Tâm requested remaining backend1 Reports, implementing REPORT-SESSION-01. New feat/violation-reports branch/PR only; no merge authorization for the new PR.
+- **Implementation:** Active-reporter private cases, categorized reasons, owned immutable image tickets, own-order historical target context and server-captured upload snapshots. Idempotent submission/supplements, bounded summary queues, versioned Admin claim/resolution and private Admin notes. Closed cases are immutable; reporter/target Shop privacy enforced.
+- **Actions:** Shared product suspension policy preserves ACTIVE/HIDDEN and current moderation-version guards; HELD/SOLD stock remains untouched. Explicit Shop deactivation uses existing inactive guards. Report/action/audit/command and safe inbox notices share one transaction. No automatic refunds, settlements, mass-report takedown, Report SLA or appeal policy invented.
+- **Review:** Independent read-only review found no important actionable issue. Human approval is not asserted.
+- **Validation:** Local9 PostgreSQL integration tests and9 schema/Product unit tests pass; lint checked. HTTP/OpenAPI tests added. Full local app/build/typecheck remain blocked by missing xstate from merged main; final integrated CI evidence belongs in the PR. DB tests use rewear_test serially and media uses a storage fake, without live uploads or developer DB reset.
+- **Docs:** docs/orders/VIOLATION_REPORTS.md. Frontend outside this PR.
