@@ -389,10 +389,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     status = 'picked';
     await due(booked.id);
     await shipments.reconcile(booked.id);
-    expect(client.requestReturn).toHaveBeenCalledWith(
-      carrierCode,
-      f.ghnShopId,
-    );
+    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode, f.ghnShopId);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
         .status,
