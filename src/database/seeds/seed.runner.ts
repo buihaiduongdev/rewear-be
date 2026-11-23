@@ -14,7 +14,7 @@ async function run() {
   const ordersOnly = process.argv.includes('--orders-only');
   if (isFresh && ordersOnly)
     throw new Error('--orders-only cannot be combined with --fresh');
-  if (ordersOnly) AppDataSource.setOptions({ synchronize: false });
+  if (isFresh || ordersOnly) AppDataSource.setOptions({ synchronize: false });
   console.log('Initializing database connection...');
   await AppDataSource.initialize();
 
