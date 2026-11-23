@@ -27,6 +27,7 @@ import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ProductModule } from './modules/product';
 import { RatingsModule } from './modules/ratings/ratings.module';
+import { ReportModule } from './modules/reports/report.module';
 import { ShipmentModule } from './modules/shipment/shipment.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { ShopModule } from './modules/shop';
@@ -56,6 +57,7 @@ import { WishlistModule } from './modules/wishlist';
     CoinsModule,
     CoinRewardModule,
     RatingsModule,
+    ReportModule,
     CodReconciliationModule,
     ShopFinanceModule,
     ShopFollowModule,

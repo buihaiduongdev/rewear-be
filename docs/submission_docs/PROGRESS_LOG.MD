@@ -20,7 +20,8 @@
 | **Đợt 1 (Tuần 1 – 2)** | 14/09/2026 – 27/09/2026 | Khảo sát bài toán thời trang 2hand, phân tích 4 nhóm tác nhân (Guest, Buyer, Shop, Admin); xây dựng quy trình nghiệp vụ tổng quát và danh mục chức năng MVP. | Phạm vi ban đầu quá rộng (nhiều tính năng phân tích dữ liệu/ML chưa khả thi cho MVP). | Hoàn thiện Use Case tổng quát, lược đồ thực thể ERD và Activity Diagrams. | **GVHD chỉ đạo:** Không đưa các ưu/nhược điểm ngoài kỹ thuật vào khảo sát; tập trung chức năng thương mại điện tử cốt lõi. | **Đã duyệt** (25/09/2026) |
 | **Đợt 2 (Tuần 3 – 4)** | 28/09/2026 – 11/10/2026 | Hoàn thiện Chương 3 SRS/SDD: lược đồ Use Case, Activity Diagrams, Sequence Diagrams (Auth, Đăng bán, Đặt hàng, Thanh toán, Phân quyền shop). Tích hợp GHN tạo vận đơn. | Khâu tính cước vận chuyển đa shop và trạng thái giao hàng phụ thuộc API đối tác bên ngoài. | Tinh gọn phân nhóm nghiệp vụ, thiết lập cấu trúc Authentication Next.js & NestJS, dựng mockup UI. | **GVHD chỉ đạo:** Bổ sung thêm các quy trình hoạt động chính của hệ thống; chuyển vận chuyển từ nhập tay sang tạo vận đơn qua API. | **Đã duyệt** (08/10/2026) |
 | **Đợt 3 (Tuần 5 – 6)** | 12/10/2026 – 25/10/2026 | Thiết lập kiến trúc NestJS/Next.js, Zod Schema, OpenAPI. Chốt luồng giỏ hàng, khóa giữ hàng 10 phút, checkout đa kiện, tách đơn theo shop, cơ chế ký quỹ (escrow) 72h. | Tránh phụ thuộc cơ chế giữ tiền của cổng thanh toán MoMo; phân biệt thời gian giữ hàng và giữ số dư ví. | Triển khai API Product lifecycle, Cart, Seed data và kết nối giao diện Home theo Figma. | Chuyển toàn bộ việc quản lý số dư ký quỹ về sàn (Database Re.wear) thay vì phụ thuộc hold của cổng thanh toán. | **Đã duyệt** (22/10/2026) |
-| **Đợt 4 (Tuần 7 – 8)** | 26/10/2026 – 08/11/2026 | Triển khai mã nguồn API Product, Cart, Seed DB, UI Home responsive. Chốt toàn bộ 15 nhóm quy tắc nghiệp vụ trong `DECISIONS.md` (Shop RBAC, KYC, tranh chấp SLA, COD). Chuẩn bị bộ hồ sơ `submission_docs`. | Đảm bảo tính nhất quán giữa tài liệu nộp, quyết định kiến trúc và mã nguồn thực tế. | Hoàn thiện phiếu khảo sát thực tế, tài liệu SRS/SDD chi tiết và cam kết Bước 3 có xác nhận GVHD. | Đơn giản hóa Shop RBAC: 1 Owner duy nhất quản lý thành viên; kiểm duyệt tin đăng lại khi sửa thông tin/ảnh. | **Đã duyệt T7** / **Chờ duyệt T8** (07/11/2026) |
+| **Đợt 4 (Tuần 7 – 8)** | 26/10/2026 – 08/11/2026 | Triển khai mã nguồn API Product, Cart, Seed DB, UI Home responsive. Chốt toàn bộ 15 nhóm quy tắc nghiệp vụ trong `DECISIONS.md` (Shop RBAC, KYC, tranh chấp SLA, COD). Chuẩn bị bộ hồ sơ `submission_docs`. | Đảm bảo tính nhất quán giữa tài liệu nộp, quyết định kiến trúc và mã nguồn thực tế. | Hoàn thiện phiếu khảo sát thực tế, tài liệu SRS/SDD chi tiết và cam kết Bước 3 có xác nhận GVHD. | Đơn giản hóa Shop RBAC: 1 Owner duy nhất quản lý thành viên; kiểm duyệt tin đăng lại khi sửa thông tin/ảnh. | **Đã duyệt** (07/11/2026) |
+| **Đợt 5 (Tuần 9 – 10)** | 09/11/2026 – 22/11/2026 | Chuẩn hóa toàn bộ máy trạng thái (XState) đơn hàng/khiếu nại; hoàn thiện ví hoàn tiền, thanh toán full wallet, rút tiền shop, phí sàn; xây dựng Wishlist, Coins, Đánh giá shop, Chat Buyer-Shop, Thông báo trung tâm; hoàn thiện Frontend Seller Dashboard & Product detail kết nối API thật bám sát Figma; tối ưu hóa tìm kiếm sản phẩm và seed dữ liệu tương tác. | Tích hợp đồng bộ phân trang, thời gian và dữ liệu giữa NestJS & Next.js. | Hoàn thiện kiểm thử E2E liên thông toàn luồng và rà soát báo cáo Bước 3. | Chuẩn hóa máy trạng thái tập trung bằng XState; chuyển Seller Dashboard từ mock data sang 100% API contract thực tế. | **Đã nộp T9** / **Đã nộp T10** (22/11/2026) |
 
 ---
 
@@ -111,19 +112,25 @@ Trích xuất trực tiếp từ Cổng Quản lý Đề tài Khoa CNTT — Trư
 * **AI hỗ trợ:** ChatGPT (GPT-6) — Hỗ trợ tổng hợp danh mục file nộp, cấu trúc decision log và kế hoạch chuẩn bị hồ sơ.
 * **Sinh viên đã sửa:** Phản biện và trực tiếp lựa chọn phương án nghiệp vụ; chuẩn hóa mô hình shop sở hữu đơn lẻ; bảo đảm toàn bộ nội dung khớp với mã nguồn thực tế.
 
-### Tuần 9 — Bản nháp báo cáo (08/11–12/11/2026)
-
+### Tuần 9 — Nộp lúc 23:15 ngày 15/11/2026 (Trạng thái: Đã duyệt)
 * **Nội dung báo cáo:**
-  * Sắp xếp lại tài liệu kỹ thuật trong repository, lưu trữ các đặc tả cũ và cập nhật trang chỉ dẫn.
-  * Rà soát và thống nhất cách xử lý dữ liệu đầu vào, cập nhật thông tin danh mục, cửa hàng và địa chỉ để mã nguồn dễ bảo trì hơn.
-  * Tổ chức lại unit, integration và E2E; cấu hình PostgreSQL cho kiểm thử và CI. Kiểm tra luồng từ đăng sản phẩm, duyệt đến giỏ hàng và checkout.
-  * Chuyển phân trang danh sách sản phẩm và người dùng sang thư viện chung, hỗ trợ tìm kiếm, sắp xếp và lọc.
+  * Sắp xếp lại tài liệu kỹ thuật trong repository, lưu trữ các đặc tả cũ (`docs/archive/`) và cập nhật trang chỉ dẫn README.
+  * Rà soát và thống nhất cách xử lý dữ liệu đầu vào (Input Validation & DTOs), cập nhật thông tin danh mục, cửa hàng và địa chỉ hành chính.
+  * Tổ chức lại hệ thống kiểm thử tự động 3 tầng (Unit, Integration, E2E); cấu hình PostgreSQL cho kiểm thử và CI GitHub Actions. Kiểm tra luồng từ đăng sản phẩm, duyệt tin đến giỏ hàng và checkout.
+  * Chuyển phân trang danh sách sản phẩm và người dùng sang thư viện chung (`nestjs-paginate`), hỗ trợ tìm kiếm đa thuộc tính, sắp xếp và lọc.
+* **AI hỗ trợ:** Codex, Claude 3.5 Sonnet và Antigravity — Hỗ trợ rà soát cấu trúc phân trang API, sinh cấu hình PostgreSQL container cho workflow CI và cập nhật tài liệu kỹ thuật.
+* **Sinh viên đã sửa:** Trực tiếp lựa chọn phạm vi phân trang, rà soát tính tương thích ngược của API; cấu hình biến môi trường kết nối database test an toàn và kiểm tra pass 100% test suites trước khi tạo PR review.
+* **Nhận xét của GVHD:** **"Đã nhận"**
 
-  Các thay đổi backend đã được đưa lên PR để review, chưa merge. Vướng mắc hiện tại là frontend cần cập nhật theo contract phân trang mới; CI của PR phân trang chưa cấp PostgreSQL nên các test database được chạy local.
-
-  Thay đổi thiết kế kỹ thuật trong tuần là chuyển API phân trang sang contract của thư viện để thống nhất cách tìm kiếm, lọc và sắp xếp. Công việc tiếp theo là xử lý góp ý trên PR, cập nhật frontend và tiếp tục kiểm chứng các tích hợp liên quan.
-* **AI hỗ trợ:** Codex, Antigravity và agent-browser.
-* **Prompt:** Rà soát và đơn giản hóa cách xử lý dữ liệu, phân trang trong backend. Tổ chức lại kiểm thử, chạy với PostgreSQL và chuẩn bị PR cho các thay đổi.
-* **AI tạo ra:** AI hỗ trợ chỉnh sửa mã nguồn, cấu hình kiểm thử và tài liệu; chạy kiểm tra và tổng hợp kết quả để đưa lên PR.
-* **SV đã sửa:** Sinh viên lựa chọn phạm vi thay đổi, kiểm tra và điều chỉnh các đề xuất của AI; thống nhất cách tổ chức kiểm thử theo hành vi và luồng đặt hàng.
-* **Nộp và xác nhận GVHD:** Chưa xác minh.
+### Tuần 10 — Nộp lúc 19:05 ngày 22/11/2026 (Trạng thái: Chờ duyệt)
+* **Nội dung báo cáo:**
+  * Chuẩn hóa máy trạng thái miền (Domain State Machines) trên backend bằng XState cho vòng đời đơn hàng, sản phẩm và khiếu nại, bảo đảm chuyển trạng thái chặt chẽ và không lỗi luồng.
+  * Hoàn thiện các nghiệp vụ thương mại cốt lõi tại Backend: thanh toán kết hợp số dư ví, rút tiền thủ công cho shop, cơ chế thu phí sàn và quản lý nợ; quy trình giải quyết khiếu nại hoàn tiền ví và xử lý sự cố đơn vị vận chuyển.
+  * Xây dựng các phân hệ tương tác và tiện ích sàn: module Wishlist (danh sách yêu thích và lưu mua sau), hệ thống Xu tích lũy (Coins), đánh giá Shop xác thực, theo dõi Shop (Follows/Feed), thông báo trung tâm (inbox) và kênh chat Người mua - Shop kèm bằng chứng ảnh an toàn.
+  * Nâng cấp bảo mật Next.js 16.4.6 và hoàn thiện giao diện Frontend bám sát Figma: trang chi tiết sản phẩm kết nối API thực tế, tinh chỉnh giỏ hàng và đặt hàng hỗ trợ chọn nhiều món, tích hợp bộ chọn địa chỉ hành chính có tìm kiếm.
+  * Triển khai phân hệ người bán (Seller Workspace & Dashboard) trên Frontend: thay thế toàn bộ dữ liệu mẫu (mock) bằng API thật, cho phép quản lý sản phẩm, đơn hàng và hồ sơ cửa hàng.
+  * Tối ưu hóa hiệu năng tìm kiếm sản phẩm và bổ sung dữ liệu Seed phục vụ kiểm thử liên thông toàn hệ thống.
+* **AI hỗ trợ:** Codex và Antigravity (Gemini 3.8 Flash, Claude).
+* **Prompt:** Hỗ trợ chuẩn hóa máy trạng thái đơn hàng và khiếu nại bằng XState, triển khai module Wishlist, Chat Buyer-Shop, tối ưu hóa tìm kiếm sản phẩm và hoàn thiện kết nối API thật cho Seller Dashboard trên Frontend.
+* **AI tạo ra:** AI hỗ trợ sinh mã logic state machine, cấu trúc endpoint Chat và Notification, refactor các component giao diện React Query, seed dữ liệu tương tác người dùng và cập nhật nhật ký AI.
+* **Sinh viên đã sửa:** Sinh viên trực tiếp phản biện và chốt kiến trúc luồng thanh toán ví, phân quyền chat và duyệt sản phẩm; rà soát coding convention, kiểm thử các API trên môi trường local với PostgreSQL và GHN Sandbox trước khi tạo PR và merge.

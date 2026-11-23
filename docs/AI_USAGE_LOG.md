@@ -1059,6 +1059,39 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bản seed đầu thiếu event PLACED và đặt thời hạn giữ sản phẩm khác luồng COD; đã sửa và thêm kiểm thử.
 - **Minh chứng:** PR #57, branch `feat/seed-commerce-data`; PR ghi rõ 7 test lỗi đã tái hiện trên origin/main.
 
+### 2026-11-22 — Làm mới dữ liệu seed sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cải thiện dữ liệu sản phẩm mẫu và ảnh minh họa cho trang mua sắm.
+- **Prompt chính:** Cập nhật seed sản phẩm thực tế hơn, mô tả đầy đủ hơn và chỉ dùng ảnh trang phục, phụ kiện không có người.
+- **Đầu ra AI được sử dụng:** Nội dung, màu, size và số đo theo loại sản phẩm; thay ảnh váy; bỏ các góc ảnh lặp và cập nhật sản phẩm trong đơn seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu ảnh không có người và nội dung đủ để xem tổng quan.
+- **Cách kiểm chứng:** Đối chiếu schema và ảnh nguồn; `git diff --check`. Không chạy test hoặc reset cơ sở dữ liệu theo yêu cầu người dùng.
+- **Giới hạn:** Các sản phẩm là dữ liệu minh họa; sáu ảnh được dùng lặp theo danh mục. Dữ liệu cũ chỉ thay đổi khi chạy lại seed fresh.
+- **Nguồn ảnh váy:** [mdreza jalali, Unsplash](https://unsplash.com/photos/blue-floral-dress-hanging-on-a-rack-outdoors-clothesline-2EKY6Nrm6cQ).
+- **Minh chứng:** branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Bổ sung tài liệu và sửa định dạng PR seed
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Cập nhật tài liệu đang chỉnh sửa, bỏ qua dữ liệu Terraform cục bộ và sửa lỗi định dạng trong PR seed.
+- **Prompt chính:** Đưa tài liệu chưa commit vào PR seed, thêm quy tắc ignore Terraform và xử lý lỗi format của CI.
+- **Đầu ra AI được sử dụng:** Sao chép tài liệu tiến độ từ checkout chính, thêm quy tắc ignore thư mục Terraform và định dạng lại hai file seed.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu giữ tài liệu hiện có và không đưa dữ liệu Terraform cục bộ lên PR.
+- **Cách kiểm chứng:** Đối chiếu nội dung tài liệu với bản local; kiểm tra quy tắc Git ignore, Prettier trên hai file lỗi và `git diff --check`. Không chạy test theo yêu cầu người dùng.
+- **Minh chứng:** PR #60; branch `buihaiduongdev/seed-catalog-refresh`.
+
+### 2026-11-22 — Product and Shop violation reports
+
+- **Authority:** Tâm requested remaining backend1 Reports, implementing REPORT-SESSION-01. New feat/violation-reports branch/PR only; no merge authorization for the new PR.
+- **Implementation:** Active-reporter private cases, categorized reasons, owned immutable image tickets, own-order historical target context and server-captured upload snapshots. Idempotent submission/supplements, bounded summary queues, versioned Admin claim/resolution and private Admin notes. Closed cases are immutable; reporter/target Shop privacy enforced.
+- **Actions:** Shared product suspension policy preserves ACTIVE/HIDDEN and current moderation-version guards; HELD/SOLD stock remains untouched. Explicit Shop deactivation uses existing inactive guards. Report/action/audit/command and safe inbox notices share one transaction. No automatic refunds, settlements, mass-report takedown, Report SLA or appeal policy invented.
+- **Review:** Independent read-only review found no important actionable issue. Human approval is not asserted.
+- **Validation:** Local9 PostgreSQL integration tests and9 schema/Product unit tests pass; lint checked. HTTP/OpenAPI tests added. Full local app/build/typecheck remain blocked by missing xstate from merged main; final integrated CI evidence belongs in the PR. DB tests use rewear_test serially and media uses a storage fake, without live uploads or developer DB reset.
+- **Docs:** docs/orders/VIOLATION_REPORTS.md. Frontend outside this PR.
+
 ### 2026-11-22 — Verified wallet excess recovery and objections
 
 - **Authority:** Tâm requested implementing remaining backend1, wallet overcredit recovery. Follows WALLET-REFUND-EXCESS-VERIFY-01 and WALLET-EXCESS-* decisions. New feat/wallet-excess-recovery branch; Reports PR58 remains unmerged and is not a dependency.

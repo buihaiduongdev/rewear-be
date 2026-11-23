@@ -7,36 +7,60 @@ export const SEED_CATEGORIES: {
   title: string;
   photo: string;
   sizeBytes: number;
+  description: string;
+  color: string;
+  size: string;
+  measurements: Partial<Record<MeasurementKey, number>>;
 }[] = [
   {
     name: 'Tops',
     slug: 'tops',
     requiredMeasurements: ['chest', 'length'],
-    title: 'Cotton knit sweater',
+    title: 'Cream open-knit poncho',
+    description:
+      'A lightweight open-knit poncho in a soft cream shade, finished with a fringed hem. Easy to layer over a simple top for cooler evenings. Pre-loved and ready for another wardrobe.',
+    color: 'Cream',
+    size: 'One size',
+    measurements: { chest: 110, length: 65 },
     photo: 'photo-1434389677669-e08b4cac3105',
-    sizeBytes: 166955,
+    sizeBytes: 166925,
   },
   {
     name: 'Bottoms',
     slug: 'bottoms',
     requiredMeasurements: ['waist', 'inseam'],
-    title: 'Straight-leg denim jeans',
+    title: 'Classic denim jeans',
+    description:
+      'Everyday denim with a timeless straight-leg silhouette and a classic five-pocket look. A versatile secondhand staple that pairs easily with shirts, knits and jackets.',
+    color: 'Blue',
+    size: 'M',
+    measurements: { waist: 76, hip: 98, inseam: 74 },
     photo: 'photo-1542272604-787c3835535d',
-    sizeBytes: 56376,
+    sizeBytes: 56365,
   },
   {
     name: 'Dresses',
     slug: 'dresses',
     requiredMeasurements: ['chest', 'waist', 'length'],
-    title: 'Floral midi dress',
-    photo: 'photo-1515372039744-b8f02a3ae446',
-    sizeBytes: 111880,
+    title: 'Blue floral summer dress',
+    description:
+      'A blue floral dress with a relaxed summer feel. Light, easy to style and suitable for casual days. Please compare the measurements with a favourite dress before purchasing.',
+    color: 'Blue',
+    size: 'M',
+    measurements: { chest: 92, waist: 76, length: 98 },
+    photo: 'photo-1760097679488-f808c6aca11d',
+    sizeBytes: 97456,
   },
   {
     name: 'Outerwear',
     slug: 'outerwear',
     requiredMeasurements: ['chest', 'shoulder', 'length'],
-    title: 'Vintage leather jacket',
+    title: 'Black biker jacket',
+    description:
+      'A black biker-style jacket with a notched collar and zip details. A statement layer for everyday outfits, offered pre-loved for its next owner.',
+    color: 'Black',
+    size: 'M',
+    measurements: { chest: 96, shoulder: 42, sleeve: 58, length: 60 },
     photo: 'photo-1551028719-00167b16eac5',
     sizeBytes: 163062,
   },
@@ -44,17 +68,27 @@ export const SEED_CATEGORIES: {
     name: 'Footwear',
     slug: 'footwear',
     requiredMeasurements: [],
-    title: 'Everyday sneakers',
+    title: 'Brown lace-up sneakers',
+    description:
+      'Brown low-top lace-up sneakers with a contrasting white sole. A comfortable-looking casual style for everyday outfits. Check the listed size before purchasing.',
+    color: 'Brown',
+    size: 'EU 40',
+    measurements: {},
     photo: 'photo-1549298916-b41d501d3772',
-    sizeBytes: 109821,
+    sizeBytes: 109818,
   },
   {
     name: 'Accessories',
     slug: 'accessories',
     requiredMeasurements: [],
-    title: 'Everyday backpack',
+    title: 'Navy everyday backpack',
+    description:
+      'A navy backpack with a front zip pocket and top handle. Its simple shape makes it a practical option for everyday essentials, commuting or short trips.',
+    color: 'Navy',
+    size: 'One size',
+    measurements: {},
     photo: 'photo-1553062407-98eeb64c6a62',
-    sizeBytes: 71699,
+    sizeBytes: 71738,
   },
 ];
 

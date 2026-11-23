@@ -154,20 +154,23 @@ export async function runInitialDataSeed(manager: EntityManager) {
   ];
   for (let index = 0; index < 36; index++) {
     const category = categories[index % categories.length];
+    const item = SEED_CATEGORIES[index % SEED_CATEGORIES.length];
     const shopIndex = Math.floor(index / categories.length) % shops.length;
     const status = index < 30 ? ProductStatus.ACTIVE : states[index - 30];
     const product = await productFactory.create({
       categoryId: status === ProductStatus.DRAFT ? null : category.id,
       shopId: shops[shopIndex].id,
-      title:
-        status === ProductStatus.DRAFT
-          ? null
-          : `${SEED_CATEGORIES[index % categories.length].title} ${Math.floor(index / categories.length) + 1}`,
-      description:
-        status === ProductStatus.DRAFT
-          ? null
-          : 'Pre-loved clothing in good condition.',
+      title: status === ProductStatus.DRAFT ? null : item.title,
+      description: status === ProductStatus.DRAFT ? null : item.description,
       condition: status === ProductStatus.DRAFT ? null : ProductCondition.GOOD,
+      color: status === ProductStatus.DRAFT ? null : item.color,
+      size: status === ProductStatus.DRAFT ? null : item.size,
+      brand: null,
+      measurements: status === ProductStatus.DRAFT ? {} : item.measurements,
+      repairs:
+        status !== ProductStatus.DRAFT && index === 3
+          ? 'The zipper was replaced and works smoothly.'
+          : null,
       price:
         status === ProductStatus.DRAFT ? null : 120000 + (index % 12) * 35000,
       shippingPackage:
@@ -208,21 +211,18 @@ export async function runInitialDataSeed(manager: EntityManager) {
             : null,
       });
     }
-    for (const [slot, angle] of ['FRONT', 'BACK', 'DETAIL'].entries()) {
-      const item = SEED_CATEGORIES[index % categories.length];
-      const media = await mediaFactory.create({
-        uploadedById: users[shopIndex + 2].id,
-        url: `https://images.unsplash.com/${item.photo}?w=800&fit=crop&q=80&fm=jpg`,
-        sizeBytes: item.sizeBytes,
-      });
-      await linkFactory.create({
-        mediaId: media.id,
-        ownerId: product.id,
-        role: slot === 0 ? MediaRole.COVER : MediaRole.GALLERY,
-        angle,
-        sortOrder: slot,
-      });
-    }
+    const media = await mediaFactory.create({
+      uploadedById: users[shopIndex + 2].id,
+      url: `https://images.unsplash.com/${item.photo}?w=800&fit=crop&q=80&fm=jpg`,
+      sizeBytes: item.sizeBytes,
+    });
+    await linkFactory.create({
+      mediaId: media.id,
+      ownerId: product.id,
+      role: MediaRole.COVER,
+      angle: 'FRONT',
+      sortOrder: 0,
+    });
   }
 
   const userByKey = new Map<string, User>();
@@ -312,10 +312,16 @@ export async function runInitialDataSeed(manager: EntityManager) {
     const sellerConfirmBy = new Date(
       Date.now() + ORDER_POLICY.SELLER_CONFIRM_WINDOW_MS,
     );
+    const item = SEED_CATEGORIES[index];
     const product = await productFactory.create({
       categoryId: categories[index].id,
       shopId: shop.id,
-      title: `Seed order item ${index + 1}`,
+      title: item.title,
+      description: item.description,
+      color: item.color,
+      size: item.size,
+      brand: null,
+      measurements: item.measurements,
       status: ProductStatus.HELD,
       heldUntil: null,
     });
@@ -323,6 +329,18 @@ export async function runInitialDataSeed(manager: EntityManager) {
       productId: product.id,
       status: ProductModerationStatus.APPROVED,
       reason: null,
+    });
+    const media = await mediaFactory.create({
+      uploadedById: users[index + 2].id,
+      url: `https://images.unsplash.com/${item.photo}?w=800&fit=crop&q=80&fm=jpg`,
+      sizeBytes: item.sizeBytes,
+    });
+    await linkFactory.create({
+      mediaId: media.id,
+      ownerId: product.id,
+      role: MediaRole.COVER,
+      angle: 'FRONT',
+      sortOrder: 0,
     });
     const subtotal = product.price!;
     const shippingFee = 30000;
@@ -346,7 +364,7 @@ export async function runInitialDataSeed(manager: EntityManager) {
         price: subtotal,
         size: product.size,
         condition: product.condition!,
-        coverUrl: null,
+        coverUrl: media.url,
         shippingPackage: product.shippingPackage,
       },
     ];
