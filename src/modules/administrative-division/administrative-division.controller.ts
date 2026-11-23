@@ -4,6 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import z from 'zod';
 
 import { Serialize } from '@/common/decorators';
+import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 
 import { AdministrativeDivisionService } from './administrative-division.service';
 import {
@@ -13,6 +14,7 @@ import {
 } from './schemas';
 
 @ApiTags('AdministrativeDivisions')
+@PublicAccess()
 @Controller('administrative-divisions')
 export class AdministrativeDivisionController {
   constructor(
