@@ -158,13 +158,14 @@ describe('Request schema compatibility', () => {
     expect(updateShopSchema.parse({ name: null }).name).toBeUndefined();
   });
 
-  it('requires real booleans and valid two-level address codes', () => {
+  it('requires real booleans and valid three-level address codes', () => {
     const address = {
       recipientName: '  Nguyễn   An ',
       phone: '0912345678',
       addressLine1: ' 12  Nguyễn Huệ ',
-      provinceCode: '79',
-      wardCode: '25747',
+      provinceId: 202,
+      districtId: 1442,
+      wardCode: '20101',
     };
     expect(createUserAddressSchema.parse(address).recipientName).toBe(
       'Nguyễn An',
@@ -174,12 +175,13 @@ describe('Request schema compatibility', () => {
         .success,
     ).toBe(false);
     expect(
-      createUserAddressSchema.safeParse({ ...address, provinceCode: '079' })
-        .success,
+      createUserAddressSchema.safeParse({ ...address, provinceId: -1 }).success,
     ).toBe(false);
     expect(
-      createUserAddressSchema.safeParse({ ...address, wardCode: '123' })
-        .success,
+      createUserAddressSchema.safeParse({ ...address, districtId: 0 }).success,
+    ).toBe(false);
+    expect(
+      createUserAddressSchema.safeParse({ ...address, wardCode: '' }).success,
     ).toBe(false);
     expect(
       createUserAddressSchema.safeParse({ ...address, label: '' }).success,

@@ -90,7 +90,7 @@ it('prepares immutable sender-paid COD payload from canonical address mapping', 
     cod_failed_amount: 0,
     payment_type_id: 1,
     insurance_value: 500000,
-    from_ward_name: 'Ward',
+    from_ward_code: '1A0206',
   });
   expect(Object.isFrozen(payload)).toBe(true);
   expect(Object.isFrozen(payload.items)).toBe(true);
