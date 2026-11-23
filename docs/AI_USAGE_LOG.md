@@ -1111,4 +1111,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Sửa lỗi mock trong unit test `return-booking.spec.ts` và `shop-logo.service.spec.ts`, xác nhận quy tắc chuyển đổi trạng thái kết nối và nghiệm thu toàn bộ kiểm thử.
 - **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 lỗi, Prettier format 100%, tsc noEmit, nest build) đạt; 64 unit test suites (424 tests) và 23 Node payment tests pass 100%.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện mock thiếu `db.getRepository` trong test logo và thiếu `accountId` trong `ReturnBookingService.refresh` test; đã sửa và kiểm thử pass.
-- **Minh chứng:** Branch `buihaiduongdev/ghn-pickup-shops`.
+- **Minh chứng:** PR #62; branch `buihaiduongdev/ghn-pickup-shops`.
