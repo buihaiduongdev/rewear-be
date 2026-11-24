@@ -61,12 +61,13 @@ export class PickupLocationService {
   }
 
   async save(userId: string, input: SavePickupLocationInput, shopId: string) {
+    const address = await this.administrativeDivisionService.resolveAddress(
+      input.provinceId,
+      input.districtId,
+      input.wardCode,
+    );
     return this.db.transaction(async (manager) => {
-      const address = await this.administrativeDivisionService.resolveAddress(
-        input.provinceId,
-        input.districtId,
-        input.wardCode,
-      );
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         shopId,
       ]);

@@ -17,6 +17,7 @@ const storage = {
 };
 const db = {
   getRepository: jest.fn(() => repository),
+  transaction: jest.fn(),
 } as unknown as DataSource;
 const config = {
   storage: { allowedTypes: ['image/png'], maxSizeBytes: 10 * 1024 * 1024 },
@@ -25,6 +26,9 @@ const config = {
 beforeEach(() => {
   jest.resetAllMocks();
   (db.getRepository as jest.Mock).mockReturnValue(repository);
+  (db.transaction as jest.Mock).mockImplementation(async (run) =>
+    run({ getRepository: () => repository, query: jest.fn() }),
+  );
   shop.logoUrl = null;
   repository.findOneByOrFail.mockResolvedValue(shop);
   repository.save.mockImplementation(async (value) => value);
