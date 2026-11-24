@@ -198,9 +198,19 @@ describe('commerce behavior with PostgreSQL', () => {
     await db
       .getRepository(ShopMember)
       .save(memberFactory.build({ shopId: shop.id, userId: user.id }));
-    const ghnClient = new GhnShopClient();
-    const divisions = new AdministrativeDivisionService(ghnClient);
-    const pickup = new PickupLocationService(db, divisions, ghnClient);
+    const mockGhn = {
+      provinces: jest.fn().mockResolvedValue([{ id: 201, name: 'Hà Nội' }]),
+      districts: jest
+        .fn()
+        .mockResolvedValue([{ id: 1489, name: 'Quận Hoàn Kiếm' }]),
+      wards: jest
+        .fn()
+        .mockResolvedValue([{ id: '1A0206', name: 'Phường Hàng Bài' }]),
+      create: jest.fn().mockResolvedValue({ status: 'CREATED', shopId: 12345 }),
+      findOwnedShop: jest.fn().mockResolvedValue({ _id: 12345, status: 1 }),
+    } as unknown as GhnShopClient;
+    const divisions = new AdministrativeDivisionService(mockGhn);
+    const pickup = new PickupLocationService(db, divisions, mockGhn);
     const provinceId = 201;
     const districtId = 1489;
     const wardCode = '1A0206';
