@@ -1,6 +1,7 @@
 import { EntityNotFoundError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import type { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 import { UserAddress } from '@/modules/user-address/entities';
 import { UserAddressService } from '@/modules/user-address/user-address.service';
@@ -58,10 +59,30 @@ describe('UserAddressService', () => {
     async (action: (entityManager: EntityManager) => Promise<UserAddress>) =>
       action(manager as unknown as EntityManager),
   );
+  const mockGhn: jest.Mocked<
+    Pick<GhnShopClient, 'provinces' | 'districts' | 'wards'>
+  > = {
+    provinces: jest.fn().mockResolvedValue([
+      { id: 201, name: 'Hà Nội' },
+      { id: 202, name: 'Hồ Chí Minh' },
+    ]),
+    districts: jest.fn().mockImplementation(async (provinceId: number) => {
+      if (provinceId === 201) return [{ id: 1489, name: 'Quận Hoàn Kiếm' }];
+      if (provinceId === 202) return [{ id: 1442, name: 'Quận 1' }];
+      return [];
+    }),
+    wards: jest.fn().mockImplementation(async (districtId: number) => {
+      if (districtId === 1489)
+        return [{ id: '1A0206', name: 'Phường Hàng Bài' }];
+      if (districtId === 1442)
+        return [{ id: '20101', name: 'Phường Bến Nghé' }];
+      return [];
+    }),
+  };
   const service = new UserAddressService(
     repository as unknown as Repository<UserAddress>,
     { transaction } as unknown as DataSource,
-    new AdministrativeDivisionService(),
+    new AdministrativeDivisionService(mockGhn as unknown as GhnShopClient),
   );
 
   beforeEach(() => {

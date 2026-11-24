@@ -198,12 +198,9 @@ describe('commerce behavior with PostgreSQL', () => {
     await db
       .getRepository(ShopMember)
       .save(memberFactory.build({ shopId: shop.id, userId: user.id }));
-    const divisions = new AdministrativeDivisionService();
-    const pickup = new PickupLocationService(
-      db,
-      divisions,
-      new GhnShopClient(),
-    );
+    const ghnClient = new GhnShopClient();
+    const divisions = new AdministrativeDivisionService(ghnClient);
+    const pickup = new PickupLocationService(db, divisions, ghnClient);
     const provinceId = 201;
     const districtId = 1489;
     const wardCode = '1A0206';
