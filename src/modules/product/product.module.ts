@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { Category } from '@/modules/category/entities';
-import { Media, MediaLink } from '@/modules/media/entities';
+import { Media, ProductMedia } from '@/modules/media/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 
 import { Product, ProductModeration } from './entities';
@@ -17,7 +17,7 @@ import { ProductService } from './product.service';
       Product,
       ProductModeration,
       Media,
-      MediaLink,
+      ProductMedia,
       Category,
       Shop,
       ShopMember,

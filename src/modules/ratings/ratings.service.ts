@@ -58,11 +58,13 @@ export class RatingsService {
       buyerId,
       shopId,
       mode,
-      ready: true,
     });
-    if (media.length !== mediaIds.length || media.some((row) => !row.eTag))
+    if (
+      media.length !== mediaIds.length ||
+      media.some((row) => row.media.retiredAt)
+    )
       throw new BadRequestException(
-        'Only owned completed Shop rating uploads can be attached',
+        'Only owned Shop rating media can be attached',
       );
   }
   private async version(

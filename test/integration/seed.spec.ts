@@ -12,7 +12,7 @@ import { ChatService } from '@/modules/chat/chat.service';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { MediaLink } from '@/modules/media/entities';
+import { ProductMedia } from '@/modules/media/entities';
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { ORDER_EVENT_ACTION, ORDER_STATUS } from '@/modules/order/constants';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
@@ -133,7 +133,7 @@ describe('Seed data (PostgreSQL)', () => {
     expect(await db.getRepository(PickupLocation).count()).toBe(3);
     expect(await db.getRepository(Cart).count()).toBe(2);
     expect(await db.getRepository(CartItem).count()).toBe(5);
-    expect(await db.getRepository(MediaLink).count()).toBe(42);
+    expect(await db.getRepository(ProductMedia).count()).toBe(42);
     const admin = await db.getRepository(User).findOneOrFail({
       where: { id: seed.users[0].id },
       select: { id: true, password: true },
@@ -158,7 +158,11 @@ describe('Seed data (PostgreSQL)', () => {
     });
     expect(follows.totalCount).toBe(3);
     const authorization = new AuthorizationService(db);
-    const chat = new ChatService(db, new ChatAccess(authorization));
+    const chat = new ChatService(
+      db,
+      new ChatAccess(authorization),
+      {} as never,
+    );
     const conversations = await chat.list(buyer.id, { limit: 20, offset: 0 });
     expect(conversations.items).toHaveLength(3);
     const sellerConversations = await chat.list(seed.users[2].id, {

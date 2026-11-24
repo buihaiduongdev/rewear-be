@@ -12,13 +12,13 @@ All endpoints require authentication and a currently active account.
 | GET | `/reports/mine` | Private paginated summaries, optional status/target type filters. |
 | GET | `/reports/:id` | Own report, public resolution and public audit history. |
 | POST | `/reports/:id/supplements` | Add text/images while OPEN or IN_REVIEW; request replay protected. |
-| POST | `/reports/uploads` | Create target-bound image upload ticket; optional own open `reportId` for supplements. |
-| POST | `/reports/evidence/:id/complete` | Validate uploaded object MIME, size and immutable ETag. |
+| POST | `/media/upload-ticket` | Obtain a private upload URL and media ID. |
+| POST | `/reports/evidence` | Link uploaded media to a target, with optional own open `reportId`. |
 | GET | `/reports/evidence/:id/download` | Short-lived private image URL for reporter or current active Admin. |
 
-Reasons: COUNTERFEIT, PROHIBITED_ITEM, MISLEADING_CONTENT, OFFENSIVE_CONTENT, FRAUD, OTHER. At most six JPEG/PNG/WebP images per report, at most 10 MiB each. Upload tickets expire after 15 minutes; each user may issue at most 200 tickets in a rolling day, including abandoned tickets.
+Reasons: COUNTERFEIT, PROHIBITED_ITEM, MISLEADING_CONTENT, OFFENSIVE_CONTENT, FRAUD, OTHER. At most six JPEG/PNG/WebP images per report, at most 10 MiB each. Upload tickets expire after 15 minutes; each user may register at most 200 report evidence records in a rolling day.
 
-Targets must be publicly available or supported by the reporter's own historical Order snapshot. Historical Product context uses the original OrderItem title, not later private edits. A valid owned upload ticket retains its server-captured target snapshot, so hiding a target after upload does not prevent submission. Arbitrary client snapshots and arbitrary media URLs are not accepted. Attached evidence cannot be reused for a different report; unattached evidence is not downloadable.
+Targets must be publicly available or supported by the reporter's own historical Order snapshot. Historical Product context uses the original OrderItem title, not later private edits. A registered evidence record retains its server-captured target snapshot, so hiding a target after upload does not prevent submission. Arbitrary client snapshots and arbitrary media URLs are not accepted. Attached evidence cannot be reused for a different report; unattached evidence is not downloadable.
 
 ## Admin workflow
 

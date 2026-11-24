@@ -144,27 +144,14 @@ describe('verified shop rating policy', () => {
       }).success,
     ).toBe(true);
   });
-  it('accepts bounded safe photo/video uploads only', () => {
+  it('requires an order and a media ID to attach rating media', () => {
+    const orderId = '00000000-0000-4000-8000-000000000001';
+    const mediaId = '00000000-0000-4000-8000-000000000002';
+    expect(ratingUploadSchema.safeParse({ orderId, mediaId }).success).toBe(
+      true,
+    );
     expect(
-      ratingUploadSchema.safeParse({
-        orderId: '00000000-0000-4000-8000-000000000001',
-        mimeType: 'image/jpeg',
-        sizeBytes: 1000,
-      }).success,
-    ).toBe(true);
-    expect(
-      ratingUploadSchema.safeParse({
-        orderId: '00000000-0000-4000-8000-000000000001',
-        mimeType: 'image/svg+xml',
-        sizeBytes: 1000,
-      }).success,
-    ).toBe(false);
-    expect(
-      ratingUploadSchema.safeParse({
-        orderId: '00000000-0000-4000-8000-000000000001',
-        mimeType: 'video/mp4',
-        sizeBytes: 1000000000,
-      }).success,
+      ratingUploadSchema.safeParse({ orderId, mediaId: 'invalid' }).success,
     ).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
-import { ReportEvidence } from '@/modules/reports/entities/report.entity';
+import type { StorageService } from '@/infrastructure/storage';
+import { Media } from '@/modules/media/entities';
+import { MediaService } from '@/modules/media/media.service';
 import { ReportMediaService } from '@/modules/reports/media/report-media.service';
 import { ReportReadService } from '@/modules/reports/report-read.service';
 import { ReportAccess } from '@/modules/reports/report.access';
@@ -16,6 +17,7 @@ describe('Violation report private evidence PostgreSQL', () => {
   let database: TestDatabase;
   let media: ReportMediaService;
   let reports: ViolationReportService;
+  let uploads: MediaService;
   const objects = new Map<
     string,
     { eTag: string; contentType: string; sizeBytes: number }
@@ -51,10 +53,15 @@ describe('Violation report private evidence PostgreSQL', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const access = new ReportAccess();
+    uploads = new MediaService(
+      database.dataSource.getRepository(Media),
+      storage as unknown as StorageService,
+    );
     media = new ReportMediaService(
       database.dataSource,
       access,
-      storage as unknown as PrivateEvidenceStorage,
+      storage as unknown as StorageService,
+      uploads,
     );
     reports = new ViolationReportService(
       database.dataSource,
@@ -66,17 +73,20 @@ describe('Violation report private evidence PostgreSQL', () => {
   async function fixture() {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
-    const upload = await media.createUpload(f.buyer.id, {
-      targetType: 'SHOP',
-      targetId: f.shop.id,
+    const ticket = await uploads.createUploadTicket(f.buyer.id, {
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
+      visibility: 'private',
+    });
+    const upload = await media.attach(f.buyer.id, {
+      targetType: 'SHOP',
+      targetId: f.shop.id,
+      mediaId: ticket.mediaId,
     });
     return { ...f, db, upload };
   }
-  it('allows only owned complete images of the same target and signs only attached reporter/Admin reads', async () => {
+  it('allows owned evidence and signs only attached reporter/Admin reads', async () => {
     const f = await fixture();
-    const other = await adjudicationFixture(f.db);
     const input = {
       requestId: randomUUID(),
       targetType: 'SHOP' as const,
@@ -85,13 +95,6 @@ describe('Violation report private evidence PostgreSQL', () => {
       description: 'Báo cáo kèm hình ảnh cần Admin xác minh',
       evidenceIds: [f.upload.id],
     };
-    await expect(reports.create(f.buyer.id, input)).rejects.toThrow(
-      'owned ready uploads',
-    );
-    await expect(media.complete(other.buyer.id, f.upload.id)).rejects.toThrow(
-      'Report upload not found',
-    );
-    await media.complete(f.buyer.id, f.upload.id);
     await expect(media.download(f.buyer.id, f.upload.id)).rejects.toThrow(
       'Attached report evidence',
     );
@@ -105,11 +108,10 @@ describe('Violation report private evidence PostgreSQL', () => {
     expect(await media.download(f.buyer.id, f.upload.id)).toHaveProperty('url');
     await expect(
       reports.create(f.buyer.id, { ...input, requestId: randomUUID() }),
-    ).rejects.toThrow('owned ready uploads');
+    ).rejects.toThrow('belong to the reporter');
   });
   it('retains observed public target context when the Shop becomes unavailable after upload', async () => {
     const f = await fixture();
-    await media.complete(f.buyer.id, f.upload.id);
     await f.db.manager.update(Shop, f.shop.id, {
       status: ShopStatus.INACTIVE,
       name: 'PRIVATE CHANGED NAME',
@@ -124,14 +126,17 @@ describe('Violation report private evidence PostgreSQL', () => {
     });
     expect(result.target.label).toBe(f.shop.name);
     expect(result.target.label).not.toContain('PRIVATE');
-    const extra = await media.createUpload(f.buyer.id, {
+    const extraTicket = await uploads.createUploadTicket(f.buyer.id, {
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+      visibility: 'private',
+    });
+    const extra = await media.attach(f.buyer.id, {
       targetType: 'SHOP',
       targetId: f.shop.id,
       reportId: result.id,
-      mimeType: 'image/png',
-      sizeBytes: 1024,
+      mediaId: extraTicket.mediaId,
     });
-    await media.complete(f.buyer.id, extra.id);
     expect(
       (
         await reports.supplement(f.buyer.id, result.id, {
@@ -142,10 +147,9 @@ describe('Violation report private evidence PostgreSQL', () => {
       ).evidence,
     ).toHaveLength(2);
   });
-  it('rejects cross-target attachment, expired tickets and changed immutable ETag', async () => {
+  it('rejects cross-target attachment and another user’s upload', async () => {
     const f = await fixture();
     const other = await adjudicationFixture(f.db);
-    await media.complete(f.buyer.id, f.upload.id);
     await expect(
       reports.create(f.buyer.id, {
         requestId: randomUUID(),
@@ -155,25 +159,18 @@ describe('Violation report private evidence PostgreSQL', () => {
         description: 'Không dùng ảnh upload cho đối tượng khác',
         evidenceIds: [f.upload.id],
       }),
-    ).rejects.toThrow('same target');
-    const row = await f.db.manager.findOneByOrFail(ReportEvidence, {
-      id: f.upload.id,
-    });
-    objects.get(row.storageKey)!.eTag = 'tampered';
-    await expect(media.complete(f.buyer.id, f.upload.id)).rejects.toThrow(
-      'immutable upload',
-    );
-    const expired = await media.createUpload(f.buyer.id, {
-      targetType: 'SHOP',
-      targetId: f.shop.id,
+    ).rejects.toThrow('match the target');
+    const otherTicket = await uploads.createUploadTicket(other.buyer.id, {
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
+      visibility: 'private',
     });
-    await f.db.manager.update(ReportEvidence, expired.id, {
-      uploadExpiresAt: new Date(0),
-    });
-    await expect(media.complete(f.buyer.id, expired.id)).rejects.toThrow(
-      'ticket expired',
-    );
+    await expect(
+      media.attach(f.buyer.id, {
+        targetType: 'SHOP',
+        targetId: f.shop.id,
+        mediaId: otherTicket.mediaId,
+      }),
+    ).rejects.toThrow('Upload ticket not found');
   });
 });

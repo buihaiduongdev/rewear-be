@@ -69,7 +69,6 @@ export const chatMediaViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.string(),
   sizeBytes: z.number().int(),
-  ready: z.boolean(),
 });
 export const chatMessageViewSchema = z.object({
   id: z.uuid(),

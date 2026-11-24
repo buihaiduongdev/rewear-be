@@ -56,41 +56,6 @@ export class ChatMessage extends BaseEntity {
   fingerprint: string;
   @Column('text', { nullable: true })
   text: string | null;
-  @Column('jsonb', { default: [] })
-  mediaIds: string[];
   @Column('jsonb', { nullable: true })
   card: ChatCardSnapshot | null;
-}
-
-@Entity('chat_media')
-@Index(['conversationId', 'uploadedById', 'createdAt'])
-@Check(
-  'CHK_chat_media_ready',
-  '"sizeBytes" > 0 AND ("messageId" IS NULL OR ready = true) AND ((ready = true AND "eTag" IS NOT NULL) OR (ready = false AND "eTag" IS NULL))',
-)
-export class ChatMedia extends BaseEntity {
-  @Column('uuid')
-  conversationId: string;
-  @ManyToOne(() => ChatConversation, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'conversationId' })
-  conversation: ChatConversation;
-  @Column('uuid')
-  uploadedById: string;
-  @Column('uuid', { nullable: true })
-  messageId: string | null;
-  @ManyToOne(() => ChatMessage, { onDelete: 'RESTRICT', nullable: true })
-  @JoinColumn({ name: 'messageId' })
-  message: ChatMessage | null;
-  @Column('varchar', { length: 512 })
-  storageKey: string;
-  @Column('varchar', { length: 100 })
-  mimeType: string;
-  @Column('integer')
-  sizeBytes: number;
-  @Column('boolean', { default: false })
-  ready: boolean;
-  @Column('varchar', { length: 255, nullable: true })
-  eTag: string | null;
-  @Column('timestamptz')
-  uploadExpiresAt: Date;
 }

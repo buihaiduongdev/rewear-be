@@ -10,8 +10,8 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
-import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { Media, ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
@@ -103,13 +103,11 @@ describe('commerce behavior with PostgreSQL', () => {
         mediaType: MediaType.IMAGE,
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
-        eTag: null,
         retiredAt: null,
       });
-      await db.getRepository(MediaLink).save({
+      await db.getRepository(ProductMedia).save({
         mediaId: media.id,
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: product.id,
+        productId: product.id,
         role: sortOrder === 0 ? MediaRole.COVER : MediaRole.GALLERY,
         angle,
         sortOrder,

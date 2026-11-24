@@ -18,12 +18,3 @@ export const mediaSchema = z.object({
 });
 
 export const mediaListSchema = z.array(mediaSchema);
-
-export const mediaUploadTicketSchema = z.object({
-  storageKey: z.string(),
-  uploadUrl: z.url(),
-  publicUrl: z.url(),
-  method: z.literal('PUT'),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
-});

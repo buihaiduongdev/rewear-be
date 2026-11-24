@@ -9,10 +9,10 @@ import { ChatConversationFactory } from '@/database/factories/chat-conversation.
 import { ChatMessageFactory } from '@/database/factories/chat-message.factory';
 import { CheckoutOrderFactory } from '@/database/factories/checkout-order.factory';
 import { CheckoutFactory } from '@/database/factories/checkout.factory';
-import { MediaLinkFactory } from '@/database/factories/media-link.factory';
 import { MediaFactory } from '@/database/factories/media.factory';
 import { OrderFactory } from '@/database/factories/order.factory';
 import { PickupLocationFactory } from '@/database/factories/pickup-location.factory';
+import { ProductMediaFactory } from '@/database/factories/product-media.factory';
 import { ProductModerationFactory } from '@/database/factories/product-moderation.factory';
 import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopFollowFactory } from '@/database/factories/shop-follow.factory';
@@ -35,7 +35,7 @@ import { sendChatSchema } from '@/modules/chat/schemas/chat.schema';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { Media, MediaLink } from '@/modules/media/entities';
+import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import {
   ORDER_EVENT_ACTION,
@@ -82,7 +82,9 @@ export async function runInitialDataSeed(manager: EntityManager) {
     manager.getRepository(ProductModeration),
   );
   const mediaFactory = new MediaFactory(manager.getRepository(Media));
-  const linkFactory = new MediaLinkFactory(manager.getRepository(MediaLink));
+  const linkFactory = new ProductMediaFactory(
+    manager.getRepository(ProductMedia),
+  );
   const userAddressFactory = new UserAddressFactory(
     manager.getRepository(UserAddress),
   );
@@ -218,7 +220,7 @@ export async function runInitialDataSeed(manager: EntityManager) {
     });
     await linkFactory.create({
       mediaId: media.id,
-      ownerId: product.id,
+      productId: product.id,
       role: MediaRole.COVER,
       angle: 'FRONT',
       sortOrder: 0,
@@ -351,7 +353,6 @@ export async function runInitialDataSeed(manager: EntityManager) {
         .update(JSON.stringify(payload))
         .digest('hex'),
       text: payload.text,
-      mediaIds: payload.mediaIds,
       card: null,
     });
     await notifyChatMessage(manager, conversation, message);
@@ -400,7 +401,9 @@ export async function seedBuyerOrders(
     manager.getRepository(ProductModeration),
   );
   const mediaFactory = new MediaFactory(manager.getRepository(Media));
-  const linkFactory = new MediaLinkFactory(manager.getRepository(MediaLink));
+  const linkFactory = new ProductMediaFactory(
+    manager.getRepository(ProductMedia),
+  );
   const checkoutFactory = new CheckoutFactory(manager.getRepository(Checkout));
   const checkoutOrderFactory = new CheckoutOrderFactory(
     manager.getRepository(CheckoutOrder),
@@ -462,7 +465,7 @@ export async function seedBuyerOrders(
     });
     await linkFactory.create({
       mediaId: media.id,
-      ownerId: product.id,
+      productId: product.id,
       role: MediaRole.COVER,
       angle: 'FRONT',
       sortOrder: 0,

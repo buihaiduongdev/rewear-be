@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
@@ -64,7 +64,7 @@ describe('Dispute API and private evidence HTTP', () => {
       .useValue({})
       .overrideProvider(DisputeWorker)
       .useValue({})
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue(storage)
       .compile();
     app = module.createNestApplication();
@@ -181,59 +181,26 @@ describe('Dispute API and private evidence HTTP', () => {
       (await db.getRepository(Order).findOneByOrFail({ id: order.id })).status,
     ).toBe('dispute');
   });
-  it('creates private upload ticket without public URL/key; rejects unsafe requests', async () => {
-    const uploadPath = `/api/orders/${order.id}/dispute-evidence/uploads`;
-    const payload = {
-      mimeType: 'image/jpeg',
-      sizeBytes: 1024,
-      tags: ['ISSUE'],
-    };
+  it('registers shared media as private dispute evidence', async () => {
+    const upload = await request(app.getHttpServer())
+      .post('/api/media/upload-ticket')
+      .auth(token(buyer), { type: 'bearer' })
+      .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
+      .expect(201);
+    const path = `/api/orders/${order.id}/dispute-evidence`;
+    const payload = { mediaId: upload.body.data.id, tags: ['ISSUE'] };
     await request(app.getHttpServer())
-      .post(uploadPath)
+      .post(path)
       .auth(token(stranger), { type: 'bearer' })
       .send(payload)
       .expect(403);
-    await request(app.getHttpServer())
-      .post(uploadPath)
-      .auth(token(buyer), { type: 'bearer' })
-      .send({ ...payload, mimeType: 'text/html' })
-      .expect(400);
-    await request(app.getHttpServer())
-      .post(uploadPath)
-      .auth(token(buyer), { type: 'bearer' })
-      .send({ ...payload, sizeBytes: 100000000 })
-      .expect(400);
-    const uploaded = await request(app.getHttpServer())
-      .post(uploadPath)
+    const attached = await request(app.getHttpServer())
+      .post(path)
       .auth(token(buyer), { type: 'bearer' })
       .send(payload)
       .expect(200);
-    evidenceId = uploaded.body.data.id;
-    expect(uploaded.body.data).not.toHaveProperty('storageKey');
-    expect(uploaded.body.data).not.toHaveProperty('publicUrl');
-  });
-  it('confirms only uploader-owned objects with checked metadata', async () => {
-    const confirmPath = `/api/dispute-evidence/${evidenceId}/confirm`;
-    await request(app.getHttpServer())
-      .post(confirmPath)
-      .auth(token(stranger), { type: 'bearer' })
-      .send({})
-      .expect(403);
-    storage.getObjectMetadata.mockResolvedValueOnce({
-      eTag: 'fixed-etag',
-      contentType: 'image/jpeg',
-      sizeBytes: 1,
-    });
-    await request(app.getHttpServer())
-      .post(confirmPath)
-      .auth(token(buyer), { type: 'bearer' })
-      .send({})
-      .expect(400);
-    await request(app.getHttpServer())
-      .post(confirmPath)
-      .auth(token(buyer), { type: 'bearer' })
-      .send({})
-      .expect(200);
+    evidenceId = attached.body.data.id;
+    expect(attached.body.data).not.toHaveProperty('storageKey');
     await request(app.getHttpServer())
       .get(`/api/dispute-evidence/${evidenceId}/download`)
       .auth(token(owner), { type: 'bearer' })
@@ -267,7 +234,7 @@ describe('Dispute API and private evidence HTTP', () => {
       await db
         .getRepository(DisputeEvidence)
         .findOneByOrFail({ id: evidenceId })
-    ).storageKey;
+    ).media.storageKey;
     expect(JSON.stringify(view.body)).not.toContain(key);
     expect(JSON.stringify(view.body)).not.toContain('Private carrier proof');
     await request(app.getHttpServer())

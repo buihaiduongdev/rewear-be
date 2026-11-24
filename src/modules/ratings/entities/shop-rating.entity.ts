@@ -1,6 +1,7 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Media } from '@/modules/media/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { Order } from '@/modules/order/entities/order.entity';
 import { Shop } from '@/modules/shop/entities';
@@ -113,16 +114,9 @@ export class ShopRatingMedia extends BaseEntity {
   orderId: string;
   @Column({ type: 'varchar', length: 16 })
   mode: RatingMode;
-  @Column({ unique: true })
-  storageKey: string;
-  @Column({ type: 'varchar', length: 64 })
-  mimeType: string;
-  @Column('integer')
-  sizeBytes: number;
-  @Column({ default: false })
-  ready: boolean;
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  eTag: string | null;
-  @Column('timestamptz')
-  uploadExpiresAt: Date;
+  @Column('uuid', { unique: true })
+  mediaId: string;
+  @ManyToOne(() => Media, { onDelete: 'RESTRICT', eager: true })
+  @JoinColumn({ name: 'mediaId' })
+  media: Media;
 }

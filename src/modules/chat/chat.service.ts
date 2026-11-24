@@ -6,8 +6,9 @@ import {
   Injectable,
 } from '@nestjs/common';
 
-import { Brackets, DataSource, type EntityManager, In } from 'typeorm';
+import { Brackets, DataSource, type EntityManager } from 'typeorm';
 
+import { MediaService } from '@/modules/media/media.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
@@ -15,13 +16,10 @@ import { notifyChatMessage } from './chat-message.notification';
 import { chatMessageViews } from './chat-message.view';
 import { ChatAccess } from './chat.access';
 import { CHAT_POLICY, CHAT_SIDE } from './constants/chat.constant';
-import {
-  ChatConversation,
-  ChatMedia,
-  ChatMessage,
-} from './entities/chat.entity';
+import { ChatMessageMedia } from './entities/chat-message-media.entity';
+import { ChatConversation, ChatMessage } from './entities/chat.entity';
 import { chatCardSnapshot } from './policies/chat-card.policy';
-import { sendChatSchema } from './schemas/chat.schema';
+import { chatUploadSchema, sendChatSchema } from './schemas/chat.schema';
 import type { ChatPageInput, ChatSide, SendChatInput } from './types/chat.type';
 
 @Injectable()
@@ -29,6 +27,7 @@ export class ChatService {
   constructor(
     private readonly db: DataSource,
     private readonly access: ChatAccess,
+    private readonly media: MediaService,
   ) {}
   open(buyerId: string, shopId: string) {
     return this.db.transaction(async (manager) => {
@@ -175,23 +174,22 @@ export class ChatService {
       }
       if (row.lastSequence >= CHAT_POLICY.MAX_SEQUENCE)
         throw new ConflictException('Conversation sequence exhausted');
-      const attachments = parsed.mediaIds.length
-        ? await manager.findBy(ChatMedia, { id: In(parsed.mediaIds) })
-        : [];
-      const invalidMedia =
-        attachments.length !== parsed.mediaIds.length ||
-        attachments.some(
-          (media) =>
-            media.conversationId !== id ||
-            media.uploadedById !== userId ||
-            !media.ready ||
-            !media.eTag ||
-            media.messageId !== null,
+      // Always acquire media row locks in the same order across conversations.
+      for (const mediaId of [...parsed.mediaIds].sort()) {
+        const media = await this.media.verifyMedia(
+          manager,
+          userId,
+          mediaId,
+          undefined,
+          'private',
         );
-      if (invalidMedia)
-        throw new BadRequestException(
-          'Message media must be owned ready uploads of this conversation',
-        );
+        const valid = chatUploadSchema.safeParse({
+          mimeType: media.mimeType,
+          sizeBytes: media.sizeBytes,
+        });
+        if (!valid.success)
+          throw new BadRequestException('Invalid chat attachment');
+      }
       const card = await chatCardSnapshot(manager, row, parsed.card);
       const message = await manager.save(
         ChatMessage,
@@ -203,13 +201,18 @@ export class ChatService {
           clientMessageId: parsed.clientMessageId,
           fingerprint,
           text: parsed.text ?? null,
-          mediaIds: parsed.mediaIds,
           card,
         }),
       );
-      for (const media of attachments) {
-        media.messageId = message.id;
-        await manager.save(media);
+      for (const [sortOrder, mediaId] of parsed.mediaIds.entries()) {
+        await manager.save(
+          ChatMessageMedia,
+          manager.create(ChatMessageMedia, {
+            mediaId,
+            messageId: message.id,
+            sortOrder,
+          }),
+        );
       }
       row.lastSequence = message.sequence;
       row.lastMessageAt = message.createdAt;

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
+import { MediaModule } from '@/modules/media/media.module';
 
 import {
   ShopRating,
@@ -18,6 +19,8 @@ import { RatingsService } from './ratings.service';
 
 @Module({
   imports: [
+    StorageModule,
+    MediaModule,
     AuthorizationModule,
     TypeOrmModule.forFeature([
       ShopRating,
@@ -28,12 +31,7 @@ import { RatingsService } from './ratings.service';
     ]),
   ],
   controllers: [RatingsController],
-  providers: [
-    RatingAccess,
-    RatingsService,
-    RatingMediaService,
-    PrivateEvidenceStorage,
-  ],
+  providers: [RatingAccess, RatingsService, RatingMediaService],
   exports: [RatingsService],
 })
 export class RatingsModule {}

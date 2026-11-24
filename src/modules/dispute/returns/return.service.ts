@@ -90,9 +90,7 @@ export class DisputeReturnService {
       timelyHandoverReviewRequired: row.timelyHandoverReviewRequired,
       evidence: evidence.map((item) => ({
         id: item.id,
-        status: item.status,
-        readyAt: item.readyAt,
-        eTag: item.eTag,
+        mediaId: item.mediaId,
         tags: item.tags,
       })),
       links: links.map((link) => ({
@@ -226,10 +224,7 @@ export class DisputeReturnService {
       evidence.length !== ids.length ||
       evidence.some(
         (e) =>
-          e.orderId !== row.orderId ||
-          e.status !== 'READY' ||
-          !e.readyAt ||
-          (!admin && e.uploadedById !== userId),
+          e.orderId !== row.orderId || (!admin && e.uploadedById !== userId),
       )
     )
       throw new ConflictException(

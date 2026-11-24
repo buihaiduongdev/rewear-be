@@ -1,7 +1,7 @@
 import type { DataSource, Repository } from 'typeorm';
 
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
-import { MediaLink } from '@/modules/media/entities';
+import { ProductMedia } from '@/modules/media/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { WishlistItem } from '@/modules/wishlist/entities';
@@ -22,7 +22,7 @@ describe('WishlistService', () => {
     findOneBy: jest.fn(),
   };
 
-  const mockMediaRepo: jest.Mocked<Pick<Repository<MediaLink>, 'find'>> = {
+  const mockMediaRepo: jest.Mocked<Pick<Repository<ProductMedia>, 'find'>> = {
     find: jest.fn(),
   };
 
@@ -38,7 +38,7 @@ describe('WishlistService', () => {
     getRepository: jest.fn((entity) => {
       if (entity === WishlistItem) return mockWishlistRepo;
       if (entity === Product) return mockProductRepo;
-      if (entity === MediaLink) return mockMediaRepo;
+      if (entity === ProductMedia) return mockMediaRepo;
       throw new Error(`Unexpected entity: ${entity}`);
     }),
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
@@ -88,9 +88,9 @@ describe('WishlistService', () => {
       mockWishlistRepo.find.mockResolvedValueOnce([mockWishlistItem]);
       mockMediaRepo.find.mockResolvedValueOnce([
         {
-          ownerId: productId,
+          productId: productId,
           media: { url: 'https://cdn.example.com/cover.jpg' },
-        } as MediaLink,
+        } as ProductMedia,
       ]);
 
       const result = await service.findMine(userId);

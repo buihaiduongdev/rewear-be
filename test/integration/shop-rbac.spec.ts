@@ -86,6 +86,7 @@ describe('Shop permissions', () => {
       db.getRepository(ShopMember),
       db,
       new ShopRoleService(db),
+      {} as never,
     );
     const defaults = await roles.list(shop.id);
     const staffRole = defaults.find(({ name }) => name === 'STAFF')!;
@@ -193,6 +194,7 @@ describe('Shop permissions', () => {
       db.getRepository(ShopMember),
       db,
       new ShopRoleService(db),
+      {} as never,
     );
     const otherRole = (await new ShopRoleService(db).list(seed.shops[1].id))[0];
     await expect(
@@ -229,6 +231,7 @@ describe('Shop permissions', () => {
       db.getRepository(ShopMember),
       db,
       new ShopRoleService(db),
+      {} as never,
     );
     const role = await roles.create(shop.id, {
       name: 'Temporary',

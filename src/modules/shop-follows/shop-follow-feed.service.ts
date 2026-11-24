@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -51,10 +51,9 @@ export class ShopFollowFeedService {
         .skip(input.offset)
         .getManyAndCount();
       const links = products.length
-        ? await manager.find(MediaLink, {
+        ? await manager.find(ProductMedia, {
             where: {
-              ownerType: MediaOwnerType.PRODUCT,
-              ownerId: In(products.map((product) => product.id)),
+              productId: In(products.map((product) => product.id)),
               role: MediaRole.COVER,
             },
             relations: { media: true },
@@ -64,7 +63,7 @@ export class ShopFollowFeedService {
         items: products.map((product) => {
           const cover = links.find(
             (link) =>
-              link.ownerId === product.id &&
+              link.productId === product.id &&
               link.media.retiredAt === null &&
               link.media.mediaType === MediaType.IMAGE,
           );

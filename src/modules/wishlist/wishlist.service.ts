@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition } from '@/modules/product/enums';
 import { evaluateProductAvailability } from '@/modules/product/machines/product-availability.machine';
@@ -26,15 +26,14 @@ export class WishlistService {
       return { items: [], totalCount: 0 };
     }
 
-    const covers = await this.dataSource.getRepository(MediaLink).find({
+    const covers = await this.dataSource.getRepository(ProductMedia).find({
       where: {
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: In(items.map((i) => i.productId)),
+        productId: In(items.map((i) => i.productId)),
         role: MediaRole.COVER,
       },
       relations: { media: true },
     });
-    const coverUrls = new Map(covers.map((c) => [c.ownerId, c.media.url]));
+    const coverUrls = new Map(covers.map((c) => [c.productId, c.media.url]));
 
     const mappedItems = items.map((item) => {
       const p = item.product;

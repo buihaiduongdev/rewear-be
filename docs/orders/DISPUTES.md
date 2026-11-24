@@ -52,7 +52,7 @@ and never automatically wins a dispute. Admin must assess the actual files.
 An issue without these minimums remains NEEDS_EVIDENCE and holds funds for one
 24-continuous-hour allowance from first intake, not from the end of the 72h
 window. `POST /dispute-issues/:id/evidence` with `{ "evidenceIds": [...] }`
-attaches confirmed, uploader-owned files. Existing pending issues can become
+attaches uploader-owned files. Existing pending issues can become
 valid after the 72h window if still inside their original allowance. Sending
 more requests does not restart either clock. Ready buyer evidence only can
 satisfy the buyer intake minimum.
@@ -64,26 +64,17 @@ or return state. Closing incomplete evidence is not a decision of fault.
 
 ## Private uploads and reading
 
-1. `POST /orders/:id/dispute-evidence/uploads` with mimeType, sizeBytes and tags.
-2. PUT the actual file to uploadUrl using the returned required headers.
-3. `POST /dispute-evidence/:id/confirm` with `{}`.
-4. Submit the ready evidence ID in intake, supplementation or a reply.
-5. `GET /dispute-evidence/:id/download` obtains a five-minute signed read URL;
-   send the returned If-Match header. Admin uses the separately guarded
-   `GET /admin/dispute-evidence/:id/download`.
+1. `POST /media/upload-ticket` with mimeType, sizeBytes and `visibility: "private"`.
+2. PUT the file to uploadUrl using the returned required headers.
+3. `POST /orders/:id/dispute-evidence` with the media ID and tags.
+4. Submit the evidence ID in intake, supplementation or a reply.
+5. `GET /dispute-evidence/:id/download` obtains a short-lived signed URL;
+   Admin uses `GET /admin/dispute-evidence/:id/download`.
 
-Allowed formats: JPEG, PNG, WebP and MP4; images up to 10MiB and videos up to
-100MiB. There are at most 30 lifetime tickets per uploader/order, including
-abandoned tickets. Requests use at most 10 files. Upload tickets last 15 minutes.
-The buyer can upload during intake/supplementation or an active case; an active
-Shop Owner can upload once an issue is valid. Revoked/non-Owner members cannot.
-
-Files use a separate private bucket, never product media/public URLs. Signed
-conditional PUT prevents object replacement; confirmation checks HEAD size,
-MIME and ETag outside database locks, then rechecks permissions and expiry under
-the lock. Content metadata does not prove the bytes are safe or the photo is
-truthful. Malware/content classification is outside this slice. READY replay
-does not resubmit evidence or restart deadlines.
+Allowed formats: JPEG, PNG, WebP and MP4; images up to 10 MiB and videos up to
+100 MiB. The service verifies ownership, file metadata and case eligibility
+when attaching media. Files use a private bucket. Uploads not attached are
+cleaned up asynchronously; attachment does not issue a synchronous storage HEAD.
 
 Only uploader, authenticated case counterpart (after submission) and Admin
 can obtain reads. A party cannot inspect the other party's unsubmitted files.

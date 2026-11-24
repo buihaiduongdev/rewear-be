@@ -12,6 +12,7 @@ import { handleDatabaseConstraint } from '@/common/utils/database-constraint.uti
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
+import { MediaService } from '@/modules/media/media.service';
 import { User } from '@/modules/user/entities';
 
 import { publicIdentitySaleState } from './applications/renewal/identity-sale.policy';
@@ -34,6 +35,7 @@ export class ShopService {
     private readonly shopMemberRepository: Repository<ShopMember>,
     private readonly dataSource: DataSource,
     private readonly shopRoleService: ShopRoleService,
+    private readonly uploads: MediaService,
   ) {}
 
   async findAll(): Promise<Shop[]> {
@@ -54,12 +56,20 @@ export class ShopService {
 
   create(userId: string, input: CreateShopInput): Promise<Shop> {
     return this.dataSource.transaction(async (manager) => {
+      const logo = input.logoMediaId
+        ? await this.uploads.verifyMedia(
+            manager,
+            userId,
+            input.logoMediaId,
+            5 * 1024 * 1024,
+          )
+        : null;
       const shop = await manager.save(
         Shop,
         manager.create(Shop, {
           name: input.name,
           description: input.description || null,
-          logoUrl: input.logoUrl || null,
+          logoUrl: logo?.url ?? (input.logoUrl || null),
           status: ShopStatus.PENDING,
           onboardingRequired: true,
           approvedAt: null,
@@ -101,14 +111,26 @@ export class ShopService {
         throw new ForbiddenException(
           'Shop application approval is required before changing availability',
         );
+      const logo = input.logoMediaId
+        ? await this.uploads.verifyMedia(
+            manager,
+            currentUserId,
+            input.logoMediaId,
+            5 * 1024 * 1024,
+          )
+        : null;
+      const { logoMediaId: _logoMediaId, ...shopInput } = input;
       repository.merge(shop, {
-        ...input,
+        ...shopInput,
         description:
           input.description !== undefined
             ? input.description || null
             : undefined,
-        logoUrl:
-          input.logoUrl !== undefined ? input.logoUrl || null : undefined,
+        logoUrl: logo
+          ? logo.url
+          : input.logoUrl !== undefined
+            ? input.logoUrl || null
+            : undefined,
       });
       return repository.save(shop);
     });

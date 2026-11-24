@@ -1,14 +1,20 @@
 import { type EntityManager, In } from 'typeorm';
 
-import { ChatMedia, type ChatMessage } from './entities/chat.entity';
+import { ChatMessageMedia } from './entities/chat-message-media.entity';
+import type { ChatMessage } from './entities/chat.entity';
 
 export async function chatMessageViews(
   manager: EntityManager,
   rows: ChatMessage[],
 ) {
-  const ids = rows.flatMap((row) => row.mediaIds);
-  const media = ids.length
-    ? await manager.findBy(ChatMedia, { id: In(ids) })
+  const links = rows.length
+    ? await manager.find(ChatMessageMedia, {
+        where: {
+          messageId: In(rows.map((row) => row.id)),
+        },
+        relations: { media: true },
+        order: { sortOrder: 'ASC' },
+      })
     : [];
   return rows.map((row) => ({
     id: row.id,
@@ -19,17 +25,12 @@ export async function chatMessageViews(
     text: row.text,
     card: row.card,
     createdAt: row.createdAt,
-    media: row.mediaIds.map((id) => {
-      const item = media.find(
-        (media) => media.id === id && media.messageId === row.id,
-      );
-      if (!item) throw new Error('Chat attachment requires reconciliation');
-      return {
-        id: item.id,
-        mimeType: item.mimeType,
-        sizeBytes: item.sizeBytes,
-        ready: item.ready,
-      };
-    }),
+    media: links
+      .filter((link) => link.messageId === row.id)
+      .map(({ media }) => ({
+        id: media.id,
+        mimeType: media.mimeType,
+        sizeBytes: media.sizeBytes,
+      })),
   }));
 }

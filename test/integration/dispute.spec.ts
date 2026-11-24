@@ -27,6 +27,7 @@ import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
+import { createPrivateMedia } from '../support/private-media';
 
 describe('Dispute intake and holds (PostgreSQL)', () => {
   let database: TestDatabase;
@@ -128,17 +129,13 @@ describe('Dispute intake and holds (PostgreSQL)', () => {
     f: Awaited<ReturnType<typeof fixture>>,
     tags = ['ISSUE'],
   ) {
+    const media = await createPrivateMedia(f.db, f.buyer.id);
     return f.db.getRepository(DisputeEvidence).save({
       orderId: f.order.id,
       uploadedById: f.buyer.id,
-      storageKey: `private/${randomUUID()}`,
-      mimeType: 'image/jpeg',
-      sizeBytes: 1024,
+      mediaId: media.id,
+      media,
       tags,
-      status: 'READY',
-      uploadExpiresAt: new Date(Date.now() + ms('15m')),
-      eTag: 'immutable-etag',
-      readyAt: new Date(),
     });
   }
   it('completed early still accepts buyer intake; duplicates keep the first supplement deadline and one case', async () => {

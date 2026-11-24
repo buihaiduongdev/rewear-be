@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { NotificationWorker } from '@/modules/notifications/notification.worker';
@@ -65,7 +65,7 @@ describe('Violation reports HTTP', () => {
     ])
       builder = builder.overrideProvider(worker).useValue({});
     const module = await builder
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue(storage)
       .compile();
     app = module.createNestApplication();
@@ -87,21 +87,20 @@ describe('Violation reports HTTP', () => {
     const server = app.getHttpServer();
     await request(server).get('/api/reports/mine').expect(401);
     const upload = await request(server)
-      .post('/api/reports/uploads')
+      .post('/api/media/upload-ticket')
+      .auth(token(f.buyer), { type: 'bearer' })
+      .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
+      .expect(201);
+    const evidence = await request(server)
+      .post('/api/reports/evidence')
       .auth(token(f.buyer), { type: 'bearer' })
       .send({
         targetType: 'SHOP',
         targetId: f.shop.id,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
+        mediaId: upload.body.data.id,
       })
       .expect(200);
-    evidenceId = upload.body.data.id;
-    await request(server)
-      .post(`/api/reports/evidence/${evidenceId}/complete`)
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send({})
-      .expect(200);
+    evidenceId = evidence.body.data.id;
     const input = {
       requestId: randomUUID(),
       targetType: 'SHOP',

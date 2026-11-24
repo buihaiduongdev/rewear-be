@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Media } from '@/modules/media/entities';
 import { User } from '@/modules/user/entities';
 
 import type {
@@ -72,18 +73,11 @@ export class ReportEvidence extends BaseEntity {
   @ManyToOne(() => ViolationReport, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'reportId' })
   report: ViolationReport | null;
-  @Column('varchar', { length: 512 })
-  storageKey: string;
-  @Column('varchar', { length: 100 })
-  mimeType: string;
-  @Column('integer')
-  sizeBytes: number;
-  @Column('boolean', { default: false })
-  ready: boolean;
-  @Column('varchar', { length: 255, nullable: true })
-  eTag: string | null;
-  @Column('timestamptz')
-  uploadExpiresAt: Date;
+  @Column('uuid', { unique: true })
+  mediaId: string;
+  @ManyToOne(() => Media, { onDelete: 'RESTRICT', eager: true })
+  @JoinColumn({ name: 'mediaId' })
+  media: Media;
 }
 
 @Entity('violation_report_audits')

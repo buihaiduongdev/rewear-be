@@ -62,14 +62,6 @@ export const ratingMediaViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.string(),
   sizeBytes: z.number().int(),
-  ready: z.boolean(),
-});
-export const ratingUploadTicketSchema = z.object({
-  id: z.uuid(),
-  uploadUrl: z.url(),
-  method: z.literal('PUT'),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
 });
 export const ratingDownloadSchema = z.object({
   url: z.url(),

@@ -19,8 +19,8 @@ import {
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { Category } from '@/modules/category/entities';
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole } from '@/modules/media/enums';
 import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -500,15 +500,15 @@ export class ProductService {
   private getMedia(
     manager: EntityManager,
     productId: string,
-  ): Promise<MediaLink[]> {
-    return manager.find(MediaLink, {
-      where: { ownerType: MediaOwnerType.PRODUCT, ownerId: productId },
+  ): Promise<ProductMedia[]> {
+    return manager.find(ProductMedia, {
+      where: { productId },
       relations: { media: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
   }
 
-  findPublishedMedia(product: Product): Promise<MediaLink[]> {
+  findPublishedMedia(product: Product): Promise<ProductMedia[]> {
     return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
       await this.createProductQueryBuilder(manager)
         .where('product.id = :id AND product.status = :status', {
@@ -529,19 +529,18 @@ export class ProductService {
     manager = this.dataSource.manager,
   ): Promise<ProductView[]> {
     if (!products.length) return [];
-    const links = await manager.getRepository(MediaLink).find({
+    const links = await manager.getRepository(ProductMedia).find({
       where: {
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: In(products.map((product) => product.id)),
+        productId: In(products.map((product) => product.id)),
       },
       relations: { media: true },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
-    const byProduct = new Map<string, MediaLink[]>();
+    const byProduct = new Map<string, ProductMedia[]>();
     for (const link of links) {
-      const group = byProduct.get(link.ownerId) ?? [];
+      const group = byProduct.get(link.productId) ?? [];
       group.push(link);
-      byProduct.set(link.ownerId, group);
+      byProduct.set(link.productId, group);
     }
     return products.map((product) => {
       const mediaLinks = byProduct.get(product.id) ?? [];

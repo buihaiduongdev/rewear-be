@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { Category } from '@/modules/category/entities';
-import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { Media, ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -106,11 +106,10 @@ describe('Follow Shop PostgreSQL', () => {
       }),
     );
     await db.manager.save(
-      MediaLink,
-      db.manager.create(MediaLink, {
+      ProductMedia,
+      db.manager.create(ProductMedia, {
         mediaId: cover.id,
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: products[0].id,
+        productId: products[0].id,
         role: MediaRole.COVER,
         sortOrder: 0,
       }),

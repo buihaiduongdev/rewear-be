@@ -14,7 +14,6 @@ import z from 'zod';
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
-import { acceptOrderSchema } from '@/modules/order/schemas/order.schema';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
@@ -29,7 +28,6 @@ import {
   disputeEvidenceViewSchema,
   disputeIssueViewSchema,
   disputeMessageViewSchema,
-  disputeUploadTicketSchema,
 } from './schemas/dispute-view.schema';
 import {
   disputeExtensionSchema,
@@ -149,26 +147,15 @@ export class DisputeController {
     return this.review.extend(user.id, id, input);
   }
 
-  @Post('orders/:id/dispute-evidence/uploads')
+  @Post('orders/:id/dispute-evidence')
   @HttpCode(200)
-  @Serialize(disputeUploadTicketSchema)
+  @Serialize(disputeEvidenceViewSchema)
   upload(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeUploadSchema }) input: DisputeUploadInput,
   ) {
-    return this.evidence.createUpload(user.id, id, input);
-  }
-
-  @Post('dispute-evidence/:id/confirm')
-  @HttpCode(200)
-  @Serialize(disputeEvidenceViewSchema)
-  confirm(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
-  ) {
-    return this.evidence.confirm(user.id, id);
+    return this.evidence.attach(user.id, id, input);
   }
 
   @Get('dispute-evidence/:id/download')

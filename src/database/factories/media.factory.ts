@@ -15,7 +15,6 @@ export class MediaFactory extends BaseFactory<Media> {
       mediaType: MediaType.IMAGE,
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
-      eTag: null,
       retiredAt: null,
     };
   }

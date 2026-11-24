@@ -1,15 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import type { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { ChatAccess } from '@/modules/chat/chat.access';
 import { ChatService } from '@/modules/chat/chat.service';
-import { ChatEvidenceLink } from '@/modules/chat/entities/chat-evidence.entity';
-import { ChatMedia } from '@/modules/chat/entities/chat.entity';
 import { ChatEvidenceService } from '@/modules/chat/media/chat-evidence.service';
 import { ChatMediaService } from '@/modules/chat/media/chat-media.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { Media } from '@/modules/media/entities';
+import { MediaService } from '@/modules/media/media.service';
 import { OrderAccess } from '@/modules/order/order.access';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -19,6 +20,7 @@ describe('Chat private media and evidence PostgreSQL', () => {
   let database: TestDatabase;
   let service: ChatService;
   let media: ChatMediaService;
+  let uploads: MediaService;
   let evidence: ChatEvidenceService;
   const objects = new Map<
     string,
@@ -56,27 +58,31 @@ describe('Chat private media and evidence PostgreSQL', () => {
     database = await createTestDatabase();
     const db = database.dataSource;
     const access = new ChatAccess(new AuthorizationService(db));
-    service = new ChatService(db, access);
+    uploads = new MediaService(
+      db.getRepository(Media),
+      storage as unknown as StorageService,
+    );
+    service = new ChatService(db, access, uploads);
     media = new ChatMediaService(
       db,
       access,
-      storage as unknown as PrivateEvidenceStorage,
+      storage as unknown as StorageService,
     );
     evidence = new ChatEvidenceService(
       db,
       access,
       new DisputeAccess(new OrderAccess()),
-      storage as unknown as PrivateEvidenceStorage,
     );
   });
   afterAll(async () => database?.destroy());
   it('allows received counterparty media as evidence while retaining the original uploader', async () => {
     const f = await fixture();
-    const upload = await media.createUpload(f.owner.id, f.thread.id, {
+    const ticket = await uploads.createUploadTicket(f.owner.id, {
       mimeType: 'video/mp4',
       sizeBytes: 1024,
+      visibility: 'private',
     });
-    await media.complete(f.owner.id, upload.id);
+    const upload = { id: ticket.mediaId };
     await service.send(f.owner.id, f.thread.id, {
       clientMessageId: randomUUID(),
       mediaIds: [upload.id],
@@ -84,38 +90,32 @@ describe('Chat private media and evidence PostgreSQL', () => {
     const imported = await evidence.import(f.buyer.id, upload.id, f.order.id, [
       'ISSUE',
     ]);
-    const source = await database.dataSource.manager.findOneByOrFail(
-      ChatMedia,
-      { id: upload.id },
-    );
+    const source = await database.dataSource.manager.findOneByOrFail(Media, {
+      id: upload.id,
+    });
     expect(source.uploadedById).toBe(f.owner.id);
     expect(
-      await database.dataSource.manager.findOneByOrFail(ChatEvidenceLink, {
-        evidenceId: imported.id,
+      await database.dataSource.manager.findOneByOrFail(DisputeEvidence, {
+        id: imported.id,
       }),
-    ).toMatchObject({ mediaId: upload.id, importedById: f.buyer.id });
+    ).toMatchObject({ mediaId: upload.id, uploadedById: f.buyer.id });
   });
   async function fixture() {
     const f = await adjudicationFixture(database.dataSource);
     const thread = await service.open(f.buyer.id, f.shop.id);
-    const upload = await media.createUpload(f.buyer.id, thread.id, {
+    const ticket = await uploads.createUploadTicket(f.buyer.id, {
       mimeType: 'video/mp4',
       sizeBytes: 1024,
+      visibility: 'private',
     });
+    const upload = { id: ticket.mediaId };
     return { ...f, thread, upload };
   }
-  it('requires immutable completed uploads, attaches once and never exposes storage keys in messages', async () => {
+  it('attaches owned media once and never exposes storage keys in messages', async () => {
     const f = await fixture();
     await expect(media.download(f.buyer.id, f.upload.id)).rejects.toThrow(
       'Attached chat media not found',
     );
-    await expect(
-      service.send(f.buyer.id, f.thread.id, {
-        clientMessageId: randomUUID(),
-        mediaIds: [f.upload.id],
-      }),
-    ).rejects.toThrow('owned ready uploads');
-    await media.complete(f.buyer.id, f.upload.id);
     const sent = await service.send(f.buyer.id, f.thread.id, {
       clientMessageId: randomUUID(),
       mediaIds: [f.upload.id],
@@ -125,7 +125,6 @@ describe('Chat private media and evidence PostgreSQL', () => {
       expect.objectContaining({
         id: f.upload.id,
         mimeType: 'video/mp4',
-        ready: true,
       }),
     ]);
     await expect(
@@ -133,37 +132,29 @@ describe('Chat private media and evidence PostgreSQL', () => {
         clientMessageId: randomUUID(),
         mediaIds: [f.upload.id],
       }),
-    ).rejects.toThrow('owned ready uploads');
+    ).rejects.toThrow('Upload ticket not found or already attached');
     expect(await media.download(f.owner.id, f.upload.id)).toHaveProperty('url');
   });
-  it('denies other participants uploads, cross-conversation attachment and changed ETags', async () => {
+  it('denies other users attaching or viewing media', async () => {
     const f = await fixture();
     const other = await adjudicationFixture(database.dataSource);
     const thread = await service.open(other.buyer.id, f.shop.id);
-    await expect(media.complete(f.owner.id, f.upload.id)).rejects.toThrow(
-      'another sender',
-    );
-    await media.complete(f.buyer.id, f.upload.id);
     await expect(
       service.send(other.buyer.id, thread.id, {
         clientMessageId: randomUUID(),
         mediaIds: [f.upload.id],
       }),
-    ).rejects.toThrow('owned ready uploads');
+    ).rejects.toThrow('Upload ticket not found or already attached');
+    await service.send(f.buyer.id, f.thread.id, {
+      clientMessageId: randomUUID(),
+      mediaIds: [f.upload.id],
+    });
     await expect(media.download(other.buyer.id, f.upload.id)).rejects.toThrow(
       'Chat access denied',
     );
-    const row = await database.dataSource.manager.findOneByOrFail(ChatMedia, {
-      id: f.upload.id,
-    });
-    objects.get(row.storageKey)!.eTag = 'changed';
-    await expect(media.complete(f.buyer.id, f.upload.id)).rejects.toThrow(
-      'immutable upload',
-    );
   });
-  it('imports attached video as immutable dispute evidence idempotently with provenance', async () => {
+  it('imports attached video as dispute evidence idempotently with provenance', async () => {
     const f = await fixture();
-    await media.complete(f.buyer.id, f.upload.id);
     await service.send(f.buyer.id, f.thread.id, {
       clientMessageId: randomUUID(),
       mediaIds: [f.upload.id],
@@ -175,12 +166,11 @@ describe('Chat private media and evidence PostgreSQL', () => {
       'UNBOX',
     ]);
     expect(again.id).toBe(first.id);
-    expect(first.status).toBe('READY');
     expect(
-      await database.dataSource.manager.countBy(ChatEvidenceLink, {
+      await database.dataSource.manager.countBy(DisputeEvidence, {
         mediaId: f.upload.id,
         orderId: f.order.id,
-        importedById: f.buyer.id,
+        uploadedById: f.buyer.id,
       }),
     ).toBe(1);
     await database.dataSource.manager.update(DisputeIssue, f.issue.id, {
@@ -197,10 +187,9 @@ describe('Chat private media and evidence PostgreSQL', () => {
   it('rejects unattached evidence and media imported for an unrelated order', async () => {
     const f = await fixture();
     const other = await adjudicationFixture(database.dataSource);
-    await media.complete(f.buyer.id, f.upload.id);
     await expect(
       evidence.import(f.buyer.id, f.upload.id, f.order.id, ['UNBOX']),
-    ).rejects.toThrow('attached immutable object');
+    ).rejects.toThrow('Chat media not found');
     await service.send(f.buyer.id, f.thread.id, {
       clientMessageId: randomUUID(),
       mediaIds: [f.upload.id],

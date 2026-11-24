@@ -10,7 +10,6 @@ import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.
 import {
   DISPUTE_ACTION,
   DISPUTE_CASE_STATE,
-  DISPUTE_EVIDENCE_STATE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
   DISPUTE_POLICY,
@@ -267,7 +266,6 @@ export class DisputeService {
         id: In(ids),
         orderId,
         uploadedById: userId,
-        status: DISPUTE_EVIDENCE_STATE.READY,
       },
     });
     if (evidence.length !== ids.length)

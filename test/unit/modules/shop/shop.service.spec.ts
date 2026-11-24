@@ -76,11 +76,13 @@ describe('ShopService', () => {
   const dataSource = {
     transaction: jest.fn(),
   };
+  const uploads = { verifyMedia: jest.fn() };
   const service = new ShopService(
     shopRepository as unknown as Repository<Shop>,
     memberRepository as unknown as Repository<ShopMember>,
     dataSource as unknown as DataSource,
     { initializeDefaultRoles: jest.fn() } as never,
+    uploads as never,
   );
 
   beforeEach(() => {
@@ -113,6 +115,32 @@ describe('ShopService', () => {
       where: { status: ShopStatus.ACTIVE },
       order: { createdAt: 'DESC' },
     });
+  });
+
+  it('attaches the uploaded logo in the shop transaction', async () => {
+    const logoMediaId = '0b8b4a7c-5a28-4ee3-90f6-62ba3c8f56c6';
+    const newShop = { ...shop, logoUrl: 'https://example.test/logo.jpg' };
+    uploads.verifyMedia.mockResolvedValueOnce({ url: newShop.logoUrl });
+    entityManager.create
+      .mockReturnValueOnce(newShop)
+      .mockReturnValueOnce(ownerMembership);
+    entityManager.save
+      .mockResolvedValueOnce(newShop)
+      .mockResolvedValueOnce(ownerMembership);
+
+    await service.create(ownerId, { name: shop.name, logoMediaId });
+
+    expect(uploads.verifyMedia).toHaveBeenCalledWith(
+      entityManager,
+      ownerId,
+      logoMediaId,
+      5 * 1024 * 1024,
+    );
+    expect(entityManager.create).toHaveBeenNthCalledWith(
+      1,
+      Shop,
+      expect.objectContaining({ logoUrl: newShop.logoUrl }),
+    );
   });
 
   it('does not expose an inactive shop through the public lookup', async () => {

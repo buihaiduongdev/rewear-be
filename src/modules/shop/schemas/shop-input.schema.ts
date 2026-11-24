@@ -12,6 +12,7 @@ export const createShopSchema = z.strictObject({
   name: trimmedTextSchema.min(1).max(100),
   description: optionalInput(trimmedTextSchema.max(1000)),
   logoUrl: optionalInput(trimmedTextSchema.max(2048)),
+  logoMediaId: optionalInput(uuidSchema),
 });
 
 export const updateShopSchema = createShopSchema.partial().extend({

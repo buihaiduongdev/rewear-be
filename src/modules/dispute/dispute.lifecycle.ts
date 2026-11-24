@@ -4,7 +4,6 @@ import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calend
 
 import {
   DISPUTE_ACTION,
-  DISPUTE_EVIDENCE_STATE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_NOTICE_AUDIENCE,
   DISPUTE_POLICY,
@@ -106,10 +105,7 @@ export async function activateDisputeIssue(
       'attachment.evidenceId = evidence.id',
     )
     .where('attachment.issueId = :issueId', { issueId: issue.id })
-    .andWhere('evidence.uploadedById = :buyerId AND evidence.status = :ready', {
-      buyerId,
-      ready: DISPUTE_EVIDENCE_STATE.READY,
-    })
+    .andWhere('evidence.uploadedById = :buyerId', { buyerId })
     .getMany();
   const hasMinimum = hasMinimumDisputeEvidence(
     issue.kind,

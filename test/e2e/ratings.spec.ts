@@ -10,7 +10,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
@@ -66,7 +66,7 @@ describe('Verified Shop ratings HTTP', () => {
       .useValue({})
       .overrideProvider(CoinRewardWorker)
       .useValue({})
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue(storage)
       .compile();
     app = module.createNestApplication();
@@ -194,17 +194,17 @@ describe('Verified Shop ratings HTTP', () => {
   });
   it('uses owned upload tickets and rechecks moderation for every signed download', async () => {
     const upload = await request(app.getHttpServer())
-      .post('/api/ratings/uploads')
+      .post('/api/media/upload-ticket')
       .auth(token(buyer), { type: 'bearer' })
-      .send({ orderId: order.id, mimeType: 'image/jpeg', sizeBytes: 1024 })
-      .expect(200);
-    mediaId = upload.body.data.id;
-    expect(upload.body.data).not.toHaveProperty('storageKey');
-    await request(app.getHttpServer())
-      .post(`/api/ratings/media/${mediaId}/complete`)
+      .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
+      .expect(201);
+    const attached = await request(app.getHttpServer())
+      .post('/api/ratings/media')
       .auth(token(buyer), { type: 'bearer' })
-      .send({})
+      .send({ orderId: order.id, mediaId: upload.body.data.id })
       .expect(200);
+    mediaId = attached.body.data.id;
+    expect(attached.body.data).not.toHaveProperty('storageKey');
     await request(app.getHttpServer())
       .get(`/api/ratings/media/${mediaId}/download`)
       .expect(404);
