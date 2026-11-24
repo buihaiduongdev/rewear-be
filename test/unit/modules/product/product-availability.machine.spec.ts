@@ -22,6 +22,19 @@ describe('productAvailabilityMachine (XState)', () => {
     }) as Product;
 
   describe('isProductDisplayable', () => {
+    it('keeps identity-restricted products visible while blocking purchase eligibility', () => {
+      const product = createBaseProduct();
+      product.shop.identityManualRestriction = true;
+      expect(
+        isProductDisplayable(product, { requireCompleteMetadata: true }),
+      ).toBe(true);
+      expect(
+        evaluateProductAvailability(product, {
+          requireCompleteMetadata: true,
+          requirePurchaseEligibility: true,
+        }),
+      ).toBe(CartAvailability.UNAVAILABLE);
+    });
     it('returns false for null or undefined product', () => {
       expect(isProductDisplayable(null)).toBe(false);
       expect(isProductDisplayable(undefined)).toBe(false);

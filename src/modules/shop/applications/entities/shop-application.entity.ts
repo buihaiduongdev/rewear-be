@@ -4,19 +4,45 @@ import { BaseEntity } from '@/common/entities';
 import { User } from '@/modules/user/entities';
 
 import { Shop } from '../../entities';
+import {
+  IDENTITY_RENEWAL_REASON,
+  SHOP_APPLICATION_KIND,
+} from '../constants/shop-application.constant';
 import type {
   ApplicantIdentity,
   IdentityDocumentSlot,
+  ShopApplicationKind,
   ShopApplicationSnapshot,
   ShopApplicationState,
 } from '../types/shop-application.type';
 
 @Entity('shop_applications')
-@Index(['shopId'], { unique: true })
+@Index('UQ_initial_shop_application', ['shopId'], {
+  unique: true,
+  where: "kind='INITIAL'",
+})
+@Index('UQ_open_identity_renewal', ['shopId'], {
+  unique: true,
+  where: "kind='RENEWAL' AND state<>'APPROVED'",
+})
 @Index(['applicantId', 'createdAt'])
 @Index(['state', 'submittedAt'])
 @Check('CHK_shop_application_version', '"version" > 0 AND "revision" >= 0')
 export class ShopApplication extends BaseEntity {
+  @Column('varchar', { length: 16, default: SHOP_APPLICATION_KIND.INITIAL })
+  kind: ShopApplicationKind;
+  @Column('integer', { nullable: true })
+  baseIdentityVersion: number | null;
+  @Column('timestamptz', { nullable: true })
+  firstCorrectionAt: Date | null;
+  @Column('timestamptz', { nullable: true })
+  correctionDueAt: Date | null;
+  @Column('boolean', { default: false })
+  timelySubmission: boolean;
+  @Column('varchar', { length: 32, nullable: true })
+  reasonCategory?:
+    | (typeof IDENTITY_RENEWAL_REASON)[keyof typeof IDENTITY_RENEWAL_REASON]
+    | null;
   @Column('uuid')
   shopId: string;
   @ManyToOne(() => Shop, { onDelete: 'RESTRICT' })
@@ -104,6 +130,10 @@ export class ShopApplicationCommand extends BaseEntity {
 @Entity('shop_application_audits')
 @Index(['applicationId', 'version'], { unique: true })
 export class ShopApplicationAudit extends BaseEntity {
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  reasonCategory: string | null;
+  @Column({ type: 'boolean', nullable: true })
+  samePersonConfirmed: boolean | null;
   @Column('uuid')
   applicationId: string;
   @ManyToOne(() => ShopApplication, { onDelete: 'RESTRICT' })

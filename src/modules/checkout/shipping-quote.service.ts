@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 
 import {
   SHIPPING_QUOTE_CARRIER,
@@ -16,6 +17,8 @@ import {
 } from './constants/shipping-quote.constant';
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
+import { pruneIdentityCheckout } from './identity-checkout.policy';
+import { identityQuoteFingerprint } from './identity-quote.policy';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
 import { quoteInputs } from './shipping-quote.inputs';
 import type { ShippingQuoteResult } from './types/shipping-quote.type';
@@ -31,6 +34,15 @@ export class ShippingQuoteService {
     buyerId: string,
     checkoutId: string,
   ): Promise<ShippingQuoteResult> {
+    await this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+      const row = await manager.findOneByOrFail(Checkout, {
+        id: checkoutId,
+        buyerId,
+      });
+      await pruneIdentityCheckout(manager, row, new Date(now));
+    });
     const checkout = await this.db.getRepository(Checkout).findOneByOrFail({
       id: checkoutId,
       buyerId,
@@ -39,6 +51,7 @@ export class ShippingQuoteService {
     const orders = await this.db.getRepository(CheckoutOrder).find({
       where: { checkoutId },
       order: { id: 'ASC' },
+      relations: { shop: true },
     });
     const { inputs, results } = await quoteInputs(this.db.manager, orders);
     await this.quoteOrders(inputs, results);
@@ -62,7 +75,7 @@ export class ShippingQuoteService {
       status === SHIPPING_QUOTE_STATUS.READY
         ? quoted.reduce((sum, order) => sum + order.fee!, 0)
         : null;
-    return {
+    const result: ShippingQuoteResult = {
       status,
       environment: SHIPPING_QUOTE_ENVIRONMENT.SANDBOX,
       carrier: SHIPPING_QUOTE_CARRIER.GHN,
@@ -78,8 +91,56 @@ export class ShippingQuoteService {
       currency: MONEY_CURRENCY.VND,
       paymentReady: false as const,
     };
+    result.identityReviewRequired = !!currentCheckout.identityReviewRequired;
+    result.identityQuoteFingerprint = identityQuoteFingerprint(
+      currentCheckout,
+      orders,
+      result,
+    );
+    return result;
   }
 
+  async confirmIdentityReview(
+    buyerId: string,
+    checkoutId: string,
+    fingerprint: string,
+  ) {
+    const quote = await this.refresh(buyerId, checkoutId);
+    return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+      const checkout = await manager.findOneByOrFail(Checkout, {
+        id: checkoutId,
+        buyerId,
+      });
+      const orders = await manager.find(CheckoutOrder, {
+        where: { checkoutId },
+        relations: { shop: true },
+        order: { id: 'ASC' },
+      });
+      const eligible =
+        orders.length > 0 &&
+        orders.every((order) =>
+          shopAllowsIdentitySales(order.shop, new Date(now)),
+        );
+      const validQuote =
+        quote.status === SHIPPING_QUOTE_STATUS.READY &&
+        fingerprint === quote.identityQuoteFingerprint &&
+        fingerprint === identityQuoteFingerprint(checkout, orders, quote);
+      const active =
+        checkout.status === CHECKOUT_STATUS.HELD &&
+        checkout.expiresAt &&
+        checkout.expiresAt > new Date(now);
+      if (!eligible || !validQuote || !active)
+        throw new ConflictException(
+          'Refresh and confirm the remaining Shop orders',
+        );
+      checkout.identityReviewRequired = false;
+      checkout.identityConfirmedQuote = fingerprint;
+      await manager.save(checkout);
+      return { ...quote, identityReviewRequired: false };
+    });
+  }
   private async quoteOrders(
     inputs: Awaited<ReturnType<typeof quoteInputs>>['inputs'],
     results: Awaited<ReturnType<typeof quoteInputs>>['results'],

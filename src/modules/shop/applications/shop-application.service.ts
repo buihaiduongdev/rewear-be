@@ -5,6 +5,7 @@ import z from 'zod';
 
 import {
   SHOP_APPLICATION_ACTION,
+  SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
 } from './constants/shop-application.constant';
 import {
@@ -61,6 +62,7 @@ export class ShopApplicationService {
           await this.access.own(manager, userId, command.applicationId),
         );
       let row = await manager.findOneBy(ShopApplication, {
+        kind: SHOP_APPLICATION_KIND.INITIAL,
         shopId,
         applicantId: userId,
       });
@@ -108,6 +110,10 @@ export class ShopApplicationService {
     return this.db.transaction(async (manager) => {
       const now = await applicationClock(manager);
       const row = await this.access.own(manager, userId, id);
+      if (row.kind !== SHOP_APPLICATION_KIND.INITIAL)
+        throw new ConflictException(
+          'Use the identity renewal submission endpoint',
+        );
       if (await applicationReplay(manager, userId, data.requestId, payload))
         return this.read.view(manager, row);
       if (row.version !== data.expectedVersion)

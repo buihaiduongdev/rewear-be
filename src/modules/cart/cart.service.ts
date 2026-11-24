@@ -110,6 +110,7 @@ export class CartService {
       const product = item.product;
       const displayable = this.canDisplay(product);
       const availability = evaluateProductAvailability(product, {
+        requirePurchaseEligibility: true,
         ownedShopIds: ownedShops,
         requireCompleteMetadata: true,
       });

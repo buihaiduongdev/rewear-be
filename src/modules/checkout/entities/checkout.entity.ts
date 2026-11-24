@@ -15,6 +15,10 @@ import type {
 @Index('UQ_checkout_buyer_request', ['buyerId', 'requestId'], { unique: true })
 @Index('IDX_checkout_expiry', ['status', 'expiresAt'])
 export class Checkout extends BaseEntity {
+  @Column({ default: false })
+  identityReviewRequired?: boolean;
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  identityConfirmedQuote?: string | null;
   @Column({ type: 'integer', default: 0 })
   coinDiscount: number;
   @Column({ type: 'varchar', length: 20, nullable: true })

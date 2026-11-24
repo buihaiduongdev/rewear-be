@@ -24,6 +24,7 @@ export async function applicationEvent(
   reason: string | null = null,
   adminNote: string | null = null,
   identityCheckEvidence: string | null = null,
+  samePersonConfirmed: boolean | null = null,
 ) {
   await manager.save(
     ShopApplicationAudit,
@@ -36,6 +37,8 @@ export async function applicationEvent(
       reason,
       adminNote,
       identityCheckEvidence,
+      reasonCategory: row.reasonCategory ?? null,
+      samePersonConfirmed,
     }),
   );
   const owner = personalRecipient(row.applicantId);
@@ -52,8 +55,8 @@ export async function applicationEvent(
     kind: NOTIFICATION_KIND.SHOP_APPLICATION,
     targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
     sourceId: row.id,
-    title: 'Cập nhật đơn tạo Shop',
-    body: 'Đơn tạo Shop đã có cập nhật. Mở hồ sơ sau đăng nhập để xem trạng thái và hướng xử lý.',
+    title: 'Cập nhật hồ sơ Shop',
+    body: 'Hồ sơ Shop đã có cập nhật. Mở hồ sơ sau đăng nhập để xem trạng thái và hướng xử lý.',
     mode: null,
     email: decision,
     recipients: [owner],
@@ -68,7 +71,7 @@ export async function applicationEvent(
       targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
       sourceId: row.id,
       title: 'Cập nhật xét duyệt Shop',
-      body: 'Hồ sơ tạo Shop có cập nhật cần theo dõi trong hàng đợi xét duyệt.',
+      body: 'Hồ sơ Shop có cập nhật cần theo dõi trong hàng đợi xét duyệt.',
       mode: null,
       recipients: admins,
     });

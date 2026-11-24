@@ -34,6 +34,7 @@ import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
+import { pruneIdentityCheckout } from './identity-checkout.policy';
 import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
 import type { CreateCheckoutInput } from './types/checkout.type';
 import type { CheckoutAddress } from './types/checkout.type';
@@ -364,6 +365,8 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       await this.lock(manager);
       await this.expireDue(manager);
       const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
+      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+      await pruneIdentityCheckout(manager, checkout, new Date(now));
       return this.view(manager, checkout);
     });
   }

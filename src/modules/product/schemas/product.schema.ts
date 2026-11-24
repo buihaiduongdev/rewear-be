@@ -42,6 +42,7 @@ export const productSchema = z.object({
     })
     .nullable(),
   shop: z.object({
+    identitySalesPaused: z.boolean().default(false),
     id: z.uuid(),
     name: z.string(),
     logoUrl: z.string().nullable().default(null),

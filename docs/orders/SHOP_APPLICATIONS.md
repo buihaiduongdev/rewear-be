@@ -40,23 +40,23 @@ Applicant detail contains their current snapshot, document ids and public histor
 
 Paths are relative to the configured `/api` prefix. All require authentication and current active account/role/ownership checks.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/shops/:shopId/application` | Create/retrieve the Owner's single draft application with requestId. |
-| GET | `/shop-applications/mine` | Current Owner's bounded application summaries. |
-| GET | `/shop-applications/:id` | Applicant private detail. |
-| POST | `/shop-applications/:id/uploads` | Owned private upload by FRONT/BACK/PASSPORT slot. |
-| POST | `/shop-application-documents/:id/complete` | Verify immutable object metadata. |
-| GET | `/shop-application-documents/:id/download` | Authorized short-lived read. |
-| POST | `/shop-applications/:id/submissions` | Versioned identity/bank/document submission or resubmission. |
-| GET | `/shop-applications/admin` | Admin paginated summaries, optional state. |
-| GET | `/shop-applications/admin/:id` | Admin snapshot/history/match review. |
-| POST | `/shop-applications/admin/:id/decisions` | Versioned decision with reason and approval checks. |
+| Method | Path                                       | Purpose                                                              |
+| ------ | ------------------------------------------ | -------------------------------------------------------------------- |
+| POST   | `/shops/:shopId/application`               | Create/retrieve the Owner's single draft application with requestId. |
+| GET    | `/shop-applications/mine`                  | Current Owner's bounded application summaries.                       |
+| GET    | `/shop-applications/:id`                   | Applicant private detail.                                            |
+| POST   | `/shop-applications/:id/uploads`           | Owned private upload by FRONT/BACK/PASSPORT slot.                    |
+| POST   | `/shop-application-documents/:id/complete` | Verify immutable object metadata.                                    |
+| GET    | `/shop-application-documents/:id/download` | Authorized short-lived read.                                         |
+| POST   | `/shop-applications/:id/submissions`       | Versioned identity/bank/document submission or resubmission.         |
+| GET    | `/shop-applications/admin`                 | Admin paginated summaries, optional state.                           |
+| GET    | `/shop-applications/admin/:id`             | Admin snapshot/history/match review.                                 |
+| POST   | `/shop-applications/admin/:id/decisions`   | Versioned decision with reason and approval checks.                  |
 
 ## Scope and verification
 
 Existing legacy/seed ACTIVE Shops retain existing behavior; default migration fields do not retroactively claim those Owners were identity-verified. New API-created Shops require onboarding. A production backfill/review of legacy Shops must be planned separately. Do not reset a developer database to install this feature.
 
-This delivers initial onboarding only. Postapproval document renewal/30-day grace and related restrictions, suspected/confirmed identity fraud, order/fund consequences and identity appeals remain subsequent backend work. No initial-review SLA was invented from dispute or appeal SLAs. Frontend forms/queues and real private-storage verification are separate work.
+Postapproval document renewal, grace and purchase restrictions are described in [OWNER_DOCUMENT_RENEWAL.md](OWNER_DOCUMENT_RENEWAL.md). Suspected/confirmed identity fraud, its order/fund consequences and identity appeals remain subsequent backend work. No initial-review SLA was invented from dispute or appeal SLAs. Frontend forms/queues and real private-storage verification are separate work.
 
 Tests use dedicated rewear_test serially and fake private storage: national ID/passport requirements, age/expiry, pending sale/status gate, stale snapshots, exact duplicate approval concurrency, role-revocation locking, document privacy/metadata, command replay, HTTP schemas and PII-safe notices. Final PR records full build/typecheck/regression CI evidence.

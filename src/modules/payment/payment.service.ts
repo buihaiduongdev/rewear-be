@@ -32,6 +32,7 @@ import {
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
@@ -219,10 +220,12 @@ export class PaymentService {
     for (const shopId of [
       ...new Set(orders.map((order) => order.shopId)),
     ].sort()) {
-      await manager.findOneOrFail(Shop, {
+      const eligibleShop = await manager.findOneOrFail(Shop, {
         where: { id: shopId, status: ShopStatus.ACTIVE },
         lock: { mode: 'pessimistic_read' },
       });
+      if (!shopAllowsIdentitySales(eligibleShop, now))
+        throw new ConflictException('Shop identity requires review');
     }
     const attempt = await this.savePreparedAttempt(
       manager,
@@ -466,7 +469,12 @@ export class PaymentService {
         where: { id: shopId },
         lock: { mode: 'pessimistic_read' },
       });
-      if (!shop || shop.status !== ShopStatus.ACTIVE) shopsActive = false;
+      if (
+        !shop ||
+        shop.status !== ShopStatus.ACTIVE ||
+        !shopAllowsIdentitySales(shop, now)
+      )
+        shopsActive = false;
     }
     const expectedIds = attempt.orders.flatMap((order) =>
       order.items.map((item) => item.productId),
@@ -493,6 +501,7 @@ export class PaymentService {
             !(row.coinDiscount ?? 0) || row.coinMode === checkout.coinMode,
         ) &&
         !checkout.walletPaymentSelected &&
+        !checkout.identityReviewRequired &&
         (!checkout.walletSelectedAt ||
           attempt.createdAt >= checkout.walletSelectedAt) &&
         shopsActive &&

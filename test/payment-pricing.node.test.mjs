@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
@@ -35,9 +36,27 @@ const { allocateCoins } = await import(
         stripTypeScriptTypes(allocationSource, { mode: 'transform' }),
     ).toString('base64')
 );
+const fingerprintSource = (
+  await readFile(
+    new URL(
+      '../src/modules/checkout/identity-quote.policy.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+).replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '');
+globalThis.__identityHash = createHash;
+const { identityQuoteFingerprint } = await import(
+  'data:text/javascript;base64,' +
+    Buffer.from(
+      'const createHash=globalThis.__identityHash;\n' +
+        stripTypeScriptTypes(fingerprintSource, { mode: 'transform' }),
+    ).toString('base64')
+);
 let quote;
 globalThis.__paymentPricingDependencies = {
   ...constants,
+  identityQuoteFingerprint,
   allocateCoins,
   ConflictException: Error,
   CheckoutOrder: class {},
@@ -51,7 +70,7 @@ const source = (
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '');
 const { PaymentPricing } = await import(
-  `data:text/javascript;base64,${Buffer.from(`const { allocateCoins, ConflictException, CheckoutOrder, SHIPPING_QUOTE_STATUS, SHIPPING_QUOTE_ORDER_STATUS, SHIPPING_QUOTE_MAX_AGE_MS } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
+  `data:text/javascript;base64,${Buffer.from(`const { identityQuoteFingerprint, allocateCoins, ConflictException, CheckoutOrder, SHIPPING_QUOTE_STATUS, SHIPPING_QUOTE_ORDER_STATUS, SHIPPING_QUOTE_MAX_AGE_MS } = globalThis.__paymentPricingDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-pricing-under-test.js`).toString('base64')}`
 );
 
 test('pricing requires a current complete server quote and snapshots Shop money, address and items', async () => {

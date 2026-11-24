@@ -4,16 +4,11 @@ import type { EntityManager } from 'typeorm';
 
 import { Shop } from '../../entities';
 import { ShopStatus } from '../../enums';
-import {
-  OwnerIdentity,
-  OwnerIdentityDocument,
-  ShopApplication,
-} from '../entities/shop-application.entity';
+import { ShopApplication } from '../entities/shop-application.entity';
+import { claimVerifiedOwnerDocument } from './identity-document-claim.policy';
 import {
   applicationFingerprint,
   buildApplicationSnapshot,
-  identityFingerprint,
-  normalizeIdentityName,
   validateApplicantIdentity,
 } from './shop-application.policy';
 
@@ -26,6 +21,8 @@ export async function approveShopApplication(
 ) {
   if (!row.snapshot)
     throw new ConflictException('Submitted identity snapshot is required');
+  if (!row.snapshot.bank || !row.snapshot.pickup)
+    throw new ConflictException('Initial onboarding context is required');
   validateApplicantIdentity(row.snapshot.identity, now);
   const current = await buildApplicationSnapshot(
     manager,
@@ -40,37 +37,11 @@ export async function approveShopApplication(
     throw new ConflictException(
       'Application profile/bank/pickup snapshot changed',
     );
-  const fingerprint = identityFingerprint(current.identity);
-  const claim = await manager.findOne(OwnerIdentityDocument, {
-    where: { fingerprint },
-    relations: { identity: true },
-  });
-  if (claim && claim.identity.ownerId !== row.applicantId)
-    throw new ConflictException(
-      'Identity document already belongs to an approved account',
-    );
-  let identity = await manager.findOneBy(OwnerIdentity, {
-    ownerId: row.applicantId,
-  });
-  identity ??= await manager.save(
-    OwnerIdentity,
-    manager.create(OwnerIdentity, {
-      ownerId: row.applicantId,
-      applicationId: row.id,
-      normalizedName: normalizeIdentityName(current.identity.fullName),
-      birthDate: current.identity.birthDate,
-    }),
-  );
-  if (!claim)
-    await manager.save(
-      OwnerIdentityDocument,
-      manager.create(OwnerIdentityDocument, {
-        identityId: identity.id,
-        fingerprint,
-        document: current.identity,
-      }),
-    );
+  await claimVerifiedOwnerDocument(manager, row);
   shop.status = ShopStatus.ACTIVE;
   shop.approvedAt = now;
+  shop.identityExpiresOn = current.identity.expiresOn;
+  shop.identityDocumentVersion = 1;
+  shop.identityNextCheckAt = now;
   await manager.save(shop);
 }

@@ -28,6 +28,10 @@ export class ShopApplicationReadService {
   ) {}
   summary(row: ShopApplication) {
     return {
+      kind: row.kind,
+      correctionDueAt: row.correctionDueAt,
+      reasonCategory: row.reasonCategory ?? null,
+      timelySubmission: row.timelySubmission,
       id: row.id,
       shopId: row.shopId,
       state: row.state,
@@ -82,6 +86,8 @@ export class ShopApplicationReadService {
         actorId: a.actorId,
         adminNote: a.adminNote,
         identityCheckEvidence: a.identityCheckEvidence,
+        reasonCategory: a.reasonCategory,
+        samePersonConfirmed: a.samePersonConfirmed,
       })),
       revisions: revisions.map((r) => ({
         revision: r.revision,
@@ -143,6 +149,7 @@ export class ShopApplicationReadService {
           )
           .where('a.applicantId=:userId', { userId });
       if (data.state) query.andWhere('a.state=:state', { state: data.state });
+      if (data.kind) query.andWhere('a.kind=:kind', { kind: data.kind });
       const [rows, totalCount] = await query
         .orderBy('a.createdAt', 'DESC')
         .addOrderBy('a.id', 'DESC')
