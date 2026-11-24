@@ -82,12 +82,7 @@ export const applicationDecisionSchema = z
   });
 export const applicationUploadSchema = z.strictObject({
   slot: z.enum(IDENTITY_DOCUMENT_SLOT),
-  mimeType: z.enum(IDENTITY_IMAGE_MIME),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(SHOP_APPLICATION_POLICY.MAX_IMAGE_BYTES),
+  mediaId: z.uuid(),
 });
 export const applicationQuerySchema = z.strictObject({
   kind: z.enum(SHOP_APPLICATION_KIND).optional(),
@@ -115,7 +110,6 @@ const documentView = z.object({
   slot: z.enum(IDENTITY_DOCUMENT_SLOT),
   mimeType: z.enum(IDENTITY_IMAGE_MIME),
   sizeBytes: z.number().int().positive(),
-  ready: z.boolean(),
 });
 const snapshotView = z.object({
   identity: applicantIdentitySchema,
@@ -189,13 +183,6 @@ export const applicationPageSchema = z.object({
   totalCount: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
-});
-export const applicationUploadViewSchema = z.object({
-  id: z.uuid(),
-  uploadUrl: z.url(),
-  method: z.literal('PUT'),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
 });
 export const applicationDocumentViewSchema = documentView;
 export const applicationDownloadViewSchema = z.object({

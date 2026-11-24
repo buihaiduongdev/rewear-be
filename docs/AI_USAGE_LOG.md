@@ -1160,3 +1160,15 @@
 - **Kiểm chứng:** PostgreSQL rewear_test chạy tuần tự: 17 test cho onboarding, renewal, checkout; unit schema/gate 5 test; Node payment/pricing/worker kiểm tra capture và refund. Oxlint sạch. Full build/typecheck/regression tiếp tục trên CI vì dependency xstate chưa có trong node_modules local; không gọi provider/SMTP thật.
 - **Điểm đã rà soát và sửa:** Review độc lập phát hiện thiếu fingerprint trả về và một số gate ở ví/MoMo/public Shop; đã nối đầy đủ và thêm kiểm tra checkout/capture. Không đặt lại deadline bổ sung hoặc gia hạn TTL checkout.
 - **Giới hạn:** Chưa triển khai xử lý gian lận định danh và khiếu nại định danh; frontend và kiểm chứng tài khoản nhà cung cấp thật là phần riêng.
+
+### 2026-11-24 — Thống nhất lưu trữ media và giấy tờ KYC
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Thống nhất quản lý file public và private cho sản phẩm, shop, chat, đánh giá, báo cáo, khiếu nại và giấy tờ xác minh chủ shop.
+- **Prompt chính:** Refactor media về một nguồn dữ liệu chung, dùng quan hệ riêng theo nghiệp vụ, đơn giản hóa upload và chuyển KYC sang cùng cơ chế; giữ phân quyền khi truy cập file private.
+- **Đầu ra AI được sử dụng:** Media và storage chung, các quan hệ và API nghiệp vụ liên quan, kiểm thử và tài liệu tương ứng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng chọn không dùng polymorphic, không giữ dữ liệu dev cũ và yêu cầu chuyển KYC sau khi đồng bộ main.
+- **Cách kiểm chứng:** `pnpm check` đạt; kiểm thử riêng hồ sơ KYC, gia hạn giấy tờ và API đạt 18/18. Kiểm thử đầy đủ được thực hiện trên database test riêng.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung.
+- **Minh chứng:** Branch `buihaiduongdev/media-cleanup`.

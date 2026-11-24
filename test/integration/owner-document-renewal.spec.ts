@@ -15,6 +15,7 @@ import { Shop } from '@/modules/shop/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
+import { createPrivateMedia } from '../support/private-media';
 
 describe('Owner document renewal (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -77,23 +78,17 @@ describe('Owner document renewal (PostgreSQL)', () => {
       requestId: randomUUID(),
     });
     const ids = [];
-    for (const slot of ['FRONT', 'BACK'] as const)
-      ids.push(
-        (
-          await db.getRepository(ShopApplicationDocument).save({
-            applicationId: cycle.id,
-            uploadedById: f.owner.id,
-            slot,
-            mimeType: 'image/jpeg',
-            sizeBytes: 1024,
-            storageKey: 'private/' + randomUUID(),
-            ready: true,
-            eTag: 'immutable',
-            uploadExpiresAt: new Date(Date.now() + 60000),
-            firstSubmittedRevision: null,
-          })
-        ).id,
-      );
+    for (const slot of ['FRONT', 'BACK'] as const) {
+      const file = await createPrivateMedia(db, f.owner.id);
+      const doc = await db.getRepository(ShopApplicationDocument).save({
+        applicationId: cycle.id,
+        uploadedById: f.owner.id,
+        slot,
+        mediaId: file.id,
+        firstSubmittedRevision: null,
+      });
+      ids.push(doc.id);
+    }
     return {
       ...f,
       cycle,

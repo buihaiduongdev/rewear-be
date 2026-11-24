@@ -148,11 +148,11 @@ export async function buildApplicationSnapshot(
     docs.length === required.length &&
     required.every(
       (slot) =>
-        docs.filter((d) => d.slot === slot && d.ready && d.eTag).length === 1,
+        docs.filter((d) => d.slot === slot && !d.media.retiredAt).length === 1,
     );
   if (!validDocuments)
     throw new BadRequestException(
-      'Required owned ready identity documents are missing',
+      'Required owned identity documents are missing',
     );
   return {
     identity,

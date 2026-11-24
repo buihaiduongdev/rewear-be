@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import {
@@ -78,7 +78,7 @@ describe('Owner KYC application HTTP', () => {
     ])
       builder = builder.overrideProvider(worker).useValue({});
     const module = await builder
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue(storage)
       .compile();
     app = module.createNestApplication();
@@ -158,17 +158,21 @@ describe('Owner KYC application HTTP', () => {
       .getRepository(ShopMember)
       .save({ shopId, userId: stranger.id, memberRole: ShopMemberRole.STAFF });
     for (const slot of ['FRONT', 'BACK']) {
-      const upload = await request(server)
-        .post(`/api/shop-applications/${applicationId}/uploads`)
+      const ticket = await request(server)
+        .post('/api/media/upload-ticket')
         .auth(token(f.buyer), { type: 'bearer' })
-        .send({ slot, mimeType: 'image/jpeg', sizeBytes: 1024 })
+        .send({
+          mimeType: 'image/jpeg',
+          sizeBytes: 1024,
+          visibility: 'private',
+        })
+        .expect(201);
+      const upload = await request(server)
+        .post(`/api/shop-applications/${applicationId}/documents`)
+        .auth(token(f.buyer), { type: 'bearer' })
+        .send({ slot, mediaId: ticket.body.data.id })
         .expect(200);
       docs.push(upload.body.data.id);
-      await request(server)
-        .post(`/api/shop-application-documents/${upload.body.data.id}/complete`)
-        .auth(token(f.buyer), { type: 'bearer' })
-        .send({})
-        .expect(200);
     }
     await request(server)
       .get(`/api/shop-application-documents/${docs[0]}/download`)
@@ -308,14 +312,19 @@ describe('Owner KYC application HTTP', () => {
       .expect(400);
     const documentIds = [];
     for (const slot of ['FRONT', 'BACK']) {
+      const ticket = await request(server)
+        .post('/api/media/upload-ticket')
+        .auth(token(f.buyer), { type: 'bearer' })
+        .send({
+          mimeType: 'image/jpeg',
+          sizeBytes: 1024,
+          visibility: 'private',
+        })
+        .expect(201);
       const upload = await request(server)
-        .post(`/api/shop-applications/${id}/uploads`)
+        .post(`/api/shop-applications/${id}/documents`)
         .auth(token(f.buyer), { type: 'bearer' })
-        .send({ slot, mimeType: 'image/jpeg', sizeBytes: 1024 })
-        .expect(200);
-      await request(server)
-        .post(`/api/shop-application-documents/${upload.body.data.id}/complete`)
-        .auth(token(f.buyer), { type: 'bearer' })
+        .send({ slot, mediaId: ticket.body.data.id })
         .expect(200);
       documentIds.push(upload.body.data.id);
     }

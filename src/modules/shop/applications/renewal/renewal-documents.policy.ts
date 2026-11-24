@@ -35,11 +35,11 @@ export async function renewalDocuments(
     docs.length === required.length &&
     required.every(
       (slot) =>
-        docs.filter((d) => d.slot === slot && d.ready && d.eTag).length === 1,
+        docs.filter((d) => d.slot === slot && !d.media.retiredAt).length === 1,
     );
   if (!valid)
     throw new BadRequestException(
-      'Required owned ready renewal documents are missing',
+      'Required owned renewal documents are missing',
     );
   return docs;
 }
