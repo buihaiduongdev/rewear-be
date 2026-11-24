@@ -16,10 +16,13 @@ import { MediaLink } from '@/modules/media/entities';
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { ORDER_EVENT_ACTION, ORDER_STATUS } from '@/modules/order/constants';
 import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { OrderFundingService } from '@/modules/order/order-funding.service';
+import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { OrderService } from '@/modules/order/order.service';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopFollowService } from '@/modules/shop-follows/shop-follow.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -53,7 +56,49 @@ describe('Seed data (PostgreSQL)', () => {
     expect(seed.userAddresses).toHaveLength(13);
     expect(seed.pickupLocations).toHaveLength(3);
     expect(seed.cartItems).toHaveLength(5);
-    expect(seed.orders).toHaveLength(3);
+    expect(seed.orders).toHaveLength(6);
+    expect(
+      seed.orders.every((order) => /^RW-[0-9A-F]{10}$/.test(order.orderCode)),
+    ).toBe(true);
+    expect(new Set(seed.orders.map((order) => order.orderCode)).size).toBe(
+      seed.orders.length,
+    );
+    const preparing = seed.orders.find(
+      (order) => order.status === ORDER_STATUS.PREPARING,
+    );
+    expect(preparing?.buyerId).toBe(seed.users[1].id);
+    expect(preparing?.acceptedAt).toBeTruthy();
+    expect(preparing?.handoverBy!.getTime()).toBeGreaterThan(Date.now());
+    expect(
+      await db.getRepository(OrderEvent).findOneBy({
+        orderId: preparing!.id,
+        action: ORDER_EVENT_ACTION.ACCEPTED,
+      }),
+    ).not.toBeNull();
+    for (const status of [ORDER_STATUS.SHIPPING, ORDER_STATUS.DELIVERED]) {
+      const order = seed.orders.find(
+        (candidate) => candidate.status === status,
+      )!;
+      const shipment = await db
+        .getRepository(Shipment)
+        .findOneByOrFail({ orderId: order.id });
+      expect(shipment.nextQueryAt).toBeNull();
+      expect(shipment.orderCode).toBeNull();
+      expect(shipment.providerStatus).toBe(
+        status === ORDER_STATUS.DELIVERED ? 'delivered' : 'picked',
+      );
+      const product = await db
+        .getRepository(Product)
+        .findOneByOrFail({ id: order.items[0].productId });
+      expect(product.status).toBe(
+        status === ORDER_STATUS.DELIVERED
+          ? ProductStatus.SOLD
+          : ProductStatus.HELD,
+      );
+      expect(product.soldOrderId).toBe(
+        status === ORDER_STATUS.DELIVERED ? order.id : null,
+      );
+    }
     for (const shop of seed.shops) {
       const orders = await db
         .getRepository(Order)
@@ -88,7 +133,7 @@ describe('Seed data (PostgreSQL)', () => {
     expect(await db.getRepository(PickupLocation).count()).toBe(3);
     expect(await db.getRepository(Cart).count()).toBe(2);
     expect(await db.getRepository(CartItem).count()).toBe(5);
-    expect(await db.getRepository(MediaLink).count()).toBe(39);
+    expect(await db.getRepository(MediaLink).count()).toBe(42);
     const admin = await db.getRepository(User).findOneOrFail({
       where: { id: seed.users[0].id },
       select: { id: true, password: true },
@@ -178,5 +223,21 @@ describe('Seed data (PostgreSQL)', () => {
       .findOneByOrFail({ id: seed.orders[1].items[0].productId });
     expect(released.status).toBe(ProductStatus.ACTIVE);
     expect(released.reservedOrderId).toBeNull();
+
+    const delivered = seed.orders.find(
+      (order) => order.status === ORDER_STATUS.DELIVERED,
+    )!;
+    const confirmed = await new OrderSettlementService(
+      db,
+      new OrderFundingService(),
+    ).confirmReceipt(buyer.id, delivered.id);
+    expect(confirmed.status).toBe(ORDER_STATUS.COMPLETED);
+    expect(confirmed.receiptConfirmedAt).toBeTruthy();
+    expect(
+      await db.getRepository(OrderEvent).findOneBy({
+        orderId: delivered.id,
+        action: ORDER_EVENT_ACTION.RECEIPT_CONFIRMED,
+      }),
+    ).not.toBeNull();
   });
 });

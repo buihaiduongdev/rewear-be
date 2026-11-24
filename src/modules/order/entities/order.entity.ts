@@ -24,10 +24,19 @@ import type {
 
 @Entity('orders')
 @Index(['checkoutOrderId'], { unique: true })
+@Index('UQ_orders_orderCode', ['orderCode'], { unique: true })
 @Index(['buyerId', 'createdAt'])
 @Index(['shopId', 'status', 'createdAt'])
 @Index(['status', 'sellerConfirmBy'])
 export class Order extends BaseEntity {
+  @Column({
+    type: 'varchar',
+    length: 13,
+    default: () =>
+      "('RW-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10)))",
+  })
+  orderCode: string;
+
   @Column({ type: 'integer', default: 0 })
   coinDiscount: number;
   @Column({ type: 'varchar', length: 20, nullable: true })

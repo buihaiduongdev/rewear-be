@@ -50,19 +50,27 @@ export async function quoteInputs(
         ? reason.data
         : SHIPPING_QUOTE_REASON.PACKAGE_REQUIRED;
     }
-    if (!row.reason && !pickup)
+    if (
+      !row.reason &&
+      (!pickup || pickup.ghnSyncStatus !== 'CONNECTED' || !pickup.ghnShopId)
+    )
       row.reason = SHIPPING_QUOTE_REASON.PICKUP_REQUIRED;
     if (!row.reason && order.subtotal > GHN_SHIPPING_LIMITS.MAX_DECLARED_VALUE)
       row.reason = SHIPPING_QUOTE_REASON.DECLARED_VALUE_LIMIT;
     inputs.push(
       pickup && row.parcel
         ? {
+            ghnShopId: pickup.ghnShopId ?? undefined,
             from: {
               name: pickup.contactName,
               phone: pickup.phone,
               addressLine1: pickup.addressLine1,
               countryCode: pickup.countryCode,
+              provinceId: pickup.provinceId,
               provinceName: pickup.provinceName,
+              districtId: pickup.districtId,
+              districtName: pickup.districtName,
+              wardCode: pickup.wardCode,
               wardName: pickup.wardName,
             },
             to: {
@@ -75,7 +83,11 @@ export async function quoteInputs(
                 .filter(Boolean)
                 .join(', '),
               countryCode: order.address.countryCode,
+              provinceId: order.address.provinceId,
               provinceName: order.address.provinceName,
+              districtId: order.address.districtId,
+              districtName: order.address.districtName,
+              wardCode: order.address.wardCode,
               wardName: order.address.wardName,
             },
             parcel: row.parcel,

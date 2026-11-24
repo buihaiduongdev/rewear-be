@@ -177,10 +177,15 @@ CORS to allow that header before testing direct uploads.
 
 Run `pnpm seed` to populate the configured database with development accounts,
 shops, categories, products, wishlist items, shop follows, buyer–shop chats,
-notifications and one pending COD order per seeded shop. Run the
-seed on an empty development database. Pending orders expire after the normal
-24-hour seller confirmation window.
-Seeded accounts use the password `RewearSeed123!`.
+notifications and demo buyer orders. Run the seed on an empty development
+database. The orders cover pending, preparing, shipping and delivered states;
+shipping records are simulated and do not contact a carrier. Pending orders
+expire after the normal 24-hour seller confirmation window.
+
+For an existing development database that already has the demo accounts, run
+`pnpm seed --orders-only` to add missing buyer-order states without resetting
+the schema. The buyer account is `buyer.demo@seed.rewear.test`; seeded accounts
+use the password `RewearSeed123!`.
 
 ## Dispute appeals
 

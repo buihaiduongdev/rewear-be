@@ -1,68 +1,86 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
+import type { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
-import {
-  VIETNAM_ADMINISTRATIVE_DIVISION_SNAPSHOT,
-  VIETNAM_WARDS,
-} from '@/modules/administrative-division/data';
 
 describe('AdministrativeDivisionService', () => {
-  const service = new AdministrativeDivisionService();
+  const mockGhn: jest.Mocked<
+    Pick<GhnShopClient, 'provinces' | 'districts' | 'wards'>
+  > = {
+    provinces: jest.fn().mockResolvedValue([
+      { id: 201, name: 'Hà Nội' },
+      { id: 202, name: 'Hồ Chí Minh' },
+      { id: 2002, name: 'Hà Nội 02' },
+      { id: 298, name: 'Test - Alert - Tỉnh - 001' },
+    ]),
+    districts: jest.fn().mockImplementation(async (provinceId: number) => {
+      if (provinceId === 201) {
+        return [{ id: 1489, name: 'Quận Hoàn Kiếm' }];
+      }
+      if (provinceId === 202) {
+        return [{ id: 1442, name: 'Quận 1' }];
+      }
+      throw new Error('GHN_CATALOG_UNAVAILABLE');
+    }),
+    wards: jest.fn().mockImplementation(async (districtId: number) => {
+      if (districtId === 1489) {
+        return [{ id: '1A0206', name: 'Phường Hàng Bài' }];
+      }
+      if (districtId === 1442) {
+        return [{ id: '20101', name: 'Phường Bến Nghé' }];
+      }
+      return [];
+    }),
+  };
 
-  it('exposes the complete two-level snapshot', () => {
-    const provinces = service.findAllProvinces();
+  const service = new AdministrativeDivisionService(
+    mockGhn as unknown as GhnShopClient,
+  );
 
-    expect(provinces).toHaveLength(
-      VIETNAM_ADMINISTRATIVE_DIVISION_SNAPSHOT.provinceCount,
-    );
-    expect(VIETNAM_WARDS).toHaveLength(
-      VIETNAM_ADMINISTRATIVE_DIVISION_SNAPSHOT.wardCount,
-    );
-    expect(new Set(provinces.map(({ code }) => code)).size).toBe(
-      provinces.length,
-    );
-    expect(new Set(VIETNAM_WARDS.map(({ code }) => code)).size).toBe(
-      VIETNAM_WARDS.length,
-    );
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('preserves leading zeroes and resolves canonical names', () => {
-    expect(service.resolveAddress('01', '00004')).toEqual({
-      provinceCode: '01',
-      provinceName: 'Thành phố Hà Nội',
-      wardCode: '00004',
-      wardName: 'Phường Ba Đình',
+  it('exposes provinces filtered and cached from GHN', async () => {
+    const provinces = await service.findAllProvinces();
+    expect(provinces.length).toBe(2);
+    expect(provinces.some((p) => p.name === 'Hà Nội')).toBe(true);
+    expect(provinces.some((p) => p.name.includes('Test'))).toBe(false);
+    expect(provinces.some((p) => p.name.includes('02'))).toBe(false);
+
+    // Call again to verify cache (should not call mockGhn.provinces again)
+    await service.findAllProvinces();
+    expect(mockGhn.provinces).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves canonical 3-level address', async () => {
+    // 201: Hanoi, 1489: Hoan Kiem, 1A0206: Hang Bai
+    const resolved = await service.resolveAddress(201, 1489, '1A0206');
+    expect(resolved).toEqual({
+      provinceId: 201,
+      provinceName: 'Hà Nội',
+      districtId: 1489,
+      districtName: 'Quận Hoàn Kiếm',
+      wardCode: '1A0206',
+      wardName: 'Phường Hàng Bài',
     });
   });
 
-  it('uses current province names from the official directory', () => {
-    expect(service.findAllProvinces()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: '22', name: 'Thành phố Quảng Ninh' }),
-        expect.objectContaining({ code: '24', name: 'Thành phố Bắc Ninh' }),
-        expect.objectContaining({ code: '75', name: 'Thành phố Đồng Nai' }),
-      ]),
-    );
-  });
-
-  it('keeps the corrected Ba Chẽ ward code', () => {
-    expect(service.resolveAddress('22', '06970')).toEqual({
-      provinceCode: '22',
-      provinceName: 'Thành phố Quảng Ninh',
-      wardCode: '06970',
-      wardName: 'Xã Ba Chẽ',
-    });
-  });
-
-  it('rejects an unknown province when listing wards', () => {
-    expect(() => service.findWardsByProvinceCode('00')).toThrow(
+  it('rejects an unknown province when listing districts', async () => {
+    await expect(service.findDistrictsByProvinceId(999999)).rejects.toThrow(
       NotFoundException,
     );
   });
 
-  it('rejects a ward outside the selected province', () => {
-    expect(() => service.resolveAddress('79', '00004')).toThrow(
+  it('rejects invalid combinations on resolveAddress', async () => {
+    await expect(
+      service.resolveAddress(999999, 1489, '1A0206'),
+    ).rejects.toThrow(BadRequestException);
+    await expect(service.resolveAddress(201, 999999, '1A0206')).rejects.toThrow(
       BadRequestException,
     );
+    await expect(
+      service.resolveAddress(201, 1489, 'INVALID_WARD'),
+    ).rejects.toThrow(BadRequestException);
   });
 });

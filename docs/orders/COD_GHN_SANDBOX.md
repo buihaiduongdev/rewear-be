@@ -128,3 +128,31 @@ late handover consent and physical-return recovery are documented in
 - [Cancel](https://developer.ghn.vn/en/docs/order/cancel)
 - [Print](https://developer.ghn.vn/en/docs/order/print)
 - [Status codes](https://developer.ghn.vn/en/docs/master-data/order-status)
+
+## Seller pickup connection (sandbox)
+
+A seller may save a pickup address without connecting GHN. To connect, the seller
+selects the legacy GHN province, district and ward and confirms the operation.
+The platform token creates a GHN shop owned by the platform; the resulting
+`ShopId` is saved against the Rewear pickup location. Quote and forward shipment
+requests use that ID; the shipment snapshots it for later tracking and returns.
+An unconnected or stale location cannot be used for a new GHN quote or booking.
+
+Creation is not retried automatically. A timeout or unrecognised provider
+response leaves the connection in `UNKNOWN`; an interrupted operation can remain
+in `CREATING`. Do not submit another create request without reconciliation.
+For `UNKNOWN`, an authenticated admin can use
+`POST /api/admin/shipping/shops/:shopId/ghn/resolve` with
+`{ "ghnShopId": 123, "reason": "..." }` after checking the GHN account. The
+server verifies that the GHN shop belongs to the platform and its saved details
+match the original attempt. The administrator and reason are recorded. `CREATING`
+requires operational investigation and is not automatically released. Editing a
+connected address marks the mapping `STALE`; future shipping is blocked until the
+seller explicitly connects a new GHN shop for the changed address. Existing
+shipments retain their original GHN shop ID. Do not assume that a saved Rewear
+address has been updated on GHN.
+
+Existing locations require explicit connection; this feature does not create GHN
+shops automatically or backfill them. The schema must be deployed before the
+application is started with these fields. Live GHN booking and recovery remain
+to be verified on the staging account before production use.

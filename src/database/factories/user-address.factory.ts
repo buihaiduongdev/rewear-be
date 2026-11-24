@@ -12,10 +12,12 @@ export class UserAddressFactory extends BaseFactory<UserAddress> {
       phone: '0901234567',
       addressLine1: faker.location.streetAddress(),
       countryCode: 'VN',
-      provinceCode: '79',
-      provinceName: 'Thành phố Hồ Chí Minh',
-      wardCode: '26743',
-      wardName: 'Phường Bến Thành',
+      provinceId: 202,
+      provinceName: 'Hồ Chí Minh',
+      districtId: 1442,
+      districtName: 'Quận 1',
+      wardCode: '20101',
+      wardName: 'Phường Bến Nghé',
       isDefault: false,
     };
   }

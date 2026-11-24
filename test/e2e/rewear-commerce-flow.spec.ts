@@ -133,13 +133,17 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       .getRepository(ShopMember)
       .save(memberFactory.build({ shopId: shop.id, userId: seller.id }));
     await db.getRepository(PickupLocation).save({
+      ghnShopId: Math.floor(Math.random() * 900000) + 100000,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Seller',
       phone: '0912345678',
       addressLine1: '1 Shop Street',
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'Ho Chi Minh City',
+      districtId: 1442,
+      districtName: 'District 1',
       wardCode: '26734',
       wardName: 'Test ward',
     });
@@ -154,8 +158,10 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
       addressLine1: '10 Test Street',
       addressLine2: null,
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'Ho Chi Minh City',
+      districtId: 1442,
+      districtName: 'District 1',
       wardCode: '26734',
       wardName: 'Test ward',
       postalCode: null,

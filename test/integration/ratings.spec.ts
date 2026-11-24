@@ -261,9 +261,12 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
       .getRepository(OrderDeliveryVerification)
       .update(f.proof.id, { mode: 'SIMULATION' });
     const original = await ratings.upsert(f.buyer.id, f.input);
-    const laterOrder = await f.db
-      .getRepository(Order)
-      .save({ ...f.order, id: randomUUID(), checkoutOrderId: randomUUID() });
+    const laterOrder = await f.db.getRepository(Order).save({
+      ...f.order,
+      id: randomUUID(),
+      checkoutOrderId: randomUUID(),
+      orderCode: `RW-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
+    });
     await f.db.getRepository(OrderDeliveryVerification).save({
       ...f.proof,
       id: randomUUID(),

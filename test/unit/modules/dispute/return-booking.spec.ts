@@ -59,6 +59,7 @@ describe('return reverse booking', () => {
       const booking = {
         returnId: id,
         clientCode: id,
+        accountId: 12345,
         fingerprint: '',
         state,
         payload: route,
@@ -86,7 +87,7 @@ describe('return reverse booking', () => {
         returnId: id,
         active: true,
       });
-      expect(carrier.query).toHaveBeenCalledWith(id);
+      expect(carrier.query).toHaveBeenCalledWith(id, 12345);
       expect(carrier.create).not.toHaveBeenCalled();
     },
   );

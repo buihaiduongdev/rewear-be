@@ -10,8 +10,12 @@ const address = {
   phone: '0912345678',
   addressLine1: 'Test street',
   countryCode: 'VN',
-  provinceName: 'Province',
-  wardName: 'Ward',
+  provinceId: 201,
+  provinceName: 'Hà Nội',
+  districtId: 1489,
+  districtName: 'Quận Hoàn Kiếm',
+  wardCode: '1A0206',
+  wardName: 'Phường Hàng Bài',
 };
 const input: CarrierQuoteInput = {
   from: address,
@@ -86,7 +90,7 @@ it('prepares immutable sender-paid COD payload from canonical address mapping', 
     cod_failed_amount: 0,
     payment_type_id: 1,
     insurance_value: 500000,
-    from_ward_name: 'Ward',
+    from_ward_code: '1A0206',
   });
   expect(Object.isFrozen(payload)).toBe(true);
   expect(Object.isFrozen(payload.items)).toBe(true);

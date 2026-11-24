@@ -88,9 +88,11 @@ describe('paid order acceptance with PostgreSQL', () => {
       addressLine1: 'Test',
       addressLine2: null,
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'HCM',
-      wardCode: '1',
+      districtId: 1442,
+      districtName: 'District 1',
+      wardCode: '20101',
       wardName: 'Ward',
       postalCode: null,
       deliveryInstructions: null,
@@ -271,6 +273,7 @@ describe('paid order acceptance with PostgreSQL', () => {
       id: randomUUID(),
       shopId: otherShop.id,
       checkoutOrderId: randomUUID(),
+      orderCode: `RW-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
       items: [],
     });
     await f.db.getRepository(PaymentAttempt).update(f.payment.id, {

@@ -199,6 +199,7 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
         ...f.order,
         id: randomUUID(),
         checkoutOrderId: randomUUID(),
+        orderCode: `RW-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`,
       }),
     );
     const otherCredit = await f.db.getRepository(ShopLedgerEntry).save({
