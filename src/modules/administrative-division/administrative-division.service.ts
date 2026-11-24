@@ -7,6 +7,8 @@ import {
 
 import { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 
+import snapshot from './data/ghn-divisions-snapshot.json';
+
 export interface AdministrativeProvince {
   id: number;
   name: string;
@@ -53,6 +55,16 @@ export class AdministrativeDivisionService {
     CacheEntry<readonly AdministrativeWard[]>
   >();
 
+  private readonly provincesSnapshot: AdministrativeProvince[] =
+    snapshot.provinces;
+  private readonly districtsSnapshot: AdministrativeDistrict[] =
+    snapshot.districts;
+  private readonly wardsSnapshot: AdministrativeWard[] = snapshot.wards;
+
+  private readonly provinceById = new Map<number, AdministrativeProvince>(
+    snapshot.provinces.map((p) => [p.id, p]),
+  );
+
   constructor(@Optional() private readonly ghn?: GhnShopClient) {}
 
   async findAllProvinces(): Promise<readonly AdministrativeProvince[]> {
@@ -61,22 +73,22 @@ export class AdministrativeDivisionService {
       return this.provincesCache.data;
     }
 
-    if (!this.ghn) {
-      return [];
+    if (this.ghn) {
+      try {
+        const raw = await this.ghn.provinces();
+        if (raw?.length) {
+          const clean = raw.filter((p) => !/(^Test|\b02\b)/i.test(p.name));
+          this.provincesCache = {
+            data: clean,
+            expiresAt: now + CACHE_TTL_MS,
+          };
+          clean.forEach((p) => this.provinceById.set(p.id, p));
+          return clean;
+        }
+      } catch {}
     }
 
-    try {
-      const raw = await this.ghn.provinces();
-      // Filter out GHN sandbox test artifacts (e.g. Test - Alert - Tỉnh - 001, Hà Nội 02)
-      const clean = (raw || []).filter((p) => !/(^Test|\b02\b)/i.test(p.name));
-      this.provincesCache = {
-        data: clean,
-        expiresAt: now + CACHE_TTL_MS,
-      };
-      return clean;
-    } catch {
-      return this.provincesCache?.data ?? [];
-    }
+    return this.provincesSnapshot;
   }
 
   async findDistrictsByProvinceId(
@@ -88,26 +100,31 @@ export class AdministrativeDivisionService {
       return cached.data;
     }
 
-    if (!this.ghn) {
-      return [];
+    if (this.ghn) {
+      try {
+        const raw = await this.ghn.districts(provinceId);
+        if (raw?.length) {
+          const list: AdministrativeDistrict[] = raw.map((d) => ({
+            id: d.id,
+            name: d.name,
+            provinceId,
+          }));
+          this.districtsCache.set(provinceId, {
+            data: list,
+            expiresAt: now + CACHE_TTL_MS,
+          });
+          return list;
+        }
+      } catch {}
     }
 
-    try {
-      const raw = await this.ghn.districts(provinceId);
-      const list: AdministrativeDistrict[] = (raw || []).map((d) => ({
-        id: d.id,
-        name: d.name,
-        provinceId,
-      }));
-      this.districtsCache.set(provinceId, {
-        data: list,
-        expiresAt: now + CACHE_TTL_MS,
-      });
-      return list;
-    } catch {
-      if (cached?.data) return cached.data;
+    const matched = this.districtsSnapshot.filter(
+      (d) => d.provinceId === provinceId,
+    );
+    if (!matched.length && !this.provinceById.has(provinceId)) {
       throw new NotFoundException('Administrative province not found');
     }
+    return matched;
   }
 
   async findWardsByDistrictId(
@@ -119,26 +136,28 @@ export class AdministrativeDivisionService {
       return cached.data;
     }
 
-    if (!this.ghn) {
-      return [];
+    if (this.ghn) {
+      try {
+        const raw = await this.ghn.wards(districtId);
+        if (raw?.length) {
+          const list: AdministrativeWard[] = raw.map((w) => ({
+            code: w.id,
+            name: w.name,
+            districtId,
+          }));
+          this.wardsCache.set(districtId, {
+            data: list,
+            expiresAt: now + CACHE_TTL_MS,
+          });
+          return list;
+        }
+      } catch {}
     }
 
-    try {
-      const raw = await this.ghn.wards(districtId);
-      const list: AdministrativeWard[] = (raw || []).map((w) => ({
-        code: w.id,
-        name: w.name,
-        districtId,
-      }));
-      this.wardsCache.set(districtId, {
-        data: list,
-        expiresAt: now + CACHE_TTL_MS,
-      });
-      return list;
-    } catch {
-      if (cached?.data) return cached.data;
-      return [];
-    }
+    const matched = this.wardsSnapshot.filter(
+      (w) => w.districtId === districtId,
+    );
+    return matched;
   }
 
   async resolveAddress(
