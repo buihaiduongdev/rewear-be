@@ -1140,4 +1140,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Cấu hình biến môi trường production, thiết lập OIDC trust policy liên kết repository GitHub, kiểm thử trực tiếp việc kéo image từ ECR trên EC2 thông qua IAM role và seed dữ liệu ban đầu cho database.
 - **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 lỗi, Prettier, tsc, build) đạt; kiểm tra HTTP endpoint `/api/docs` trên IP EC2 công khai trả về mã 200; kết nối database PostgreSQL nội bộ thành công và chạy seed dữ liệu đầy đủ.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh cài đặt dependencies trong Docker ban đầu kích hoạt script husky gây lỗi thiếu binary; đã bổ sung cờ `--ignore-scripts` để hoàn tất build production.
-- **Minh chứng:** PR #[Số_PR], branch buihaiduongdev/ec2-deployment.
+- **Minh chứng:** PR #63, branch buihaiduongdev/ec2-deployment.
