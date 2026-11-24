@@ -32,7 +32,9 @@ export type ShopApplicationSnapshot = {
     phone: string;
     addressLine1: string;
     countryCode: string;
-    provinceCode: string;
+    provinceId: number;
+    districtId: number;
+    districtName: string;
     provinceName: string;
     wardCode: string;
     wardName: string;

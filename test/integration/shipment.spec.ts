@@ -98,22 +98,29 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       addressLine1: 'Test',
       addressLine2: null,
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'HCM',
-      wardCode: '1',
+      districtId: 1442,
+      districtName: 'District 1',
+      wardCode: '20101',
       wardName: 'Ward',
       postalCode: null,
       deliveryInstructions: null,
     };
+    const ghnShopId = Math.floor(Math.random() * 900000) + 100000;
     await db.getRepository(PickupLocation).save({
+      ghnShopId,
+      ghnSyncStatus: 'CONNECTED',
       shopId: shop.id,
       contactName: 'Shop',
       phone: address.phone,
       addressLine1: 'Pickup',
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'HCM',
-      wardCode: '1',
+      districtId: 1442,
+      districtName: 'District 1',
+      wardCode: '20101',
       wardName: 'Ward',
     });
     const order = await db.getRepository(Order).save({
@@ -170,7 +177,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     client.query.mockImplementation(async (id: string) => ({
       clientCode: id,
       orderCode: carrierCode,
-      shopId: 123,
+      shopId: ghnShopId,
       status,
       updatedAt: new Date().toISOString(),
       codAmount: amount,
@@ -182,7 +189,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     }));
     client.cancel.mockResolvedValue(true);
     client.requestReturn.mockResolvedValue(true);
-    return { db, buyer, owner, shop, order, product };
+    return { db, buyer, owner, shop, order, product, ghnShopId };
   }
   async function due(id: string) {
     await database.dataSource
@@ -382,7 +389,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     status = 'picked';
     await due(booked.id);
     await shipments.reconcile(booked.id);
-    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode);
+    expect(client.requestReturn).toHaveBeenCalledWith(carrierCode, f.ghnShopId);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
         .status,

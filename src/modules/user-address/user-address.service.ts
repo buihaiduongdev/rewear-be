@@ -36,8 +36,9 @@ export class UserAddressService {
     input: CreateUserAddressInput,
   ): Promise<UserAddress> {
     const administrativeAddress =
-      this.administrativeDivisionService.resolveAddress(
-        input.provinceCode,
+      await this.administrativeDivisionService.resolveAddress(
+        input.provinceId,
+        input.districtId,
         input.wardCode,
       );
     const address = this.userAddressRepository.create({
@@ -64,9 +65,12 @@ export class UserAddressService {
   ): Promise<UserAddress> {
     const address = await this.findOne(userId, id);
     const administrativeAddress =
-      input.provinceCode !== undefined || input.wardCode !== undefined
-        ? this.administrativeDivisionService.resolveAddress(
-            input.provinceCode ?? address.provinceCode,
+      input.provinceId !== undefined ||
+      input.districtId !== undefined ||
+      input.wardCode !== undefined
+        ? await this.administrativeDivisionService.resolveAddress(
+            input.provinceId ?? address.provinceId,
+            input.districtId ?? address.districtId,
             input.wardCode ?? address.wardCode,
           )
         : {};

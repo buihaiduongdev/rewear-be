@@ -1,40 +1,49 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
+import z from 'zod';
+
 import { Serialize } from '@/common/decorators';
 import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
 
 import { AdministrativeDivisionService } from './administrative-division.service';
-import type { AdministrativeProvince, AdministrativeWard } from './data';
 import {
+  administrativeDistrictListSchema,
   administrativeProvinceListSchema,
-  administrativeProvinceSchema,
   administrativeWardListSchema,
 } from './schemas';
 
-@ApiTags('Administrative divisions')
+@ApiTags('AdministrativeDivisions')
+@PublicAccess()
 @Controller('administrative-divisions')
 export class AdministrativeDivisionController {
   constructor(
     private readonly administrativeDivisionService: AdministrativeDivisionService,
   ) {}
 
-  @PublicAccess()
   @Get('provinces')
   @Serialize(administrativeProvinceListSchema)
-  findAllProvinces(): readonly AdministrativeProvince[] {
+  findAllProvinces() {
     return this.administrativeDivisionService.findAllProvinces();
   }
 
-  @PublicAccess()
-  @Get('provinces/:provinceCode/wards')
-  @Serialize(administrativeWardListSchema)
-  findWardsByProvinceCode(
-    @Param('provinceCode', { schema: administrativeProvinceSchema.shape.code })
-    provinceCode: string,
-  ): readonly AdministrativeWard[] {
-    return this.administrativeDivisionService.findWardsByProvinceCode(
-      provinceCode,
+  @Get('provinces/:provinceId/districts')
+  @Serialize(administrativeDistrictListSchema)
+  findDistrictsByProvinceId(
+    @Param('provinceId', { schema: z.coerce.number().int().positive() })
+    provinceId: number,
+  ) {
+    return this.administrativeDivisionService.findDistrictsByProvinceId(
+      provinceId,
     );
+  }
+
+  @Get('districts/:districtId/wards')
+  @Serialize(administrativeWardListSchema)
+  findWardsByDistrictId(
+    @Param('districtId', { schema: z.coerce.number().int().positive() })
+    districtId: number,
+  ) {
+    return this.administrativeDivisionService.findWardsByDistrictId(districtId);
   }
 }

@@ -1,6 +1,7 @@
 import { EntityNotFoundError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import type { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 import { UserAddress } from '@/modules/user-address/entities';
 import { UserAddressService } from '@/modules/user-address/user-address.service';
@@ -18,10 +19,12 @@ describe('UserAddressService', () => {
     addressLine1: '12 Nguyễn Huệ',
     addressLine2: null,
     countryCode: 'VN',
-    provinceCode: '79',
-    provinceName: 'Thành phố Hồ Chí Minh',
-    wardCode: '25747',
-    wardName: 'Phường Thủ Dầu Một',
+    provinceId: 202,
+    provinceName: 'Hồ Chí Minh',
+    districtId: 1442,
+    districtName: 'Quận 1',
+    wardCode: '20101',
+    wardName: 'Phường Bến Nghé',
     postalCode: '700000',
     deliveryInstructions: null,
     isDefault: false,
@@ -56,10 +59,30 @@ describe('UserAddressService', () => {
     async (action: (entityManager: EntityManager) => Promise<UserAddress>) =>
       action(manager as unknown as EntityManager),
   );
+  const mockGhn: jest.Mocked<
+    Pick<GhnShopClient, 'provinces' | 'districts' | 'wards'>
+  > = {
+    provinces: jest.fn().mockResolvedValue([
+      { id: 201, name: 'Hà Nội' },
+      { id: 202, name: 'Hồ Chí Minh' },
+    ]),
+    districts: jest.fn().mockImplementation(async (provinceId: number) => {
+      if (provinceId === 201) return [{ id: 1489, name: 'Quận Hoàn Kiếm' }];
+      if (provinceId === 202) return [{ id: 1442, name: 'Quận 1' }];
+      return [];
+    }),
+    wards: jest.fn().mockImplementation(async (districtId: number) => {
+      if (districtId === 1489)
+        return [{ id: '1A0206', name: 'Phường Hàng Bài' }];
+      if (districtId === 1442)
+        return [{ id: '20101', name: 'Phường Bến Nghé' }];
+      return [];
+    }),
+  };
   const service = new UserAddressService(
     repository as unknown as Repository<UserAddress>,
     { transaction } as unknown as DataSource,
-    new AdministrativeDivisionService(),
+    new AdministrativeDivisionService(mockGhn as unknown as GhnShopClient),
   );
 
   beforeEach(() => {
@@ -111,7 +134,8 @@ describe('UserAddressService', () => {
         recipientName: address.recipientName,
         phone: address.phone,
         addressLine1: address.addressLine1,
-        provinceCode: address.provinceCode,
+        provinceId: address.provinceId,
+        districtId: address.districtId,
         wardCode: address.wardCode,
       }),
     ).resolves.toBe(created);
@@ -119,8 +143,10 @@ describe('UserAddressService', () => {
       recipientName: address.recipientName,
       phone: address.phone,
       addressLine1: address.addressLine1,
-      provinceCode: address.provinceCode,
+      provinceId: address.provinceId,
       provinceName: address.provinceName,
+      districtId: address.districtId,
+      districtName: address.districtName,
       wardCode: address.wardCode,
       wardName: address.wardName,
       userId,
@@ -145,7 +171,8 @@ describe('UserAddressService', () => {
         recipientName: address.recipientName,
         phone: address.phone,
         addressLine1: address.addressLine1,
-        provinceCode: address.provinceCode,
+        provinceId: address.provinceId,
+        districtId: address.districtId,
         wardCode: address.wardCode,
         isDefault: true,
       }),
@@ -186,14 +213,17 @@ describe('UserAddressService', () => {
 
     await expect(
       service.update(userId, address.id, {
-        provinceCode: '01',
-        wardCode: '00004',
+        provinceId: 201,
+        districtId: 1489,
+        wardCode: '1A0206',
       }),
     ).resolves.toMatchObject({
-      provinceCode: '01',
-      provinceName: 'Thành phố Hà Nội',
-      wardCode: '00004',
-      wardName: 'Phường Ba Đình',
+      provinceId: 201,
+      provinceName: 'Hà Nội',
+      districtId: 1489,
+      districtName: 'Quận Hoàn Kiếm',
+      wardCode: '1A0206',
+      wardName: 'Phường Hàng Bài',
     });
   });
 

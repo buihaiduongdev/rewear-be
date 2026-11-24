@@ -480,6 +480,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       Array.from({ length: 101 }, (_, index) => ({
         ...f.order,
         id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+        orderCode: `RW-${String(index + 1).padStart(10, '0')}`,
         checkoutOrderId: randomUUID(),
         deliveryVerifiedAt: null,
         disputeDeadlineAt: null,

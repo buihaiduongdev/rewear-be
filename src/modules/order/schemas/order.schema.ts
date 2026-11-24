@@ -27,6 +27,7 @@ export const orderSchema = z.object({
   coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
   feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
+  orderCode: z.string().regex(/^RW-[0-9A-F]{10}$/),
   paymentId: z.uuid().nullable(),
   walletDebitId: z.uuid().nullable(),
   paymentMethod: z.enum(ORDER_PAYMENT_METHOD),

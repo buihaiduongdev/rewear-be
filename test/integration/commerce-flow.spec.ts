@@ -4,6 +4,7 @@ import { CategoryFactory } from '@/database/factories/category.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
+import { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { CartService } from '@/modules/cart/cart.service';
@@ -60,8 +61,10 @@ describe('commerce behavior with PostgreSQL', () => {
       addressLine1: '10 Test Street',
       addressLine2: null,
       countryCode: 'VN',
-      provinceCode: '79',
+      provinceId: 202,
       provinceName: 'Ho Chi Minh City',
+      districtId: 1442,
+      districtName: 'District 1',
       wardCode: '26734',
       wardName: 'Test ward',
       postalCode: null,
@@ -195,9 +198,22 @@ describe('commerce behavior with PostgreSQL', () => {
     await db
       .getRepository(ShopMember)
       .save(memberFactory.build({ shopId: shop.id, userId: user.id }));
-    const divisions = new AdministrativeDivisionService();
-    const pickup = new PickupLocationService(db, divisions);
-    const wardCode = divisions.findWardsByProvinceCode('01')[0].code;
+    const mockGhn = {
+      provinces: jest.fn().mockResolvedValue([{ id: 201, name: 'Hà Nội' }]),
+      districts: jest
+        .fn()
+        .mockResolvedValue([{ id: 1489, name: 'Quận Hoàn Kiếm' }]),
+      wards: jest
+        .fn()
+        .mockResolvedValue([{ id: '1A0206', name: 'Phường Hàng Bài' }]),
+      create: jest.fn().mockResolvedValue({ status: 'CREATED', shopId: 12345 }),
+      findOwnedShop: jest.fn().mockResolvedValue({ _id: 12345, status: 1 }),
+    } as unknown as GhnShopClient;
+    const divisions = new AdministrativeDivisionService(mockGhn);
+    const pickup = new PickupLocationService(db, divisions, mockGhn);
+    const provinceId = 201;
+    const districtId = 1489;
+    const wardCode = '1A0206';
 
     const first = await pickup.save(
       user.id,
@@ -205,7 +221,8 @@ describe('commerce behavior with PostgreSQL', () => {
         contactName: 'Pickup contact',
         phone: '0912345678',
         addressLine1: '45 Test Street',
-        provinceCode: '01',
+        provinceId,
+        districtId,
         wardCode,
       },
       shop.id,
@@ -216,7 +233,8 @@ describe('commerce behavior with PostgreSQL', () => {
         contactName: 'Updated contact',
         phone: '0912345678',
         addressLine1: '45 Test Street',
-        provinceCode: '01',
+        provinceId,
+        districtId,
         wardCode,
       },
       shop.id,
@@ -227,7 +245,9 @@ describe('commerce behavior with PostgreSQL', () => {
       shopId: shop.id,
       contactName: 'Updated contact',
       countryCode: 'VN',
-      provinceName: divisions.resolveAddress('01', wardCode).provinceName,
+      provinceId: 201,
+      districtId: 1489,
+      wardCode: '1A0206',
     });
     expect(
       await db.getRepository(PickupLocation).countBy({ shopId: shop.id }),

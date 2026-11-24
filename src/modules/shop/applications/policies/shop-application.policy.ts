@@ -86,7 +86,10 @@ export async function pendingApplicationShop(
   manager: EntityManager,
   row: Pick<ShopApplication, 'shopId'>,
 ) {
-  const shop = await manager.findOneByOrFail(Shop, { id: row.shopId });
+  const shop = await manager.findOneOrFail(Shop, {
+    where: { id: row.shopId },
+    lock: { mode: 'pessimistic_read' },
+  });
   const pending =
     shop.onboardingRequired &&
     shop.status === ShopStatus.PENDING &&
@@ -157,7 +160,9 @@ export async function buildApplicationSnapshot(
       phone: pickup.phone,
       addressLine1: pickup.addressLine1,
       countryCode: pickup.countryCode,
-      provinceCode: pickup.provinceCode,
+      provinceId: pickup.provinceId,
+      districtId: pickup.districtId,
+      districtName: pickup.districtName,
       provinceName: pickup.provinceName,
       wardCode: pickup.wardCode,
       wardName: pickup.wardName,

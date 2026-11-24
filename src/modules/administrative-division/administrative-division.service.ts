@@ -2,77 +2,166 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
-import {
-  type AdministrativeProvince,
-  type AdministrativeWard,
-  VIETNAM_PROVINCES,
-  VIETNAM_WARDS,
-} from './data';
+import { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
+
+export interface AdministrativeProvince {
+  id: number;
+  name: string;
+}
+
+export interface AdministrativeDistrict {
+  id: number;
+  name: string;
+  provinceId: number;
+}
+
+export interface AdministrativeWard {
+  code: string;
+  name: string;
+  districtId: number;
+}
 
 export interface ResolvedVietnamAddress {
-  provinceCode: string;
+  provinceId: number;
   provinceName: string;
+  districtId: number;
+  districtName: string;
   wardCode: string;
   wardName: string;
 }
 
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 @Injectable()
 export class AdministrativeDivisionService {
-  private readonly provinceByCode = new Map(
-    VIETNAM_PROVINCES.map((province) => [province.code, province]),
-  );
+  private provincesCache: CacheEntry<readonly AdministrativeProvince[]> | null =
+    null;
+  private readonly districtsCache = new Map<
+    number,
+    CacheEntry<readonly AdministrativeDistrict[]>
+  >();
+  private readonly wardsCache = new Map<
+    number,
+    CacheEntry<readonly AdministrativeWard[]>
+  >();
 
-  private readonly wardByCode = new Map(
-    VIETNAM_WARDS.map((ward) => [ward.code, ward]),
-  );
+  constructor(@Optional() private readonly ghn?: GhnShopClient) {}
 
-  private readonly wardsByProvinceCode = VIETNAM_WARDS.reduce(
-    (wardsByProvinceCode, ward) => {
-      const wards = wardsByProvinceCode.get(ward.provinceCode) ?? [];
-      wards.push(ward);
-      wardsByProvinceCode.set(ward.provinceCode, wards);
-      return wardsByProvinceCode;
-    },
-    new Map<string, AdministrativeWard[]>(),
-  );
+  async findAllProvinces(): Promise<readonly AdministrativeProvince[]> {
+    const now = Date.now();
+    if (this.provincesCache && this.provincesCache.expiresAt > now) {
+      return this.provincesCache.data;
+    }
 
-  findAllProvinces(): readonly AdministrativeProvince[] {
-    return VIETNAM_PROVINCES;
+    if (!this.ghn) {
+      return [];
+    }
+
+    try {
+      const raw = await this.ghn.provinces();
+      const clean = (raw || []).filter((p) => !/(^Test|\b02\b)/i.test(p.name));
+      this.provincesCache = {
+        data: clean,
+        expiresAt: now + CACHE_TTL_MS,
+      };
+      return clean;
+    } catch {
+      return this.provincesCache?.data ?? [];
+    }
   }
 
-  findWardsByProvinceCode(provinceCode: string): readonly AdministrativeWard[] {
-    if (!this.provinceByCode.has(provinceCode)) {
+  async findDistrictsByProvinceId(
+    provinceId: number,
+  ): Promise<readonly AdministrativeDistrict[]> {
+    const now = Date.now();
+    const cached = this.districtsCache.get(provinceId);
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+
+    if (!this.ghn) {
+      return [];
+    }
+
+    try {
+      const raw = await this.ghn.districts(provinceId);
+      const list: AdministrativeDistrict[] = (raw || []).map((d) => ({
+        id: d.id,
+        name: d.name,
+        provinceId,
+      }));
+      this.districtsCache.set(provinceId, {
+        data: list,
+        expiresAt: now + CACHE_TTL_MS,
+      });
+      return list;
+    } catch {
+      if (cached?.data) return cached.data;
       throw new NotFoundException('Administrative province not found');
     }
-
-    return this.wardsByProvinceCode.get(provinceCode) ?? [];
   }
 
-  resolveAddress(
-    provinceCode: string,
+  async findWardsByDistrictId(
+    districtId: number,
+  ): Promise<readonly AdministrativeWard[]> {
+    const now = Date.now();
+    const cached = this.wardsCache.get(districtId);
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+
+    if (!this.ghn) {
+      return [];
+    }
+
+    try {
+      const raw = await this.ghn.wards(districtId);
+      const list: AdministrativeWard[] = (raw || []).map((w) => ({
+        code: w.id,
+        name: w.name,
+        districtId,
+      }));
+      this.wardsCache.set(districtId, {
+        data: list,
+        expiresAt: now + CACHE_TTL_MS,
+      });
+      return list;
+    } catch {
+      if (cached?.data) return cached.data;
+      return [];
+    }
+  }
+
+  async resolveAddress(
+    provinceId: number,
+    districtId: number,
     wardCode: string,
-  ): ResolvedVietnamAddress {
-    const province = this.provinceByCode.get(provinceCode);
-    if (!province) {
-      throw new BadRequestException('Invalid province code');
-    }
+  ): Promise<ResolvedVietnamAddress> {
+    const provinces = await this.findAllProvinces();
+    const province = provinces.find((p) => p.id === provinceId);
+    if (!province) throw new BadRequestException('Invalid province ID');
 
-    const ward = this.wardByCode.get(wardCode);
-    if (!ward) {
-      throw new BadRequestException('Invalid ward code');
-    }
+    const districts = await this.findDistrictsByProvinceId(provinceId);
+    const district = districts.find((d) => d.id === districtId);
+    if (!district) throw new BadRequestException('Invalid district ID');
 
-    if (ward.provinceCode !== province.code) {
-      throw new BadRequestException(
-        'Ward does not belong to the selected province',
-      );
-    }
+    const wards = await this.findWardsByDistrictId(districtId);
+    const ward = wards.find((w) => w.code === wardCode);
+    if (!ward) throw new BadRequestException('Invalid ward code');
 
     return {
-      provinceCode: province.code,
+      provinceId: province.id,
       provinceName: province.name,
+      districtId: district.id,
+      districtName: district.name,
       wardCode: ward.code,
       wardName: ward.name,
     };

@@ -12,8 +12,9 @@ export const createUserAddressSchema = z.strictObject({
   addressLine1: trimmedTextSchema.min(1).max(255),
   addressLine2: trimmedTextSchema.min(1).max(255).nullish(),
   countryCode: optionalInput(trimmedTextSchema.pipe(z.literal('VN'))),
-  provinceCode: trimmedTextSchema.regex(/^\d{2}$/),
-  wardCode: trimmedTextSchema.regex(/^\d{5}$/),
+  provinceId: z.coerce.number().int().positive(),
+  districtId: z.coerce.number().int().positive(),
+  wardCode: trimmedTextSchema.min(1).max(20),
   postalCode: trimmedTextSchema.min(1).max(20).nullish(),
   deliveryInstructions: trimmedTextSchema.min(1).max(255).nullish(),
   isDefault: optionalInput(z.boolean()),
@@ -25,7 +26,8 @@ export const updateUserAddressSchema = createUserAddressSchema
     recipientName: optionalInput(createUserAddressSchema.shape.recipientName),
     phone: optionalInput(createUserAddressSchema.shape.phone),
     addressLine1: optionalInput(createUserAddressSchema.shape.addressLine1),
-    provinceCode: optionalInput(createUserAddressSchema.shape.provinceCode),
+    provinceId: optionalInput(createUserAddressSchema.shape.provinceId),
+    districtId: optionalInput(createUserAddressSchema.shape.districtId),
     wardCode: optionalInput(createUserAddressSchema.shape.wardCode),
   });
 

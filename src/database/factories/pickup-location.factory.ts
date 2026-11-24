@@ -12,10 +12,13 @@ export class PickupLocationFactory extends BaseFactory<PickupLocation> {
       phone: '0909876543',
       addressLine1: faker.location.streetAddress(),
       countryCode: 'VN',
-      provinceCode: '79',
-      provinceName: 'Thành phố Hồ Chí Minh',
-      wardCode: '26743',
-      wardName: 'Phường Bến Thành',
+      provinceId: 201,
+      provinceName: 'Hà Nội',
+      districtId: 1489,
+      districtName: 'Quận Hoàn Kiếm',
+      wardCode: '1A0206',
+      wardName: 'Phường Hàng Bài',
+      ghnSyncStatus: 'NOT_CONNECTED',
     };
   }
 }

@@ -33,9 +33,9 @@ export type { GhnShipmentSnapshot } from '../types/ghn-shipment.type';
 @Injectable()
 export class GhnShipmentClient {
   constructor(private readonly adapter: GhnSandboxAdapter) {}
-  private config() {
+  private config(ghnShopId?: number) {
     const token = process.env.GHN_SANDBOX_TOKEN;
-    const shop = Number(process.env.GHN_SANDBOX_SHOP_ID);
+    const shop = ghnShopId ?? Number(process.env.GHN_SANDBOX_SHOP_ID);
     if (
       process.env.GHN_BOOKING_ENABLED !== 'true' ||
       process.env.GHN_SANDBOX_ENABLED !== 'true' ||
@@ -46,8 +46,12 @@ export class GhnShipmentClient {
       throw failure();
     return { token, shop };
   }
-  private async request(path: string, body?: unknown): Promise<unknown> {
-    const { token, shop } = this.config();
+  private async request(
+    path: string,
+    body?: unknown,
+    ghnShopId?: number,
+  ): Promise<unknown> {
+    const { token, shop } = this.config(ghnShopId);
     try {
       const response = await fetch(host + '/shiip/public-api' + path, {
         method: body === undefined ? 'GET' : 'POST',
@@ -109,12 +113,12 @@ export class GhnShipmentClient {
       throw failure();
     }
   }
-  async create(payload: Readonly<Record<string, unknown>>) {
+  async create(payload: Readonly<Record<string, unknown>>, ghnShopId?: number) {
     this.config();
     try {
       const body = shipmentPayloadSchema.parse(payload);
       const result = createSchema.parse(
-        await this.request('/v2/shipping-order/create', body),
+        await this.request('/v2/shipping-order/create', body, ghnShopId),
       );
       return {
         orderCode: result.order_code,
@@ -125,14 +129,19 @@ export class GhnShipmentClient {
       throw failure();
     }
   }
-  async query(clientCode: string): Promise<GhnShipmentSnapshot> {
-    const { shop } = this.config();
+  async query(
+    clientCode: string,
+    ghnShopId?: number,
+  ): Promise<GhnShipmentSnapshot> {
+    const { shop } = this.config(ghnShopId);
     try {
       clientCodeSchema.parse(clientCode);
       const row = detailSchema.parse(
         await this.request(
           '/v2/shipping-order/detail-by-client-code?client_order_code=' +
             encodeURIComponent(clientCode),
+          undefined,
+          ghnShopId,
         ),
       );
       if (row.client_order_code !== clientCode || row.shop_id !== shop)
@@ -154,14 +163,18 @@ export class GhnShipmentClient {
       throw failure();
     }
   }
-  async cancel(orderCode: string): Promise<boolean> {
+  async cancel(orderCode: string, ghnShopId?: number): Promise<boolean> {
     this.config();
     try {
       orderCodeSchema.parse(orderCode);
       const rows = cancelSchema.parse(
-        await this.request('/v2/switch-status/cancel', {
-          order_codes: [orderCode],
-        }),
+        await this.request(
+          '/v2/switch-status/cancel',
+          {
+            order_codes: [orderCode],
+          },
+          ghnShopId,
+        ),
       );
       if (rows[0].order_code !== orderCode) throw failure();
       return rows[0].result;
@@ -170,14 +183,18 @@ export class GhnShipmentClient {
     }
   }
   /** Acknowledges a return request; physical return requires a later snapshot. */
-  async requestReturn(orderCode: string): Promise<boolean> {
+  async requestReturn(orderCode: string, ghnShopId?: number): Promise<boolean> {
     this.config();
     try {
       orderCodeSchema.parse(orderCode);
       const rows = cancelSchema.parse(
-        await this.request('/v2/switch-status/return', {
-          order_codes: [orderCode],
-        }),
+        await this.request(
+          '/v2/switch-status/return',
+          {
+            order_codes: [orderCode],
+          },
+          ghnShopId,
+        ),
       );
       if (rows[0].order_code !== orderCode) throw failure();
       return rows[0].result;
@@ -185,12 +202,16 @@ export class GhnShipmentClient {
       throw failure();
     }
   }
-  async print(orderCode: string): Promise<{ url: string }> {
+  async print(orderCode: string, ghnShopId?: number): Promise<{ url: string }> {
     this.config();
     try {
       orderCodeSchema.parse(orderCode);
       const row = printSchema.parse(
-        await this.request('/v2/a5/gen-token', { order_codes: [orderCode] }),
+        await this.request(
+          '/v2/a5/gen-token',
+          { order_codes: [orderCode] },
+          ghnShopId,
+        ),
       );
       return {
         url:

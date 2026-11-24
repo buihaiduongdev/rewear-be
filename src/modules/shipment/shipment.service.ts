@@ -155,7 +155,10 @@ export class ShipmentService {
 
   private async submitBooking(shipment: Shipment) {
     try {
-      const response = await this.carrier.create(shipment.payload);
+      const response = await this.carrier.create(
+        shipment.payload,
+        shipment.input.ghnShopId,
+      );
       await this.db.transaction(async (manager) => {
         await this.lock(manager);
         const row = await manager.findOneByOrFail(Shipment, {
@@ -249,7 +252,7 @@ export class ShipmentService {
       !orderCode || row.state !== SHIPMENT_STATE.BOOKED;
     if (bookingUnconfirmed)
       throw new ConflictException('Confirmed carrier booking is required');
-    return this.carrier.print(orderCode);
+    return this.carrier.print(orderCode, row.input.ghnShopId);
   }
 
   async reconcile(id: string) {
@@ -270,7 +273,7 @@ export class ShipmentService {
     });
     if (!lease) return;
     try {
-      let snapshot = await this.carrier.query(id);
+      let snapshot = await this.carrier.query(id, lease.input.ghnShopId);
       const cancellation = await this.apply(id, snapshot);
       const carrierRecoveryRequired =
         cancellation &&
@@ -278,9 +281,13 @@ export class ShipmentService {
         snapshot.status !== GHN_SHIPMENT_STATUS.RETURNED;
       if (carrierRecoveryRequired) {
         if (cancellation === SHIPMENT_RECOVERY_ACTION.RETURN)
-          await this.carrier.requestReturn(snapshot.orderCode);
-        else await this.carrier.cancel(snapshot.orderCode);
-        snapshot = await this.carrier.query(id);
+          await this.carrier.requestReturn(
+            snapshot.orderCode,
+            lease.input.ghnShopId,
+          );
+        else
+          await this.carrier.cancel(snapshot.orderCode, lease.input.ghnShopId);
+        snapshot = await this.carrier.query(id, lease.input.ghnShopId);
         await this.apply(id, snapshot);
       }
     } catch {
