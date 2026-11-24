@@ -25,52 +25,46 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const other = await db.getRepository(Shop).save({ name: 'Allowed shop' });
-    const checkout = await db
-      .getRepository(Checkout)
-      .save({
-        buyerId: f.buyer.id,
-        requestId: randomUUID(),
-        addressId: randomUUID(),
-        requestedProductIds: [],
-        address: {} as never,
-        status: 'HELD',
-        expiresAt: new Date(Date.now() + 600000),
-        removedItems: [],
-      });
+    const checkout = await db.getRepository(Checkout).save({
+      buyerId: f.buyer.id,
+      requestId: randomUUID(),
+      addressId: randomUUID(),
+      requestedProductIds: [],
+      address: {} as never,
+      status: 'HELD',
+      expiresAt: new Date(Date.now() + 600000),
+      removedItems: [],
+    });
     const orders = [];
     const products = [];
     for (const shop of [f.shop, other]) {
-      const product = await db
-        .getRepository(Product)
-        .save({
-          shopId: shop.id,
-          title: 'Visible item',
-          price: 100000,
-          condition: ProductCondition.GOOD,
-          status: ProductStatus.HELD,
-          reservationId: checkout.id,
-          heldUntil: checkout.expiresAt,
-        });
+      const product = await db.getRepository(Product).save({
+        shopId: shop.id,
+        title: 'Visible item',
+        price: 100000,
+        condition: ProductCondition.GOOD,
+        status: ProductStatus.HELD,
+        reservationId: checkout.id,
+        heldUntil: checkout.expiresAt,
+      });
       products.push(product);
       orders.push(
-        await db
-          .getRepository(CheckoutOrder)
-          .save({
-            checkoutId: checkout.id,
-            shopId: shop.id,
-            address: {} as never,
-            items: [
-              {
-                productId: product.id,
-                title: 'Visible item',
-                price: 100000,
-                condition: 'GOOD',
-                size: null,
-                coverUrl: null,
-              },
-            ],
-            subtotal: 100000,
-          }),
+        await db.getRepository(CheckoutOrder).save({
+          checkoutId: checkout.id,
+          shopId: shop.id,
+          address: {} as never,
+          items: [
+            {
+              productId: product.id,
+              title: 'Visible item',
+              price: 100000,
+              condition: 'GOOD',
+              size: null,
+              coverUrl: null,
+            },
+          ],
+          subtotal: 100000,
+        }),
       );
     }
     await db
@@ -136,16 +130,14 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
       pricing.snapshot(db.manager, result, { checkoutId: result.id, quote }),
     ).rejects.toThrow('Confirm');
     const shipping = new ShippingQuoteService(db, {} as never);
-    jest
-      .spyOn(shipping, 'refresh')
-      .mockResolvedValue({
-        ...quote,
-        identityQuoteFingerprint: identityQuoteFingerprint(
-          result,
-          remaining,
-          quote,
-        ),
-      });
+    jest.spyOn(shipping, 'refresh').mockResolvedValue({
+      ...quote,
+      identityQuoteFingerprint: identityQuoteFingerprint(
+        result,
+        remaining,
+        quote,
+      ),
+    });
     await shipping.confirmIdentityReview(
       f.buyer.id,
       result.id,
@@ -181,17 +173,15 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
   it('does not change an UNKNOWN provider amount, stock or Shop allocation', async () => {
     const f = await fixture();
     const db = database.dataSource;
-    await db
-      .getRepository(PaymentAttempt)
-      .save({
-        checkoutId: f.checkout.id,
-        buyerId: f.buyer.id,
-        requestId: randomUUID(),
-        amount: 250000,
-        orders: [],
-        state: 'UNKNOWN',
-        nextQueryAt: new Date(),
-      });
+    await db.getRepository(PaymentAttempt).save({
+      checkoutId: f.checkout.id,
+      buyerId: f.buyer.id,
+      requestId: randomUUID(),
+      amount: 250000,
+      orders: [],
+      state: 'UNKNOWN',
+      nextQueryAt: new Date(),
+    });
     const result = await prune(f.checkout.id);
     expect(result.identityReviewRequired).toBe(true);
     expect(result.removedItems).toEqual([]);
