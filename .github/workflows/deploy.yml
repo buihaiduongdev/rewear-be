@@ -64,10 +64,8 @@ jobs:
             --parameters 'commands=[
               "set -e",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin '${ECR_REGISTRY}'",
-              "docker pull '${ECR_REGISTRY}'/'${ECR_REPOSITORY}':'${IMAGE_TAG}'",
-              "docker stop rewear-be || true",
-              "docker rm rewear-be || true",
-              "docker run -d --name rewear-be --network host --restart unless-stopped --env-file /home/ubuntu/.env '${ECR_REGISTRY}'/'${ECR_REPOSITORY}':'${IMAGE_TAG}'"
+              "IMAGE_TAG='${IMAGE_TAG}' docker compose -f /home/ubuntu/docker-compose.prod.yml pull backend",
+              "IMAGE_TAG='${IMAGE_TAG}' docker compose -f /home/ubuntu/docker-compose.prod.yml up -d --no-deps backend"
             ]' --query "Command.CommandId" --output text)
 
           if ! aws ssm wait command-executed \

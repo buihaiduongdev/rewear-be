@@ -9,13 +9,11 @@ coverage/
 .tmp/
 graphify-out/
 docs/superpowers/
-terraform/
 *.tfstate
 *.tfstate.*
 .terraform/
+**/.terraform/
+**/.terraform.lock.hcl
 *.tfvars
 *.tfvars.json
-
-
-# Local Terraform state and provider files
-/terraform/
+terraform/environments/oci/

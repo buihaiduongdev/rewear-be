@@ -184,6 +184,46 @@ NGINX_CONF
               rm -f /etc/nginx/sites-enabled/default
               ln -sf /etc/nginx/sites-available/rewear /etc/nginx/sites-enabled/rewear
               systemctl restart nginx
+
+              # Setup production docker-compose
+              cat <<'COMPOSE_CONF' > /home/ubuntu/docker-compose.prod.yml
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rewear-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: $${DB_USERNAME}
+      POSTGRES_PASSWORD: $${DB_PASSWORD}
+      POSTGRES_DB: $${DB_NAME}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${DB_USERNAME} -d $${DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    image: $${IMAGE_REGISTRY:-955449981747.dkr.ecr.ap-southeast-1.amazonaws.com}/$${IMAGE_REPOSITORY:-rewear-be}:$${IMAGE_TAG:-latest}
+    container_name: rewear-be
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    external: true
+    name: ubuntu_postgres_data
+COMPOSE_CONF
+              chown ubuntu:ubuntu /home/ubuntu/docker-compose.prod.yml
               EOF
 
   tags = {
