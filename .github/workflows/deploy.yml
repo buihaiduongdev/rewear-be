@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Docker image tag to deploy (mặc định: latest)'
+        description: 'Docker image tag to deploy (default: latest)'
         required: false
         default: 'latest'
 
