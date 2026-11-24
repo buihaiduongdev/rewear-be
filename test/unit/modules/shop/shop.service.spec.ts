@@ -15,6 +15,8 @@ describe('ShopService', () => {
     name: 'Re.wear Closet',
     description: null,
     logoUrl: null,
+    onboardingRequired: false,
+    approvedAt: null,
     status: ShopStatus.ACTIVE,
     members: [],
     createdAt: new Date('2026-10-18T00:00:00.000Z'),
@@ -63,6 +65,7 @@ describe('ShopService', () => {
     save: jest.fn(),
   };
   const entityManager = {
+    query: jest.fn(),
     findOneOrFail: jest.fn(),
     findOneBy: jest.fn(),
     findOneByOrFail: jest.fn(),
@@ -124,7 +127,7 @@ describe('ShopService', () => {
     });
   });
 
-  it('creates the shop and its active owner in one transaction', async () => {
+  it('creates a pending shop and its owner in one transaction', async () => {
     const newShop = { ...shop };
     const newOwner = { ...ownerMembership };
     entityManager.create
@@ -147,7 +150,9 @@ describe('ShopService', () => {
       name: 'Re.wear Closet',
       description: null,
       logoUrl: null,
-      status: ShopStatus.ACTIVE,
+      status: ShopStatus.PENDING,
+      onboardingRequired: true,
+      approvedAt: null,
     });
     expect(entityManager.create).toHaveBeenNthCalledWith(2, ShopMember, {
       shopId: shop.id,

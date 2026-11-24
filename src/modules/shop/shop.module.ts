@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 
+import { ShopApplicationModule } from './applications/shop-application.module';
 import { Shop, ShopMember } from './entities';
 import { ShopInvitation } from './entities/shop-invitation.entity';
 import { ShopLogoController } from './shop-logo.controller';
@@ -13,6 +14,7 @@ import { ShopService } from './shop.service';
 
 @Module({
   imports: [
+    ShopApplicationModule,
     AuthorizationModule,
     StorageModule,
     TypeOrmModule.forFeature([Shop, ShopMember, ShopInvitation]),

@@ -78,9 +78,12 @@ export class ShopLogoService {
       metadata.sizeBytes !== input.sizeBytes
     )
       throw new BadRequestException('Uploaded logo metadata does not match');
-    const repo = this.db.getRepository(Shop);
-    const shop = await repo.findOneByOrFail({ id: shopId });
-    shop.logoUrl = this.storage.getPublicUrl(input.storageKey);
-    return repo.save(shop);
+    return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+      const repo = manager.getRepository(Shop);
+      const shop = await repo.findOneByOrFail({ id: shopId });
+      shop.logoUrl = this.storage.getPublicUrl(input.storageKey);
+      return repo.save(shop);
+    });
   }
 }
