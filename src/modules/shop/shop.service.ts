@@ -14,6 +14,7 @@ import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { User } from '@/modules/user/entities';
 
+import { publicIdentitySaleState } from './applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from './entities';
 import { ShopInvitation } from './entities/shop-invitation.entity';
 import { ShopMemberRole, ShopStatus } from './enums';
@@ -35,18 +36,20 @@ export class ShopService {
     private readonly shopRoleService: ShopRoleService,
   ) {}
 
-  findAll(): Promise<Shop[]> {
-    return this.shopRepository.find({
+  async findAll(): Promise<Shop[]> {
+    const rows = await this.shopRepository.find({
       where: { status: ShopStatus.ACTIVE },
       order: { createdAt: 'DESC' },
     });
+    return rows.map((row) => ({ ...row, ...publicIdentitySaleState(row) }));
   }
 
-  findOne(id: string): Promise<Shop> {
-    return this.shopRepository.findOneByOrFail({
+  async findOne(id: string): Promise<Shop> {
+    const row = await this.shopRepository.findOneByOrFail({
       id,
       status: ShopStatus.ACTIVE,
     });
+    return { ...row, ...publicIdentitySaleState(row) };
   }
 
   create(userId: string, input: CreateShopInput): Promise<Shop> {
@@ -117,7 +120,11 @@ export class ShopService {
       relations: { shop: true },
       order: { joinedAt: 'DESC' },
     });
-    return members.map((m) => ({ ...m, status: 'ACTIVE' }));
+    return members.map((m) => ({
+      ...m,
+      shop: { ...m.shop, ...publicIdentitySaleState(m.shop) },
+      status: 'ACTIVE',
+    }));
   }
 
   async findMembers(

@@ -18,6 +18,7 @@ import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
@@ -365,12 +366,15 @@ export class WalletCheckoutService {
       )
     )
       throw new ConflictException('Checkout stock is no longer reserved');
-    for (const id of [...new Set(orders.map((row) => row.shopId))].sort())
-      await manager.findOneOrFail(Shop, {
+    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    for (const id of [...new Set(orders.map((row) => row.shopId))].sort()) {
+      const shop = await manager.findOneOrFail(Shop, {
         where: { id, status: ShopStatus.ACTIVE },
         lock: { mode: 'pessimistic_read' },
       });
-    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+      if (!shopAllowsIdentitySales(shop, new Date(now)))
+        throw new ConflictException('Shop identity requires review');
+    }
     return new Date(now);
   }
 }

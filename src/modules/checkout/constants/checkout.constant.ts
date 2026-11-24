@@ -7,6 +7,9 @@ export const CHECKOUT_STATUS = {
   COD_PLACED: 'COD_PLACED',
 } as const;
 
-export const CHECKOUT_REMOVAL_REASON = { NOT_IN_CART: 'NOT_IN_CART' } as const;
+export const CHECKOUT_REMOVAL_REASON = {
+  IDENTITY_RESTRICTED: 'IDENTITY_RESTRICTED',
+  NOT_IN_CART: 'NOT_IN_CART',
+} as const;
 export const CHECKOUT_HOLD_SECONDS = 600;
 export const CHECKOUT_MAX_ITEMS = 50;

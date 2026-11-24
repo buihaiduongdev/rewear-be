@@ -13,6 +13,7 @@ import { ShopStatus } from '../../enums';
 import {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
+  SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_POLICY,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
@@ -84,12 +85,19 @@ export function validateApplicantIdentity(
 }
 export async function pendingApplicationShop(
   manager: EntityManager,
-  row: Pick<ShopApplication, 'shopId'>,
+  row: Pick<ShopApplication, 'shopId'> & Partial<Pick<ShopApplication, 'kind'>>,
 ) {
   const shop = await manager.findOneOrFail(Shop, {
     where: { id: row.shopId },
     lock: { mode: 'pessimistic_read' },
   });
+  if (row.kind === SHOP_APPLICATION_KIND.RENEWAL) {
+    if (!shop.onboardingRequired || !shop.approvedAt)
+      throw new ConflictException(
+        'Approved Shop identity is required for renewal',
+      );
+    return shop;
+  }
   const pending =
     shop.onboardingRequired &&
     shop.status === ShopStatus.PENDING &&

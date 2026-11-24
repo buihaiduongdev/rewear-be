@@ -7,9 +7,13 @@ import {
 import { DataSource } from 'typeorm';
 import z from 'zod';
 
-import { SHOP_APPLICATION_STATE } from './constants/shop-application.constant';
+import {
+  SHOP_APPLICATION_KIND,
+  SHOP_APPLICATION_STATE,
+} from './constants/shop-application.constant';
 import { approveShopApplication } from './policies/approve-shop-application';
 import { pendingApplicationShop } from './policies/shop-application.policy';
+import { decideOwnerRenewal } from './renewal/renewal-decision.policy';
 import { applicationDecisionSchema } from './schemas/shop-application.schema';
 import { ShopApplicationReadService } from './shop-application-read.service';
 import {
@@ -51,11 +55,14 @@ export class ShopApplicationAdminService {
         throw new ConflictException('Application is not awaiting review');
       await this.access.owner(manager, row.applicantId, row.shopId);
       const shop = await pendingApplicationShop(manager, row);
-      if (data.outcome === SHOP_APPLICATION_STATE.APPROVED)
+      if (row.kind === SHOP_APPLICATION_KIND.RENEWAL)
+        await decideOwnerRenewal(manager, row, shop, data, now);
+      else if (data.outcome === SHOP_APPLICATION_STATE.APPROVED)
         await approveShopApplication(manager, row, shop, now);
       row.state = data.outcome;
       row.version++;
       row.reason = data.reason;
+      row.reasonCategory = data.reasonCategory ?? null;
       row.adminNote = data.adminNote;
       await manager.save(row);
       await applicationCommand(manager, actorId, data.requestId, id, payload);
@@ -67,6 +74,7 @@ export class ShopApplicationAdminService {
         data.reason,
         data.adminNote,
         data.identityCheckEvidence ?? null,
+        data.samePersonConfirmed ?? null,
       );
       return this.read.view(manager, row, true);
     });

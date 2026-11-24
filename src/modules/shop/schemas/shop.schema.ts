@@ -5,6 +5,7 @@ import { dateTimeSchema } from '@/common/schemas';
 import { ShopMemberRole, ShopStatus } from '../enums';
 
 export const shopSchema = z.object({
+  identitySalesPaused: z.boolean().default(false),
   id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),

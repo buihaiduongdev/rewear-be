@@ -106,7 +106,9 @@ describe('ShopService', () => {
   it('lists only active shops in newest-first order', async () => {
     shopRepository.find.mockResolvedValueOnce([shop]);
 
-    await expect(service.findAll()).resolves.toEqual([shop]);
+    await expect(service.findAll()).resolves.toEqual([
+      { ...shop, identitySalesPaused: false },
+    ]);
     expect(shopRepository.find).toHaveBeenCalledWith({
       where: { status: ShopStatus.ACTIVE },
       order: { createdAt: 'DESC' },

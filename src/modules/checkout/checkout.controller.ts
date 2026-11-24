@@ -1,12 +1,15 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import type z from 'zod';
+
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
 import { CheckoutService } from './checkout.service';
+import { confirmIdentityCheckoutSchema } from './schemas/checkout.schema';
 import { selectCheckoutCoinsSchema } from './schemas/checkout.schema';
 import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
 import {
@@ -28,6 +31,22 @@ export class CheckoutController {
     private readonly checkoutService: CheckoutService,
     private readonly shippingQuoteService: ShippingQuoteService,
   ) {}
+  @AuthenticatedAccess()
+  @Post(':id/identity-review/confirm')
+  @HttpCode(200)
+  @Serialize(shippingQuoteSchema)
+  confirmIdentity(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: confirmIdentityCheckoutSchema })
+    input: z.input<typeof confirmIdentityCheckoutSchema>,
+  ) {
+    return this.shippingQuoteService.confirmIdentityReview(
+      user.id,
+      id,
+      input.fingerprint,
+    );
+  }
   @AuthenticatedAccess()
   @Post(':id/shipping-quotes')
   @HttpCode(200)

@@ -7,6 +7,24 @@ import { ShopMember } from './shop-member.entity';
 
 @Entity('shops')
 export class Shop extends BaseEntity {
+  @Column({ type: 'date', nullable: true })
+  identityExpiresOn?: string | null;
+  @Column({ type: 'integer', default: 0 })
+  identityDocumentVersion?: number;
+  @Column({ default: false })
+  identityReviewProtected?: boolean;
+  @Column({ type: 'timestamptz', nullable: true })
+  identityCorrectionUntil?: Date | null;
+  @Column({ default: false })
+  identityManualRestriction?: boolean;
+  @Column({ default: false })
+  identityObservedRestricted?: boolean;
+  @Column({ type: 'integer', default: 0 })
+  identityNoticeRevision?: number;
+  @Column({ type: 'integer', default: 0 })
+  identityExpiryNotifiedVersion?: number;
+  @Column({ type: 'timestamptz', nullable: true })
+  identityNextCheckAt?: Date | null;
   @Column({ default: false })
   onboardingRequired: boolean;
 

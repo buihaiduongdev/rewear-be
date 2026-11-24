@@ -22,6 +22,7 @@ import { Category } from '@/modules/category/entities';
 import { MediaLink } from '@/modules/media/entities';
 import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
 import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
@@ -119,6 +120,7 @@ export class ProductService {
   ): Promise<ProductView> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
     const product = await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await this.assertActiveShop(input.shopId, manager);
       return manager.getRepository(Product).save(
         manager.getRepository(Product).create({
@@ -180,6 +182,7 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       this.assertEditable(product);
       if (input.categoryId)
@@ -278,6 +281,7 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (
         ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
@@ -296,6 +300,7 @@ export class ProductService {
 
   async submit(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
@@ -327,6 +332,7 @@ export class ProductService {
 
   async cancelSubmission(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.PENDING_REVIEW) {
         throw new ConflictException(
@@ -350,6 +356,7 @@ export class ProductService {
     input: ModerateProductInput,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id);
       const moderation = await manager.findOneByOrFail(ProductModeration, {
         productId: id,
@@ -540,6 +547,12 @@ export class ProductService {
       const mediaLinks = byProduct.get(product.id) ?? [];
       return {
         ...product,
+        shop: product.shop
+          ? {
+              ...product.shop,
+              identitySalesPaused: !shopAllowsIdentitySales(product.shop),
+            }
+          : product.shop,
         coverUrl:
           mediaLinks.find((link) => link.role === MediaRole.COVER)?.media.url ??
           null,
@@ -596,7 +609,13 @@ export class ProductService {
     const shop = await (
       manager?.getRepository(Shop) ?? this.shopRepository
     ).findOneByOrFail({ id: shopId });
-    if (shop.status !== ShopStatus.ACTIVE) {
+    const [{ now }] = manager
+      ? await manager.query('SELECT clock_timestamp() AS now')
+      : [{ now: new Date() }];
+    if (
+      shop.status !== ShopStatus.ACTIVE ||
+      !shopAllowsIdentitySales(shop, new Date(now))
+    ) {
       throw new BadRequestException('Shop is not active');
     }
   }

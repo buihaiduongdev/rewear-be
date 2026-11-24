@@ -18,6 +18,11 @@ import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { ShopApplicationMediaService } from './media/shop-application-media.service';
+import { OwnerIdentityRenewalService } from './renewal/owner-identity-renewal.service';
+import {
+  createIdentityRenewalSchema,
+  submitIdentityRenewalSchema,
+} from './renewal/renewal.schema';
 import {
   adminApplicationViewSchema,
   applicationCreateSchema,
@@ -41,11 +46,34 @@ import { ShopApplicationService } from './shop-application.service';
 @Controller()
 export class ShopApplicationController {
   constructor(
+    private readonly renewals: OwnerIdentityRenewalService,
     private readonly applications: ShopApplicationService,
     private readonly read: ShopApplicationReadService,
     private readonly admins: ShopApplicationAdminService,
     private readonly media: ShopApplicationMediaService,
   ) {}
+  @Post('shops/:shopId/identity-renewals')
+  @HttpCode(200)
+  @Serialize(applicationViewSchema)
+  createRenewal(
+    @CurrentUser() user: User,
+    @Param('shopId', { schema: uuidSchema }) shopId: string,
+    @Body({ schema: createIdentityRenewalSchema })
+    input: z.input<typeof createIdentityRenewalSchema>,
+  ) {
+    return this.renewals.create(user.id, shopId, input);
+  }
+  @Post('shop-applications/:id/renewal-submissions')
+  @HttpCode(200)
+  @Serialize(applicationViewSchema)
+  submitRenewal(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: submitIdentityRenewalSchema })
+    input: z.input<typeof submitIdentityRenewalSchema>,
+  ) {
+    return this.renewals.submit(user.id, id, input);
+  }
   @Post('shops/:shopId/application')
   @HttpCode(200)
   @Serialize(applicationViewSchema)

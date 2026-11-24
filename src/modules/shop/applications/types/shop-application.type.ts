@@ -1,8 +1,12 @@
 import type {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
+  SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
+
+export type ShopApplicationKind =
+  (typeof SHOP_APPLICATION_KIND)[keyof typeof SHOP_APPLICATION_KIND];
 
 export type ShopApplicationState =
   (typeof SHOP_APPLICATION_STATE)[keyof typeof SHOP_APPLICATION_STATE];
@@ -38,13 +42,13 @@ export type ShopApplicationSnapshot = {
     provinceName: string;
     wardCode: string;
     wardName: string;
-  };
+  } | null;
   bank: {
     id: string;
     bankCode: string;
     accountNumber: string;
     accountName: string;
     confirmedBy: string;
-  };
+  } | null;
   documents: { id: string; slot: IdentityDocumentSlot }[];
 };

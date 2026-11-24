@@ -1138,3 +1138,14 @@
 - **Review:** Independent reviewer found authorization revocation could race approval. Transactional User read locks now cover current Admin/Owner through commit; deterministic PostgreSQL lock-timeout regression watched fail then pass. Profile/pickup updates share commerce lock with snapshots. Reviewer verified fix without further important finding; human approval not asserted.
 - **Validation:** Dedicated serial rewear_test and fake storage; pending sale/activation gate, age/expiry, exact duplicate approval, stale snapshots, media privacy, replay, revocation, schema/HTTP tests. Full local app checks remain dependent on missing xstate from main; final PR records integrated CI results. No live identity documents uploaded, SMTP/provider call or developer DB reset.
 - **Docs/scope:** docs/orders/SHOP_APPLICATIONS.md. Existing legacy/seed Shops not retroactively labeled verified. Renewal/grace, fraud effects and identity appeals remain later work; existing two-level pickup versus three-level address decision is a separate integration gap.
+
+### 2026-11-24 — Gia hạn giấy tờ Owner, ân hạn và bảo vệ checkout
+
+- **Người thực hiện:** Bùi Thanh Tâm.
+- **Công cụ:** Codex.
+- **Mục đích và phạm vi:** SELLER-REG-10..19: chu kỳ gia hạn riêng, ân hạn 30 ngày theo ngày Việt Nam, bổ sung ảnh 7 ngày không đặt lại, duyệt cùng người và kiểm tra định danh trùng tài khoản; hạn chế giao dịch mới nhưng giữ sản phẩm hiển thị và quản lý đơn cũ.
+- **Prompt chính:** Làm phần gia hạn giấy tờ Owner rồi merge sau kiểm tra.
+- **Đầu ra sử dụng:** API Owner/Admin dùng kho tài liệu riêng và audit hiện có; worker thông báo hết hạn; gate sản phẩm/cart/MoMo/COD/ví; loại phần Shop bị hạn chế khỏi checkout và yêu cầu buyer xác nhận báo phí mới. Không sửa số tiền MoMo chưa rõ kết quả; capture không hợp lệ đi theo refund hiện có. Duyệt không tự mở Shop/sản phẩm bị ngừng vì lý do khác.
+- **Kiểm chứng:** PostgreSQL rewear_test chạy tuần tự: 17 test cho onboarding, renewal, checkout; unit schema/gate 5 test; Node payment/pricing/worker kiểm tra capture và refund. Oxlint sạch. Full build/typecheck/regression tiếp tục trên CI vì dependency xstate chưa có trong node_modules local; không gọi provider/SMTP thật.
+- **Điểm đã rà soát và sửa:** Review độc lập phát hiện thiếu fingerprint trả về và một số gate ở ví/MoMo/public Shop; đã nối đầy đủ và thêm kiểm tra checkout/capture. Không đặt lại deadline bổ sung hoặc gia hạn TTL checkout.
+- **Giới hạn:** Chưa triển khai xử lý gian lận định danh và khiếu nại định danh; frontend và kiểm chứng tài khoản nhà cung cấp thật là phần riêng.

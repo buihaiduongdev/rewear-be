@@ -24,6 +24,8 @@ import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
+import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/identity-renewal.worker';
+import { Shop } from '@/modules/shop/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import type { User } from '@/modules/user/entities';
@@ -72,6 +74,7 @@ describe('Owner KYC application HTTP', () => {
       ShipmentWorker,
       DisputeWorker,
       CoinRewardWorker,
+      IdentityRenewalWorker,
     ])
       builder = builder.overrideProvider(worker).useValue({});
     const module = await builder
@@ -258,5 +261,93 @@ describe('Owner KYC application HTTP', () => {
     expect(doc.paths).toHaveProperty(
       '/api/shop-application-documents/{id}/download',
     );
+  });
+  it('renews through private HTTP routes without bank/pickup resubmission and exposes a safe pause notice', async () => {
+    const server = app.getHttpServer();
+    await db
+      .getRepository(Shop)
+      .update(shopId, { identityManualRestriction: true });
+    const publicShop = await request(server)
+      .get(`/api/shops/${shopId}`)
+      .expect(200);
+    expect(publicShop.body.data.identitySalesPaused).toBe(true);
+    expect(publicShop.body.data).not.toHaveProperty('identityExpiresOn');
+    const memberships = await request(server)
+      .get('/api/shops/me')
+      .auth(token(f.buyer), { type: 'bearer' })
+      .expect(200);
+    expect(
+      memberships.body.data.find((m: { shopId: string }) => m.shopId === shopId)
+        .shop.identitySalesPaused,
+    ).toBe(true);
+    const renewal = await request(server)
+      .post(`/api/shops/${shopId}/identity-renewals`)
+      .auth(token(f.buyer), { type: 'bearer' })
+      .send({ requestId: randomUUID() })
+      .expect(200);
+    const id = renewal.body.data.id;
+    expect(renewal.body.data.kind).toBe('RENEWAL');
+    const original = await request(server)
+      .get(`/api/shop-applications/${applicationId}`)
+      .auth(token(f.buyer), { type: 'bearer' })
+      .expect(200);
+    const identity = {
+      ...original.body.data.snapshot.identity,
+      expiresOn: '2099-01-01',
+    };
+    const input = {
+      requestId: randomUUID(),
+      expectedVersion: renewal.body.data.version,
+      identity,
+      documentIds: docs,
+    };
+    await request(server)
+      .post(`/api/shop-applications/${id}/renewal-submissions`)
+      .auth(token(f.buyer), { type: 'bearer' })
+      .send(input)
+      .expect(400);
+    const documentIds = [];
+    for (const slot of ['FRONT', 'BACK']) {
+      const upload = await request(server)
+        .post(`/api/shop-applications/${id}/uploads`)
+        .auth(token(f.buyer), { type: 'bearer' })
+        .send({ slot, mimeType: 'image/jpeg', sizeBytes: 1024 })
+        .expect(200);
+      await request(server)
+        .post(`/api/shop-application-documents/${upload.body.data.id}/complete`)
+        .auth(token(f.buyer), { type: 'bearer' })
+        .expect(200);
+      documentIds.push(upload.body.data.id);
+    }
+    const submitted = await request(server)
+      .post(`/api/shop-applications/${id}/renewal-submissions`)
+      .auth(token(f.buyer), { type: 'bearer' })
+      .send({ ...input, documentIds, requestId: randomUUID() })
+      .expect(200);
+    expect(submitted.body.data.snapshot.bank).toBeNull();
+    expect(submitted.body.data.snapshot.pickup).toBeNull();
+    await request(server)
+      .get(`/api/shop-applications/${id}`)
+      .auth(token(stranger), { type: 'bearer' })
+      .expect(404);
+    await request(server)
+      .post(`/api/shop-applications/admin/${id}/decisions`)
+      .auth(token(f.admin), { type: 'bearer' })
+      .send({
+        requestId: randomUUID(),
+        expectedVersion: submitted.body.data.version,
+        outcome: 'APPROVED',
+        reason: 'Renewed identity verified',
+        identityCheckEvidence:
+          'Same person and duplicate account review complete',
+        identityMatchesApplicant: true,
+        noOtherApprovedAccount: true,
+        samePersonConfirmed: true,
+      })
+      .expect(200);
+    const resumed = await request(server)
+      .get(`/api/shops/${shopId}`)
+      .expect(200);
+    expect(resumed.body.data.identitySalesPaused).toBe(false);
   });
 });

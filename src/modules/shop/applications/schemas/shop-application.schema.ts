@@ -6,6 +6,8 @@ import {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
   IDENTITY_IMAGE_MIME,
+  IDENTITY_RENEWAL_REASON,
+  SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_POLICY,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
@@ -59,6 +61,8 @@ export const applicationDecisionSchema = z
     ]),
     reason: z.string().trim().min(3).max(2000),
     adminNote: z.string().trim().max(5000).default(''),
+    reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).optional(),
+    samePersonConfirmed: z.literal(true).optional(),
     identityCheckEvidence: z.string().trim().min(10).max(5000).optional(),
     identityMatchesApplicant: z.literal(true).optional(),
     noOtherApprovedAccount: z.literal(true).optional(),
@@ -86,11 +90,16 @@ export const applicationUploadSchema = z.strictObject({
     .max(SHOP_APPLICATION_POLICY.MAX_IMAGE_BYTES),
 });
 export const applicationQuerySchema = z.strictObject({
+  kind: z.enum(SHOP_APPLICATION_KIND).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().nonnegative().default(0),
   state: z.enum(SHOP_APPLICATION_STATE).optional(),
 });
 export const applicationSummarySchema = z.object({
+  kind: z.enum(SHOP_APPLICATION_KIND),
+  reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).nullable(),
+  timelySubmission: z.boolean(),
+  correctionDueAt: dateTimeSchema.nullable(),
   id: z.uuid(),
   shopId: z.uuid(),
   state: z.enum(SHOP_APPLICATION_STATE),
@@ -116,26 +125,30 @@ const snapshotView = z.object({
     description: z.string().nullable(),
     logoUrl: z.string(),
   }),
-  pickup: z.object({
-    id: z.uuid(),
-    contactName: z.string(),
-    phone: z.string(),
-    addressLine1: z.string(),
-    countryCode: z.string(),
-    provinceId: z.number().int().positive(),
-    districtId: z.number().int().positive(),
-    districtName: z.string(),
-    provinceName: z.string(),
-    wardCode: z.string(),
-    wardName: z.string(),
-  }),
-  bank: z.object({
-    id: z.uuid(),
-    bankCode: z.string(),
-    accountNumber: z.string(),
-    accountName: z.string(),
-    confirmedBy: z.uuid(),
-  }),
+  pickup: z
+    .object({
+      id: z.uuid(),
+      contactName: z.string(),
+      phone: z.string(),
+      addressLine1: z.string(),
+      countryCode: z.string(),
+      provinceId: z.number().int().positive(),
+      districtId: z.number().int().positive(),
+      districtName: z.string(),
+      provinceName: z.string(),
+      wardCode: z.string(),
+      wardName: z.string(),
+    })
+    .nullable(),
+  bank: z
+    .object({
+      id: z.uuid(),
+      bankCode: z.string(),
+      accountNumber: z.string(),
+      accountName: z.string(),
+      confirmedBy: z.uuid(),
+    })
+    .nullable(),
   documents: z.array(
     z.object({ id: z.uuid(), slot: z.enum(IDENTITY_DOCUMENT_SLOT) }),
   ),
@@ -160,6 +173,8 @@ export const adminApplicationViewSchema = applicationViewSchema.extend({
       actorId: z.uuid(),
       adminNote: z.string().nullable(),
       identityCheckEvidence: z.string().nullable(),
+      reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).nullable(),
+      samePersonConfirmed: z.boolean().nullable(),
     }),
   ),
   revisions: z.array(

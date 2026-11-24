@@ -25,6 +25,7 @@ import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
@@ -228,7 +229,13 @@ export class CodService {
         where: { id: In(shopIds), status: ShopStatus.ACTIVE },
         lock: { mode: 'pessimistic_read' },
       });
-      if (activeShops.length !== shopIds.length) {
+      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+      if (
+        activeShops.length !== shopIds.length ||
+        activeShops.some(
+          (shop) => !shopAllowsIdentitySales(shop, new Date(now)),
+        )
+      ) {
         throw new ConflictException('Shop is inactive or missing');
       }
     }

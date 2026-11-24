@@ -39,6 +39,12 @@ const deps = {
   randomUUID,
   In,
   ...policy,
+  ...(await load(
+    '../src/modules/shop/applications/renewal/identity-sale.policy.ts',
+  )),
+  ...(await load(
+    '../src/modules/shop/applications/renewal/identity-sale.policy.ts',
+  )),
   ...(await load('../src/modules/payment/constants/payment.constant.ts')),
   ...(await load('../src/modules/checkout/constants/checkout.constant.ts')),
   ...(await load('../src/common/constants/money.constant.ts')),
@@ -187,6 +193,29 @@ function setup() {
   });
   return { service, rows, checkout, client, calls: () => createCalls };
 }
+
+test('identity restriction prevents new MoMo requests and refunds an inflight captured payment', async () => {
+  const blocked = setup();
+  blocked.rows(Shop)[0].identityManualRestriction = true;
+  await assert.rejects(
+    blocked.service.create('buyer', 'checkout', { requestId: 'blocked' }),
+    /identity/,
+  );
+  assert.equal(blocked.calls(), 0);
+  for (const condition of ['restricted', 'review-required']) {
+    const f = setup();
+    const attempt = await f.service.create('buyer', 'checkout', {
+      requestId: 'request',
+    });
+    if (condition === 'restricted')
+      f.rows(Shop)[0].identityManualRestriction = true;
+    else f.checkout.identityReviewRequired = true;
+    await f.service.applyResult(attempt.id, paid(attempt.id));
+    assert.equal(f.rows(Order).length, 0);
+    assert.equal(f.rows(PaymentRefund).length, 1);
+    assert.equal(f.rows(Product)[0].status, 'HELD');
+  }
+});
 const paid = (id, transId = 12345, amount = 230000) => ({
   partnerCode: 'TEST',
   orderId: id,

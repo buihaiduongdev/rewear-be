@@ -3,6 +3,7 @@ import { createActor, setup } from 'xstate';
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { ShopStatus } from '@/modules/shop/enums';
 
 export interface ProductAvailabilityContext {
@@ -11,6 +12,7 @@ export interface ProductAvailabilityContext {
   ownedShopIds?: Set<string> | readonly string[];
   /** Bắt buộc kiểm tra các trường metadata thương mại hoàn chỉnh (tiêu đề, giá > 0, tình trạng) */
   requireCompleteMetadata?: boolean;
+  requirePurchaseEligibility?: boolean;
 }
 
 export type ProductAvailabilityState =
@@ -26,6 +28,10 @@ export const productAvailabilityMachine = setup({
     context: {} as ProductAvailabilityContext,
   },
   guards: {
+    isIdentityRestricted: ({ context }) =>
+      !!context.requirePurchaseEligibility &&
+      !!context.product?.shop &&
+      !shopAllowsIdentitySales(context.product.shop),
     isMissingProduct: ({ context }) => !context.product,
 
     isNonPublicLifecycleStatus: ({ context }) => {
@@ -95,6 +101,7 @@ export const productAvailabilityMachine = setup({
         { target: 'unavailable', guard: 'isMissingProduct' },
         { target: 'unavailable', guard: 'isNonPublicLifecycleStatus' },
         { target: 'unavailable', guard: 'isShopInactive' },
+        { target: 'unavailable', guard: 'isIdentityRestricted' },
         { target: 'unavailable', guard: 'isCategoryInactive' },
         { target: 'unavailable', guard: 'isIncompleteCommercialMetadata' },
         { target: 'ownProduct', guard: 'isOwnerViewingOwnProduct' },
@@ -127,6 +134,7 @@ const STATE_TO_AVAILABILITY_MAP: Record<
 export interface EvaluateProductAvailabilityOptions {
   ownedShopIds?: Set<string> | readonly string[];
   requireCompleteMetadata?: boolean;
+  requirePurchaseEligibility?: boolean;
 }
 
 /**
@@ -139,6 +147,7 @@ export function evaluateProductAvailability(
   const actor = createActor(productAvailabilityMachine, {
     input: {
       product,
+      requirePurchaseEligibility: options.requirePurchaseEligibility,
       ownedShopIds: options.ownedShopIds,
       requireCompleteMetadata: options.requireCompleteMetadata,
     },
