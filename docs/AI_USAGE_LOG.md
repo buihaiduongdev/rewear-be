@@ -1129,3 +1129,15 @@
 - **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 warnings/errors, Prettier check pass, TypeScript noEmit pass, Nest build pass), chạy unit test administrative-division, ghn-sandbox và payment core pass 100%.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh gọi API GHN preview ban đầu thiếu tiền tố địa bàn dẫn đến lỗi 400; đã phát hiện và chuẩn hóa truyền đầy đủ `from_district_id`, `from_ward_code`, `to_district_id`, `to_ward_code`.
 - **Minh chứng:** PR #62; branch `buihaiduongdev/ghn-pickup-shops`.
+
+### 2026-11-24 — Thiết lập hạ tầng AWS EC2, ECR và quy trình CD tự động qua GitHub Actions
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 3.8 Flash)
+- **Mục đích và phạm vi:** Thiết lập toàn bộ hạ tầng IaC bằng Terraform trên AWS (EC2 ARM64 t4g.micro, ECR, IAM OIDC Role, Security Group), cấu hình Docker môi trường chạy PostgreSQL 16 và backend NestJS, thiết lập Nginx reverse proxy và pipeline tự động build/deploy backend lên EC2 qua GitHub Actions khi phát hành bản phát hành (release tag) hoặc trigger thủ công.
+- **Prompt chính:** Khởi tạo hạ tầng backend trên AWS bằng Terraform, đóng gói backend vào container Docker, thiết lập Nginx trên EC2 chuyển tiếp cổng 80 vào ứng dụng, cấu hình OIDC xác thực GitHub Actions không dùng static keys và xây dựng quy trình CI/CD triển khai an toàn theo chuẩn đồ án tốt nghiệp.
+- **Đầu ra AI được sử dụng:** Các file cấu hình Terraform (`main.tf`, `variables.tf`, `outputs.tf`), `Dockerfile`, `.dockerignore`, workflow GitHub Actions `.github/workflows/deploy.yml` và tài liệu hướng dẫn hạ tầng `terraform/README.md`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Cấu hình biến môi trường production, thiết lập OIDC trust policy liên kết repository GitHub, kiểm thử trực tiếp việc kéo image từ ECR trên EC2 thông qua IAM role và seed dữ liệu ban đầu cho database.
+- **Cách kiểm chứng:** Chạy `pnpm check` (Oxlint 0 lỗi, Prettier, tsc, build) đạt; kiểm tra HTTP endpoint `/api/docs` trên IP EC2 công khai trả về mã 200; kết nối database PostgreSQL nội bộ thành công và chạy seed dữ liệu đầy đủ.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lệnh cài đặt dependencies trong Docker ban đầu kích hoạt script husky gây lỗi thiếu binary; đã bổ sung cờ `--ignore-scripts` để hoàn tất build production.
+- **Minh chứng:** PR #[Số_PR], branch buihaiduongdev/ec2-deployment.
