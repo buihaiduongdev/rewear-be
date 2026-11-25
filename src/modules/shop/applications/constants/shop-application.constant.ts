@@ -4,20 +4,6 @@ export const SHOP_APPLICATION_KIND = {
   INITIAL: 'INITIAL',
   RENEWAL: 'RENEWAL',
 } as const;
-export const IDENTITY_RENEWAL_REASON = {
-  IMAGE_QUALITY: 'IMAGE_QUALITY',
-  INVALID_DOCUMENT: 'INVALID_DOCUMENT',
-} as const;
-export const IDENTITY_SALES_PAUSE_REASON = 'IDENTITY_DOCUMENT_REVIEW_REQUIRED';
-export const IDENTITY_RENEWAL_POLICY = {
-  GRACE_DAYS: 30,
-  DAY_MS: ms('1d'),
-  VIETNAM_OFFSET_MS: ms('7h'),
-  CORRECTION_MS: ms('7d'),
-  WORKER_MS: ms('30s'),
-  BATCH_SIZE: 50,
-  RECHECK_MS: ms('1d'),
-} as const;
 
 export const SHOP_APPLICATION_STATE = {
   DRAFT: 'DRAFT',
@@ -26,33 +12,41 @@ export const SHOP_APPLICATION_STATE = {
   REJECTED: 'REJECTED',
   APPROVED: 'APPROVED',
 } as const;
-export const IDENTITY_DOCUMENT_TYPE = {
-  NATIONAL_ID: 'NATIONAL_ID',
-  PASSPORT: 'PASSPORT',
-} as const;
-export const IDENTITY_DOCUMENT_SLOT = {
-  FRONT: 'FRONT',
-  BACK: 'BACK',
-  PASSPORT: 'PASSPORT',
-} as const;
+
 export const SHOP_APPLICATION_ACTION = {
-  RENEWAL_CREATED: 'RENEWAL_CREATED',
-  RENEWAL_SUBMITTED: 'RENEWAL_SUBMITTED',
   CREATED: 'CREATED',
   SUBMITTED: 'SUBMITTED',
   NEEDS_INFO: 'NEEDS_INFO',
   REJECTED: 'REJECTED',
   APPROVED: 'APPROVED',
 } as const;
+
+export const IDENTITY_DOCUMENT_TYPE = {
+  NATIONAL_ID: 'NATIONAL_ID',
+  PASSPORT: 'PASSPORT',
+} as const;
+
+export const IDENTITY_DOCUMENT_SLOT = {
+  FRONT: 'FRONT',
+  BACK: 'BACK',
+  PASSPORT: 'PASSPORT',
+} as const;
+
+export const IDENTITY_RENEWAL_POLICY = {
+  GRACE_DAYS: 30,
+  DAY_MS: ms('1d'),
+  VIETNAM_OFFSET_MS: ms('7h'),
+  BATCH_SIZE: 50,
+} as const;
+
 export const SHOP_APPLICATION_POLICY = {
   MIN_AGE: 18,
   MAX_IMAGE_BYTES: 10 * 1024 * 1024,
   UPLOADS_PER_DAY: 100,
   DAY_MS: ms('1d'),
   MAX_DOCUMENTS: 3,
-  PAGE_SIZE: 50,
-  MAX_PAGE_SIZE: 100,
 } as const;
+
 export const IDENTITY_IMAGE_MIME = [
   'image/jpeg',
   'image/png',

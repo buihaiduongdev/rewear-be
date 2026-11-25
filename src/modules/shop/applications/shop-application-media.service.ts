@@ -6,54 +6,71 @@ import {
 } from '@nestjs/common';
 
 import { DataSource, MoreThan } from 'typeorm';
-import z from 'zod';
 
 import { StorageService } from '@/infrastructure/storage';
 import { MediaService } from '@/modules/media/media.service';
 import { UserRole } from '@/modules/user/enums';
 
+import { Shop } from '../entities';
+import { ShopStatus } from '../enums';
 import {
   IDENTITY_IMAGE_MIME,
+  SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_POLICY,
 } from './constants/shop-application.constant';
-import { ShopApplicationDocument } from './entities';
+import { ShopApplication, ShopApplicationDocument } from './entities';
+import {
+  type ApplicationUploadInput,
+  applicationUploadSchema,
+} from './schemas/shop-application.schema';
 import {
   editableApplication,
-  pendingApplicationShop,
-} from './policies/shop-application.policy';
-import { applicationUploadSchema } from './schemas/shop-application.schema';
-import {
-  applicationClock,
-  ShopApplicationAccess,
-} from './shop-application.access';
+  ShopApplicationService,
+} from './shop-application.service';
 
 @Injectable()
 export class ShopApplicationMediaService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: ShopApplicationAccess,
+    private readonly applications: ShopApplicationService,
     private readonly storage: StorageService,
     private readonly media: MediaService,
   ) {}
 
-  async attach(
-    userId: string,
-    applicationId: string,
-    input: z.input<typeof applicationUploadSchema>,
-  ) {
+  attach(userId: string, applicationId: string, input: ApplicationUploadInput) {
     const data = applicationUploadSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      const now = await applicationClock(manager);
-      const application = await this.access.own(manager, userId, applicationId);
+      await this.applications.assertActiveUser(manager, userId);
+      const application = await manager.findOneBy(ShopApplication, {
+        id: applicationId,
+        applicantId: userId,
+      });
+      if (!application)
+        throw new NotFoundException('Shop application not found');
+      await this.applications.assertOwner(manager, userId, application.shopId);
       if (!editableApplication(application.state))
         throw new ConflictException(
           'Application is not open for document uploads',
         );
-      await pendingApplicationShop(manager, application);
+      const shop = await manager.findOneByOrFail(Shop, {
+        id: application.shopId,
+      });
+      if (application.kind === SHOP_APPLICATION_KIND.RENEWAL) {
+        if (!shop.onboardingRequired || !shop.approvedAt)
+          throw new ConflictException(
+            'Approved Shop identity is required for renewal',
+          );
+      } else if (
+        !shop.onboardingRequired ||
+        shop.status !== ShopStatus.PENDING ||
+        shop.approvedAt
+      ) {
+        throw new ConflictException('Shop is not awaiting onboarding approval');
+      }
       const count = await manager.countBy(ShopApplicationDocument, {
         uploadedById: userId,
         createdAt: MoreThan(
-          new Date(now.getTime() - SHOP_APPLICATION_POLICY.DAY_MS),
+          new Date(Date.now() - SHOP_APPLICATION_POLICY.DAY_MS),
         ),
       });
       if (count >= SHOP_APPLICATION_POLICY.UPLOADS_PER_DAY)
@@ -74,7 +91,8 @@ export class ShopApplicationMediaService {
           uploadedById: userId,
           slot: data.slot,
           mediaId: file.id,
-          firstSubmittedRevision: null,
+          isSelected: false,
+          isSubmitted: false,
         }),
       );
       return {
@@ -82,25 +100,30 @@ export class ShopApplicationMediaService {
         slot: row.slot,
         mimeType: file.mimeType,
         sizeBytes: file.sizeBytes,
+        isSelected: row.isSelected,
       };
     });
   }
 
-  download(userId: string, id: string) {
-    return this.db.transaction(async (manager) => {
-      const actor = await this.access.active(manager, userId);
-      const row = await manager.findOneBy(ShopApplicationDocument, { id });
-      if (!row || row.media.visibility !== 'private' || row.media.retiredAt)
+  async download(userId: string, id: string) {
+    const manager = this.db.manager;
+    const actor = await this.applications.assertActiveUser(manager, userId);
+    const row = await manager.findOneBy(ShopApplicationDocument, { id });
+    if (!row || row.media.visibility !== 'private' || row.media.retiredAt)
+      throw new NotFoundException('Identity document not found');
+    if (row.uploadedById === userId) {
+      const owned = await manager.findOneBy(ShopApplication, {
+        id: row.applicationId,
+        applicantId: userId,
+      });
+      if (!owned) throw new NotFoundException('Identity document not found');
+      await this.applications.assertOwner(manager, userId, owned.shopId);
+    } else if (actor.role === UserRole.ADMIN && row.isSubmitted) {
+      if (!(await manager.existsBy(ShopApplication, { id: row.applicationId })))
         throw new NotFoundException('Identity document not found');
-      if (row.uploadedById === userId)
-        await this.access.own(manager, userId, row.applicationId);
-      else if (
-        actor.role === UserRole.ADMIN &&
-        row.firstSubmittedRevision !== null
-      )
-        await this.access.admin(manager, userId, row.applicationId);
-      else throw new NotFoundException('Identity document not found');
-      return this.storage.createDownloadUrl(row.media.storageKey);
-    });
+    } else {
+      throw new NotFoundException('Identity document not found');
+    }
+    return this.storage.createDownloadUrl(row.media.storageKey);
   }
 }

@@ -6,7 +6,6 @@ import {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
   IDENTITY_IMAGE_MIME,
-  IDENTITY_RENEWAL_REASON,
   SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_POLICY,
   SHOP_APPLICATION_STATE,
@@ -38,86 +37,73 @@ export const applicantIdentitySchema = z
         message: 'Invalid identity document format',
       });
   });
-export const applicationCreateSchema = z.strictObject({ requestId: z.uuid() });
+
+const documentIdsSchema = z
+  .array(z.uuid())
+  .min(1)
+  .max(SHOP_APPLICATION_POLICY.MAX_DOCUMENTS)
+  .refine((ids) => new Set(ids).size === ids.length);
+
 export const applicationSubmitSchema = z.strictObject({
-  requestId: z.uuid(),
-  expectedVersion: z.number().int().positive(),
   identity: applicantIdentitySchema,
   bankAccountId: z.uuid(),
-  documentIds: z
-    .array(z.uuid())
-    .min(1)
-    .max(SHOP_APPLICATION_POLICY.MAX_DOCUMENTS)
-    .refine((ids) => new Set(ids).size === ids.length),
+  documentIds: documentIdsSchema,
 });
-export const applicationDecisionSchema = z
-  .strictObject({
-    requestId: z.uuid(),
-    expectedVersion: z.number().int().positive(),
-    outcome: z.enum([
-      SHOP_APPLICATION_STATE.APPROVED,
-      SHOP_APPLICATION_STATE.REJECTED,
-      SHOP_APPLICATION_STATE.NEEDS_INFO,
-    ]),
-    reason: z.string().trim().min(3).max(2000),
-    adminNote: z.string().trim().max(5000).default(''),
-    reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).optional(),
-    samePersonConfirmed: z.literal(true).optional(),
-    identityCheckEvidence: z.string().trim().min(10).max(5000).optional(),
-    identityMatchesApplicant: z.literal(true).optional(),
-    noOtherApprovedAccount: z.literal(true).optional(),
-  })
-  .superRefine((data, context) => {
-    if (
-      data.outcome === SHOP_APPLICATION_STATE.APPROVED &&
-      (!data.identityCheckEvidence ||
-        !data.identityMatchesApplicant ||
-        !data.noOtherApprovedAccount)
-    )
-      context.addIssue({
-        code: 'custom',
-        message:
-          'Approval requires recorded identity and duplicate-account review',
-      });
-  });
+
+export const submitIdentityRenewalSchema = z.strictObject({
+  identity: applicantIdentitySchema,
+  documentIds: documentIdsSchema,
+});
+
+export const applicationDecisionSchema = z.strictObject({
+  outcome: z.enum([
+    SHOP_APPLICATION_STATE.APPROVED,
+    SHOP_APPLICATION_STATE.REJECTED,
+    SHOP_APPLICATION_STATE.NEEDS_INFO,
+  ]),
+  reason: z.string().trim().min(3).max(2000),
+  adminNote: z.string().trim().max(5000).default(''),
+});
+
 export const applicationUploadSchema = z.strictObject({
   slot: z.enum(IDENTITY_DOCUMENT_SLOT),
   mediaId: z.uuid(),
 });
+
 export const applicationQuerySchema = z.strictObject({
   kind: z.enum(SHOP_APPLICATION_KIND).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().nonnegative().default(0),
   state: z.enum(SHOP_APPLICATION_STATE).optional(),
 });
+
 export const applicationSummarySchema = z.object({
-  kind: z.enum(SHOP_APPLICATION_KIND),
-  reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).nullable(),
-  timelySubmission: z.boolean(),
-  correctionDueAt: dateTimeSchema.nullable(),
   id: z.uuid(),
   shopId: z.uuid(),
+  kind: z.enum(SHOP_APPLICATION_KIND),
   state: z.enum(SHOP_APPLICATION_STATE),
-  version: z.number().int().positive(),
-  revision: z.number().int().nonnegative(),
   submittedAt: dateTimeSchema.nullable(),
+  reviewedAt: dateTimeSchema.nullable(),
   reason: z.string().nullable(),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
-const documentView = z.object({
+
+export const applicationDocumentViewSchema = z.object({
   id: z.uuid(),
   slot: z.enum(IDENTITY_DOCUMENT_SLOT),
   mimeType: z.enum(IDENTITY_IMAGE_MIME),
   sizeBytes: z.number().int().positive(),
+  isSelected: z.boolean(),
 });
-const snapshotView = z.object({
-  identity: applicantIdentitySchema,
+
+export const applicationViewSchema = applicationSummarySchema.extend({
+  identity: applicantIdentitySchema.nullable(),
   shop: z.object({
     id: z.uuid(),
     name: z.string(),
     description: z.string().nullable(),
-    logoUrl: z.string(),
+    logoUrl: z.string().nullable(),
   }),
   pickup: z
     .object({
@@ -143,58 +129,23 @@ const snapshotView = z.object({
       confirmedBy: z.uuid(),
     })
     .nullable(),
-  documents: z.array(
-    z.object({ id: z.uuid(), slot: z.enum(IDENTITY_DOCUMENT_SLOT) }),
-  ),
+  documents: z.array(applicationDocumentViewSchema),
 });
-const auditView = z.object({
-  action: z.string(),
-  version: z.number().int(),
-  revision: z.number().int(),
-  reason: z.string().nullable(),
-  createdAt: dateTimeSchema,
-});
-export const applicationViewSchema = applicationSummarySchema.extend({
-  snapshot: snapshotView.nullable(),
-  documents: z.array(documentView),
-  history: z.array(auditView),
-});
+
 export const adminApplicationViewSchema = applicationViewSchema.extend({
   applicantId: z.uuid(),
+  reviewedById: z.uuid().nullable(),
   adminNote: z.string().nullable(),
-  audits: z.array(
-    auditView.extend({
-      actorId: z.uuid(),
-      adminNote: z.string().nullable(),
-      identityCheckEvidence: z.string().nullable(),
-      reasonCategory: z.enum(IDENTITY_RENEWAL_REASON).nullable(),
-      samePersonConfirmed: z.boolean().nullable(),
-    }),
-  ),
-  revisions: z.array(
-    z.object({ revision: z.number().int(), snapshot: snapshotView }),
-  ),
   identityMatches: z.array(
     z.object({ identityId: z.uuid(), ownerId: z.uuid() }),
   ),
 });
+
 export const applicationPageSchema = z.object({
   items: z.array(applicationSummarySchema),
   totalCount: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
-});
-export const applicationDocumentViewSchema = documentView;
-export const createIdentityRenewalSchema = applicationCreateSchema;
-export const submitIdentityRenewalSchema = z.strictObject({
-  requestId: z.uuid(),
-  expectedVersion: z.number().int().positive(),
-  identity: applicantIdentitySchema,
-  documentIds: z
-    .array(z.uuid())
-    .min(1)
-    .max(SHOP_APPLICATION_POLICY.MAX_DOCUMENTS)
-    .refine((ids) => new Set(ids).size === ids.length),
 });
 
 export const applicationDownloadViewSchema = z.object({
@@ -203,42 +154,25 @@ export const applicationDownloadViewSchema = z.object({
   expiresAt: dateTimeSchema,
 });
 
-export type ShopApplicationKind =
-  (typeof SHOP_APPLICATION_KIND)[keyof typeof SHOP_APPLICATION_KIND];
-export type ShopApplicationState =
-  (typeof SHOP_APPLICATION_STATE)[keyof typeof SHOP_APPLICATION_STATE];
-export type IdentityDocumentType =
-  (typeof IDENTITY_DOCUMENT_TYPE)[keyof typeof IDENTITY_DOCUMENT_TYPE];
-export type IdentityDocumentSlot =
-  (typeof IDENTITY_DOCUMENT_SLOT)[keyof typeof IDENTITY_DOCUMENT_SLOT];
-export type ApplicantIdentity = z.output<typeof applicantIdentitySchema>;
-export type ShopApplicationSnapshot = {
-  identity: ApplicantIdentity;
-  shop: {
-    id: string;
-    name: string;
-    description: string | null;
-    logoUrl: string;
-  };
-  pickup: {
-    id: string;
-    contactName: string;
-    phone: string;
-    addressLine1: string;
-    countryCode: string;
-    provinceId: number;
-    districtId: number;
-    districtName: string;
-    provinceName: string;
-    wardCode: string;
-    wardName: string;
-  } | null;
-  bank: {
-    id: string;
-    bankCode: string;
-    accountNumber: string;
-    accountName: string;
-    confirmedBy: string;
-  } | null;
-  documents: { id: string; slot: IdentityDocumentSlot }[];
-};
+export type ShopApplicationKind = z.infer<
+  typeof applicationSummarySchema
+>['kind'];
+export type ShopApplicationState = z.infer<
+  typeof applicationSummarySchema
+>['state'];
+export type IdentityDocumentType = z.infer<
+  typeof applicantIdentitySchema
+>['documentType'];
+export type IdentityDocumentSlot = z.infer<
+  typeof applicationUploadSchema
+>['slot'];
+export type ApplicantIdentity = z.infer<typeof applicantIdentitySchema>;
+export type ApplicationSubmitInput = z.input<typeof applicationSubmitSchema>;
+export type SubmitIdentityRenewalInput = z.input<
+  typeof submitIdentityRenewalSchema
+>;
+export type ApplicationDecisionInput = z.input<
+  typeof applicationDecisionSchema
+>;
+export type ApplicationUploadInput = z.input<typeof applicationUploadSchema>;
+export type ApplicationQueryInput = z.input<typeof applicationQuerySchema>;

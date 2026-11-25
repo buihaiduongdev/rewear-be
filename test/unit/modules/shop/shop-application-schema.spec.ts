@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import z from 'zod';
 
-import {
-  applicationFingerprint,
-  validateApplicantIdentity,
-} from '@/modules/shop/applications/policies/shop-application.policy';
 import * as schemas from '@/modules/shop/applications/schemas/shop-application.schema';
+import {
+  normalizeIdentityName,
+  validateApplicantIdentity,
+} from '@/modules/shop/applications/shop-application.service';
 
 describe('Shop application validation', () => {
   const identity = {
@@ -17,7 +17,8 @@ describe('Shop application validation', () => {
     birthDate: '2000-01-01',
     expiresOn: '2099-01-01',
   };
-  it('requires actual document formats and explicit identity checks for approval', () => {
+
+  it('validates document formats, strict payloads, and decision fields', () => {
     expect(
       schemas.applicantIdentitySchema.safeParse({
         ...identity,
@@ -32,16 +33,18 @@ describe('Shop application validation', () => {
     ).toBe(false);
     expect(
       schemas.applicationDecisionSchema.safeParse({
-        requestId: randomUUID(),
-        expectedVersion: 1,
         outcome: 'APPROVED',
-        reason: 'Looks good',
+        reason: 'ok',
       }).success,
     ).toBe(false);
     expect(
+      schemas.applicationDecisionSchema.safeParse({
+        outcome: 'APPROVED',
+        reason: 'Verified owner identity and shop details',
+      }).success,
+    ).toBe(true);
+    expect(
       schemas.applicationSubmitSchema.safeParse({
-        requestId: randomUUID(),
-        expectedVersion: 1,
         identity,
         bankAccountId: randomUUID(),
         documentIds: [randomUUID()],
@@ -49,7 +52,8 @@ describe('Shop application validation', () => {
       }).success,
     ).toBe(false);
   });
-  it('uses Vietnam dates for age and expiry and survives JSONB key ordering', () => {
+
+  it('uses Vietnam dates for age/expiry and normalizes Vietnamese owner names', () => {
     const now = new Date('2026-11-22T17:00:00Z');
     expect(() =>
       validateApplicantIdentity({ ...identity, birthDate: '2008-11-23' }, now),
@@ -60,13 +64,9 @@ describe('Shop application validation', () => {
     expect(() =>
       validateApplicantIdentity({ ...identity, expiresOn: '2026-11-22' }, now),
     ).toThrow('expired');
-    expect(applicationFingerprint({ identity, a: 1 })).toBe(
-      applicationFingerprint({
-        a: 1,
-        identity: Object.fromEntries(Object.entries(identity).reverse()),
-      }),
-    );
+    expect(normalizeIdentityName('  Đặng   Thị Ánh  ')).toBe('DANG THI ANH');
   });
+
   it('bounds queue/media and converts every exported schema to OpenAPI JSON schema', () => {
     expect(
       schemas.applicationQuerySchema.safeParse({ limit: 101 }).success,
@@ -74,8 +74,7 @@ describe('Shop application validation', () => {
     expect(
       schemas.applicationUploadSchema.safeParse({
         slot: 'SELFIE',
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
+        mediaId: randomUUID(),
       }).success,
     ).toBe(false);
     for (const schema of Object.values(schemas))

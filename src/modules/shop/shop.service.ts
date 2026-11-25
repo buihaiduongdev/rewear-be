@@ -18,6 +18,8 @@ import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
 import { User } from '@/modules/user/entities';
 
+import { SHOP_APPLICATION_STATE } from './applications/constants/shop-application.constant';
+import { ShopApplication } from './applications/entities';
 import { publicIdentitySaleState } from './applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from './entities';
 import { ShopInvitation } from './entities/shop-invitation.entity';
@@ -45,9 +47,10 @@ export class ShopService {
   private toView(shop: Shop) {
     return {
       ...shop,
-      logoUrl: shop.logoMedia
-        ? this.storage.getPublicUrl(shop.logoMedia.storageKey)
-        : null,
+      logoUrl:
+        shop.logoMedia && !shop.logoMedia.retiredAt
+          ? this.storage.getPublicUrl(shop.logoMedia.storageKey)
+          : null,
     };
   }
 
@@ -116,7 +119,10 @@ export class ShopService {
   async update(shopId: string, currentUserId: string, input: UpdateShopInput) {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Shop);
-      const shop = await repository.findOneByOrFail({ id: shopId });
+      const shop = await repository.findOneOrFail({
+        where: { id: shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (
         input.status !== undefined &&
         shop.onboardingRequired &&
@@ -125,6 +131,21 @@ export class ShopService {
         throw new ForbiddenException(
           'Shop application approval is required before changing availability',
         );
+      const editsProfile =
+        input.name !== undefined ||
+        input.description !== undefined ||
+        input.logoMediaId !== undefined;
+      if (
+        editsProfile &&
+        (await manager.existsBy(ShopApplication, {
+          shopId,
+          state: SHOP_APPLICATION_STATE.SUBMITTED,
+        }))
+      )
+        throw new ConflictException(
+          'Cannot update shop information while application is pending review',
+        );
+      const previousLogoMediaId = shop.logoMediaId;
       const logo =
         input.logoMediaId && input.logoMediaId === shop.logoMediaId
           ? await manager.findOneByOrFail(Media, { id: input.logoMediaId })
@@ -148,6 +169,18 @@ export class ShopService {
         logoMediaId: logoMediaId !== undefined ? (logo?.id ?? null) : undefined,
       });
       const saved = await repository.save(shop);
+      if (
+        logoMediaId !== undefined &&
+        previousLogoMediaId &&
+        previousLogoMediaId !== saved.logoMediaId &&
+        !(await manager.existsBy(Shop, { logoMediaId: previousLogoMediaId }))
+      ) {
+        await manager.update(
+          Media,
+          { id: previousLogoMediaId },
+          { isAttached: false, retiredAt: new Date() },
+        );
+      }
       const logoMedia =
         logoMediaId !== undefined
           ? logo

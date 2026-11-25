@@ -27,8 +27,7 @@ import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/identity-renewal.worker';
-import { Shop } from '@/modules/shop/entities';
-import { ShopMember } from '@/modules/shop/entities';
+import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import type { User } from '@/modules/user/entities';
 
@@ -43,9 +42,9 @@ describe('Owner KYC application HTTP', () => {
   let token: (user: User) => string;
   let shopId: string;
   let applicationId: string;
-  let version: number;
   let bankId: string;
   const docs: string[] = [];
+
   const storage = {
     getPublicUrl: (key: string) => `https://public.test/${key}`,
     assertConfigured: jest.fn(),
@@ -67,6 +66,7 @@ describe('Owner KYC application HTTP', () => {
       expiresAt: new Date(Date.now() + 60000),
     })),
   };
+
   beforeAll(async () => {
     const database = await createTestDatabase();
     await database.destroy();
@@ -99,8 +99,10 @@ describe('Owner KYC application HTTP', () => {
         .get(JwtService)
         .sign({ sub: user.id }, { secret: process.env.JWT_ACCESS_SECRET });
   });
+
   afterAll(async () => app?.close());
-  it('creates a pending Shop, blocks public sale/activation and requires its current Owner for KYC', async () => {
+
+  it('creates a pending Shop, blocks public sale/activation, and requires its current Owner for KYC', async () => {
     const server = app.getHttpServer();
     await request(server).get('/api/shop-applications/mine').expect(401);
     const logo = await db.getRepository(Media).save({
@@ -132,15 +134,12 @@ describe('Owner KYC application HTTP', () => {
     await request(server)
       .post(`/api/shops/${shopId}/application`)
       .auth(token(stranger), { type: 'bearer' })
-      .send({ requestId: randomUUID() })
       .expect(404);
     const application = await request(server)
       .post(`/api/shops/${shopId}/application`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ requestId: randomUUID() })
       .expect(200);
     applicationId = application.body.data.id;
-    version = application.body.data.version;
     await db.getRepository(PickupLocation).save({
       shopId,
       contactName: 'Owner pickup',
@@ -165,7 +164,8 @@ describe('Owner KYC application HTTP', () => {
       })
     ).id;
   });
-  it('keeps identity uploads private from Staff and rejects injected applicant fields', async () => {
+
+  it('keeps identity uploads private, blocks shop edits while submitted, and rejects injected fields', async () => {
     const server = app.getHttpServer();
     await db
       .getRepository(ShopMember)
@@ -195,9 +195,8 @@ describe('Owner KYC application HTTP', () => {
       .get(`/api/shop-application-documents/${docs[0]}/download`)
       .auth(token(f.admin), { type: 'bearer' })
       .expect(404);
+
     const input = {
-      requestId: randomUUID(),
-      expectedVersion: version,
       identity: {
         documentType: 'NATIONAL_ID',
         documentNumber: '012345678901',
@@ -218,24 +217,24 @@ describe('Owner KYC application HTTP', () => {
       .auth(token(f.buyer), { type: 'bearer' })
       .send(input)
       .expect(200);
-    version = submitted.body.data.version;
     expect(JSON.stringify(submitted.body)).not.toContain('storageKey');
+    await request(server)
+      .patch(`/api/shops/${shopId}`)
+      .set('X-Shop-Id', shopId)
+      .auth(token(f.buyer), { type: 'bearer' })
+      .send({ name: 'Cannot edit while pending' })
+      .expect(409);
     await request(server)
       .get(`/api/shop-application-documents/${docs[0]}/download`)
       .auth(token(f.admin), { type: 'bearer' })
       .expect(200);
   });
-  it('requires explicit Admin identity review and keeps private notes and PII out of notices', async () => {
+
+  it('approves current shop/identity info and keeps private notes and PII out of notices', async () => {
     const server = app.getHttpServer();
     const input = {
-      requestId: randomUUID(),
-      expectedVersion: version,
       outcome: 'APPROVED',
       reason: 'Original document information verified',
-      identityCheckEvidence:
-        'Identity matched and other approved accounts checked',
-      identityMatchesApplicant: true,
-      noOtherApprovedAccount: true,
       adminNote: 'PRIVATE ADMIN NOTE',
     };
     await request(server)
@@ -243,11 +242,6 @@ describe('Owner KYC application HTTP', () => {
       .auth(token(f.buyer), { type: 'bearer' })
       .send(input)
       .expect(403);
-    await request(server)
-      .post(`/api/shop-applications/admin/${applicationId}/decisions`)
-      .auth(token(f.admin), { type: 'bearer' })
-      .send({ ...input, identityMatchesApplicant: false })
-      .expect(400);
     await request(server)
       .post(`/api/shop-applications/admin/${applicationId}/decisions`)
       .auth(token(f.admin), { type: 'bearer' })
@@ -279,6 +273,7 @@ describe('Owner KYC application HTTP', () => {
       '/api/shop-application-documents/{id}/download',
     );
   });
+
   it('renews through private HTTP routes without bank/pickup resubmission and exposes a safe pause notice', async () => {
     const server = app.getHttpServer();
     await db
@@ -300,7 +295,6 @@ describe('Owner KYC application HTTP', () => {
     const renewal = await request(server)
       .post(`/api/shops/${shopId}/identity-renewals`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ requestId: randomUUID() })
       .expect(200);
     const id = renewal.body.data.id;
     expect(renewal.body.data.kind).toBe('RENEWAL');
@@ -309,19 +303,13 @@ describe('Owner KYC application HTTP', () => {
       .auth(token(f.buyer), { type: 'bearer' })
       .expect(200);
     const identity = {
-      ...original.body.data.snapshot.identity,
+      ...original.body.data.identity,
       expiresOn: '2099-01-01',
-    };
-    const input = {
-      requestId: randomUUID(),
-      expectedVersion: renewal.body.data.version,
-      identity,
-      documentIds: docs,
     };
     await request(server)
       .post(`/api/shop-applications/${id}/renewal-submissions`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send(input)
+      .send({ identity, documentIds: docs })
       .expect(400);
     const documentIds = [];
     for (const slot of ['FRONT', 'BACK']) {
@@ -344,10 +332,10 @@ describe('Owner KYC application HTTP', () => {
     const submitted = await request(server)
       .post(`/api/shop-applications/${id}/renewal-submissions`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ ...input, documentIds, requestId: randomUUID() })
+      .send({ identity, documentIds })
       .expect(200);
-    expect(submitted.body.data.snapshot.bank).toBeNull();
-    expect(submitted.body.data.snapshot.pickup).toBeNull();
+    expect(submitted.body.data.bank).toBeNull();
+    expect(submitted.body.data.pickup).toBeNull();
     await request(server)
       .get(`/api/shop-applications/${id}`)
       .auth(token(stranger), { type: 'bearer' })
@@ -356,15 +344,8 @@ describe('Owner KYC application HTTP', () => {
       .post(`/api/shop-applications/admin/${id}/decisions`)
       .auth(token(f.admin), { type: 'bearer' })
       .send({
-        requestId: randomUUID(),
-        expectedVersion: submitted.body.data.version,
         outcome: 'APPROVED',
         reason: 'Renewed identity verified',
-        identityCheckEvidence:
-          'Same person and duplicate account review complete',
-        identityMatchesApplicant: true,
-        noOtherApprovedAccount: true,
-        samePersonConfirmed: true,
       })
       .expect(200);
     const resumed = await request(server)

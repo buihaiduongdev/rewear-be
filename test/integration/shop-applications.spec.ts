@@ -14,17 +14,13 @@ import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import {
-  OwnerIdentityDocument,
+  OwnerIdentity,
   ShopApplication,
   ShopApplicationDocument,
 } from '@/modules/shop/applications/entities';
-import { ShopApplicationAdminService } from '@/modules/shop/applications/shop-application-admin.service';
 import { ShopApplicationMediaService } from '@/modules/shop/applications/shop-application-media.service';
-import { ShopApplicationReadService } from '@/modules/shop/applications/shop-application-read.service';
-import { ShopApplicationAccess } from '@/modules/shop/applications/shop-application.access';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';
-import { Shop } from '@/modules/shop/entities';
-import { ShopMember } from '@/modules/shop/entities';
+import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { ShopService } from '@/modules/shop/shop.service';
 import { User } from '@/modules/user/entities';
@@ -36,10 +32,12 @@ import { createTestDatabase } from '../support/database';
 describe('Shop Owner application (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let service: ShopApplicationService;
-  let admin: ShopApplicationAdminService;
   let media: ShopApplicationMediaService;
+  let shops: ShopService;
   let uploads: MediaService;
+
   const storage = {
+    getPublicUrl: (key: string) => `https://public.test/${key}`,
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
       key: `uploads/${randomUUID()}.jpg`,
@@ -59,17 +57,14 @@ describe('Shop Owner application (PostgreSQL)', () => {
       expiresAt: new Date(Date.now() + 60000),
     })),
   };
+
   beforeAll(async () => {
     database = await createTestDatabase();
     const db = database.dataSource;
-    const access = new ShopApplicationAccess();
-    const read = new ShopApplicationReadService(db, access);
-    service = new ShopApplicationService(db, access, read, {
-      getPublicUrl: (key: string) => `https://public.test/${key}`,
-    } as never);
-    admin = new ShopApplicationAdminService(db, access, read, {
-      getPublicUrl: (key: string) => `https://public.test/${key}`,
-    } as never);
+    service = new ShopApplicationService(
+      db,
+      storage as unknown as StorageService,
+    );
     uploads = new MediaService(
       db.getRepository(Media),
       storage as unknown as StorageService,
@@ -82,12 +77,22 @@ describe('Shop Owner application (PostgreSQL)', () => {
     );
     media = new ShopApplicationMediaService(
       db,
-      access,
+      service,
       storage as unknown as StorageService,
       uploads,
     );
+    shops = new ShopService(
+      db.getRepository(Shop),
+      db.getRepository(ShopMember),
+      db,
+      new ShopRoleService(db),
+      uploads,
+      storage as unknown as StorageService,
+    );
   });
+
   afterAll(async () => database?.destroy());
+
   async function fixture() {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
@@ -105,6 +110,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       {
         status: ShopStatus.PENDING,
         onboardingRequired: true,
+        approvedAt: null,
         logoMediaId: logo.id,
       },
     );
@@ -129,9 +135,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       confirmedAt: new Date(),
       isDefault: true,
     });
-    const app = await service.create(f.owner.id, f.shop.id, {
-      requestId: randomUUID(),
-    });
+    const app = await service.create(f.owner.id, f.shop.id);
     const docs = [];
     for (const slot of ['FRONT', 'BACK'] as const) {
       const ticket = await uploads.createUploadTicket(f.owner.id, {
@@ -146,8 +150,6 @@ describe('Shop Owner application (PostgreSQL)', () => {
       docs.push(upload.id);
     }
     const input = {
-      requestId: randomUUID(),
-      expectedVersion: app.version,
       identity: {
         documentType: 'NATIONAL_ID' as const,
         documentNumber: randomUUID()
@@ -161,88 +163,79 @@ describe('Shop Owner application (PostgreSQL)', () => {
       bankAccountId: bank.id,
       documentIds: docs,
     };
-    return { ...f, app, bank, input };
+    return { ...f, app, bank, logo, input };
   }
-  it('freezes private documents and activates only after a versioned Admin approval', async () => {
+
+  it('reviews current shop/identity info, activates on approval, and hides admin notes from applicant', async () => {
     const f = await fixture();
     const db = database.dataSource;
     const submitted = await service.submit(f.owner.id, f.app.id, f.input);
     expect(submitted.state).toBe('SUBMITTED');
-    expect((await service.submit(f.owner.id, f.app.id, f.input)).version).toBe(
-      submitted.version,
-    );
-    await expect(service.find(f.buyer.id, f.app.id)).rejects.toThrow(
+    expect(submitted.shop.name).toBe(f.shop.name);
+    expect(submitted.bank?.id).toBe(f.bank.id);
+    await expect(service.detail(f.buyer.id, f.app.id)).rejects.toThrow(
       'not found',
     );
     await expect(
       media.download(f.buyer.id, f.input.documentIds[0]),
     ).rejects.toThrow('not found');
-    const approved = await admin.decide(f.admin.id, f.app.id, {
-      requestId: randomUUID(),
-      expectedVersion: submitted.version,
+
+    const approved = await service.decide(f.admin.id, f.app.id, {
       outcome: 'APPROVED',
       reason: 'Original identity and supporting documents checked',
-      identityCheckEvidence:
-        'Manual identity and cross-document account search completed',
-      identityMatchesApplicant: true,
-      noOtherApprovedAccount: true,
+      adminNote: 'PRIVATE INTERNAL CHECK',
     });
     expect(approved.state).toBe('APPROVED');
+
     const shop = await db
       .getRepository(Shop)
       .findOneByOrFail({ id: f.shop.id });
     expect(shop.status).toBe(ShopStatus.ACTIVE);
     expect(shop.approvedAt).toBeInstanceOf(Date);
+    expect(shop.identityExpiresOn).toBe('2099-01-01');
     expect(
-      (
-        await db
-          .getRepository(ShopBankAccount)
-          .findOneByOrFail({ id: f.bank.id })
-      ).verificationStatus,
-    ).toBe('UNVERIFIED');
+      JSON.stringify(await service.detail(f.owner.id, f.app.id)),
+    ).not.toContain('PRIVATE INTERNAL CHECK');
   });
-  it('requires supplemental resubmission and refuses approval of changed bank/profile snapshots', async () => {
+
+  it('blocks shop edits while pending review, allows edits on supplement/reject, and retires replaced logos', async () => {
     const f = await fixture();
     const db = database.dataSource;
-    const submitted = await service.submit(f.owner.id, f.app.id, f.input);
-    await db
-      .getRepository(ShopBankAccount)
-      .update({ id: f.bank.id }, { accountName: 'Changed after submission' });
+    await service.submit(f.owner.id, f.app.id, f.input);
+
     await expect(
-      admin.decide(f.admin.id, f.app.id, {
-        requestId: randomUUID(),
-        expectedVersion: submitted.version,
-        outcome: 'APPROVED',
-        reason: 'Reviewed documents',
-        identityCheckEvidence: 'Verified identity',
-        identityMatchesApplicant: true,
-        noOtherApprovedAccount: true,
-      }),
-    ).rejects.toThrow('snapshot changed');
-    const requested = await admin.decide(f.admin.id, f.app.id, {
-      requestId: randomUUID(),
-      expectedVersion: submitted.version,
+      shops.update(f.shop.id, f.owner.id, { name: 'Blocked while pending' }),
+    ).rejects.toThrow('pending review');
+
+    await service.decide(f.admin.id, f.app.id, {
       outcome: 'NEEDS_INFO',
-      reason: 'Confirm the changed bank recipient before resubmission',
+      reason: 'Update shop name and logo clarity',
     });
-    const resubmitted = await service.submit(f.owner.id, f.app.id, {
-      ...f.input,
-      requestId: randomUUID(),
-      expectedVersion: requested.version,
+
+    const newLogoTicket = await uploads.createUploadTicket(f.owner.id, {
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      visibility: 'public',
     });
-    expect(resubmitted.revision).toBe(2);
+    await shops.update(f.shop.id, f.owner.id, {
+      name: 'Updated Supplement Shop',
+      logoMediaId: newLogoTicket.mediaId,
+    });
+
+    const oldLogo = await db
+      .getRepository(Media)
+      .findOneByOrFail({ id: f.logo.id });
+    expect(oldLogo.isAttached).toBe(false);
+    expect(oldLogo.retiredAt).toBeInstanceOf(Date);
+
+    const resubmitted = await service.submit(f.owner.id, f.app.id, f.input);
+    expect(resubmitted.state).toBe('SUBMITTED');
+    expect(resubmitted.shop.name).toBe('Updated Supplement Shop');
   });
+
   it('keeps a newly created Shop private and prevents status and draft-product approval bypass', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
-    const shops = new ShopService(
-      db.getRepository(Shop),
-      db.getRepository(ShopMember),
-      db,
-      new ShopRoleService(db),
-      uploads,
-      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
-    );
     const pending = await shops.create(f.buyer.id, {
       name: 'New applicant Shop',
     });
@@ -255,6 +248,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
     await expect(
       shops.update(pending.id, f.buyer.id, { status: ShopStatus.INACTIVE }),
     ).rejects.toThrow('approval is required');
+
     const products = new ProductService(
       db.getRepository(Product),
       db.getRepository(Category),
@@ -262,14 +256,35 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
-      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      storage as never,
     );
     await expect(
       products.create(f.buyer.id, { shopId: pending.id }),
     ).rejects.toThrow('Shop is not active');
   });
-  it('accepts only the passport page for passport applications and enforces age/expiry', async () => {
+
+  it('accepts only passport slot for passport applications, enforces age/expiry, and protects draft uploads', async () => {
     const f = await fixture();
+    const other = await fixture();
+    const db = database.dataSource;
+
+    await expect(
+      media.download(f.admin.id, f.input.documentIds[0]),
+    ).rejects.toThrow('not found');
+    await expect(
+      service.submit(f.owner.id, f.app.id, {
+        ...f.input,
+        documentIds: other.input.documentIds,
+      }),
+    ).rejects.toThrow('documents are missing');
+    expect(
+      (
+        await db
+          .getRepository(ShopApplicationDocument)
+          .findOneByOrFail({ id: f.input.documentIds[0] })
+      ).isSubmitted,
+    ).toBe(false);
+
     await expect(
       service.submit(f.owner.id, f.app.id, {
         ...f.input,
@@ -288,6 +303,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
         documentIds: [f.input.documentIds[0]],
       }),
     ).rejects.toThrow('documents are missing');
+
     const ticket = await uploads.createUploadTicket(f.owner.id, {
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
@@ -306,8 +322,12 @@ describe('Shop Owner application (PostgreSQL)', () => {
       },
       documentIds: [upload.id],
     });
-    expect(submitted.snapshot!.documents).toHaveLength(1);
+    expect(submitted.documents.filter((d) => d.isSelected)).toHaveLength(1);
+    await expect(media.download(f.admin.id, upload.id)).resolves.toHaveProperty(
+      'url',
+    );
   });
+
   it('serializes duplicate identity approvals and leaves the losing Shop pending', async () => {
     const first = await fixture();
     const second = await fixture();
@@ -322,102 +342,29 @@ describe('Shop Owner application (PostgreSQL)', () => {
     const decision = {
       outcome: 'APPROVED' as const,
       reason: 'Identity documents verified',
-      identityCheckEvidence: 'Cross-document duplicate account check performed',
-      identityMatchesApplicant: true as const,
-      noOtherApprovedAccount: true as const,
     };
     const results = await Promise.allSettled([
-      admin.decide(first.admin.id, a.id, {
-        ...decision,
-        requestId: randomUUID(),
-        expectedVersion: a.version,
-      }),
-      admin.decide(second.admin.id, b.id, {
-        ...decision,
-        requestId: randomUUID(),
-        expectedVersion: b.version,
-      }),
+      service.decide(first.admin.id, a.id, decision),
+      service.decide(second.admin.id, b.id, decision),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
     const db = database.dataSource;
-    const shops = await db
+    const matchedShops = await db
       .getRepository(Shop)
       .findBy([{ id: first.shop.id }, { id: second.shop.id }]);
-    expect(shops.filter((s) => s.status === ShopStatus.ACTIVE)).toHaveLength(1);
     expect(
-      await db.getRepository(OwnerIdentityDocument).count(),
-    ).toBeGreaterThan(0);
+      matchedShops.filter((s) => s.status === ShopStatus.ACTIVE),
+    ).toHaveLength(1);
+    expect(await db.getRepository(OwnerIdentity).count()).toBeGreaterThan(0);
   });
-  it('revalidates role on replay and does not reactivate a Shop after a later restriction', async () => {
-    const f = await fixture();
-    const db = database.dataSource;
-    const submitted = await service.submit(f.owner.id, f.app.id, f.input);
-    const decision = {
-      requestId: randomUUID(),
-      expectedVersion: submitted.version,
-      outcome: 'APPROVED' as const,
-      reason: 'Identity verified manually',
-      identityCheckEvidence:
-        'Original documents and account uniqueness reviewed',
-      identityMatchesApplicant: true as const,
-      noOtherApprovedAccount: true as const,
-      adminNote: 'PRIVATE INTERNAL CHECK',
-    };
-    await admin.decide(f.admin.id, f.app.id, decision);
-    await db
-      .getRepository(Shop)
-      .update({ id: f.shop.id }, { status: ShopStatus.INACTIVE });
-    await admin.decide(f.admin.id, f.app.id, decision);
-    expect(
-      (await db.getRepository(Shop).findOneByOrFail({ id: f.shop.id })).status,
-    ).toBe(ShopStatus.INACTIVE);
-    expect(
-      JSON.stringify(await service.find(f.owner.id, f.app.id)),
-    ).not.toContain('PRIVATE INTERNAL CHECK');
-    await db
-      .getRepository(User)
-      .update({ id: f.admin.id }, { role: UserRole.USER });
-    await expect(admin.decide(f.admin.id, f.app.id, decision)).rejects.toThrow(
-      'Admin required',
-    );
-  });
-  it('protects draft evidence and refuses cross-application and mutated uploads without partial submission', async () => {
-    const f = await fixture();
-    const other = await fixture();
-    const db = database.dataSource;
-    await expect(
-      media.download(f.admin.id, f.input.documentIds[0]),
-    ).rejects.toThrow('not found');
-    await expect(
-      service.submit(f.owner.id, f.app.id, {
-        ...f.input,
-        documentIds: other.input.documentIds,
-      }),
-    ).rejects.toThrow('documents are missing');
-    expect(
-      (
-        await db
-          .getRepository(ShopApplication)
-          .findOneByOrFail({ id: f.app.id })
-      ).revision,
-    ).toBe(0);
-    expect(
-      (
-        await db
-          .getRepository(ShopApplicationDocument)
-          .findOneByOrFail({ id: f.input.documentIds[0] })
-      ).firstSubmittedRevision,
-    ).toBeNull();
-    await service.submit(f.owner.id, f.app.id, f.input);
-    await expect(
-      media.download(f.admin.id, f.input.documentIds[0]),
-    ).resolves.toHaveProperty('url');
-  });
+
   it('serializes account revocation with an in-flight Admin approval', async () => {
     const f = await fixture();
     const db = database.dataSource;
-    const submitted = await service.submit(f.owner.id, f.app.id, f.input);
+    await service.submit(f.owner.id, f.app.id, f.input);
+
     let resume!: () => void;
     let observed!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -426,9 +373,14 @@ describe('Shop Owner application (PostgreSQL)', () => {
     const reached = new Promise<void>((resolve) => {
       observed = resolve;
     });
-    class GatedAccess extends ShopApplicationAccess {
-      async active(manager: EntityManager, userId: string, isAdmin = false) {
-        const user = await super.active(manager, userId, isAdmin);
+
+    class GatedService extends ShopApplicationService {
+      override async assertActiveUser(
+        manager: EntityManager,
+        userId: string,
+        isAdmin = false,
+      ) {
+        const user = await super.assertActiveUser(manager, userId, isAdmin);
         if (userId === f.admin.id && isAdmin) {
           observed();
           await gate;
@@ -436,20 +388,11 @@ describe('Shop Owner application (PostgreSQL)', () => {
         return user;
       }
     }
-    const access = new GatedAccess();
-    const read = new ShopApplicationReadService(db, access);
-    const review = new ShopApplicationAdminService(db, access, read, {
-      getPublicUrl: (key: string) => `https://public.test/${key}`,
-    } as never);
+
+    const review = new GatedService(db, storage as unknown as StorageService);
     const pending = review.decide(f.admin.id, f.app.id, {
-      requestId: randomUUID(),
-      expectedVersion: submitted.version,
       outcome: 'APPROVED',
       reason: 'Identity checked with account lock',
-      identityCheckEvidence:
-        'Manual identity and cross-account verification completed',
-      identityMatchesApplicant: true,
-      noOtherApprovedAccount: true,
     });
     await reached;
     try {
@@ -467,5 +410,12 @@ describe('Shop Owner application (PostgreSQL)', () => {
       resume();
       await pending;
     }
+    expect(
+      (
+        await db
+          .getRepository(ShopApplication)
+          .findOneByOrFail({ id: f.app.id })
+      ).state,
+    ).toBe('APPROVED');
   });
 });

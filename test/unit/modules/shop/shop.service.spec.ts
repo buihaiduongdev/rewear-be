@@ -3,6 +3,9 @@ import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { EntityNotFoundError, QueryFailedError } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
+import { Media } from '@/modules/media/entities';
+import { SHOP_APPLICATION_STATE } from '@/modules/shop/applications/constants/shop-application.constant';
+import { ShopApplication } from '@/modules/shop/applications/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 import { ShopService } from '@/modules/shop/shop.service';
@@ -75,6 +78,8 @@ describe('ShopService', () => {
   };
   const entityManager = {
     query: jest.fn(),
+    existsBy: jest.fn(),
+    update: jest.fn(),
     findOneOrFail: jest.fn(),
     findOneBy: jest.fn(),
     findOneByOrFail: jest.fn(),
@@ -98,6 +103,7 @@ describe('ShopService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     entityManager.getRepository.mockReturnValue(shopRepository);
+    entityManager.existsBy.mockResolvedValue(false);
     dataSource.transaction.mockImplementation(
       async (run: (manager: EntityManager) => Promise<unknown>) =>
         run(entityManager as unknown as EntityManager),
@@ -135,6 +141,7 @@ describe('ShopService', () => {
       id: logoMediaId,
       storageKey: 'logo.jpg',
       mediaType: 'IMAGE',
+      retiredAt: null,
     });
     entityManager.create
       .mockReturnValueOnce(newShop)
@@ -181,10 +188,6 @@ describe('ShopService', () => {
     entityManager.save
       .mockResolvedValueOnce(newShop)
       .mockResolvedValueOnce(newOwner);
-    dataSource.transaction.mockImplementationOnce(
-      async (run: (manager: EntityManager) => Promise<Shop>) =>
-        run(entityManager as unknown as EntityManager),
-    );
 
     await expect(
       service.create(ownerId, {
@@ -236,10 +239,7 @@ describe('ShopService', () => {
     ['New description', 'New description'],
   ])('updates a shop with description %p', async (description, expected) => {
     const existing = { ...shop, description: 'Existing description' };
-    shopRepository.findOneByOrFail
-      .mockResolvedValueOnce(existing)
-      .mockResolvedValueOnce(existing);
-    memberRepository.findOneBy.mockResolvedValueOnce(ownerMembership);
+    shopRepository.findOneOrFail.mockResolvedValueOnce(existing);
     shopRepository.save.mockImplementationOnce(
       async (entity) => entity as Shop,
     );
@@ -255,16 +255,59 @@ describe('ShopService', () => {
       description: expected,
       status: ShopStatus.INACTIVE,
     });
+    expect(shopRepository.findOneOrFail).toHaveBeenCalledWith({
+      where: { id: shop.id },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(shopRepository.save).toHaveBeenCalledWith(existing);
   });
 
-  it('does not allow the owner membership to be removed as staff', async () => {
-    entityManager.findOneBy.mockResolvedValueOnce(ownerMembership);
-    entityManager.findOneByOrFail.mockResolvedValueOnce(ownerMembership);
-    dataSource.transaction.mockImplementationOnce(
-      async (run: (manager: EntityManager) => Promise<void>) =>
-        run(entityManager as unknown as EntityManager),
+  it('blocks editing shop profile fields while an application is pending review', async () => {
+    shopRepository.findOneOrFail.mockResolvedValueOnce({ ...shop });
+    entityManager.existsBy.mockResolvedValueOnce(true);
+
+    await expect(
+      service.update(shop.id, ownerId, { name: 'Edited during review' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(entityManager.existsBy).toHaveBeenCalledWith(ShopApplication, {
+      shopId: shop.id,
+      state: SHOP_APPLICATION_STATE.SUBMITTED,
+    });
+    expect(shopRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('retires unused old shop logo when replaced', async () => {
+    const oldLogoId = '11111111-1111-4111-8111-111111111111';
+    const newLogoId = '22222222-2222-4222-8222-222222222222';
+    const existing = { ...shop, logoMediaId: oldLogoId };
+    shopRepository.findOneOrFail.mockResolvedValueOnce(existing);
+    entityManager.existsBy
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+    uploads.verifyMedia.mockResolvedValueOnce({
+      id: newLogoId,
+      storageKey: 'new-logo.jpg',
+      mediaType: 'IMAGE',
+      retiredAt: null,
+    });
+    shopRepository.save.mockImplementationOnce(
+      async (entity) => entity as Shop,
     );
+
+    const updated = await service.update(shop.id, ownerId, {
+      logoMediaId: newLogoId,
+    });
+
+    expect(updated.logoUrl).toBe('https://public.test/new-logo.jpg');
+    expect(entityManager.update).toHaveBeenCalledWith(
+      Media,
+      { id: oldLogoId },
+      { isAttached: false, retiredAt: expect.any(Date) },
+    );
+  });
+
+  it('does not allow the owner membership to be removed as staff', async () => {
+    entityManager.findOneByOrFail.mockResolvedValueOnce(ownerMembership);
 
     await expect(
       service.removeMember(shop.id, ownerMembership.id),
