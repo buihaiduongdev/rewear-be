@@ -18,6 +18,7 @@ describe('dispute evidence shared media', () => {
     };
     const manager: any = {
       query: jest.fn().mockResolvedValue([{ now: new Date() }]),
+      findOne: jest.fn().mockResolvedValue({ id: 'o1' }),
       getRepository: jest.fn((entity) =>
         entity === DisputeEvidence ? repo : null,
       ),

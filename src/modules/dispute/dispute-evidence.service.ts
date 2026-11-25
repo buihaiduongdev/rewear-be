@@ -9,6 +9,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import { MediaService } from '@/modules/media/media.service';
+import { Order } from '@/modules/order/entities';
 
 import { DISPUTE_POLICY } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
@@ -33,7 +34,6 @@ export class DisputeEvidenceService {
     private readonly media: MediaService,
   ) {}
   private async clock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(row.now);
   }
@@ -47,6 +47,10 @@ export class DisputeEvidenceService {
     if (!data.success) throw new BadRequestException('Invalid evidence');
     return this.db.transaction(async (manager) => {
       const now = await this.clock(manager);
+      await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       await this.access.assertUploadAllowed(manager, userId, orderId, now);
       const repo = manager.getRepository(DisputeEvidence);
       if (

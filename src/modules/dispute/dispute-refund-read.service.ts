@@ -96,7 +96,6 @@ export class DisputeRefundReadService {
     const data = refundIncidentSchema.parse(input);
     const fingerprint = decisionFingerprint({ adminId, refundId, ...data });
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -105,6 +104,10 @@ export class DisputeRefundReadService {
         id: adminId,
         role: UserRole.ADMIN,
         status: UserStatus.ACTIVE,
+      });
+      const refund = await manager.findOneOrFail(DisputeRefund, {
+        where: { id: refundId },
+        lock: { mode: 'pessimistic_write' },
       });
       const replay = await manager.findOneBy(DisputeRefundIncidentUpdate, {
         requestId: data.requestId,
@@ -116,9 +119,6 @@ export class DisputeRefundReadService {
           );
         return replay;
       }
-      const refund = await manager.findOneByOrFail(DisputeRefund, {
-        id: refundId,
-      });
       if (!refund.alertedAt)
         throw new ConflictException('Refund has no operational incident');
       if (new Date(data.nextUpdateAt) <= now)

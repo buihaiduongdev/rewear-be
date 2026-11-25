@@ -144,14 +144,16 @@ export class ReturnBookingService {
     for (const candidate of candidates) {
       this.pollCursor = candidate.id;
       const claimed = await this.db.transaction(async (manager) => {
-        await this.lock(manager);
         const [{ now: clock }] = await manager.query(
           'SELECT clock_timestamp() AS now',
         );
         const now = new Date(clock),
-          row = await manager.findOneBy(ReturnBooking, {
-            id: candidate.id,
-            active: true,
+          row = await manager.findOne(ReturnBooking, {
+            where: {
+              id: candidate.id,
+              active: true,
+            },
+            lock: { mode: 'pessimistic_write' },
           });
         if (!row || (row.nextQueryAt && row.nextQueryAt > now)) return null;
         row.nextQueryAt = new Date(now.getTime() + POLICY.QUERY_LEASE_MS);
@@ -178,9 +180,6 @@ export class ReturnBookingService {
     private readonly carrier: GhnShipmentClient,
     private readonly access: DisputeAccess,
   ) {}
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-  }
   private async admin(manager: EntityManager, userId: string) {
     await manager.findOneByOrFail(User, {
       id: userId,
@@ -194,10 +193,10 @@ export class ReturnBookingService {
       .update(JSON.stringify({ returnId, ...data }))
       .digest('hex');
     const claim = await this.db.transaction(async (manager) => {
-      await this.lock(manager);
       await this.admin(manager, adminId);
-      const row = await manager.findOneByOrFail(DisputeReturn, {
-        id: returnId,
+      const row = await manager.findOneOrFail(DisputeReturn, {
+        where: { id: returnId },
+        lock: { mode: 'pessimistic_write' },
       });
       const replay = await manager.findOneBy(ReturnBooking, {
         requestId: data.requestId,
@@ -281,9 +280,9 @@ export class ReturnBookingService {
       );
     } catch {
       await this.db.transaction(async (manager) => {
-        await this.lock(manager);
-        const row = await manager.findOneByOrFail(ReturnBooking, {
-          id: claim.row.id,
+        const row = await manager.findOneOrFail(ReturnBooking, {
+          where: { id: claim.row.id },
+          lock: { mode: 'pessimistic_write' },
         });
         if (row.state !== STATE.BOOKED) {
           row.state = STATE.UNKNOWN;
@@ -356,17 +355,20 @@ export class ReturnBookingService {
     if (snapshot.status !== GHN_SHIPMENT_STATUS.CANCEL)
       throw new ConflictException('Carrier has not confirmed cancellation');
     const claim = await this.db.transaction(async (manager) => {
-      await this.lock(manager);
       await this.admin(manager, adminId);
-      const current = await manager.findOneByOrFail(ReturnBooking, {
-        id: old.id,
-        active: true,
+      const obligation = await manager.findOneOrFail(DisputeReturn, {
+        where: { id: returnId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const current = await manager.findOneOrFail(ReturnBooking, {
+        where: {
+          id: old.id,
+          active: true,
+        },
+        lock: { mode: 'pessimistic_write' },
       });
       if (current.orderCode !== old.orderCode || current.state !== STATE.BOOKED)
         throw new ConflictException('Return booking changed');
-      const obligation = await manager.findOneByOrFail(DisputeReturn, {
-        id: returnId,
-      });
       if (obligation.handoverAt || obligation.deliveredAt || obligation.readyAt)
         throw new ConflictException('Return movement prevents reissue');
       if (obligation.labelCode) {
@@ -424,10 +426,16 @@ export class ReturnBookingService {
   ) {
     this.validateSnapshot(expected, snapshot, createdCode);
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      const row = await manager.findOneByOrFail(ReturnBooking, {
-        id: expected.id,
-        active: true,
+      const obligation = await manager.findOneOrFail(DisputeReturn, {
+        where: { id: expected.returnId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const row = await manager.findOneOrFail(ReturnBooking, {
+        where: {
+          id: expected.id,
+          active: true,
+        },
+        lock: { mode: 'pessimistic_write' },
       });
       if (row.orderCode && row.orderCode !== snapshot.orderCode)
         throw new ConflictException('Return label changed');
@@ -438,9 +446,6 @@ export class ReturnBookingService {
       row.nextQueryAt = new Date(
         row.observedAt.getTime() + POLICY.POLL_INTERVAL_MS,
       );
-      const obligation = await manager.findOneByOrFail(DisputeReturn, {
-        id: row.returnId,
-      });
       const usable = (
         [
           GHN_SHIPMENT_STATUS.READY_TO_PICK,
