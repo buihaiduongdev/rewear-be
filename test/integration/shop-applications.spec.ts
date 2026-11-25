@@ -91,17 +91,15 @@ describe('Shop Owner application (PostgreSQL)', () => {
   async function fixture() {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
-    const logo = await db
-      .getRepository(Media)
-      .save({
-        uploadedById: f.owner.id,
-        storageKey: `logos/${randomUUID()}.jpg`,
-        visibility: 'public',
-        mediaType: MediaType.IMAGE,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-        isAttached: true,
-      });
+    const logo = await db.getRepository(Media).save({
+      uploadedById: f.owner.id,
+      storageKey: `logos/${randomUUID()}.jpg`,
+      visibility: 'public',
+      mediaType: MediaType.IMAGE,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      isAttached: true,
+    });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {

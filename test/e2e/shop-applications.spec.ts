@@ -103,17 +103,15 @@ describe('Owner KYC application HTTP', () => {
   it('creates a pending Shop, blocks public sale/activation and requires its current Owner for KYC', async () => {
     const server = app.getHttpServer();
     await request(server).get('/api/shop-applications/mine').expect(401);
-    const logo = await db
-      .getRepository(Media)
-      .save({
-        uploadedById: f.buyer.id,
-        storageKey: `logos/${randomUUID()}.jpg`,
-        visibility: 'public',
-        mediaType: MediaType.IMAGE,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-        isAttached: false,
-      });
+    const logo = await db.getRepository(Media).save({
+      uploadedById: f.buyer.id,
+      storageKey: `logos/${randomUUID()}.jpg`,
+      visibility: 'public',
+      mediaType: MediaType.IMAGE,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      isAttached: false,
+    });
     const created = await request(server)
       .post('/api/shops')
       .auth(token(f.buyer), { type: 'bearer' })

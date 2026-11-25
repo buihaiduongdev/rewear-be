@@ -50,17 +50,15 @@ describe('Owner document renewal (PostgreSQL)', () => {
       birthDate: '1980-01-01',
       expiresOn,
     };
-    const logo = await db
-      .getRepository(Media)
-      .save({
-        uploadedById: f.owner.id,
-        storageKey: `logos/${randomUUID()}.jpg`,
-        visibility: 'public',
-        mediaType: MediaType.IMAGE,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-        isAttached: true,
-      });
+    const logo = await db.getRepository(Media).save({
+      uploadedById: f.owner.id,
+      storageKey: `logos/${randomUUID()}.jpg`,
+      visibility: 'public',
+      mediaType: MediaType.IMAGE,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      isAttached: true,
+    });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {
