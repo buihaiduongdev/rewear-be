@@ -20,6 +20,7 @@ export class ReturnInspectionDeadlineService {
 
   async run(): Promise<void> {
     await this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

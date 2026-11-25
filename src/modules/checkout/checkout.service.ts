@@ -73,7 +73,9 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  private async lock(_manager: EntityManager) {}
+  private async lock(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  }
 
   async create(buyerId: string, input: CreateCheckoutInput) {
     return this.db.transaction(async (manager) => {

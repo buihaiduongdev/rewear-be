@@ -15,6 +15,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 import { ExcessCommand, WalletExcess } from '../entities';
 
 export async function excessClock(manager: EntityManager) {
+  await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
   return new Date(now);
 }

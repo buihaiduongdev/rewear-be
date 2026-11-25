@@ -350,12 +350,12 @@ describe('fee source corrections (PostgreSQL)', () => {
     });
     const tiny = await f.service.assess(
       f.admin.id,
-      assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 500),
+      assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 1000),
     );
     expect(tiny.dueAt).toBeNull();
     expect(tiny.notifiedAt).not.toBeNull();
     const next = await f.service.assess(f.admin.id, {
-      ...assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 500),
+      ...assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 1000),
       invoiceLine: 'return-leg',
     });
     const first = await f.db
@@ -366,7 +366,7 @@ describe('fee source corrections (PostgreSQL)', () => {
       168 * 3600000,
     );
     await f.service.assess(f.admin.id, {
-      ...assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 500),
+      ...assessmentInput(f.order, f.shipment, 'SHOP', 'FAILED_DELIVERY', 1000),
       invoiceLine: 'extra-leg',
     });
     expect(

@@ -1269,12 +1269,12 @@
 
 ### 2026-11-25 — Tinh gọn nhóm module giao dịch - thanh toán Wave 3 và chuyển cổng thanh toán sang PayOS
 
-- **Mục tiêu công việc:** Chuyển toàn bộ hạ tầng thanh toán trực tuyến từ cổng MoMo Sandbox sang cổng PayOS thông qua gói chính thức của hãng, đồng thời rà soát và tinh gọn các module nghiệp vụ cốt lõi gồm thanh toán, đặt hàng, giỏ chốt đơn, thu hộ, đối soát, vận chuyển, tài chính cửa hàng, ví và phí.
-- **Công cụ & Phạm vi sử dụng AI:** Sử dụng AI hỗ trợ tích hợp thư viện PayOS v2 cho luồng tạo liên kết thanh toán, tra cứu trạng thái giao dịch và xác thực webhook; rà soát để bỏ khóa tư vấn toàn cục, bỏ giao dịch đọc cô lập cao không cần thiết, tách các bảng đang gộp chung thành từng tệp thực thể riêng và gom các tệp kiểu rời rạc về lớp lược đồ.
-- **Kết quả AI tạo ra (Tóm tắt):**
-  - Chuyển đổi luồng thanh toán đơn hàng, thanh toán phí và hoàn thu hồi ví sang sử dụng PayOS với mã giao dịch số duy nhất, kiểm tra chữ ký webhook chuẩn v2 và chuyển các trường hợp cần hoàn trả thủ công sang trạng thái rà soát vận hành.
-  - Gỡ bỏ toàn bộ khóa tư vấn toàn cục và giao dịch chỉ đọc cô lập cao ở các hàm đọc dữ liệu trên cả 9 module thuộc Wave 3, giữ nguyên khóa bản ghi theo từng giao dịch và ràng buộc duy nhất ở mức cơ sở dữ liệu.
-  - Tách 13 tệp thực thể gộp nhiều bảng ra từng tệp riêng lẻ một bảng một tệp, hợp nhất các tệp kiểu nhỏ vào lớp lược đồ và cập nhật đồng bộ toàn bộ mã nguồn cùng các bộ kiểm thử đơn vị, kiểm thử tích hợp và kiểm thử đầu cuối.
-- **Kiểm chứng và chỉnh sửa của nhóm:** Tự chạy định dạng mã nguồn, kiểm tra lint, kiểm tra kiểu, biên dịch ứng dụng, bộ kiểm thử thanh toán lõi và toàn bộ kiểm thử đơn vị sau chỉnh sửa.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Một số bài kiểm thử giả lập cũ còn giữ mock phương thức tìm kiếm đơn giản và tên hằng trạng thái cũ; đã cập nhật lại đầy đủ trước khi chạy toàn bộ kiểm thử.
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Chuyển toàn bộ cổng thanh toán trực tuyến từ MoMo Sandbox sang PayOS (dùng `@payos/node`) đồng thời rà soát, tinh gọn 9 module giao dịch cốt lõi của Wave 3 (`payment`, `checkout`, `order`, `cod`, `cod-reconciliation`, `shipment`, `shop-finance`, `wallet`, `fees`).
+- **Prompt chính:** Tiếp tục Wave 3: thay thế luồng thanh toán và webhook từ MoMo Sandbox sang PayOS do sandbox MoMo trục trặc, giữ nguyên khóa tuần tự hóa cho các giao dịch ghi tài chính/đơn hàng, bỏ `REPEATABLE READ` chỉ đọc dư thừa, tách 13 file gộp nhiều entity thành từng bảng riêng và gộp các thư mục `types` vào `schemas`.
+- **Đầu ra AI được sử dụng:** Chuyển đổi thanh toán đơn hàng, thanh toán phí và hoàn thu hồi ví sang PayOS (`@payos/node` v2) với xác thực chữ ký webhook và chuyển trường hợp hoàn tiền thủ công sang rà soát vận hành; bỏ `REPEATABLE READ` trên các hàm đọc ở `order`, `cod`, `cod-reconciliation`, `shop-finance`, `wallet` và `fees`; giữ `pg_advisory_xact_lock` trên các giao dịch ghi tài chính/đơn hàng; tách 13 file gộp nhiều entity về chuẩn 1 bảng/file kèm barrel export và gộp `types/` vào `schemas/`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Quyết định chuyển sang PayOS, rà soát và khôi phục lại toàn bộ khóa ghi tài chính bị bỏ nhầm gây xung đột đồng thời trên CI, cập nhật test ngưỡng tối thiểu phí sang 2.000 VND theo PayOS và chuẩn hóa PR/nhật ký.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** AI tự ý bỏ `pg_advisory_xact_lock(782143, 1)` trên các giao dịch ghi tài chính/đơn hàng gây lỗi concurrency ở nhiều test tích hợp và giữ ngưỡng 1.000 VND của MoMo trong `fee-lifecycle.spec.ts` thay vì 2.000 VND của PayOS; đã khôi phục khóa và sửa lại test trước khi đẩy lên CI.
 - **Minh chứng:** PR #71; branch `buihaiduongdev/refactor-wave-3`.

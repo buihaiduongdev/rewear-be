@@ -75,6 +75,7 @@ export class FeePaymentService {
   }
 
   private async now(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }

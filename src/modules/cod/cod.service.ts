@@ -76,6 +76,7 @@ export class CodService {
       throw error;
     }
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const checkout = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,
         buyerId,

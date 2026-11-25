@@ -46,7 +46,9 @@ const fingerprint = (value: unknown) =>
 export class CodReconciliationService {
   constructor(private readonly db: DataSource) {}
 
-  private async lock(_manager: EntityManager) {}
+  private async lock(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  }
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);

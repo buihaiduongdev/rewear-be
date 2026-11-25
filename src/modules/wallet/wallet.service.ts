@@ -27,6 +27,7 @@ export class WalletService {
   // Caller owns the order cancellation transaction; the ledger and stock/order
   // state must commit together. No top-up or generic credit endpoint exists.
   async creditCancellation(manager: EntityManager, order: Order) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     if (!orderRefundSchema.safeParse(order).success)
       throw new ConflictException('Invalid order refund amount');
     const refundAmount = order.subtotal + order.shippingFee;

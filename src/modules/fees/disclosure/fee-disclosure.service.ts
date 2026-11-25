@@ -21,6 +21,7 @@ export class FeeDisclosureService {
   }
   publish(adminId: string, input: FeePolicyPublishInput) {
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const admin = await manager.findOneBy(User, {
         id: adminId,
         role: UserRole.ADMIN,
@@ -43,6 +44,7 @@ export class FeeDisclosureService {
   }
   accept(ownerId: string, shopId: string, policyId: string) {
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const user = await manager.findOneBy(User, {
         id: ownerId,
         status: UserStatus.ACTIVE,

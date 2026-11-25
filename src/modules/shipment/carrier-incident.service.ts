@@ -45,6 +45,7 @@ export class CarrierIncidentService {
     input: CarrierIncidentDecision,
   ): Promise<CarrierIncident> {
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const incident = await manager.findOneByOrFail(CarrierIncident, { id });
       if (incident.state === CARRIER_INCIDENT_STATE.RESOLVED)
         throw new ConflictException('Carrier incident is already resolved');
@@ -96,6 +97,7 @@ export class CarrierIncidentService {
   }
   async run(): Promise<void> {
     await this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

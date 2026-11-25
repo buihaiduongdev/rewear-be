@@ -35,6 +35,7 @@ export class ShippingQuoteService {
     checkoutId: string,
   ): Promise<ShippingQuoteResult> {
     await this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const row = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,
@@ -106,6 +107,7 @@ export class ShippingQuoteService {
   ) {
     const quote = await this.refresh(buyerId, checkoutId);
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const checkout = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,

@@ -36,6 +36,8 @@ export class ShipmentReturnInspectionService {
   ) {
     const decision = returnInspectionSchema.parse(input);
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+
       const order = await manager.findOneOrFail(Order, {
         where: { id, shopId },
         lock: { mode: 'pessimistic_write' },
