@@ -1234,11 +1234,11 @@
 ### 2026-11-25 — Tinh gọn cấu trúc và tối ưu truy vấn module chat
 
 - **Người thực hiện:** Bùi Hải Dương
-- **Công cụ:** Antigravity (Gemini 4 Hydrogen)
-- **Mục đích và phạm vi:** Giảm số lượng file lẻ tẻ, làm phẳng cấu trúc thư mục, bỏ hằng số/ràng buộc trùng lặp và tối ưu truy vấn N+1 trong module chat.
-- **Prompt chính:** Rà soát và tinh gọn module chat: xóa hằng số thừa, gộp các file nhỏ lẻ vào service và schema chính, tối ưu truy vấn danh sách hội thoại và kiểm tra thẻ sản phẩm.
-- **Đầu ra AI được sử dụng:** Gộp `types/` vào `schemas/chat.schema.ts`, gộp dịch vụ media và evidence thành một file phẳng, đưa view và card snapshot vào `ChatService`, đồng thời tối ưu query `list()` và `resolveCardSnapshot()`.
-- **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện và yêu cầu bỏ các hằng số dư thừa (`UPLOADS_PER_ACTOR_CONVERSATION_DAY`, `MAX_SEQUENCE`, `IMAGE_BYTES`, `VIDEO_BYTES`) và chỉ đạo gộp gọn các file lẻ.
-- **Cách kiểm chứng:** `pnpm check` đạt; `chat-schema.spec.ts` đạt 3/3 tests.
+- **Công cụ:** Antigravity (Gemini 4 Hydrogen & Gemini 4 Neon)
+- **Mục đích và phạm vi:** Tách chuẩn entity theo từng bảng, bỏ các lớp xử lý thừa/overkill (đánh số `sequence`, chống trùng `clientMessageId`/`fingerprint`, `senderSide`, snapshot `card` JSONB) và gộp gọn các file/helper lẻ trong module chat.
+- **Prompt chính:** Rà soát và tinh gọn module chat: tách entity thành từng file theo bảng, bỏ sequence cursor và cơ chế chống trùng bằng hash để dùng mốc thời gian đọc, thay snapshot thẻ sản phẩm JSONB bằng quan hệ trực tiếp, gộp helper phân quyền/truy vấn bị lặp vào service chính và đưa hàm gửi thông báo tin nhắn về đúng phân hệ thông báo.
+- **Đầu ra AI được sử dụng:** Tách `ChatConversation` và `ChatMessage` thành các file entity riêng; chuyển cơ chế đọc và phân trang tin nhắn sang mốc thời gian (`buyerLastReadAt`/`shopLastReadAt`) cùng `limit`/`offset`; bỏ `clientMessageId`, `fingerprint`, `senderSide` và thay `card` bằng khóa ngoại `productId`; gộp `chat.access.ts` và logic đếm tin chưa đọc/tải media lặp vào service chính, thu gọn schema chat và chuyển `notifyChatMessage` sang `notifications/sources/`; cập nhật đồng bộ seed và bộ test chat.
+- **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện và yêu cầu bỏ các hằng số/cơ chế overkill (`sequence`, chống trùng payload, `senderSide`, `card` JSONB), định hướng dùng relation trực tiếp tới sản phẩm, tách entity theo từng bảng và đặt helper thông báo về đúng module.
+- **Cách kiểm chứng:** `pnpm check` đạt; `chat-schema.spec.ts` đạt 3/3 tests (cùng 24/24 node tests); integration/e2e đã cập nhật theo contract mới để CI chạy.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #68; branch `buihaiduongdev/chat-cleanup`.
