@@ -17,32 +17,43 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { DisputeEvidenceService } from './dispute-evidence.service';
-import { DisputeReadService } from './dispute-read.service';
-import { DisputeReviewService } from './dispute-review.service';
+import { DisputeAdjudicationService } from './dispute-adjudication.service';
+import { DisputeRefundService } from './dispute-refund.service';
 import { DisputeService } from './dispute.service';
-import {
-  disputeCaseDetailSchema,
-  disputeCaseViewSchema,
-  disputeDownloadSchema,
-  disputeEvidenceViewSchema,
-  disputeIssueViewSchema,
-  disputeMessageViewSchema,
-} from './schemas/dispute-view.schema';
-import {
-  disputeExtensionSchema,
-  disputeListSchema,
-  disputeReplySchema,
-  disputeSupplementSchema,
-  disputeUploadSchema,
-  openDisputeIssueSchema,
-} from './schemas/dispute.schema';
+import { DisputeReturnService } from './returns/return.service';
 import type {
+  DisputeAppealInput,
+  DisputeDecisionInput,
   DisputeReplyInput,
-  DisputeSupplementInput,
   DisputeUploadInput,
   OpenDisputeIssueInput,
+  ReturnCarrierStatusInput,
+  ReturnLabelInput,
 } from './schemas/dispute.schema';
+import {
+  disputeAppealInputSchema,
+  disputeAppealViewSchema,
+  disputeCaseDetailSchema,
+  disputeCaseViewSchema,
+  disputeDecisionInputSchema,
+  disputeDecisionViewSchema,
+  disputeDownloadSchema,
+  disputeEvidenceViewSchema,
+  disputeExtensionSchema,
+  disputeIssueViewSchema,
+  disputeListSchema,
+  disputeMessageViewSchema,
+  disputeReplySchema,
+  disputeUploadSchema,
+  openDisputeIssueSchema,
+  returnCarrierStatusSchema,
+  returnLabelInputSchema,
+  returnViewSchema,
+} from './schemas/dispute.schema';
+import {
+  refundCreditViewSchema,
+  refundDetailViewSchema,
+} from './schemas/refund-execution.schema';
 
 @ApiTags('Disputes')
 @ApiBearerAuth()
@@ -51,10 +62,37 @@ import type {
 export class DisputeController {
   constructor(
     private readonly disputes: DisputeService,
-    private readonly reads: DisputeReadService,
-    private readonly review: DisputeReviewService,
-    private readonly evidence: DisputeEvidenceService,
+    private readonly adjudication: DisputeAdjudicationService,
+    private readonly refunds: DisputeRefundService,
+    private readonly returns: DisputeReturnService,
   ) {}
+
+  @Post('orders/:id/dispute-evidence')
+  @HttpCode(200)
+  @Serialize(disputeEvidenceViewSchema)
+  upload(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: disputeUploadSchema }) input: DisputeUploadInput,
+  ) {
+    return this.disputes.attachEvidence(user.id, id, input);
+  }
+
+  @Get('dispute-evidence/:id/download')
+  @Serialize(disputeDownloadSchema)
+  download(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.disputes.downloadEvidence(user.id, id);
+  }
+
+  @Get('admin/dispute-evidence/:id/download')
+  @Roles(UserRole.ADMIN)
+  @Serialize(disputeDownloadSchema)
+  adminDownload(@Param('id', { schema: uuidSchema }) id: string) {
+    return this.disputes.adminDownloadEvidence(id);
+  }
 
   @Post('orders/:id/dispute/issues')
   @HttpCode(200)
@@ -65,17 +103,6 @@ export class DisputeController {
     @Body({ schema: openDisputeIssueSchema }) input: OpenDisputeIssueInput,
   ) {
     return this.disputes.openIssue(user.id, id, input);
-  }
-
-  @Post('dispute-issues/:id/evidence')
-  @HttpCode(200)
-  @Serialize(disputeIssueViewSchema)
-  supplement(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: disputeSupplementSchema }) input: DisputeSupplementInput,
-  ) {
-    return this.disputes.supplement(user.id, id, input);
   }
 
   @Post('dispute-issues/:id/replies')
@@ -96,7 +123,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.reads.byOrder(user.id, id, input.offset);
+    return this.disputes.byOrder(user.id, id, input.offset);
   }
 
   @Get('disputes/mine')
@@ -105,7 +132,7 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.reads.buyerList(user.id, input.offset);
+    return this.disputes.buyerList(user.id, input.offset);
   }
 
   @Get('shops/:shopId/disputes')
@@ -115,14 +142,14 @@ export class DisputeController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.reads.shopList(user.id, shopId, input.offset);
+    return this.disputes.shopList(user.id, shopId, input.offset);
   }
 
   @Get('admin/disputes')
   @Roles(UserRole.ADMIN)
   @Serialize(z.array(disputeCaseViewSchema))
   adminList(@Query({ schema: disputeListSchema }) input: { offset: number }) {
-    return this.reads.adminList(input.offset);
+    return this.disputes.adminList(input.offset);
   }
 
   @Get('admin/disputes/:id')
@@ -132,7 +159,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.reads.adminDetail(id, input.offset);
+    return this.disputes.adminDetail(id, input.offset);
   }
 
   @Post('admin/dispute-issues/:id/extend')
@@ -144,33 +171,112 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeExtensionSchema }) input: { reason: string },
   ) {
-    return this.review.extend(user.id, id, input);
+    return this.adjudication.extend(user.id, id, input);
   }
 
-  @Post('orders/:id/dispute-evidence')
-  @HttpCode(200)
-  @Serialize(disputeEvidenceViewSchema)
-  upload(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: disputeUploadSchema }) input: DisputeUploadInput,
-  ) {
-    return this.evidence.attach(user.id, id, input);
-  }
-
-  @Get('dispute-evidence/:id/download')
-  @Serialize(disputeDownloadSchema)
-  download(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.evidence.download(user.id, id);
-  }
-
-  @Get('admin/dispute-evidence/:id/download')
+  @Post('admin/dispute-issues/:id/decision')
   @Roles(UserRole.ADMIN)
-  @Serialize(disputeDownloadSchema)
-  adminDownload(@Param('id', { schema: uuidSchema }) id: string) {
-    return this.evidence.adminDownload(id);
+  @HttpCode(200)
+  @Serialize(disputeDecisionViewSchema)
+  decide(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: disputeDecisionInputSchema }) input: DisputeDecisionInput,
+  ) {
+    return this.adjudication.decide(user.id, id, input);
+  }
+
+  @Post('dispute-decisions/:id/appeals')
+  @HttpCode(200)
+  @Serialize(disputeAppealViewSchema)
+  submitAppeal(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: disputeAppealInputSchema }) input: DisputeAppealInput,
+  ) {
+    return this.adjudication.submitAppeal(user.id, id, input);
+  }
+
+  @Post('admin/dispute-decisions/:id/appeal-decision')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(200)
+  @Serialize(disputeDecisionViewSchema)
+  concludeAppeal(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: disputeDecisionInputSchema }) input: DisputeDecisionInput,
+  ) {
+    return this.adjudication.concludeAppeal(user.id, id, input);
+  }
+
+  @Get('dispute-decisions/:id/refund')
+  @Serialize(refundDetailViewSchema)
+  refundView(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.refunds.view(user.id, id, user.role === UserRole.ADMIN);
+  }
+
+  @Post('admin/dispute-decisions/:id/refund')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(200)
+  @Serialize(refundCreditViewSchema.nullable())
+  executeRefund(@Param('id', { schema: uuidSchema }) id: string) {
+    return this.refunds.execute(id);
+  }
+
+  @Get('dispute-returns/:id')
+  @Serialize(returnViewSchema)
+  readReturn(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.returns.read(user.id, id, user.role === UserRole.ADMIN);
+  }
+
+  @Post('admin/dispute-returns/:id/label')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(200)
+  @Serialize(returnViewSchema)
+  createReturnLabel(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: returnLabelInputSchema }) input: ReturnLabelInput,
+  ) {
+    return this.returns.createLabel(user.id, id, input);
+  }
+
+  @Post('dispute-returns/:id/handover')
+  @HttpCode(200)
+  @Serialize(returnViewSchema)
+  handoverReturn(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.returns.recordHandover(user.id, id);
+  }
+
+  @Post('admin/dispute-returns/:id/status')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(200)
+  @Serialize(returnViewSchema)
+  updateReturnStatus(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: returnCarrierStatusSchema })
+    input: ReturnCarrierStatusInput,
+  ) {
+    return this.returns.updateCarrierStatus(user.id, id, input);
+  }
+
+  @Post('dispute-returns/:id/confirm-receipt')
+  @HttpCode(200)
+  @Serialize(returnViewSchema)
+  confirmReturnReceipt(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.returns.confirmReceipt(user.id, id);
   }
 }

@@ -6,17 +6,8 @@ import type { DisputeParty } from '../schemas/dispute.schema';
 import { DisputeIssue } from './dispute-issue.entity';
 
 @Entity('dispute_messages')
-@Index(['issueId', 'requestId'], { unique: true })
+@Index(['issueId', 'createdAt'])
 export class DisputeMessage extends BaseEntity {
-  @Column('text')
-  text: string;
-
-  @Column('jsonb')
-  evidenceIds: string[];
-
-  @Column({ type: 'boolean', nullable: true })
-  late: boolean | null;
-
   @Column('uuid')
   issueId: string;
 
@@ -25,11 +16,14 @@ export class DisputeMessage extends BaseEntity {
   issue: DisputeIssue;
 
   @Column('uuid')
-  requestId: string;
-
-  @Column('uuid')
   actorId: string;
 
   @Column({ type: 'varchar', length: 16 })
   party: DisputeParty;
+
+  @Column('text')
+  text: string;
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  evidenceIds: string[];
 }

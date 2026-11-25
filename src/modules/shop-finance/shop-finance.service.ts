@@ -7,10 +7,10 @@ import {
 import { DataSource, EntityManager } from 'typeorm';
 
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
-import { RECONCILIATION_REVIEW_REASON } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
+  RECONCILIATION_REVIEW_REASON,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import {
@@ -21,13 +21,9 @@ import {
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { shopRefundDeductions } from '@/modules/dispute/dispute-refund-accounting';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
-import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
-import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
-import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
 import { FeeAssessment } from '@/modules/fees/entities';
 import { feeOutstanding } from '@/modules/fees/fee-accounting';
-import { returnFeeOutstanding } from '@/modules/fees/settlement/fee-return-bridge';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
@@ -68,8 +64,6 @@ export class ShopFinanceService {
       await this.readFundingTotals(manager, shopId, mode);
     const deductions = await shopRefundDeductions(manager, shopId, mode);
     const lateDebit = deductions.settled - releasedRefundDebit;
-    const { carrierCompensation, returnFeePayable } =
-      await this.readCarrierTotals(manager, shopId, mode);
     const payoutFunds = await readPayoutSources(manager, shopId, mode);
     const feeRows = await manager.findBy(FeeAssessment, {
       shopId,
@@ -82,25 +76,17 @@ export class ShopFinanceService {
     const { available } = payoutFunds;
     const held = funded - deductions.funded - released + lateDebit;
     const receivable = pending - deductions.receivable;
-    const hasInvalidHeldTotal = !safeBalanceSchema.safeParse(held).success;
-    const hasInvalidReceivableTotal =
-      !safeBalanceSchema.safeParse(receivable).success;
-    const hasInvalidAvailableTotal =
-      !safeBalanceSchema.safeParse(available).success;
-    const hasInvalidFundedTotal = !safeBalanceSchema.safeParse(funded).success;
     const exceedsSafeRange =
-      hasInvalidHeldTotal ||
-      hasInvalidReceivableTotal ||
-      hasInvalidAvailableTotal ||
-      hasInvalidFundedTotal;
+      !safeBalanceSchema.safeParse(held).success ||
+      !safeBalanceSchema.safeParse(receivable).success ||
+      !safeBalanceSchema.safeParse(available).success ||
+      !safeBalanceSchema.safeParse(funded).success;
     if (exceedsSafeRange)
       throw new ConflictException('Shop totals exceed safe amount range');
     return {
       held,
       receivable,
       available,
-      carrierCompensation,
-      returnFeePayable,
       payoutLocked: payoutFunds.payoutLocked,
       paidOut: payoutFunds.paidOut,
       paidOutDebt: payoutFunds.paidOutDebt,
@@ -162,39 +148,6 @@ export class ShopFinanceService {
     };
   }
 
-  private async readCarrierTotals(
-    manager: EntityManager,
-    shopId: string,
-    mode: ReconciliationMode,
-  ) {
-    const carrierReceipts = await manager.find(CarrierCompensationReceipt, {
-      where: { shopId, mode },
-    });
-    const carrierCompensation = carrierReceipts.reduce(
-      (sum, receipt) => sum + receipt.amount,
-      0,
-    );
-    const returnCharges = await manager.find(ReturnShippingCharge, {
-      where: { shopId, mode },
-    });
-    let returnFeePayable = 0;
-    for (const charge of returnCharges) {
-      const chargeNetting = carrierReceipts
-        .filter(
-          (row) =>
-            row.chargeId === charge.id &&
-            row.kind === CARRIER_RECEIPT_KIND.VERIFIED_NETTING,
-        )
-        .reduce((sum, row) => sum + row.amount, 0);
-      returnFeePayable += await returnFeeOutstanding(
-        manager,
-        charge,
-        charge.amount - chargeNetting,
-      );
-    }
-    return { carrierCompensation, returnFeePayable };
-  }
-
   private async readHistory(
     manager: EntityManager,
     shopId: string,
@@ -225,21 +178,7 @@ export class ShopFinanceService {
       take: 100,
       skip: offset,
     });
-    const carrierReceipts = await manager.find(CarrierCompensationReceipt, {
-      where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: 100,
-      skip: offset,
-    });
-    const returnCharges = await manager.find(ReturnShippingCharge, {
-      where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: 100,
-      skip: offset,
-    });
     return {
-      carrierReceipts,
-      returnCharges,
       refunds,
       settlements: settlements.map(({ id, orderId, amount, createdAt }) => ({
         id,

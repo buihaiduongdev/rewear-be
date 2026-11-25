@@ -6,8 +6,6 @@ import {
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
@@ -213,51 +211,6 @@ export class FeeService {
       now,
     );
     return manager.findOneByOrFail(FeeAssessment, { id: fee.id });
-  }
-  async assessVerifiedReturnCharge(
-    manager: EntityManager,
-    charge: ReturnShippingCharge,
-    now: Date,
-  ): Promise<FeeAssessment | null> {
-    const order = await manager.findOneByOrFail(Order, { id: charge.orderId });
-    const kind =
-      charge.kind === FEE_KIND.REFUSAL_EXTRA
-        ? FEE_KIND.REFUSAL_EXTRA
-        : FEE_KIND.RETURN_SHIPPING;
-    if (!(await verifyFeeDisclosure(manager, order, FEE_PARTY.SHOP, kind)))
-      return null;
-    const returned = await manager.findOneBy(DisputeReturn, {
-      id: charge.returnId,
-    });
-    if (
-      !charge.waybillCode ||
-      !returned ||
-      returned.orderId !== order.id ||
-      returned.shopId !== charge.shopId ||
-      order.shopId !== charge.shopId ||
-      returned.mode !== charge.mode
-    )
-      return null;
-    return this.persistAssessment(
-      manager,
-      charge.actorId,
-      {
-        orderId: order.id,
-        party: FEE_PARTY.SHOP,
-        mode: charge.mode,
-        kind,
-        sourceId: charge.id,
-        waybillId: charge.waybillCode,
-        invoiceReference: charge.invoiceReference,
-        invoiceLine: charge.kind,
-        amount: charge.amount,
-        actualInvoiceAmount: charge.amount,
-        reason: charge.reason,
-        evidence: charge.evidence,
-      },
-      order,
-      now,
-    );
   }
   async activate(manager: EntityManager, fee: FeeAssessment, now: Date) {
     if (fee.status !== FEE_STATUS.ACTIVE || fee.dueAt) return;

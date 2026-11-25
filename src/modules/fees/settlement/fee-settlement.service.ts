@@ -1,10 +1,8 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
-import { DataSource, EntityManager, In, IsNull, MoreThan } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
 import { CodRemittance } from '@/modules/cod-reconciliation/entities';
-import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
-import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 
 import {
   FEE_COLLECTION_METHOD,
@@ -21,39 +19,22 @@ import {
 import { FeeSettlementIncident } from './entities';
 import { settleInternalFeeRefund } from './fee-internal-refunds';
 import { settleShopFees } from './fee-offset';
-import { importVerifiedReturnFee } from './fee-return-bridge';
 import { assertFeeAdmin, feeMoneyLock } from './fee-settlement.access';
-import { feeCarrierRefundSchema } from './schemas/fee-settlement.schema';
 import type { FeeCarrierRefundInput } from './schemas/fee-settlement.schema';
+import { feeCarrierRefundSchema } from './schemas/fee-settlement.schema';
 
 @Injectable()
 export class FeeSettlementService {
-  private cursor: string | null = null;
   private readonly logger = new Logger(FeeSettlementService.name);
   constructor(
     private readonly db: DataSource,
     private readonly fees: FeeService,
-  ) {}
+  ) {
+    void this.fees;
+  }
 
   async run() {
     let failed = 0;
-    const charges = await this.db.getRepository(ReturnShippingCharge).find({
-      where: this.cursor ? { id: MoreThan(this.cursor) } : {},
-      order: { id: 'ASC' },
-      take: FEE_SETTLEMENT_POLICY.BATCH_SIZE,
-    });
-    for (const charge of charges)
-      failed += await this.isolate(
-        FEE_SETTLEMENT_RECORD.RETURN_CHARGE,
-        charge.id,
-        async (manager, now) => {
-          await importVerifiedReturnFee(manager, [charge], this.fees, now);
-        },
-      );
-    this.cursor =
-      charges.length === FEE_SETTLEMENT_POLICY.BATCH_SIZE
-        ? charges[charges.length - 1].id
-        : null;
     const refunds = await this.db.getRepository(FeeRefund).findBy({
       state: FEE_REFUND_STATE.PENDING,
       method: In([
@@ -172,15 +153,11 @@ export class FeeSettlementService {
         mode: refund.mode,
         providerReference: reference,
       });
-      const carrierDuplicate = await manager.existsBy(
-        CarrierCompensationReceipt,
-        { mode: refund.mode, reference },
-      );
       const codDuplicate = await manager.existsBy(CodRemittance, {
         mode: refund.mode,
         reference,
       });
-      if (duplicate || carrierDuplicate || codDuplicate)
+      if (duplicate || codDuplicate)
         throw new ConflictException(
           'Receipt reference already funds another record',
         );

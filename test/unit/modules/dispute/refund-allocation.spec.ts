@@ -1,4 +1,4 @@
-import { refundAllocation } from '@/modules/dispute/policies/refund-allocation.policy';
+import { refundAllocation } from '@/modules/dispute/dispute-refund-accounting';
 
 describe('Item refund allocation', () => {
   it('refunds only the increase in entitlement, never adds overlapping issue ceilings', () => {
@@ -13,6 +13,7 @@ describe('Item refund allocation', () => {
       sellerDebit: 0,
     });
   });
+
   it('uses snapshot floor rounding before and after partial refund', () => {
     expect(refundAllocation(101, 50, 0, 300)).toEqual({
       amount: 50,
@@ -20,6 +21,7 @@ describe('Item refund allocation', () => {
       sellerDebit: 48,
     });
   });
+
   it('rejects invalid ceilings, paid totals and commission instead of clamping corruption', () => {
     for (const values of [
       [100, 101, 0, 300],
@@ -27,9 +29,10 @@ describe('Item refund allocation', () => {
       [100, 10, -1, 300],
       [100, 10, 0, 10001],
       [100, 0, 0, 300],
-    ])
+    ]) {
       expect(() =>
         refundAllocation(...(values as [number, number, number, number])),
       ).toThrow('Invalid refund allocation');
+    }
   });
 });

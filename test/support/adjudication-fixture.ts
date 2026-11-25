@@ -4,13 +4,11 @@ import ms from 'ms';
 import type { DataSource } from 'typeorm';
 
 import { AuthProvider } from '@/modules/auth/enums';
-import { DisputeAttachment } from '@/modules/dispute/entities/dispute-attachment.entity';
+import { businessDeadline } from '@/modules/dispute/constants/dispute.constant';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { Order } from '@/modules/order/entities';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
-import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -34,15 +32,6 @@ export async function adjudicationFixture(db: DataSource) {
     userId: owner.id,
     memberRole: ShopMemberRole.OWNER,
   });
-  const year = new Date().getUTCFullYear();
-  await db.getRepository(FulfillmentCalendar).save(
-    [year - 1, year, year + 1].map((year) => ({
-      year,
-      closedDates: [],
-      source: 'Explicit decision test calendar',
-      approvedBy: admin.id,
-    })),
-  );
   const productId = randomUUID();
   const order = await db.getRepository(Order).save({
     checkoutOrderId: randomUUID(),
@@ -77,21 +66,6 @@ export async function adjudicationFixture(db: DataSource) {
     state: 'OPEN',
     previousOrderStatus: 'completed',
   });
-  const validAt = new Date(Date.now() - ms('4d'));
-  const issue = await db.getRepository(DisputeIssue).save({
-    caseId: row.id,
-    productId,
-    kind: 'WRONG_ITEM',
-    description: 'Not the jacket from listing',
-    status: 'ACTIVE',
-    createdAt: validAt,
-    supplementBy: new Date(validAt.getTime() + ms('24h')),
-    validAt,
-    sellerNotifiedAt: validAt,
-    sellerRespondBy: businessDeadline(validAt, 1, []),
-    reviewDueAt: businessDeadline(validAt, 3, []),
-    maxReviewDueAt: businessDeadline(validAt, 5, []),
-  });
   const media = await createPrivateMedia(db, buyer.id);
   const evidence = await db.getRepository(DisputeEvidence).save({
     orderId: order.id,
@@ -100,8 +74,18 @@ export async function adjudicationFixture(db: DataSource) {
     media,
     tags: ['ISSUE'],
   });
-  await db
-    .getRepository(DisputeAttachment)
-    .save({ issueId: issue.id, evidenceId: evidence.id });
+  const openedAt = new Date(Date.now() - ms('4d'));
+  const issue = await db.getRepository(DisputeIssue).save({
+    caseId: row.id,
+    productId,
+    kind: 'WRONG_ITEM',
+    description: 'Not the jacket from listing',
+    evidenceIds: [evidence.id],
+    status: 'ACTIVE',
+    createdAt: openedAt,
+    sellerRespondBy: businessDeadline(openedAt, 1),
+    reviewDueAt: businessDeadline(openedAt, 3),
+    maxReviewDueAt: businessDeadline(openedAt, 5),
+  });
   return { buyer, owner, admin, shop, order, row, issue, evidence };
 }

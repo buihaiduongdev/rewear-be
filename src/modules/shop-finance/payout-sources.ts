@@ -5,7 +5,6 @@ import { EntityManager } from 'typeorm';
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
-import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
 import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
 import {
   FEE_COLLECTION_METHOD,
@@ -31,44 +30,38 @@ export async function readPayoutSources(
   const rows: PayoutSourceRow[] = await manager.query(
     `
     WITH sources AS (
-      SELECT $9::varchar AS kind, s.id AS "sourceId", s."orderId",
+      SELECT $8::varchar AS kind, s.id AS "sourceId", s."orderId",
         GREATEST(0, s.amount - GREATEST(0, COALESCE((SELECT SUM(r."sellerDebit") FROM dispute_refund_credits r
           WHERE r."orderId"=s."orderId" AND r."shopId"=s."shopId" AND r.mode=s.mode),0)-s."refundDebit")) AS net
       FROM shop_settlements s WHERE s."shopId"=$1 AND s.mode=$2
       UNION ALL
-      SELECT $10::varchar, c.id, c."orderId", c.amount
-      FROM carrier_compensation_receipts c WHERE c."shopId"=$1 AND c.mode=$2 AND c.kind=$3
-      UNION ALL
-      SELECT $11::varchar, r.id, f."orderId", r.amount FROM fee_refunds r
+      SELECT $9::varchar, r.id, f."orderId", r.amount FROM fee_refunds r
       JOIN fee_assessments f ON f.id=r."feeId"
-      WHERE f."shopId"=$1 AND f.mode=$2 AND r.mode=$2 AND r.state=$12
-        AND r.method=ANY($13::varchar[])
+      WHERE f."shopId"=$1 AND f.mode=$2 AND r.mode=$2 AND r.state=$10
+        AND r.method=ANY($11::varchar[])
     )
     SELECT s.*,
       COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
-        WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2 AND p.status=$4),0) AS paid,
+        WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2 AND p.status=$3),0) AS paid,
       COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
         WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2
-          AND p.status=ANY($5::varchar[]) AND ($6::uuid IS NULL OR p.id<>$6)),0) AS reserved,
+          AND p.status=ANY($4::varchar[]) AND ($5::uuid IS NULL OR p.id<>$5)),0) AS reserved,
       COALESCE((SELECT SUM(a.amount) FROM fee_offset_allocations a JOIN fee_collections c ON c.id=a."collectionId"
         JOIN fee_assessments f ON f.id=c."feeId"
         WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND c.mode=$2 AND f."shopId"=$1 AND f.mode=$2),0) AS "feeSpent",
-      (s.kind<>$11 AND (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
-        WHERE c."orderId"=s."orderId" AND i.status=ANY($7::varchar[]))
-       OR EXISTS(SELECT 1 FROM dispute_returns r WHERE r."orderId"=s."orderId" AND r.state<>ALL($8::varchar[])
-         AND NOT EXISTS(SELECT 1 FROM dispute_return_exceptions e WHERE e."returnId"=r.id)))) AS blocked
+      (s.kind<>$9 AND (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
+        WHERE c."orderId"=s."orderId" AND i.status=ANY($6::varchar[]))
+       OR EXISTS(SELECT 1 FROM dispute_returns r WHERE r."orderId"=s."orderId" AND r.state<>ALL($7::varchar[])))) AS blocked
     FROM sources s ORDER BY s.kind,s."sourceId"`,
     [
       shopId,
       mode,
-      CARRIER_RECEIPT_KIND.CASH,
       PAYOUT_STATUS.SUCCEEDED,
       [...ACTIVE_PAYOUT_STATUSES],
       excludePayoutId ?? null,
       [...OPEN_DISPUTE_STATES],
       [RETURN_STATE.READY, RETURN_STATE.EXPIRED],
       PAYOUT_SOURCE_KIND.SETTLEMENT,
-      PAYOUT_SOURCE_KIND.COMPENSATION,
       PAYOUT_SOURCE_KIND.FEE_CORRECTION,
       FEE_REFUND_STATE.SUCCEEDED,
       [

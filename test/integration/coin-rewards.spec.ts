@@ -9,10 +9,8 @@ import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { CoinPurchaseReward } from '@/modules/coins/rewards/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
-import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -214,47 +212,26 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     const reward = await f.service.evaluate(f.order.id);
     expect(reward).toMatchObject({ entitlement: 500 });
     const remedyKey = `${f.order.id}:${f.issue.productId}`;
+    const now = new Date();
     const decision = await f.db.getRepository(DisputeDecision).save({
       issueId: f.issue.id,
-      requestId: randomUUID(),
       actorId: f.admin.id,
-      requestFingerprint: 'confirmed-refund-test',
-      reviewToken: 'reviewed',
       outcome: 'UPHOLD_CLAIM',
       responsibility: 'SELLER',
       reason: 'Confirmed item refund',
-      evidenceAssessment: 'Verified refund evidence',
       itemPrice: f.order.subtotal,
+      refundAmount: 40000,
       remedyKey,
-      basis: {} as DisputeDecision['basis'],
-      decidedAt: new Date(),
-      notifiedAt: new Date(),
-    });
-    const final = await f.db.getRepository(DisputeFinalDecision).save({
-      decisionId: decision.id,
-      issueId: f.issue.id,
-      source: 'ORIGINAL_UNAPPEALED',
-      outcome: 'UPHOLD_CLAIM',
-      responsibility: 'SELLER',
-      reason: 'Confirmed item refund',
-      evidenceAssessment: 'Verified refund evidence',
-      itemPrice: f.order.subtotal,
-      remedyKey,
-      appealIds: [],
-      finalizedAt: new Date(),
-    });
-    const refund = await f.db.getRepository(DisputeRefund).save({
-      finalDecisionId: final.id,
-      orderId: f.order.id,
-      buyerId: f.buyer.id,
-      shopId: f.shop.id,
-      remedyKey,
-      status: 'SUCCEEDED',
-      mode: 'EVIDENCE',
-      completedAt: new Date(),
+      decidedAt: now,
+      appealUntil: now,
+      finalizedAt: now,
+      finalOutcome: 'UPHOLD_CLAIM',
+      finalRefundAmount: 40000,
+      finalReason: 'Confirmed item refund',
+      finalActorId: null,
     });
     await f.db.getRepository(DisputeRefundCredit).save({
-      refundId: refund.id,
+      decisionId: decision.id,
       orderId: f.order.id,
       buyerId: f.buyer.id,
       shopId: f.shop.id,

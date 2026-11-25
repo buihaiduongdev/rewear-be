@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
-import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import type { MailService } from '@/modules/mail/mail.service';
 import {
   Notification,
@@ -113,25 +112,13 @@ describe('Central notifications PostgreSQL', () => {
     ).toMatchObject({ state: 'FAILED', leaseToken: null });
     expect(send).toHaveBeenCalledTimes(1);
   });
-  it('resolves dispute targets for each audience and labels sandbox fulfillment without coin redemption', async () => {
+  it('labels sandbox fulfillment without coin redemption', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     await db.manager.update(Order, f.order.id, {
       paymentMethod: 'PAYOS',
       coinMode: null,
     });
-    const notices = await db.manager.save(
-      DisputeNotice,
-      ['BUYER', 'SHOP', 'ADMIN'].map((audience) =>
-        db.manager.create(DisputeNotice, {
-          issueId: f.issue.id,
-          action: 'OPENED',
-          audience: audience as DisputeNotice['audience'],
-          eventKey: randomUUID(),
-          reason: 'SECRET PRIVATE EVIDENCE',
-        }),
-      ),
-    );
     const fulfillment = await db.manager.save(
       FulfillmentNotice,
       db.manager.create(FulfillmentNotice, {
@@ -142,24 +129,6 @@ describe('Central notifications PostgreSQL', () => {
       }),
     );
     await new NotificationProjector(db).run();
-    const buyerNotice = await db.manager.findOneByOrFail(Notification, {
-      eventKey: 'dispute:' + notices[0].id,
-      recipientId: f.buyer.id,
-    });
-    const adminNotice = await db.manager.findOneByOrFail(Notification, {
-      eventKey: 'dispute:' + notices[2].id,
-      recipientId: f.admin.id,
-    });
-    expect(buyerNotice).toMatchObject({
-      sourceId: f.order.id,
-      targetType: 'ORDER',
-      mode: 'SIMULATION',
-    });
-    expect(adminNotice).toMatchObject({
-      sourceId: f.row.id,
-      targetType: 'DISPUTE_CASE',
-    });
-    expect(buyerNotice.body).not.toContain('SECRET');
     expect(
       await db.manager.findOneByOrFail(Notification, {
         eventKey: 'fulfillment:' + fulfillment.id,

@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { EntityManager, In, IsNull } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 
 import {
   ORDER_POLICY,
@@ -14,12 +14,13 @@ import {
   DISPUTE_CASE_STATE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
+  OPEN_DISPUTE_STATES,
 } from './constants/dispute.constant';
 import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeIssue } from './entities/dispute-issue.entity';
+import { RETURN_STATE } from './returns/constants/return.constant';
 import { DisputeReturn } from './returns/entities/dispute-return.entity';
-import { DisputeSafetyWaiver } from './returns/entities/dispute-safety-waiver.entity';
 
 @Injectable()
 export class DisputeAccess {
@@ -81,7 +82,6 @@ export class DisputeAccess {
             caseId: row.id,
             status: In([
               DISPUTE_ISSUE_STATE.ACTIVE,
-              DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE,
               DISPUTE_ISSUE_STATE.AWAITING_APPEAL,
               DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
             ]),
@@ -91,54 +91,59 @@ export class DisputeAccess {
     const hasActiveIssue = issues.some(
       (issue) => issue.status === DISPUTE_ISSUE_STATE.ACTIVE,
     );
-    const hasSupplementWindow = issues.some(
-      (issue) =>
-        issue.status === DISPUTE_ISSUE_STATE.NEEDS_EVIDENCE &&
-        now < issue.supplementBy,
-    );
-    const pendingDecisionIds = issues
+    const appealIssueIds = issues
       .filter(
         (issue) =>
           issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL ||
           issue.status === DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
       )
       .map((issue) => issue.id);
-    const decisions = pendingDecisionIds.length
+    const decisions = appealIssueIds.length
       ? await manager.find(DisputeDecision, {
-          where: { issueId: In(pendingDecisionIds) },
+          where: { issueId: In(appealIssueIds) },
         })
       : [];
     const canPrepareAppeal = decisions.some(
-      (decision) => !decision.appealUntil || now <= decision.appealUntil,
+      (decision) => !decision.finalizedAt && now <= decision.appealUntil,
     );
+    const returnWindow = await manager.existsBy(DisputeReturn, {
+      orderId,
+      state: In([
+        RETURN_STATE.WAITING_LABEL,
+        RETURN_STATE.AWAITING_HANDOVER,
+        RETURN_STATE.IN_TRANSIT,
+      ]),
+    });
     const buyerCanUpload =
       party.party === DISPUTE_PARTY.BUYER &&
       (hasActiveIssue ||
         canPrepareAppeal ||
-        hasSupplementWindow ||
         (await this.windowOpen(manager, party.order, now)));
     const sellerCanUpload =
       party.party === DISPUTE_PARTY.SELLER &&
       (hasActiveIssue || canPrepareAppeal);
-    const returnWindow = await manager.existsBy(DisputeReturn, {
-      orderId,
-      state: In([
-        'WAITING_LABEL',
-        'AWAITING_HANDOVER',
-        'PAUSED',
-        'IN_TRANSIT',
-        'INSPECTION',
-        'OBJECTION',
-      ]),
-    });
-    const safetyWindow = await manager.existsBy(DisputeSafetyWaiver, {
-      orderId,
-      fulfilledAt: IsNull(),
-    });
-    const canUpload =
-      buyerCanUpload || sellerCanUpload || returnWindow || safetyWindow;
-    if (!canUpload)
+    if (!buyerCanUpload && !sellerCanUpload && !returnWindow) {
       throw new ConflictException('No open dispute evidence window');
+    }
     return party;
+  }
+}
+
+export async function restoreDisputeCaseIfClear(
+  manager: EntityManager,
+  caseId: string,
+) {
+  const stillHeld = await manager.existsBy(DisputeIssue, {
+    caseId,
+    status: In([...OPEN_DISPUTE_STATES]),
+  });
+  if (stillHeld) return;
+  const row = await manager.findOneByOrFail(DisputeCase, { id: caseId });
+  row.state = DISPUTE_CASE_STATE.CLOSED;
+  await manager.save(row);
+  const order = await manager.findOneByOrFail(Order, { id: row.orderId });
+  if (order.status === ORDER_STATUS.DISPUTE) {
+    order.status = row.previousOrderStatus;
+    await manager.save(order);
   }
 }

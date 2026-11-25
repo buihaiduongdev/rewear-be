@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 
 import { EntityManager } from 'typeorm';
 
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_REVIEW_REASON,
@@ -9,6 +10,35 @@ import {
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
+
+export function refundAllocation(
+  price: number,
+  entitlement: number,
+  paid: number,
+  basisPoints: number,
+) {
+  const amountsValid =
+    [price, entitlement, paid, basisPoints].every(Number.isSafeInteger) &&
+    price > 0 &&
+    entitlement > 0 &&
+    entitlement <= price &&
+    paid >= 0 &&
+    paid <= price &&
+    basisPoints >= 0 &&
+    basisPoints <= BASIS_POINTS_SCALE;
+  if (!amountsValid) throw new ConflictException('Invalid refund allocation');
+  const amount = Math.max(0, entitlement - paid);
+  const fee = (remaining: number) =>
+    Number(
+      (BigInt(remaining) * BigInt(basisPoints)) / BigInt(BASIS_POINTS_SCALE),
+    );
+  const commissionReversed = fee(price - paid) - fee(price - paid - amount);
+  return {
+    amount,
+    commissionReversed,
+    sellerDebit: amount - commissionReversed,
+  };
+}
 
 export async function orderRefundDebit(
   manager: EntityManager,
@@ -19,12 +49,12 @@ export async function orderRefundDebit(
   const rows = await manager.find(DisputeRefundCredit, {
     where: { orderId, shopId },
   });
-  if (rows.some((row) => row.mode !== mode))
+  if (rows.some((row) => row.mode !== mode)) {
     throw new ConflictException('Refund and settlement source modes disagree');
+  }
   return rows.reduce((sum, row) => sum + row.sellerDebit, 0);
 }
 
-/** Group refunds by their own order's funding/settlement, never charge another order's pool. */
 export async function shopRefundDeductions(
   manager: EntityManager,
   shopId: string,

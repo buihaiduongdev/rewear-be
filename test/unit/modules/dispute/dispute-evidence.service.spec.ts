@@ -1,4 +1,4 @@
-import { DisputeEvidenceService } from '@/modules/dispute/dispute-evidence.service';
+import { DisputeService } from '@/modules/dispute/dispute.service';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 
 describe('dispute evidence shared media', () => {
@@ -12,23 +12,37 @@ describe('dispute evidence shared media', () => {
       retiredAt: null,
     };
     const repo = {
+      findOneBy: jest.fn().mockResolvedValue(null),
       countBy: jest.fn().mockResolvedValue(0),
-      create: jest.fn((value) => value),
-      save: jest.fn(async (value) => ({ id: 'e1', ...value })),
+      create: jest.fn((value: unknown) => value),
+      save: jest.fn(async (value: Record<string, unknown>) => ({
+        id: 'e1',
+        ...value,
+      })),
     };
-    const manager: any = {
+    const manager = {
       query: jest.fn().mockResolvedValue([{ now: new Date() }]),
       findOne: jest.fn().mockResolvedValue({ id: 'o1' }),
-      getRepository: jest.fn((entity) =>
+      getRepository: jest.fn((entity: unknown) =>
         entity === DisputeEvidence ? repo : null,
       ),
     };
-    const db: any = { transaction: async (fn: any) => fn(manager) };
-    const access: any = { assertUploadAllowed: jest.fn() };
-    const storage: any = { getObjectMetadata: jest.fn() };
-    const uploads: any = { verifyMedia: jest.fn().mockResolvedValue(file) };
-    const service = new DisputeEvidenceService(db, access, storage, uploads);
-    const result = await service.attach('u1', 'o1', {
+    const db = {
+      transaction: async (fn: (m: typeof manager) => Promise<unknown>) =>
+        fn(manager),
+    };
+    const access = { assertUploadAllowed: jest.fn() };
+    const orders = { assertManage: jest.fn() };
+    const storage = { getObjectMetadata: jest.fn() };
+    const uploads = { verifyMedia: jest.fn().mockResolvedValue(file) };
+    const service = new DisputeService(
+      db as never,
+      access as never,
+      orders as never,
+      storage as never,
+      uploads as never,
+    );
+    const result = await service.attachEvidence('u1', 'o1', {
       mediaId,
       tags: ['ISSUE'],
     });

@@ -3,10 +3,10 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
-import { DisputeRefund } from './dispute-refund.entity';
+import { DisputeDecision } from './dispute-decision.entity';
 
 @Entity('dispute_refund_credits')
-@Index(['refundId'], { unique: true })
+@Index(['decisionId'], { unique: true })
 @Index(['remedyKey', 'mode'])
 @Index(['shopId', 'mode'])
 @Check(
@@ -15,11 +15,11 @@ import { DisputeRefund } from './dispute-refund.entity';
 )
 export class DisputeRefundCredit extends BaseEntity {
   @Column('uuid')
-  refundId: string;
+  decisionId: string;
 
-  @ManyToOne(() => DisputeRefund, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'refundId' })
-  refund: DisputeRefund;
+  @ManyToOne(() => DisputeDecision, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'decisionId' })
+  decision: DisputeDecision;
 
   @Column('uuid')
   orderId: string;
