@@ -1,15 +1,14 @@
 import {
   identityGraceDeadline,
+  publicIdentitySaleState,
   shopAllowsIdentitySales,
 } from '@/modules/shop/applications/renewal/identity-sale.policy';
 
 describe('Owner identity renewal sales gate', () => {
-  it('keeps the full30-day grace in Vietnam and never treats pending review as an extended clock', () => {
+  it('enforces the full 30-day grace period in Vietnam time and manual restriction', () => {
     const shop = {
       identityExpiresOn: '2026-10-01',
-      identityReviewProtected: false,
       identityManualRestriction: false,
-      identityCorrectionUntil: null,
     };
     expect(identityGraceDeadline(shop.identityExpiresOn).toISOString()).toBe(
       '2026-10-31T17:00:00.000Z',
@@ -22,32 +21,16 @@ describe('Owner identity renewal sales gate', () => {
     ).toBe(false);
     expect(
       shopAllowsIdentitySales(
-        { ...shop, identityReviewProtected: true },
-        new Date('2027-01-01'),
-      ),
-    ).toBe(true);
-    expect(
-      shopAllowsIdentitySales(
-        {
-          ...shop,
-          identityReviewProtected: true,
-          identityManualRestriction: true,
-        },
-        new Date('2027-01-01'),
+        { ...shop, identityManualRestriction: true },
+        new Date('2026-10-02T00:00:00.000Z'),
       ),
     ).toBe(false);
+    expect(
+      publicIdentitySaleState(shop, new Date('2026-10-31T17:00:00.000Z')),
+    ).toEqual({ identitySalesPaused: true });
   });
-  it('honors a first fixed correction window and does not invent identity verification for legacy Shops', () => {
+
+  it('allows sales for legacy shops without tracked identity expiry', () => {
     expect(shopAllowsIdentitySales({}, new Date())).toBe(true);
-    const shop = {
-      identityExpiresOn: '2026-01-01',
-      identityCorrectionUntil: new Date('2026-11-01T00:00:00Z'),
-    };
-    expect(
-      shopAllowsIdentitySales(shop, new Date('2026-10-31T23:59:59Z')),
-    ).toBe(true);
-    expect(
-      shopAllowsIdentitySales(shop, new Date('2026-11-01T00:00:00Z')),
-    ).toBe(false);
   });
 });
