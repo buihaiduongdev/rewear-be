@@ -14,12 +14,10 @@ import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudicati
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundIncidentUpdate,
-} from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeRefundIncidentUpdate } from '@/modules/dispute/entities/dispute-refund-incident-update.entity';
+import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';

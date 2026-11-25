@@ -21,8 +21,8 @@ import {
   disputeDecisionInputSchema,
   disputeDecisionViewSchema,
 } from './schemas/dispute-decision.schema';
+import type { DisputeDecisionInput } from './schemas/dispute-decision.schema';
 import { disputeListSchema } from './schemas/dispute.schema';
-import type { DisputeDecisionInput } from './types/dispute-decision.type';
 
 @ApiTags('Dispute adjudication')
 @ApiBearerAuth()

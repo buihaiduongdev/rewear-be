@@ -8,13 +8,11 @@ import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { CoinPurchaseReward } from '@/modules/coins/rewards/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundCredit,
-} from '@/modules/dispute/entities/dispute-refund.entity';
-import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
+import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';

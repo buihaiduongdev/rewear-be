@@ -9,21 +9,17 @@ import {
   DISPUTE_PARTY,
 } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
-import {
-  DisputeAppeal,
-  DisputeAppealEvidence,
-  DisputeAppealReview,
-  DisputeFinalDecision,
-} from './entities/dispute-appeal.entity';
+import { DisputeAppealEvidence } from './entities/dispute-appeal-evidence.entity';
+import { DisputeAppealReview } from './entities/dispute-appeal-review.entity';
+import { DisputeAppeal } from './entities/dispute-appeal.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import {
-  DisputeAttachment,
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeMessage,
-  DisputeNotice,
-} from './entities/dispute.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
+import { DisputeNotice } from './entities/dispute-notice.entity';
 
 @Injectable()
 export class DisputeReadService {
@@ -43,44 +39,44 @@ export class DisputeReadService {
     await this.orders.assertManage(this.db.manager, userId, shopId);
     return this.list({ shopId }, offset);
   }
-  private list(scope: { buyerId?: string; shopId?: string }, offset: number) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const rows = await manager.find(DisputeCase, {
-        where: scope,
-        order: { createdAt: 'DESC', id: 'DESC' },
-        take: 100,
-        skip: offset,
-      });
-      if (!rows.length) return [];
-      const issues = await manager.find(DisputeIssue, {
-        where: { caseId: In(rows.map((row) => row.id)) },
-        order: { createdAt: 'ASC', id: 'ASC' },
-      });
-      return rows.map((row) => ({
-        ...row,
-        issues: issues.filter((issue) => issue.caseId === row.id),
-      }));
+  private async list(
+    scope: { buyerId?: string; shopId?: string },
+    offset: number,
+  ) {
+    const manager = this.db.manager;
+    const rows = await manager.find(DisputeCase, {
+      where: scope,
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 100,
+      skip: offset,
     });
-  }
-  byOrder(userId: string, orderId: string, offset = 0) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const { party } = await this.access.assertParty(manager, userId, orderId);
-      const row = await manager.findOneByOrFail(DisputeCase, { orderId });
-      const audience =
-        party === DISPUTE_PARTY.BUYER
-          ? DISPUTE_NOTICE_AUDIENCE.BUYER
-          : DISPUTE_NOTICE_AUDIENCE.SHOP;
-      return this.detail(manager, row, audience, offset);
+    if (!rows.length) return [];
+    const issues = await manager.find(DisputeIssue, {
+      where: { caseId: In(rows.map((row) => row.id)) },
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
+    return rows.map((row) => ({
+      ...row,
+      issues: issues.filter((issue) => issue.caseId === row.id),
+    }));
   }
-  adminDetail(caseId: string, offset = 0) {
-    return this.db.transaction('REPEATABLE READ', async (manager) =>
-      this.detail(
-        manager,
-        await manager.findOneByOrFail(DisputeCase, { id: caseId }),
-        DISPUTE_NOTICE_AUDIENCE.ADMIN,
-        offset,
-      ),
+  async byOrder(userId: string, orderId: string, offset = 0) {
+    const manager = this.db.manager;
+    const { party } = await this.access.assertParty(manager, userId, orderId);
+    const row = await manager.findOneByOrFail(DisputeCase, { orderId });
+    const audience =
+      party === DISPUTE_PARTY.BUYER
+        ? DISPUTE_NOTICE_AUDIENCE.BUYER
+        : DISPUTE_NOTICE_AUDIENCE.SHOP;
+    return this.detail(manager, row, audience, offset);
+  }
+  async adminDetail(caseId: string, offset = 0) {
+    const manager = this.db.manager;
+    return this.detail(
+      manager,
+      await manager.findOneByOrFail(DisputeCase, { id: caseId }),
+      DISPUTE_NOTICE_AUDIENCE.ADMIN,
+      offset,
     );
   }
   private async detail(

@@ -5,7 +5,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/return-exception.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';

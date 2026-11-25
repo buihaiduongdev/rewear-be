@@ -21,7 +21,7 @@ import {
 import type {
   DisputeAppealConclusionInput,
   DisputeAppealInput,
-} from './types/dispute-appeal.type';
+} from './schemas/dispute-appeal.schema';
 
 @ApiTags('Dispute appeals')
 @ApiBearerAuth()

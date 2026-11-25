@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
+import { DisputeReturnException } from '@/modules/dispute/returns/entities/dispute-return-exception.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import {
-  CarrierCompensationReceipt,
-  DisputeReturnException,
-} from '@/modules/dispute/returns/entities/return-exception.entity';
 import { ReturnCarrierService } from '@/modules/dispute/returns/return-carrier.service';
 import { ReturnExceptionReadService } from '@/modules/dispute/returns/return-exception-read.service';
 import { ReturnSafetyService } from '@/modules/dispute/returns/return-safety.service';

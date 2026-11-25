@@ -8,11 +8,11 @@ import { DataSource, In } from 'typeorm';
 
 import { REFUND_STATE } from '../constants/refund-execution.constant';
 import { DISPUTE_REFUND_CONDITION } from '../constants/refund.constant';
+import { DisputeEvidence } from '../entities/dispute-evidence.entity';
 import { DisputeRefund } from '../entities/dispute-refund.entity';
-import { DisputeEvidence } from '../entities/dispute.entity';
 import { RETURN_STATE } from './constants/return.constant';
 import { DisputeReturn } from './entities/dispute-return.entity';
-import { DisputeSafetyWaiver } from './entities/return-exception.entity';
+import { DisputeSafetyWaiver } from './entities/dispute-safety-waiver.entity';
 import {
   linkRemedyEvidence,
   remedyReviewToken,

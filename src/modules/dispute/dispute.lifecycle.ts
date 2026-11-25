@@ -8,15 +8,13 @@ import {
   DISPUTE_NOTICE_AUDIENCE,
   DISPUTE_POLICY,
 } from './constants/dispute.constant';
-import {
-  DisputeAttachment,
-  DisputeAudit,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeNotice,
-} from './entities/dispute.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeAudit } from './entities/dispute-audit.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeNotice } from './entities/dispute-notice.entity';
 import { hasMinimumDisputeEvidence } from './policies/dispute-evidence.policy';
-import type { DisputeAction } from './types/dispute.type';
+import type { DisputeAction } from './schemas/dispute.schema';
 
 export async function recordDisputeAction(
   manager: EntityManager,

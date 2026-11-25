@@ -7,8 +7,9 @@ import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calend
 
 import { DISPUTE_ACTION } from '../constants/dispute.constant';
 import { notifyDispute } from '../dispute.lifecycle';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
-import { DisputeCase, DisputeIssue } from '../entities/dispute.entity';
+import { DisputeCase } from '../entities/dispute-case.entity';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
+import { DisputeIssue } from '../entities/dispute-issue.entity';
 import {
   RETURN_DAY_MS,
   RETURN_POLICY,
@@ -17,7 +18,7 @@ import {
 import { DisputeReturn } from './entities/dispute-return.entity';
 import { handoverExpired } from './policies/return-clock.policy';
 import { resumedHandoverDeadline } from './policies/return-clock.policy';
-import type { ReturnGate } from './types/return.type';
+import type { ReturnGate } from './schemas/return.schema';
 
 export async function ensureReturnCase(
   manager: EntityManager,

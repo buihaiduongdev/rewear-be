@@ -5,8 +5,8 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { ChatMediaService } from '@/modules/chat/chat-media.service';
 import { ChatService } from '@/modules/chat/chat.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
-import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
 import { OrderAccess } from '@/modules/order/order.access';

@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 
 import type { EntityManager } from 'typeorm';
 
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import type { Order } from '@/modules/order/entities';
 import { WalletCredit } from '@/modules/wallet/entities';
 

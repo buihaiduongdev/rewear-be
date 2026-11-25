@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
+import { DisputeReturnException } from '@/modules/dispute/returns/entities/dispute-return-exception.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import {
-  CarrierCompensationReceipt,
-  DisputeReturnException,
-  ReturnShippingCharge,
-} from '@/modules/dispute/returns/entities/return-exception.entity';
+import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 import {
   FeePolicy,
   FeePolicyShopAcceptance,

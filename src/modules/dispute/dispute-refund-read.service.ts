@@ -11,14 +11,13 @@ import { decisionFingerprint } from './dispute-decision-review';
 import { DisputeRefundService } from './dispute-refund.service';
 import { DisputeAccess } from './dispute.access';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundCredit,
-  DisputeRefundIncidentUpdate,
-} from './entities/dispute-refund.entity';
-import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
+import { DisputeRefundIncidentUpdate } from './entities/dispute-refund-incident-update.entity';
+import { DisputeRefund } from './entities/dispute-refund.entity';
 import { refundAllocation } from './policies/refund-allocation.policy';
 import { DisputeReturn } from './returns/entities/dispute-return.entity';
 import { refundIncidentSchema } from './schemas/refund-execution.schema';
@@ -29,76 +28,74 @@ export class DisputeRefundReadService {
     private readonly db: DataSource,
     private readonly refunds: DisputeRefundService,
   ) {}
-  view(userId: string, finalId: string, admin = false) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const final = await manager.findOneByOrFail(DisputeFinalDecision, {
-        id: finalId,
-      });
-      const issue = await manager.findOneByOrFail(DisputeIssue, {
-        id: final.issueId,
-      });
-      const row = await manager.findOneByOrFail(DisputeCase, {
-        id: issue.caseId,
-      });
-      if (admin)
-        await manager.findOneByOrFail(User, {
-          id: userId,
-          role: UserRole.ADMIN,
-          status: UserStatus.ACTIVE,
-        });
-      else
-        await new DisputeAccess(new OrderAccess()).assertParty(
-          manager,
-          userId,
-          row.orderId,
-        );
-      const initial = await manager.findOneByOrFail(DisputeDecision, {
-        id: final.decisionId,
-      });
-      const approved = final.refundPlan
-        ? refundAllocation(
-            final.itemPrice,
-            final.refundPlan.amount,
-            0,
-            initial.basis.commissionBasisPoints,
-          )
-        : null;
-      const refund = await manager.findOneBy(DisputeRefund, {
-        finalDecisionId: finalId,
-      });
-      const credits = refund
-        ? await manager.find(DisputeRefundCredit, {
-            where: { refundId: refund.id },
-            order: { createdAt: 'ASC' },
-          })
-        : [];
-      const updates = refund
-        ? await manager.find(DisputeRefundIncidentUpdate, {
-            where: { refundId: refund.id },
-            order: { createdAt: 'DESC' },
-            take: 50,
-          })
-        : [];
-      const returnCase = await manager.findOneBy(DisputeReturn, {
-        remedyKey: final.remedyKey,
-      });
-      return {
-        returnCase,
-        finalDecisionId: finalId,
-        refundPlan: final.refundPlan ?? null,
-        planToken: this.refunds.planToken(final),
-        approvedSellerDebit: approved?.sellerDebit ?? null,
-        refund,
-        credits,
-        updates,
-      };
+  async view(userId: string, finalId: string, admin = false) {
+    const manager = this.db.manager;
+    const final = await manager.findOneByOrFail(DisputeFinalDecision, {
+      id: finalId,
     });
+    const issue = await manager.findOneByOrFail(DisputeIssue, {
+      id: final.issueId,
+    });
+    const row = await manager.findOneByOrFail(DisputeCase, {
+      id: issue.caseId,
+    });
+    if (admin)
+      await manager.findOneByOrFail(User, {
+        id: userId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+    else
+      await new DisputeAccess(new OrderAccess()).assertParty(
+        manager,
+        userId,
+        row.orderId,
+      );
+    const initial = await manager.findOneByOrFail(DisputeDecision, {
+      id: final.decisionId,
+    });
+    const approved = final.refundPlan
+      ? refundAllocation(
+          final.itemPrice,
+          final.refundPlan.amount,
+          0,
+          initial.basis.commissionBasisPoints,
+        )
+      : null;
+    const refund = await manager.findOneBy(DisputeRefund, {
+      finalDecisionId: finalId,
+    });
+    const credits = refund
+      ? await manager.find(DisputeRefundCredit, {
+          where: { refundId: refund.id },
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+    const updates = refund
+      ? await manager.find(DisputeRefundIncidentUpdate, {
+          where: { refundId: refund.id },
+          order: { createdAt: 'DESC' },
+          take: 50,
+        })
+      : [];
+    const returnCase = await manager.findOneBy(DisputeReturn, {
+      remedyKey: final.remedyKey,
+    });
+    return {
+      returnCase,
+      finalDecisionId: finalId,
+      refundPlan: final.refundPlan ?? null,
+      planToken: this.refunds.planToken(final),
+      approvedSellerDebit: approved?.sellerDebit ?? null,
+      refund,
+      credits,
+      updates,
+    };
   }
   async incident(adminId: string, refundId: string, input: unknown) {
     const data = refundIncidentSchema.parse(input);
     const fingerprint = decisionFingerprint({ adminId, refundId, ...data });
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

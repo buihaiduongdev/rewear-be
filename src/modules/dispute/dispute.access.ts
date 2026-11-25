@@ -15,10 +15,11 @@ import {
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
 } from './constants/dispute.constant';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeReturn } from './returns/entities/dispute-return.entity';
-import { DisputeSafetyWaiver } from './returns/entities/return-exception.entity';
+import { DisputeSafetyWaiver } from './returns/entities/dispute-safety-waiver.entity';
 
 @Injectable()
 export class DisputeAccess {

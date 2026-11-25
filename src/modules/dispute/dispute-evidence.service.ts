@@ -12,19 +12,17 @@ import { MediaService } from '@/modules/media/media.service';
 
 import { DISPUTE_POLICY } from './constants/dispute.constant';
 import { DisputeAccess } from './dispute.access';
-import { DisputeAppealEvidence } from './entities/dispute-appeal.entity';
-import {
-  DisputeAttachment,
-  DisputeEvidence,
-  DisputeMessage,
-} from './entities/dispute.entity';
-import { ReturnEvidenceLink } from './returns/entities/dispute-return.entity';
-import { DisputeRemedyEvidenceLink } from './returns/entities/return-exception.entity';
+import { DisputeAppealEvidence } from './entities/dispute-appeal-evidence.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
+import { DisputeRemedyEvidenceLink } from './returns/entities/dispute-remedy-evidence-link.entity';
+import { ReturnEvidenceLink } from './returns/entities/return-evidence-link.entity';
 import {
   disputeFileSchema,
   disputeUploadSchema,
 } from './schemas/dispute.schema';
-import type { DisputeUploadInput } from './types/dispute.type';
+import type { DisputeUploadInput } from './schemas/dispute.schema';
 
 @Injectable()
 export class DisputeEvidenceService {
@@ -35,7 +33,6 @@ export class DisputeEvidenceService {
     private readonly media: MediaService,
   ) {}
   private async clock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(row.now);
   }

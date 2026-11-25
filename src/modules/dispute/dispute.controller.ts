@@ -42,7 +42,7 @@ import type {
   DisputeSupplementInput,
   DisputeUploadInput,
   OpenDisputeIssueInput,
-} from './types/dispute.type';
+} from './schemas/dispute.schema';
 
 @ApiTags('Disputes')
 @ApiBearerAuth()

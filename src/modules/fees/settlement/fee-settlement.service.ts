@@ -3,10 +3,8 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In, IsNull, MoreThan } from 'typeorm';
 
 import { CodRemittance } from '@/modules/cod-reconciliation/entities';
-import {
-  CarrierCompensationReceipt,
-  ReturnShippingCharge,
-} from '@/modules/dispute/returns/entities/return-exception.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
+import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 
 import {
   FEE_COLLECTION_METHOD,

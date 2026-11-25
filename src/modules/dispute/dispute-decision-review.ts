@@ -7,13 +7,11 @@ import { EntityManager, In } from 'typeorm';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { Order } from '@/modules/order/entities';
 
-import {
-  DisputeAttachment,
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeMessage,
-} from './entities/dispute.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
 
 export const decisionFingerprint = (data: unknown) =>
   createHash('sha256').update(JSON.stringify(data)).digest('hex');

@@ -4,11 +4,9 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
-import {
-  DisputeCase,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';

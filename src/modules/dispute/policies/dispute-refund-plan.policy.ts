@@ -5,10 +5,10 @@ import {
   DISPUTE_KIND,
 } from '../constants/dispute.constant';
 import { DISPUTE_REFUND_CONDITION as CONDITION } from '../constants/refund.constant';
+import type { DisputeDecisionOutcome } from '../schemas/dispute-decision.schema';
 import { disputeRefundPlanSchema } from '../schemas/dispute-refund-plan.schema';
-import type { DisputeDecisionOutcome } from '../types/dispute-decision.type';
-import type { DisputeRefundPlan } from '../types/dispute-refund-plan.type';
-import type { DisputeKind } from '../types/dispute.type';
+import type { DisputeRefundPlan } from '../schemas/dispute-refund-plan.schema';
+import type { DisputeKind } from '../schemas/dispute.schema';
 
 /** Legacy decisions without a plan never establish a financial entitlement. */
 export function validateDisputeRefundPlan(

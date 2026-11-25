@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import {
   FeeAssessment,
   FeeCollection,

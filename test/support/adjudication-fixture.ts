@@ -4,12 +4,10 @@ import ms from 'ms';
 import type { DataSource } from 'typeorm';
 
 import { AuthProvider } from '@/modules/auth/enums';
-import {
-  DisputeAttachment,
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeAttachment } from '@/modules/dispute/entities/dispute-attachment.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { Order } from '@/modules/order/entities';
 import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';

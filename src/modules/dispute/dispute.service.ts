@@ -21,13 +21,11 @@ import {
   populateDisputeDeadlines,
   recordDisputeAction,
 } from './dispute.lifecycle';
-import {
-  DisputeAttachment,
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeMessage,
-} from './entities/dispute.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
 import {
   disputeReplySchema,
   disputeSupplementSchema,
@@ -37,7 +35,7 @@ import type {
   DisputeReplyInput,
   DisputeSupplementInput,
   OpenDisputeIssueInput,
-} from './types/dispute.type';
+} from './schemas/dispute.schema';
 
 @Injectable()
 export class DisputeService {
@@ -50,7 +48,6 @@ export class DisputeService {
   }
 
   private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }

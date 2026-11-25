@@ -21,17 +21,13 @@ import { populateDecisionAppealDeadline } from './dispute-decision.lifecycle';
 import { saveFinalDisputeDecision } from './dispute-finalization.lifecycle';
 import { DisputeAccess } from './dispute.access';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import {
-  DisputeAppeal,
-  DisputeAppealEvidence,
-  DisputeFinalDecision,
-} from './entities/dispute-appeal.entity';
+import { DisputeAppealEvidence } from './entities/dispute-appeal-evidence.entity';
+import { DisputeAppeal } from './entities/dispute-appeal.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import {
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-} from './entities/dispute.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
 import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
 import { assertDisputeRemedy } from './policies/dispute-remedy.policy';
 import {
@@ -41,7 +37,7 @@ import {
 import type {
   DisputeAppealConclusionInput,
   DisputeAppealInput,
-} from './types/dispute-appeal.type';
+} from './schemas/dispute-appeal.schema';
 
 @Injectable()
 export class DisputeAppealService {
@@ -51,7 +47,6 @@ export class DisputeAppealService {
   ) {}
 
   private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }
@@ -204,9 +199,7 @@ export class DisputeAppealService {
   }
 
   review(decisionId: string) {
-    return this.db.transaction('REPEATABLE READ', (manager) =>
-      loadAppealReview(manager, decisionId),
-    );
+    return loadAppealReview(this.db.manager, decisionId);
   }
 
   refresh(decisionId: string) {

@@ -15,13 +15,11 @@ import {
   RETURN_FEE_KIND,
 } from './constants/return-exception.constant';
 import { RETURN_STATE } from './constants/return.constant';
+import { CarrierCompensationAcknowledgement } from './entities/carrier-compensation-acknowledgement.entity';
+import { CarrierCompensationReceipt } from './entities/carrier-compensation-receipt.entity';
+import { DisputeReturnException } from './entities/dispute-return-exception.entity';
 import { DisputeReturn } from './entities/dispute-return.entity';
-import {
-  CarrierCompensationAcknowledgement,
-  CarrierCompensationReceipt,
-  DisputeReturnException,
-  ReturnShippingCharge,
-} from './entities/return-exception.entity';
+import { ReturnShippingCharge } from './entities/return-shipping-charge.entity';
 import {
   linkRemedyEvidence,
   remedyReviewToken,

@@ -1,5 +1,5 @@
 import { DisputeEvidenceService } from '@/modules/dispute/dispute-evidence.service';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 
 describe('dispute evidence shared media', () => {
   it('attaches owned private media without a storage HEAD request', async () => {

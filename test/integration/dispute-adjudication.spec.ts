@@ -5,13 +5,11 @@ import ms from 'ms';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
 import { DisputeService } from '@/modules/dispute/dispute.service';
+import { DisputeAudit } from '@/modules/dispute/entities/dispute-audit.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import {
-  DisputeAudit,
-  DisputeIssue,
-  DisputeMessage,
-  DisputeNotice,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeMessage } from '@/modules/dispute/entities/dispute-message.entity';
+import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';

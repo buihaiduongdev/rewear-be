@@ -16,13 +16,11 @@ import {
 import { populateDecisionAppealDeadline } from './dispute-decision.lifecycle';
 import { saveFinalDisputeDecision } from './dispute-finalization.lifecycle';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import {
-  DisputeAppeal,
-  DisputeAppealReview,
-  DisputeFinalDecision,
-} from './entities/dispute-appeal.entity';
+import { DisputeAppealReview } from './entities/dispute-appeal-review.entity';
+import { DisputeAppeal } from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import { DisputeIssue } from './entities/dispute.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
 
 async function updateReviewClock(
   manager: EntityManager,

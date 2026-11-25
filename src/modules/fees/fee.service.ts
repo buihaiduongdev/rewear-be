@@ -7,7 +7,7 @@ import {
 import { DataSource, EntityManager } from 'typeorm';
 
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-exception.entity';
+import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';

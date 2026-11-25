@@ -3,9 +3,8 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
-import { DisputeFinalDecision } from '../../entities/dispute-appeal.entity';
-import { DisputeEvidence } from '../../entities/dispute.entity';
-import type { ReturnEvidenceKind, ReturnState } from '../types/return.type';
+import { DisputeFinalDecision } from '../../entities/dispute-final-decision.entity';
+import type { ReturnState } from '../schemas/return.schema';
 
 @Entity('dispute_returns')
 @Index(['remedyKey'], { unique: true })
@@ -122,43 +121,4 @@ export class DisputeReturn extends BaseEntity {
   @ManyToOne(() => DisputeFinalDecision, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'finalDecisionId' })
   finalDecision: DisputeFinalDecision;
-}
-
-@Entity('return_evidence_links')
-@Index(['returnId', 'evidenceId', 'kind'], { unique: true })
-export class ReturnEvidenceLink extends BaseEntity {
-  @Column('uuid')
-  returnId: string;
-  @ManyToOne(() => DisputeReturn, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'returnId' })
-  returnCase: DisputeReturn;
-  @Column('uuid')
-  evidenceId: string;
-  @ManyToOne(() => DisputeEvidence, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'evidenceId' })
-  evidence: DisputeEvidence;
-  @Column({ type: 'varchar', length: 24 })
-  kind: ReturnEvidenceKind;
-}
-
-@Entity('return_events')
-@Index(['requestId'], { unique: true })
-export class ReturnEvent extends BaseEntity {
-  @Column('uuid')
-  returnId: string;
-  @ManyToOne(() => DisputeReturn, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'returnId' })
-  returnCase: DisputeReturn;
-  @Column('uuid')
-  requestId: string;
-  @Column('uuid')
-  actorId: string;
-  @Column({ length: 64 })
-  requestFingerprint: string;
-  @Column({ length: 32 })
-  action: string;
-  @Column('text')
-  reason: string;
-  @Column('jsonb')
-  data: Record<string, unknown>;
 }

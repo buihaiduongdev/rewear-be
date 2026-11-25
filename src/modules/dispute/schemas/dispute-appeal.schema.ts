@@ -2,7 +2,11 @@ import z from 'zod';
 
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
-import { DISPUTE_POLICY } from '../constants/dispute.constant';
+import {
+  DISPUTE_APPEAL_ELIGIBILITY,
+  DISPUTE_FINAL_SOURCE,
+  DISPUTE_POLICY,
+} from '../constants/dispute.constant';
 import {
   disputeAppealReviewViewSchema,
   disputeAppealViewSchema,
@@ -52,3 +56,12 @@ export const disputeAppealConclusionSchema =
       .nullish()
       .transform((value) => value ?? null),
   });
+
+export type DisputeAppealEligibility =
+  (typeof DISPUTE_APPEAL_ELIGIBILITY)[keyof typeof DISPUTE_APPEAL_ELIGIBILITY];
+export type DisputeFinalSource =
+  (typeof DISPUTE_FINAL_SOURCE)[keyof typeof DISPUTE_FINAL_SOURCE];
+export type DisputeAppealInput = z.output<typeof disputeAppealInputSchema>;
+export type DisputeAppealConclusionInput = z.output<
+  typeof disputeAppealConclusionSchema
+>;

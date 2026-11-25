@@ -6,9 +6,9 @@ import type {
   DisputeDecisionBasis,
   DisputeDecisionOutcome,
   DisputeResponsibility,
-} from '../types/dispute-decision.type';
-import type { DisputeRefundPlan } from '../types/dispute-refund-plan.type';
-import { DisputeIssue } from './dispute.entity';
+} from '../schemas/dispute-decision.schema';
+import type { DisputeRefundPlan } from '../schemas/dispute-refund-plan.schema';
+import { DisputeIssue } from './dispute-issue.entity';
 
 @Entity('dispute_decisions')
 @Index(['issueId'], { unique: true })

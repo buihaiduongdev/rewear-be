@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  DisputeRefund,
-  DisputeRefundCredit,
-} from '@/modules/dispute/entities/dispute-refund.entity';
-import { DisputeCase } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
+import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { FulfillmentCalendar } from '@/modules/shipment/entities';

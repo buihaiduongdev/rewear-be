@@ -17,18 +17,14 @@ import { DISPUTE_ACTION } from '../constants/dispute.constant';
 import { decisionFingerprint } from '../dispute-decision-review';
 import { DisputeAccess } from '../dispute.access';
 import { notifyDispute } from '../dispute.lifecycle';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
-import {
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-} from '../entities/dispute.entity';
+import { DisputeCase } from '../entities/dispute-case.entity';
+import { DisputeEvidence } from '../entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
+import { DisputeIssue } from '../entities/dispute-issue.entity';
+import { DisputeRemedyEvent } from './entities/dispute-remedy-event.entity';
+import { DisputeRemedyEvidenceLink } from './entities/dispute-remedy-evidence-link.entity';
 import { DisputeReturn } from './entities/dispute-return.entity';
-import {
-  DisputeRemedyEvent,
-  DisputeRemedyEvidenceLink,
-  DisputeSafetyWaiver,
-} from './entities/return-exception.entity';
+import { DisputeSafetyWaiver } from './entities/dispute-safety-waiver.entity';
 
 export async function remedyContext(manager: EntityManager, finalId: string) {
   const final = await manager.findOneByOrFail(DisputeFinalDecision, {
@@ -127,7 +123,6 @@ export async function runRemedyCommand<T extends { id: string }>(
 ) {
   const fingerprint = decisionFingerprint({ actorId, finalId, action, data });
   return db.transaction(async (manager) => {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now: clock }] = await manager.query(
       'SELECT clock_timestamp() AS now',
     );

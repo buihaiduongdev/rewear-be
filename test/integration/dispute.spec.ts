@@ -6,12 +6,10 @@ import { AuthProvider } from '@/modules/auth/enums';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
 import { DisputeService } from '@/modules/dispute/dispute.service';
-import {
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeMessage,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeMessage } from '@/modules/dispute/entities/dispute-message.entity';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
