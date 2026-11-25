@@ -1241,4 +1241,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện và yêu cầu bỏ các hằng số dư thừa (`UPLOADS_PER_ACTOR_CONVERSATION_DAY`, `MAX_SEQUENCE`, `IMAGE_BYTES`, `VIDEO_BYTES`) và chỉ đạo gộp gọn các file lẻ.
 - **Cách kiểm chứng:** `pnpm check` đạt; `chat-schema.spec.ts` đạt 3/3 tests.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `buihaiduongdev/chat-cleanup`.
+- **Minh chứng:** PR #68; branch `buihaiduongdev/chat-cleanup`.
