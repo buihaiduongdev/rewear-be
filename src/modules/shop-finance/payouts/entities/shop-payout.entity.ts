@@ -45,9 +45,6 @@ export class ShopPayout extends BaseEntity {
   dueAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  overdueAt: Date | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
   processedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })

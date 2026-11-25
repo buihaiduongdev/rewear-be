@@ -52,9 +52,7 @@ const deps = {
   ...(await load('../src/modules/checkout/constants/checkout.constant.ts')),
   ...(await load('../src/common/constants/money.constant.ts')),
   ...(await load('../src/modules/order/constants/order.constant.ts')),
-  ...(await load(
-    '../src/modules/wallet/checkout/constants/wallet-checkout.constant.ts',
-  )),
+  ...(await load('../src/modules/wallet/constants/wallet.constant.ts')),
   Checkout,
   Product,
   Shop,

@@ -4,7 +4,6 @@ import { EntityManager } from 'typeorm';
 
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { identityQuoteFingerprint } from '@/modules/checkout/identity-quote.policy';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
@@ -38,14 +37,9 @@ export class PaymentPricing {
       relations: { shop: true },
     });
     const { quote } = prepared;
-    const needsConfirmation =
-      checkout.identityReviewRequired ||
-      (checkout.identityConfirmedQuote &&
-        checkout.identityConfirmedQuote !==
-          identityQuoteFingerprint(checkout, orders, quote));
-    if (needsConfirmation)
+    if (checkout.identityReviewRequired)
       throw new ConflictException(
-        'Confirm the revised checkout quote before paying',
+        'Refresh the revised checkout quote before paying',
       );
     const age = Date.now() - Date.parse(quote.quotedAt);
     if (

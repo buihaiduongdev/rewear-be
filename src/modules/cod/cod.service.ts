@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
@@ -8,6 +13,7 @@ import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant'
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import {
+  ORDER_CANCELLATION_REASON,
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_POLICY,
@@ -29,8 +35,9 @@ import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/ide
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
-import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
+import { UserRole, UserStatus } from '@/modules/user/enums';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
 import { COD_FAULT_PARTY } from './constants/cod.constant';
 import { CodPolicy } from './policies/cod.policy';
@@ -162,6 +169,12 @@ export class CodService {
     if (!this.orderService || !this.shopFinanceService)
       throw new ConflictException('COD return dependencies unavailable');
     return this.db.transaction(async (manager) => {
+      const admin = await manager.findOneBy(User, {
+        id: adminId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+      if (!admin) throw new ForbiddenException('Active Admin required');
       const order = await manager.findOneOrFail(Order, {
         where: { id: orderId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
         lock: { mode: 'pessimistic_write' },
@@ -170,18 +183,24 @@ export class CodService {
         where: { orderId },
         lock: { mode: 'pessimistic_write' },
       });
+      if (
+        order.status === ORDER_STATUS.CANCELLED &&
+        order.cancellationReason === ORDER_CANCELLATION_REASON.CARRIER_RETURNED
+      ) {
+        return order;
+      }
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
+      order.cancellationNote = data.reason;
       await this.orderService!.releaseCodReturnedVerified(
         manager,
         order,
         now,
         data.sellable,
+        adminId,
       );
-      order.cancellationNote = data.reason;
-      await manager.save(order);
       if (data.fault === COD_FAULT_PARTY.SELLER) {
         await this.shopFinanceService!.recordCodShippingDebit(
           manager,

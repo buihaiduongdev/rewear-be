@@ -1,6 +1,0 @@
-export const WALLET_HOLD_STATE = {
-  HELD: 'HELD',
-  CAPTURED: 'CAPTURED',
-  RELEASED: 'RELEASED',
-  EXPIRED: 'EXPIRED',
-} as const;

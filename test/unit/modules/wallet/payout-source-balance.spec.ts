@@ -1,4 +1,4 @@
-import { payoutSourceBalance } from '@/modules/shop-finance/policies/payout-source-balance.policy';
+import { payoutSourceBalance } from '@/modules/shop-finance/payout-sources';
 
 describe('Per-origin payout balance', () => {
   it('subtracts completed and active transfers from the same source only', () => {

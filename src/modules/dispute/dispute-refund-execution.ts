@@ -5,7 +5,6 @@ import { EntityManager } from 'typeorm';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
 import { Order } from '@/modules/order/entities';
-import { encumberedOrderSettlement } from '@/modules/shop-finance/payout-sources';
 import { WalletAccount } from '@/modules/wallet/entities';
 import { walletBalanceSchema } from '@/modules/wallet/schemas/wallet.schema';
 
@@ -66,9 +65,7 @@ export async function executeDisputeRefund(
   );
   const cashAvailable = Math.max(
     0,
-    funding.itemFundsAvailable -
-      cashAlreadyAllocated -
-      (await encumberedOrderSettlement(manager, order.id, funding.mode)),
+    funding.itemFundsAvailable - cashAlreadyAllocated,
   );
   const credit = await manager.save(
     DisputeRefundCredit,

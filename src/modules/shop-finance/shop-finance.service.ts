@@ -28,10 +28,10 @@ import { Order } from '@/modules/order/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
-import { SHOP_LEDGER_ENTRY_TYPE } from './constants/payout-source.constant';
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import { ShopSettlement } from './entities/shop-settlement.entity';
 import { readPayoutSources } from './payout-sources';
+import { SHOP_LEDGER_ENTRY_TYPE } from './payouts/constants/payout.constant';
 
 @Injectable()
 export class ShopFinanceService {

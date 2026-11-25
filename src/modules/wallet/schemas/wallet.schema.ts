@@ -12,8 +12,10 @@ import {
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
-import { WALLET_HOLD_STATE } from '../checkout/constants/wallet-checkout.constant';
-import { WALLET_CREDIT_REASON } from '../constants/wallet.constant';
+import {
+  WALLET_CREDIT_REASON,
+  WALLET_HOLD_STATE,
+} from '../constants/wallet.constant';
 
 export type WalletCreditReason =
   (typeof WALLET_CREDIT_REASON)[keyof typeof WALLET_CREDIT_REASON];
@@ -51,10 +53,6 @@ export const walletViewSchema = z.object({
   simulationBalance: walletBalanceSchema,
   heldBalance: walletBalanceSchema,
   simulationHeldBalance: walletBalanceSchema,
-  spendableBalance: walletBalanceSchema,
-  simulationSpendableBalance: walletBalanceSchema,
-  quarantinedBalance: walletBalanceSchema,
-  simulationQuarantinedBalance: walletBalanceSchema,
   disputeRefunds: z.array(refundCreditViewSchema),
   currency: z.literal(MONEY_CURRENCY.VND),
   credits: z.array(

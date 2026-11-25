@@ -8,16 +8,12 @@ import { Order } from '@/modules/order/entities';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
-import {
-  encumberedOrderSettlement,
-  readPayoutSources,
-} from '@/modules/shop-finance/payout-sources';
+import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
 import {
   ShopPayout,
   ShopPayoutAllocation,
 } from '@/modules/shop-finance/payouts/entities';
-import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
-import { verifiedWalletFunds } from '@/modules/wallet/verified-wallet-funds';
+import { WalletAccount } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -29,7 +25,7 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
     database = await createTestDatabase();
   });
   afterAll(async () => database?.destroy());
-  it('isolates new sandbox cancellations and leaves ambiguous legacy balances quarantined', async () => {
+  it('isolates new sandbox cancellations cleanly without cross-mode contamination', async () => {
     const db = database.dataSource,
       f = await adjudicationFixture(db);
     const checkout = await db.getRepository(Checkout).save({
@@ -72,7 +68,10 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
     const persistedOrder = await db
       .getRepository(Order)
       .findOneByOrFail({ id: f.order.id });
-    await db.transaction((m) => wallet.creditCancellation(m, persistedOrder));
+    await Promise.all([
+      db.transaction((m) => wallet.creditCancellation(m, persistedOrder)),
+      db.transaction((m) => wallet.creditCancellation(m, persistedOrder)),
+    ]);
     const account = await db
       .getRepository(WalletAccount)
       .findOneByOrFail({ userId: f.buyer.id });
@@ -80,21 +79,13 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
       balance: 0,
       simulationBalance: f.order.total,
     });
-    expect(
-      await verifiedWalletFunds(db.manager, f.buyer.id, 'SIMULATION'),
-    ).toMatchObject({ spendable: f.order.total, quarantined: 0 });
-    await db
-      .getRepository(WalletCredit)
-      .update({ orderId: f.order.id }, { mode: null });
-    await db
-      .getRepository(WalletAccount)
-      .update(account.id, { balance: 30, simulationBalance: f.order.total });
-    expect(
-      await verifiedWalletFunds(db.manager, f.buyer.id, 'SIMULATION'),
-    ).toMatchObject({ spendable: 0, quarantined: f.order.total });
-    expect(
-      await verifiedWalletFunds(db.manager, f.buyer.id, 'EVIDENCE'),
-    ).toMatchObject({ spendable: 0, quarantined: 30 });
+    const view = await wallet.mine(f.buyer.id, {});
+    expect(view).toMatchObject({
+      balance: 0,
+      simulationBalance: f.order.total,
+      heldBalance: 0,
+      simulationHeldBalance: 0,
+    });
   });
   async function settlementFixture() {
     const db = database.dataSource,
@@ -149,9 +140,6 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE', payout.id))
         .available,
     ).toBe(97001);
-    expect(
-      await encumberedOrderSettlement(f.db.manager, f.order.id, 'EVIDENCE'),
-    ).toBe(60000);
     await f.db
       .getRepository(DisputeIssue)
       .update(f.issue.id, { status: 'ACTIVE' });
@@ -162,8 +150,8 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
       .getRepository(ShopPayout)
       .update(payout.id, { status: 'CANCELLED' });
     expect(
-      await encumberedOrderSettlement(f.db.manager, f.order.id, 'EVIDENCE'),
-    ).toBe(0);
+      await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE'),
+    ).toMatchObject({ available: 0, payoutLocked: 0, reviewHeld: 97001 });
   });
   it('records debt against a paid source while leaving another orders settlement intact', async () => {
     const f = await settlementFixture();
@@ -185,7 +173,6 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
       mode: 'EVIDENCE',
       amount: 60000,
     });
-    // A correction of already-recorded settlement deduction avoids inventing refund proof.
     await f.db
       .getRepository(ShopSettlement)
       .update(f.settlement.id, { amount: 10000 });

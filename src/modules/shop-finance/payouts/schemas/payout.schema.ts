@@ -5,8 +5,10 @@ import { vndAmountSchema } from '@/common/schemas/money.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
-import { PAYOUT_SOURCE_KIND } from '../../constants/payout-source.constant';
-import { PAYOUT_STATUS } from '../constants/payout.constant';
+import {
+  PAYOUT_SOURCE_KIND,
+  PAYOUT_STATUS,
+} from '../constants/payout.constant';
 
 export type PayoutStatus = (typeof PAYOUT_STATUS)[keyof typeof PAYOUT_STATUS];
 export type PayoutSource = {
@@ -93,7 +95,6 @@ export const payoutViewSchema = z.object({
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
   dueAt: dateTimeSchema.nullable().default(null),
-  overdueAt: dateTimeSchema.nullable().default(null),
   processedAt: dateTimeSchema.nullable().default(null),
   completedAt: dateTimeSchema.nullable().default(null),
   bankReference: z.string().nullable().default(null),

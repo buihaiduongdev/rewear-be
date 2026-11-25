@@ -29,8 +29,8 @@ import type {
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 
-import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
 import {
+  FULFILLMENT_POLICY,
   SHIPMENT_RECOVERY_ACTION,
   SHIPMENT_REVIEW_REASON,
   SHIPMENT_STATE,
@@ -45,9 +45,7 @@ const incidentStatuses = new Set<string>(GHN_INCIDENT_STATUSES);
 const inTransit = new Set<string>(GHN_IN_TRANSIT_STATUSES);
 const returning = new Set<string>(GHN_RETURN_STATUSES);
 const bookingBlockedCancelStates: readonly OrderCancelState[] = [
-  ORDER_CANCEL_STATE.PENDING,
   ORDER_CANCEL_STATE.APPROVED,
-  ORDER_CANCEL_STATE.ADMIN_REVIEW,
   ORDER_CANCEL_STATE.CLOSED,
 ];
 const deliveryTerminalStatuses: readonly OrderState[] = [
@@ -310,12 +308,13 @@ export class ShipmentService {
 
   private async apply(id: string, snapshot: GhnShipmentSnapshot) {
     return this.db.transaction(async (manager) => {
-      const row = await manager.findOneOrFail(Shipment, {
-        where: { id },
+      const target = await manager.findOneByOrFail(Shipment, { id });
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: target.orderId },
         lock: { mode: 'pessimistic_write' },
       });
-      const order = await manager.findOneOrFail(Order, {
-        where: { id: row.orderId },
+      const row = await manager.findOneOrFail(Shipment, {
+        where: { id },
         lock: { mode: 'pessimistic_write' },
       });
       const now = await this.now(manager);
@@ -350,6 +349,18 @@ export class ShipmentService {
       ) {
         row.reviewReason ??=
           SHIPMENT_REVIEW_REASON.CANCELLATION_UNRESOLVED_30_MINUTES;
+      }
+      const deliveredTerminal =
+        (order.status === ORDER_STATUS.DELIVERED ||
+          order.status === ORDER_STATUS.COMPLETED) &&
+        (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
+          Boolean(row.codCollectedAt && row.carrierTransferredAt));
+      if (
+        row.state === SHIPMENT_STATE.CANCELLED ||
+        order.status === ORDER_STATUS.CANCELLED ||
+        deliveredTerminal
+      ) {
+        row.nextQueryAt = null;
       }
       await manager.save(order);
       await manager.save(row);

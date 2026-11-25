@@ -23,10 +23,4 @@ export class OrderEvent extends BaseEntity {
 
   @Column({ type: 'varchar', length: 1000, nullable: true })
   reason: string | null;
-
-  @Column({ type: 'varchar', length: 2000, nullable: true })
-  evidence: string | null;
-
-  @Column({ type: 'boolean', nullable: true })
-  approved: boolean | null;
 }

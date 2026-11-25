@@ -9,7 +9,6 @@ import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-c
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
-import { User } from '@/modules/user/entities';
 
 import { verifiedWalletCapture } from './checkout/verified-wallet-capture';
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
@@ -19,7 +18,6 @@ import {
   walletBalanceSchema,
 } from './schemas/wallet.schema';
 import type { WalletQueryInput } from './schemas/wallet.schema';
-import { verifiedWalletFunds } from './verified-wallet-funds';
 
 @Injectable()
 export class WalletService {
@@ -51,13 +49,30 @@ export class WalletService {
       throw new ConflictException(
         'Cancellation coin source requires reconciliation',
       );
-    const txActive = Boolean(
-      manager.queryRunner?.isTransactionActive && manager.findOne,
-    );
+    const txActive = Boolean(manager.queryRunner?.isTransactionActive);
+    let account: WalletAccount | null;
     if (txActive) {
-      await manager.findOne(User, {
-        where: { id: order.buyerId },
+      await manager
+        .createQueryBuilder()
+        .insert()
+        .into(WalletAccount)
+        .values({ userId: order.buyerId })
+        .orIgnore()
+        .execute();
+      account = await manager.findOneOrFail(WalletAccount, {
+        where: { userId: order.buyerId },
         lock: { mode: 'pessimistic_write' },
+      });
+    } else {
+      account = await manager.findOneBy(WalletAccount, {
+        userId: order.buyerId,
+      });
+      account ??= manager.create(WalletAccount, {
+        userId: order.buyerId,
+        balance: 0,
+        simulationBalance: 0,
+        heldBalance: 0,
+        simulationHeldBalance: 0,
       });
     }
     const existing = await manager.findOneBy(WalletCredit, {
@@ -72,19 +87,6 @@ export class WalletService {
         throw new ConflictException('Refund ledger requires reconciliation');
       return existing;
     }
-    let account = txActive
-      ? await manager.findOne(WalletAccount, {
-          where: { userId: order.buyerId },
-          lock: { mode: 'pessimistic_write' },
-        })
-      : await manager.findOneBy(WalletAccount, { userId: order.buyerId });
-    account ??= manager.create(WalletAccount, {
-      userId: order.buyerId,
-      balance: 0,
-      simulationBalance: 0,
-      heldBalance: 0,
-      simulationHeldBalance: 0,
-    });
     const simulated = mode === RECONCILIATION_MODE.SIMULATION;
     const balanceField = simulated ? 'simulationBalance' : 'balance';
     const held = simulated
@@ -111,16 +113,6 @@ export class WalletService {
   async mine(userId: string, input: WalletQueryInput) {
     const manager = this.db.manager;
     const account = await manager.findOneBy(WalletAccount, { userId });
-    const evidence = await verifiedWalletFunds(
-      manager,
-      userId,
-      RECONCILIATION_MODE.EVIDENCE,
-    );
-    const simulation = await verifiedWalletFunds(
-      manager,
-      userId,
-      RECONCILIATION_MODE.SIMULATION,
-    );
     const credits = await manager.find(WalletCredit, {
       where: { userId },
       order: { createdAt: 'DESC', id: 'DESC' },
@@ -134,15 +126,11 @@ export class WalletService {
       skip: input.offset ?? 0,
     });
     return {
-      simulationBalance: account?.simulationBalance ?? 0,
-      heldBalance: evidence.held,
-      simulationHeldBalance: simulation.held,
-      spendableBalance: evidence.spendable,
-      simulationSpendableBalance: simulation.spendable,
-      quarantinedBalance: evidence.quarantined,
-      simulationQuarantinedBalance: simulation.quarantined,
-      disputeRefunds,
       balance: account?.balance ?? 0,
+      simulationBalance: account?.simulationBalance ?? 0,
+      heldBalance: account?.heldBalance ?? 0,
+      simulationHeldBalance: account?.simulationHeldBalance ?? 0,
+      disputeRefunds,
       currency: MONEY_CURRENCY.VND,
       credits,
     };

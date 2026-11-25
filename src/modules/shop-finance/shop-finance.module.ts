@@ -11,12 +11,7 @@ import {
   ShopPayout,
   ShopPayoutAllocation,
 } from './payouts/entities';
-import {
-  AdminShopPayoutController,
-  ShopPayoutController,
-} from './payouts/shop-payout.controller';
 import { ShopPayoutService } from './payouts/shop-payout.service';
-import { ShopPayoutWorker } from './payouts/shop-payout.worker';
 import { ShopFinanceController } from './shop-finance.controller';
 import { ShopFinanceService } from './shop-finance.service';
 
@@ -32,12 +27,8 @@ import { ShopFinanceService } from './shop-finance.service';
       ShopPayoutAllocation,
     ]),
   ],
-  providers: [ShopFinanceService, ShopPayoutService, ShopPayoutWorker],
-  controllers: [
-    ShopFinanceController,
-    ShopPayoutController,
-    AdminShopPayoutController,
-  ],
+  providers: [ShopFinanceService, ShopPayoutService],
+  controllers: [ShopFinanceController],
   exports: [ShopFinanceService, ShopPayoutService],
 })
 export class ShopFinanceModule {}

@@ -358,18 +358,17 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
       await f.db.getRepository(CodCollection).countBy({ orderId: f.order.id }),
     ).toBe(1);
   });
-  it('funds a finally rejected cancellation after its review window, while pending review stays locked', async () => {
+  it('blocks funding during unresolved cancellation and refreshes cleanly once closed', async () => {
     const f = await fixture();
     await f.db.getRepository(Order).update(f.order.id, {
-      cancelState: 'REJECTED',
-      cancelReviewUntil: new Date(Date.now() + 3600000),
+      cancelState: 'APPROVED',
     });
     await service.recordCollection(adminId, f.order.id, f.input);
     await service.recordRemittance(adminId, receipt(f.order.id, 230000));
     expect((await finance.view(f.owner.id, f.shop.id, {})).held).toBe(0);
     await f.db
       .getRepository(Order)
-      .update(f.order.id, { cancelReviewUntil: new Date(0) });
+      .update(f.order.id, { cancelState: 'CLOSED' });
     const row = await service.refresh(adminId, f.order.id);
     expect(row.status).toBe('FUNDED_HELD');
     expect((await finance.view(f.owner.id, f.shop.id, {})).held).toBe(194000);

@@ -201,24 +201,14 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
     );
   });
 
-  it('computes weekend-skipping SLA dueAt and flags overdue without unlocking processing funds', async () => {
+  it('computes weekend-skipping SLA dueAt and keeps processing funds locked', async () => {
     const f = await fixture();
     const payout = await service.request(f.owner.id, f.shop.id, f.input);
-    expect(payout.dueAt).toBeInstanceOf(Date);
+    expect(payout.dueAt).toEqual(businessDeadline(payout.createdAt, 2));
     await service.start(admin, payout.id);
-    const original = new Date(Date.now() - 14 * 86400000);
-    await f.db.getRepository(ShopPayout).update(
-      { id: payout.id },
-      {
-        createdAt: original,
-        dueAt: businessDeadline(original, 2),
-      },
-    );
-    await service.run();
     const saved = await f.db
       .getRepository(ShopPayout)
       .findOneByOrFail({ id: payout.id });
-    expect(saved.overdueAt).not.toBeNull();
     expect(saved.status).toBe('PROCESSING');
     expect(
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE'))

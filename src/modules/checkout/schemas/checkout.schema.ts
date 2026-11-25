@@ -121,8 +121,3 @@ export const selectCheckoutCoinsSchema = z.strictObject({
 export type SelectCheckoutCoinsInput = z.infer<
   typeof selectCheckoutCoinsSchema
 >;
-
-export const confirmIdentityCheckoutSchema = z.strictObject({
-  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  confirmed: z.literal(true),
-});

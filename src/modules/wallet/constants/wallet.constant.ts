@@ -1,3 +1,10 @@
 export const WALLET_CREDIT_REASON = {
   ORDER_CANCELLED: 'ORDER_CANCELLED',
 } as const;
+
+export const WALLET_HOLD_STATE = {
+  HELD: 'HELD',
+  CAPTURED: 'CAPTURED',
+  RELEASED: 'RELEASED',
+  EXPIRED: 'EXPIRED',
+} as const;

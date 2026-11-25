@@ -1,4 +1,4 @@
-import { VIETNAM_UTC_OFFSET_MS } from '../constants/calendar.constant';
+import { VIETNAM_UTC_OFFSET_MS } from '../constants/shipment.constant';
 
 export function businessDeadline(receivedAt: Date, days: number): Date {
   if (!Number.isFinite(receivedAt.getTime())) {

@@ -299,6 +299,7 @@ export class OrderService {
     order: Order,
     now: Date,
     sellable = true,
+    actorId: string | null = null,
   ) {
     const shipment = await manager.findOne(Shipment, {
       where: { orderId: order.id },
@@ -309,7 +310,6 @@ export class OrderService {
       order.status !== ORDER_STATUS.RETURNS ||
       !order.carrierReturnedAt ||
       order.deliveryObservedAt ||
-      order.cancelState === ORDER_CANCEL_STATE.ADMIN_REVIEW ||
       shipment?.providerStatus !== 'returned' ||
       shipment.codCollectedAt ||
       shipment.carrierTransferredAt ||
@@ -328,6 +328,7 @@ export class OrderService {
     order.cancellationReason = ORDER_CANCELLATION_REASON.CARRIER_RETURNED;
     order.cancelState = ORDER_CANCEL_STATE.CLOSED;
     shipment.reviewReason = null;
+    shipment.nextQueryAt = null;
     await manager.save(shipment);
     await manager.save(order);
     await manager.save(
@@ -335,7 +336,7 @@ export class OrderService {
       manager.create(OrderEvent, {
         orderId: order.id,
         action: ORDER_EVENT_ACTION.CANCEL_APPROVED,
-        actorId: null,
+        actorId,
         reason: order.cancellationNote ?? 'Returned by carrier',
         createdAt: now,
       }),

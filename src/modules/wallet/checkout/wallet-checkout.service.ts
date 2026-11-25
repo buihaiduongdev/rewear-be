@@ -2,9 +2,12 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import {
   ORDER_EVENT_ACTION,
@@ -23,16 +26,63 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 
+import { WALLET_HOLD_STATE } from '../constants/wallet.constant';
 import { WalletAccount } from '../entities';
+import { walletBalanceSchema } from '../schemas/wallet.schema';
 import type { ReserveWalletCheckoutInput } from '../schemas/wallet.schema';
-import { verifiedWalletFunds } from '../verified-wallet-funds';
-import { WALLET_HOLD_STATE } from './constants/wallet-checkout.constant';
 import { WalletCheckoutHold, WalletDebit } from './entities';
-import {
-  walletCheckoutTotal,
-  walletPoolFields,
-} from './policies/wallet-checkout.policy';
-import { releaseWalletHold } from './release-wallet-hold';
+
+export function walletCheckoutTotal(
+  orders: { subtotal: number; shippingFee: number; coinDiscount?: number }[],
+  expected: number,
+) {
+  const total = orders.reduce(
+    (sum, row) =>
+      sum + row.subtotal + row.shippingFee - (row.coinDiscount ?? 0),
+    0,
+  );
+  if (
+    !orders.length ||
+    !Number.isSafeInteger(total) ||
+    total <= 0 ||
+    total > MAX_VND_AMOUNT ||
+    total !== expected
+  )
+    throw new ConflictException(
+      'Wallet total changed; review the shipping quote',
+    );
+  return total;
+}
+
+export function walletPoolFields(
+  mode: ReconciliationMode,
+): ['balance' | 'simulationBalance', 'heldBalance' | 'simulationHeldBalance'] {
+  return mode === RECONCILIATION_MODE.SIMULATION
+    ? ['simulationBalance', 'simulationHeldBalance']
+    : ['balance', 'heldBalance'];
+}
+
+export async function releaseWalletHold(
+  manager: EntityManager,
+  hold: WalletCheckoutHold,
+  now: Date,
+  state: typeof WALLET_HOLD_STATE.RELEASED | typeof WALLET_HOLD_STATE.EXPIRED,
+) {
+  if (hold.state !== WALLET_HOLD_STATE.HELD) return;
+  const account = await manager.findOneOrFail(WalletAccount, {
+    where: { userId: hold.buyerId },
+    lock: { mode: 'pessimistic_write' },
+  });
+  const [available, held] = walletPoolFields(hold.mode);
+  if (account[held] < hold.amount)
+    throw new ConflictException('Wallet held balance requires reconciliation');
+  account[held] -= hold.amount;
+  account[available] += hold.amount;
+  await manager.save(account);
+  hold.state = state;
+  hold.releasedAt = now;
+  await manager.save(hold);
+}
 
 @Injectable()
 export class WalletCheckoutService {
@@ -132,14 +182,18 @@ export class WalletCheckoutService {
       );
       if (!checkout.expiresAt || checkout.expiresAt <= stockCheckedAt)
         throw new ConflictException('Checkout expired during stock validation');
-      const funds = await verifiedWalletFunds(manager, buyerId, input.mode);
-      if (funds.spendable < amount)
-        throw new ConflictException('Insufficient verified wallet funds');
-      const account = await manager.findOneOrFail(WalletAccount, {
+      const account = await manager.findOne(WalletAccount, {
         where: { userId: buyerId },
         lock: { mode: 'pessimistic_write' },
       });
       const [available, held] = walletPoolFields(input.mode);
+      if (!account || account[available] < amount)
+        throw new ConflictException('Insufficient verified wallet funds');
+      if (
+        !walletBalanceSchema.safeParse(account[available] + account[held])
+          .success
+      )
+        throw new ConflictException('Wallet balance requires reconciliation');
       account[available] -= amount;
       account[held] += amount;
       await manager.save(account);
@@ -167,14 +221,35 @@ export class WalletCheckoutService {
   async findMine(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      await this.expireDue(manager, buyerId, now);
-      return manager.findOneByOrFail(WalletCheckoutHold, { id, buyerId });
+      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
+        id,
+        buyerId,
+      });
+      await manager.findOneOrFail(Checkout, {
+        where: { id: target.checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const hold = await manager.findOneOrFail(WalletCheckoutHold, {
+        where: { id, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (hold.state === WALLET_HOLD_STATE.HELD && hold.expiresAt <= now)
+        await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.EXPIRED);
+      return hold;
     });
   }
 
   async release(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
+      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
+        id,
+        buyerId,
+      });
+      await manager.findOneOrFail(Checkout, {
+        where: { id: target.checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const hold = await manager.findOneOrFail(WalletCheckoutHold, {
         where: { id, buyerId },
         lock: { mode: 'pessimistic_write' },
@@ -187,6 +262,14 @@ export class WalletCheckoutService {
   async confirm(buyerId: string, id: string) {
     const result = await this.db.transaction(async (manager) => {
       const now = await this.now(manager);
+      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
+        id,
+        buyerId,
+      });
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id: target.checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const hold = await manager.findOneOrFail(WalletCheckoutHold, {
         where: { id, buyerId },
         lock: { mode: 'pessimistic_write' },
@@ -198,10 +281,6 @@ export class WalletCheckoutService {
       }
       if (hold.state !== WALLET_HOLD_STATE.HELD)
         throw new ConflictException('Wallet reservation is no longer active');
-      const checkout = await manager.findOneOrFail(Checkout, {
-        where: { id: hold.checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
       if (
         checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
@@ -262,13 +341,11 @@ export class WalletCheckoutService {
       where: { userId: hold.buyerId },
       lock: { mode: 'pessimistic_write' },
     });
-    const funds = await verifiedWalletFunds(manager, hold.buyerId, hold.mode);
-    if (funds.backing < funds.held)
-      throw new ConflictException(
-        'Wallet hold backing requires reconciliation',
-      );
-    const [, held] = walletPoolFields(hold.mode);
-    if (account[held] < hold.amount)
+    const [available, held] = walletPoolFields(hold.mode);
+    if (
+      account[held] < hold.amount ||
+      !walletBalanceSchema.safeParse(account[available] + account[held]).success
+    )
       throw new ConflictException('Wallet hold requires reconciliation');
     account[held] -= hold.amount;
     await manager.save(account);
@@ -348,6 +425,7 @@ export class WalletCheckoutService {
   private async expireDue(manager: EntityManager, buyerId: string, now: Date) {
     const holds = await manager.find(WalletCheckoutHold, {
       where: { buyerId, state: WALLET_HOLD_STATE.HELD },
+      order: { id: 'ASC' },
       lock: { mode: 'pessimistic_write' },
     });
     for (const hold of holds)

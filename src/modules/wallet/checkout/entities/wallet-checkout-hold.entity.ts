@@ -7,8 +7,8 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/co
 import type { PaymentOrderSnapshot } from '@/modules/payment/schemas/payment.schema';
 import { User } from '@/modules/user/entities';
 
+import { WALLET_HOLD_STATE } from '../../constants/wallet.constant';
 import type { WalletHoldState } from '../../schemas/wallet.schema';
-import { WALLET_HOLD_STATE } from '../constants/wallet-checkout.constant';
 
 @Entity('wallet_checkout_holds')
 @Index(['buyerId', 'requestId'], { unique: true })

@@ -13,8 +13,8 @@ import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/o
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout-source.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
 import { WalletCredit } from '@/modules/wallet/entities';
 

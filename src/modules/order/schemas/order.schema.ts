@@ -40,6 +40,14 @@ export type RejectOrderInput = z.infer<typeof rejectOrderSchema>;
 
 export const acceptOrderSchema = z.strictObject({});
 
+export const verifyDeliverySchema = z.strictObject({
+  deliveredAt: z.iso.datetime({ offset: true }),
+  mode: z.enum(RECONCILIATION_MODE),
+  reason: trimmedTextSchema.min(1).max(1000),
+  evidence: trimmedTextSchema.min(1).max(2000),
+});
+export type VerifyDeliveryInput = z.output<typeof verifyDeliverySchema>;
+
 export const orderSchema = z.object({
   coinDiscount: z.number().int().nonnegative().default(0),
   coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
@@ -58,7 +66,6 @@ export const orderSchema = z.object({
   carrierReturnedAt: dateTimeSchema.nullable(),
   cancelState: z.enum(ORDER_CANCEL_STATE).nullable(),
   cancelRequestedAt: dateTimeSchema.nullable(),
-  cancelReviewUntil: dateTimeSchema.nullable(),
   shopId: z.uuid(),
   shopName: z.string(),
   status: z.enum(ORDER_STATUS),
@@ -88,8 +95,6 @@ export const orderSchema = z.object({
         action: z.enum(ORDER_EVENT_ACTION),
         actorId: z.uuid().nullable(),
         reason: z.string().nullable(),
-        evidence: z.string().nullable(),
-        approved: z.boolean().nullable(),
         createdAt: dateTimeSchema,
       }),
     )

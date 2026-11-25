@@ -21,7 +21,7 @@ import { isSettlementWindowDue } from './policies/order-settlement.policy';
 import {
   type VerifyDeliveryInput,
   verifyDeliverySchema,
-} from './schemas/order-settlement.schema';
+} from './schemas/order.schema';
 
 const receiptStates = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
 
@@ -260,8 +260,6 @@ export class OrderSettlementService {
         action,
         actorId,
         reason: null,
-        evidence: null,
-        approved: null,
         createdAt: now,
       }),
     );

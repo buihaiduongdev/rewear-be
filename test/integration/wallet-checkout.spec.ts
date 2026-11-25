@@ -36,12 +36,12 @@ import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.ent
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
-import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import {
   WalletCheckoutHold,
   WalletDebit,
 } from '@/modules/wallet/checkout/entities';
 import { WalletCheckoutService } from '@/modules/wallet/checkout/wallet-checkout.service';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 

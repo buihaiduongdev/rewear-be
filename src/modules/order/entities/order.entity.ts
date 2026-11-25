@@ -92,9 +92,6 @@ export class Order extends BaseEntity {
   @Column({ type: 'timestamptz', nullable: true })
   cancelRequestedAt: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  cancelReviewUntil: Date | null;
-
   @Column('uuid')
   buyerId: string;
 

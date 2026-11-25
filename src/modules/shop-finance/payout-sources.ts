@@ -7,18 +7,37 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/co
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
 
-import {
-  PAYOUT_SOURCE_KIND,
-  SHOP_LEDGER_ENTRY_TYPE,
-} from './constants/payout-source.constant';
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import {
   ACTIVE_PAYOUT_STATUSES,
+  PAYOUT_SOURCE_KIND,
   PAYOUT_STATUS,
+  SHOP_LEDGER_ENTRY_TYPE,
 } from './payouts/constants/payout.constant';
 import type { PayoutSource } from './payouts/schemas/payout.schema';
-import { payoutSourceBalance } from './policies/payout-source-balance.policy';
 import type { PayoutSourceRow } from './schemas/shop-finance.schema';
+
+export function payoutSourceBalance(
+  net: number,
+  paid: number,
+  reserved: number,
+  blocked: boolean,
+) {
+  if (
+    ![net, paid, reserved].every(
+      (amount) => safeBalanceSchema.safeParse(amount).success,
+    )
+  )
+    throw new ConflictException('Payout source requires reconciliation');
+  const remaining = Math.max(0, net - paid);
+  const eligible = blocked ? 0 : remaining;
+  return {
+    available: Math.max(0, eligible - reserved),
+    paidOutDebt: Math.max(0, paid - net),
+    heldShortfall: Math.max(0, reserved - eligible),
+    reviewHeld: blocked ? remaining : 0,
+  };
+}
 
 export async function readPayoutSources(
   manager: EntityManager,
@@ -120,26 +139,4 @@ export async function readPayoutSources(
   )
     throw new ConflictException('Payout totals exceed safe amount range');
   return result;
-}
-
-export async function encumberedOrderSettlement(
-  manager: EntityManager,
-  orderId: string,
-  mode: ReconciliationMode,
-) {
-  const [row] = await manager.query(
-    `SELECT COALESCE(SUM(a.amount),0) AS amount
-      FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
-      WHERE a."orderId"=$1 AND a.mode=$2 AND p.mode=$2 AND a.kind=$3 AND p.status=ANY($4::varchar[])`,
-    [
-      orderId,
-      mode,
-      PAYOUT_SOURCE_KIND.SETTLEMENT,
-      [...ACTIVE_PAYOUT_STATUSES, PAYOUT_STATUS.SUCCEEDED],
-    ],
-  );
-  const amount = Number(row.amount);
-  if (!safeBalanceSchema.safeParse(amount).success)
-    throw new ConflictException('Payout allocation requires reconciliation');
-  return amount;
 }

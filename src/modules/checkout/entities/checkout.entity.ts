@@ -17,9 +17,6 @@ export class Checkout extends BaseEntity {
   @Column({ default: false })
   identityReviewRequired?: boolean;
 
-  @Column({ type: 'varchar', length: 64, nullable: true })
-  identityConfirmedQuote?: string | null;
-
   @Column({ type: 'integer', default: 0 })
   coinDiscount: number;
 

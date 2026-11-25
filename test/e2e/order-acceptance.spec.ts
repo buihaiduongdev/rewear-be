@@ -194,7 +194,6 @@ describe('order acceptance HTTP contract (real JWT and PostgreSQL)', () => {
       .expect(200);
     expect(wallet.body.data.balance).toBe(0);
     expect(wallet.body.data.simulationBalance).toBe(230000);
-    expect(wallet.body.data.simulationSpendableBalance).toBe(230000);
     expect(wallet.body.data.credits).toHaveLength(1);
     const otherWallet = await request(server)
       .get('/api/wallet/mine')

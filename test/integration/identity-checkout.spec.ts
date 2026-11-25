@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { pruneIdentityCheckout } from '@/modules/checkout/identity-checkout.policy';
-import { identityQuoteFingerprint } from '@/modules/checkout/identity-quote.policy';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop } from '@/modules/shop/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -25,12 +25,41 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const other = await db.getRepository(Shop).save({ name: 'Allowed shop' });
+    await db.getRepository(PickupLocation).save({
+      shopId: other.id,
+      contactName: 'Seller',
+      phone: '0901234567',
+      addressLine1: '123 Street',
+      provinceId: 202,
+      provinceName: 'HCM',
+      districtId: 1442,
+      districtName: 'District 1',
+      wardCode: '20101',
+      wardName: 'Ward 1',
+      ghnShopId: Math.floor(Math.random() * 900_000_000) + 10_000,
+      ghnSyncStatus: 'CONNECTED',
+    });
+    const address = {
+      recipientName: 'Buyer',
+      phone: '0909999999',
+      addressLine1: '456 Buyer St',
+      addressLine2: null,
+      countryCode: 'VN',
+      provinceId: 202,
+      provinceName: 'HCM',
+      districtId: 1442,
+      districtName: 'District 1',
+      wardCode: '20101',
+      wardName: 'Ward 1',
+      postalCode: null,
+      deliveryInstructions: null,
+    };
     const checkout = await db.getRepository(Checkout).save({
       buyerId: f.buyer.id,
       requestId: randomUUID(),
       addressId: randomUUID(),
       requestedProductIds: [],
-      address: {} as never,
+      address,
       status: 'HELD',
       expiresAt: new Date(Date.now() + 600000),
       removedItems: [],
@@ -52,7 +81,7 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
         await db.getRepository(CheckoutOrder).save({
           checkoutId: checkout.id,
           shopId: shop.id,
-          address: {} as never,
+          address,
           items: [
             {
               productId: product.id,
@@ -61,6 +90,12 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
               condition: 'GOOD',
               size: null,
               coverUrl: null,
+              shippingPackage: {
+                weightGrams: 500,
+                lengthCm: 30,
+                widthCm: 20,
+                heightCm: 5,
+              },
             },
           ],
           subtotal: 100000,
@@ -74,13 +109,15 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
   }
   async function prune(id: string) {
     return database.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      const checkout = await manager.findOneByOrFail(Checkout, { id });
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       await pruneIdentityCheckout(manager, checkout, new Date());
       return checkout;
     });
   }
-  it('prunes only the restricted Shop, releases its stock, preserves expiry and requires explicit confirmation', async () => {
+  it('prunes only the restricted Shop, releases its stock, preserves expiry and clears review on quote refresh', async () => {
     const f = await fixture();
     const db = database.dataSource;
     const result = await prune(f.checkout.id);
@@ -128,40 +165,25 @@ describe('Identity restricted checkout (PostgreSQL)', () => {
     const pricing = new PaymentPricing({} as ShippingQuoteService);
     await expect(
       pricing.snapshot(db.manager, result, { checkoutId: result.id, quote }),
-    ).rejects.toThrow('Confirm');
-    const shipping = new ShippingQuoteService(db, {} as never);
-    jest.spyOn(shipping, 'refresh').mockResolvedValue({
-      ...quote,
-      identityQuoteFingerprint: identityQuoteFingerprint(
-        result,
-        remaining,
-        quote,
-      ),
-    });
-    await shipping.confirmIdentityReview(
-      f.buyer.id,
-      result.id,
-      identityQuoteFingerprint(result, remaining, quote),
-    );
+    ).rejects.toThrow('Refresh');
+    const shipping = new ShippingQuoteService(db, {
+      quote: async () => ({
+        fee: 25000,
+        estimatedDeliveryAt: new Date().toISOString(),
+      }),
+    } as never);
+    const refreshed = await shipping.refresh(f.buyer.id, result.id);
+    expect(refreshed.identityReviewRequired).toBe(false);
     const confirmed = await db
       .getRepository(Checkout)
       .findOneByOrFail({ id: result.id });
+    expect(confirmed.identityReviewRequired).toBe(false);
     expect(
       await pricing.snapshot(db.manager, confirmed, {
         checkoutId: result.id,
-        quote,
+        quote: refreshed,
       }),
     ).toHaveLength(1);
-    await expect(
-      pricing.snapshot(db.manager, confirmed, {
-        checkoutId: result.id,
-        quote: {
-          ...quote,
-          orders: [{ ...quote.orders[0], fee: 30000 }],
-          grandTotal: 130000,
-        },
-      }),
-    ).rejects.toThrow('Confirm');
     await db
       .getRepository(Shop)
       .update(f.shop.id, { identityManualRestriction: false });

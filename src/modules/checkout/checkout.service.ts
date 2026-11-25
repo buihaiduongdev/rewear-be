@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
@@ -22,9 +22,9 @@ import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
-import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
+import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
@@ -35,8 +35,12 @@ import type {
   SelectCheckoutCoinsInput,
 } from './schemas/checkout.schema';
 
+const EXPIRE_BATCH_SIZE = 100;
+
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     private readonly db: DataSource,
     private readonly cartService: CartService,
@@ -52,8 +56,8 @@ export class CheckoutService {
         where: { id: buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      await this.expireDue(manager);
       const productIds = [...input.productIds].sort();
+      await this.expireBuyerAndProducts(manager, buyerId, productIds);
       const previous = await manager.findOneBy(Checkout, {
         buyerId,
         requestId: input.requestId,
@@ -268,12 +272,24 @@ export class CheckoutService {
         where: { id: buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      await this.expireDue(manager);
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
+      const checkout =
+        typeof manager.findOneOrFail === 'function'
+          ? await manager.findOneOrFail(Checkout, {
+              where: { id, buyerId },
+              lock: { mode: 'pessimistic_write' },
+            })
+          : await manager.findOneByOrFail(Checkout, { id, buyerId });
+      if (
+        checkout.status === CHECKOUT_STATUS.HELD &&
+        checkout.expiresAt &&
+        checkout.expiresAt <= now
+      ) {
+        await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+      }
       if (
         checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
@@ -320,46 +336,108 @@ export class CheckoutService {
 
   async findMine(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
-      await this.expireDue(manager);
       const checkout = await manager.findOneOrFail(Checkout, {
         where: { id, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      await pruneIdentityCheckout(manager, checkout, new Date(now));
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      if (
+        checkout.status === CHECKOUT_STATUS.HELD &&
+        checkout.expiresAt &&
+        checkout.expiresAt <= now
+      ) {
+        await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+      } else {
+        await pruneIdentityCheckout(manager, checkout, now);
+      }
       return this.view(manager, checkout);
     });
   }
 
   async cancel(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
-      await this.expireDue(manager);
       const checkout = await manager.findOneOrFail(Checkout, {
         where: { id, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
       if (checkout.status === CHECKOUT_STATUS.HELD)
-        await this.release(manager, checkout, CHECKOUT_STATUS.CANCELLED);
+        await this.release(
+          manager,
+          checkout,
+          checkout.expiresAt && checkout.expiresAt <= now
+            ? CHECKOUT_STATUS.EXPIRED
+            : CHECKOUT_STATUS.CANCELLED,
+        );
       return this.view(manager, checkout);
     });
   }
 
   async expire() {
-    await this.db.transaction(async (manager) => {
-      await this.expireDue(manager);
-    });
-  }
-
-  private async expireDue(manager: EntityManager) {
-    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-    const expired = await manager.find(Checkout, {
+    const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
+    const due = await this.db.getRepository(Checkout).find({
+      select: { id: true },
       where: {
         status: CHECKOUT_STATUS.HELD,
         expiresAt: LessThanOrEqual(new Date(now)),
       },
-      order: { id: 'ASC' },
-      lock: { mode: 'pessimistic_write' },
+      order: { expiresAt: 'ASC', id: 'ASC' },
+      take: EXPIRE_BATCH_SIZE,
     });
+    for (const item of due) {
+      try {
+        await this.db.transaction(async (manager) => {
+          const checkout = await manager.findOne(Checkout, {
+            where: { id: item.id },
+            lock: { mode: 'pessimistic_write' },
+          });
+          const [{ now: current }] = await manager.query(
+            'SELECT clock_timestamp() AS now',
+          );
+          if (
+            checkout?.status === CHECKOUT_STATUS.HELD &&
+            checkout.expiresAt &&
+            checkout.expiresAt <= new Date(current)
+          ) {
+            await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+          }
+        });
+      } catch {
+        this.logger.warn({
+          checkoutId: item.id,
+          message: 'Checkout expiry rolled back; retry on next scan',
+        });
+      }
+    }
+  }
+
+  private async expireBuyerAndProducts(
+    manager: EntityManager,
+    buyerId: string,
+    productIds: string[],
+  ) {
+    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    const expired = await manager
+      .createQueryBuilder(Checkout, 'checkout')
+      .where('checkout.status = :status AND checkout.expiresAt <= :now', {
+        status: CHECKOUT_STATUS.HELD,
+        now: new Date(now),
+      })
+      .andWhere(
+        productIds.length > 0
+          ? '(checkout.buyerId = :buyerId OR EXISTS (SELECT 1 FROM products p WHERE p."reservationId" = checkout.id AND p.id IN (:...productIds)))'
+          : 'checkout.buyerId = :buyerId',
+        { buyerId, productIds },
+      )
+      .orderBy('checkout.id', 'ASC')
+      .setLock('pessimistic_write')
+      .getMany();
     for (const checkout of expired)
       await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
   }
@@ -377,6 +455,7 @@ export class CheckoutService {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     const holds = await manager.find(WalletCheckoutHold, {
       where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+      order: { id: 'ASC' },
       lock: { mode: 'pessimistic_write' },
     });
     for (const hold of holds)

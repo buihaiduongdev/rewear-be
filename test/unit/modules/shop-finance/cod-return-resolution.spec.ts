@@ -2,13 +2,20 @@ import { randomUUID } from 'node:crypto';
 
 import type { DataSource, EntityManager } from 'typeorm';
 
+import { CodService } from '@/modules/cod/cod.service';
 import { COD_RESTRICTION_CAUSE } from '@/modules/cod/constants/cod.constant';
 import { CodRestriction } from '@/modules/cod/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout-source.constant';
+import { Order } from '@/modules/order/entities';
+import type { OrderService } from '@/modules/order/order.service';
+import type { PaymentPricing } from '@/modules/payment/payment.pricing';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
+import { User } from '@/modules/user/entities';
+import { UserRole, UserStatus } from '@/modules/user/enums';
 
 describe('FEAT-07 COD failure handling without fee subsystem', () => {
   it('records a clean idempotent 2-way shipping debit in ShopLedger for seller-fault COD failure', async () => {
@@ -132,5 +139,87 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
     expect(funds.sources).toEqual([
       expect.objectContaining({ sourceId: s2, amount: 60000 }),
     ]);
+  });
+
+  it('requires an active Admin, passes cancellationNote before release, and replays idempotently', async () => {
+    const adminId = randomUUID();
+    const order: Partial<Order> = {
+      id: randomUUID(),
+      buyerId: randomUUID(),
+      shopId: randomUUID(),
+      paymentMethod: 'COD',
+      status: 'returns',
+      shippingFee: 30000,
+      cancellationReason: null,
+      cancellationNote: null,
+    };
+    const shipment: Partial<Shipment> = {
+      orderId: order.id,
+      carrierFee: 32000,
+      nextQueryAt: new Date(),
+    };
+    let activeAdmin = false;
+    const manager = {
+      findOneBy: jest.fn(async (entity) =>
+        entity === User && activeAdmin
+          ? { id: adminId, role: UserRole.ADMIN, status: UserStatus.ACTIVE }
+          : null,
+      ),
+      findOneOrFail: jest.fn(async (entity) =>
+        entity === Order ? order : shipment,
+      ),
+      query: jest.fn(async () => [{ now: new Date('2026-11-26T00:00:00Z') }]),
+    } as unknown as EntityManager;
+    const observedNotes: (string | null | undefined)[] = [];
+    const orderService = {
+      releaseCodReturnedVerified: jest.fn(
+        async (
+          _m: EntityManager,
+          target: Order,
+          _now: Date,
+          _sellable: boolean,
+          actorId: string | null,
+        ) => {
+          observedNotes.push(target.cancellationNote);
+          expect(actorId).toBe(adminId);
+          target.status = 'cancelled';
+          target.cancellationReason = 'CARRIER_RETURNED';
+        },
+      ),
+    } as unknown as OrderService;
+    const shopFinance = {
+      recordCodShippingDebit: jest.fn(async () => null),
+    } as unknown as ShopFinanceService;
+    const service = new CodService(
+      {
+        transaction: (fn: (m: EntityManager) => unknown) => fn(manager),
+      } as unknown as DataSource,
+      {} as PaymentPricing,
+      {} as CodPolicy,
+      orderService,
+      shopFinance,
+    );
+
+    const payload = {
+      fault: 'SELLER' as const,
+      mode: 'SIMULATION' as const,
+      sellable: true,
+      reason: 'Wrong size packed',
+    };
+    await expect(
+      service.resolveReturnedOrder(adminId, order.id!, payload),
+    ).rejects.toThrow('Active Admin required');
+
+    activeAdmin = true;
+    await service.resolveReturnedOrder(adminId, order.id!, payload);
+    const replay = await service.resolveReturnedOrder(
+      adminId,
+      order.id!,
+      payload,
+    );
+    expect(replay.status).toBe('cancelled');
+    expect(observedNotes).toEqual(['Wrong size packed']);
+    expect(orderService.releaseCodReturnedVerified).toHaveBeenCalledTimes(1);
+    expect(shopFinance.recordCodShippingDebit).toHaveBeenCalledTimes(1);
   });
 });

@@ -378,30 +378,4 @@ export class ShopPayoutService {
       return manager.save(payout);
     });
   }
-
-  async run() {
-    return this.db.transaction(async (manager) => {
-      const now = await this.now(manager);
-      const missingDue = await manager.find(ShopPayout, {
-        where: { status: In([...ACTIVE_PAYOUT_STATUSES]), dueAt: IsNull() },
-        lock: { mode: 'pessimistic_write' },
-      });
-      for (const payout of missingDue) {
-        payout.dueAt = businessDeadline(
-          payout.createdAt,
-          PAYOUT_POLICY.SLA_BUSINESS_DAYS,
-        );
-        await manager.save(payout);
-      }
-      await manager
-        .createQueryBuilder()
-        .update(ShopPayout)
-        .set({ overdueAt: now })
-        .where(
-          'status IN (:...statuses) AND "dueAt" < :now AND "overdueAt" IS NULL',
-          { statuses: [...ACTIVE_PAYOUT_STATUSES], now },
-        )
-        .execute();
-    });
-  }
 }
