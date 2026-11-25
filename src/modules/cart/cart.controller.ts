@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
@@ -7,8 +7,8 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 
 import { CartService } from './cart.service';
-import { addCartItemSchema, cartSchema } from './schemas/cart.schema';
-import type { AddCartItemInput, CartView } from './schemas/cart.schema';
+import { cartSchema } from './schemas/cart.schema';
+import type { CartView } from './schemas/cart.schema';
 
 @ApiTags('Cart')
 @ApiBearerAuth()
@@ -29,7 +29,6 @@ export class CartController {
   add(
     @CurrentUser() user: User,
     @Param('productId', { schema: uuidSchema }) productId: string,
-    @Body({ schema: addCartItemSchema }) _input: AddCartItemInput,
   ): Promise<CartView> {
     return this.cartService.add(user.id, productId);
   }

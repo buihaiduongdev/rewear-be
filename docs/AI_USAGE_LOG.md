@@ -1218,3 +1218,15 @@
 - **Cách kiểm chứng:** `pnpm check` đạt; 7/7 suite (33/33 unit test) thuộc storage, media, administrative-division và user-address đạt; kiểm thử PUT/GET/CORS thực tế trên R2 private thành công.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #66; branch `buihaiduongdev/storage-and-division-cleanup`.
+
+### 2026-11-25 — Tinh gọn module giỏ hàng và trạng thái khả dụng sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Hydrogen)
+- **Mục đích và phạm vi:** Tinh gọn logic đọc, thêm, xóa giỏ hàng và loại bỏ trạng thái/kiểm tra dư thừa ở giỏ hàng và product availability machine.
+- **Prompt chính:** Rà soát và tinh gọn module cart: gộp query đọc/thêm/xóa giỏ hàng, thêm quan hệ ảnh trực tiếp trên sản phẩm, bỏ check lặp và bỏ trạng thái dư thừa trong availability machine.
+- **Đầu ra AI được sử dụng:** Gộp `readCart` vào `findMine` dùng 1 QueryBuilder với quan hệ trực tiếp `Product.media`, gộp thêm/xóa giỏ hàng về 1 query SQL, bỏ `addCartItemSchema` và bỏ `OWN_PRODUCT` khỏi enum/state machine.
+- **Phần tự làm hoặc đã chỉnh sửa:** Review từng hàm, định hướng bỏ phần ẩn `UNAVAILABLE` rườm rà và xóa comment thừa.
+- **Cách kiểm chứng:** `pnpm check` đạt; `product-availability.machine.spec.ts` đạt 12/12 tests.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Branch `buihaiduongdev/cart-cleanup`.

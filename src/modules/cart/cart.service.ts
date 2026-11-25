@@ -4,22 +4,16 @@ import {
   Injectable,
 } from '@nestjs/common';
 
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
-import { Category } from '@/modules/category/entities';
-import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
-import {
-  evaluateProductAvailability,
-  isProductDisplayable,
-} from '@/modules/product/machines/product-availability.machine';
+import { evaluateProductAvailability } from '@/modules/product/machines/product-availability.machine';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
-import { Cart, CartItem } from './entities';
+import { CartItem } from './entities';
 import { CartAvailability } from './enums/cart-availability.enum';
 import type { CartView } from './schemas/cart.schema';
 
@@ -30,175 +24,148 @@ export class CartService {
     private readonly storage: StorageService,
   ) {}
 
-  // A consistent read keeps current content, shop eligibility, images and totals
-  // in the same DB snapshot. It does not reserve any product.
-  findMine(userId: string): Promise<CartView> {
-    return this.dataSource.transaction('REPEATABLE READ', (manager) =>
-      this.readCart(manager, userId),
-    );
+  async findMine(
+    userId: string,
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<CartView> {
+    const items = await manager
+      .createQueryBuilder(CartItem, 'item')
+      .innerJoin('item.cart', 'cart', 'cart.userId = :userId', { userId })
+      .innerJoinAndSelect('item.product', 'product')
+      .leftJoinAndSelect('product.category', 'category')
+      .innerJoinAndSelect('product.shop', 'shop')
+      .leftJoinAndSelect(
+        'product.media',
+        'coverLink',
+        'coverLink.role = :coverRole',
+        { coverRole: MediaRole.COVER },
+      )
+      .leftJoinAndSelect('coverLink.media', 'coverMedia')
+      .orderBy('item.createdAt', 'DESC')
+      .addOrderBy('item.id', 'ASC')
+      .getMany();
+
+    return this.populateCartView(items);
   }
 
   async add(userId: string, productId: string): Promise<CartView> {
     await this.dataSource.transaction(async (manager) => {
-      // Short-lived read lock only: listing edits/reviews cannot cross this check.
-      const product = await manager.findOneOrFail(Product, {
-        where: { id: productId },
-        lock: { mode: 'pessimistic_read' },
-      });
-      const buyerOwnsProduct = await manager.existsBy(ShopMember, {
-        shopId: product.shopId,
-        userId,
-        memberRole: ShopMemberRole.OWNER,
-      });
-      if (buyerOwnsProduct)
-        throw new ForbiddenException('Cannot add your own product to the cart');
+      const product = (await manager
+        .createQueryBuilder(Product, 'product')
+        .setLock('pessimistic_read', undefined, ['product'])
+        .leftJoinAndSelect('product.category', 'category')
+        .innerJoinAndSelect('product.shop', 'shop')
+        .leftJoinAndMapOne(
+          'shop.ownerMembership',
+          ShopMember,
+          'ownerMember',
+          'ownerMember.shopId = shop.id AND ownerMember.userId = :userId AND ownerMember.memberRole = :ownerRole',
+          { userId, ownerRole: ShopMemberRole.OWNER },
+        )
+        .where('product.id = :productId', { productId })
+        .getOneOrFail()) as Product & {
+        shop: Shop & { ownerMembership?: ShopMember };
+      };
 
-      product.category = product.categoryId
-        ? await manager.findOneBy(Category, { id: product.categoryId })
-        : null;
-      product.shop = await manager.findOneByOrFail(Shop, {
-        id: product.shopId,
-      });
+      if (product.shop.ownerMembership) {
+        throw new ForbiddenException('Cannot add your own product to the cart');
+      }
       if (
-        !this.canDisplay(product) ||
-        product.status !== ProductStatus.ACTIVE
+        evaluateProductAvailability(product, {
+          requirePurchaseEligibility: true,
+          requireCompleteMetadata: true,
+        }) !== CartAvailability.AVAILABLE
       ) {
         throw new ConflictException('Product is not available');
       }
-      await manager
-        .createQueryBuilder()
-        .insert()
-        .into(Cart)
-        .values({ userId })
-        .orIgnore()
-        .execute();
-      const cart = await manager.findOneByOrFail(Cart, { userId });
-      // DB unique constraints protect both first-cart creation and duplicate adds.
-      await manager
-        .createQueryBuilder()
-        .insert()
-        .into(CartItem)
-        .values({ cartId: cart.id, productId })
-        .orIgnore()
-        .execute();
+
+      await manager.query(
+        `
+        WITH inserted AS (
+          INSERT INTO carts ("userId") VALUES ($1)
+          ON CONFLICT ("userId") DO NOTHING
+          RETURNING id
+        ), ensured_cart AS (
+          SELECT id FROM inserted
+          UNION ALL
+          SELECT id FROM carts WHERE "userId" = $1
+          LIMIT 1
+        )
+        INSERT INTO cart_items ("cartId", "productId")
+        SELECT id, $2 FROM ensured_cart
+        ON CONFLICT ("cartId", "productId") DO NOTHING
+        `,
+        [userId, productId],
+      );
     });
     return this.findMine(userId);
   }
 
   async remove(userId: string, productId: string): Promise<CartView> {
-    const cart = await this.dataSource
-      .getRepository(Cart)
-      .findOneBy({ userId });
-    if (cart)
-      await this.dataSource
-        .getRepository(CartItem)
-        .delete({ cartId: cart.id, productId });
+    await this.dataSource.query(
+      `
+      DELETE FROM cart_items ci
+      USING carts c
+      WHERE ci."cartId" = c.id
+        AND c."userId" = $1
+        AND ci."productId" = $2
+      `,
+      [userId, productId],
+    );
     return this.findMine(userId);
   }
 
-  private canDisplay(product: Product): boolean {
-    return isProductDisplayable(product, {
-      requireCompleteMetadata: true,
-    });
-  }
-
-  private populateCartView(
-    result: CartView,
-    items: CartItem[],
-    ownedShops: Set<string>,
-    coverUrls: Map<string, string | null>,
-  ) {
+  private populateCartView(items: CartItem[]): CartView {
     const groups = new Map<string, CartView['groups'][number]>();
+    const summary: CartView['summary'] = {
+      itemCount: 0,
+      availableItemCount: 0,
+      totalPrice: 0,
+      currency: 'VND',
+    };
 
     for (const item of items) {
       const product = item.product;
-      const displayable = this.canDisplay(product);
       const availability = evaluateProductAvailability(product, {
         requirePurchaseEligibility: true,
-        ownedShopIds: ownedShops,
         requireCompleteMetadata: true,
       });
-      const shop = displayable
-        ? {
+
+      let group = groups.get(product.shopId);
+      if (!group) {
+        group = {
+          shop: {
             id: product.shopId,
             name: product.shop.name,
-            logoUrl: product.shop.logoMedia
-              ? this.storage.getPublicUrl(product.shop.logoMedia.storageKey)
-              : null,
-          }
-        : null;
-      const key = shop?.id ?? 'UNAVAILABLE';
-      let group = groups.get(key);
-      if (!group) {
-        group = { shop, items: [] };
-        groups.set(key, group);
+          },
+          items: [],
+        } satisfies CartView['groups'][number];
+        groups.set(product.shopId, group);
       }
+
+      const cover = product.media?.[0]?.media;
       group.items.push({
         productId: item.productId,
         addedAt: item.createdAt,
         availability,
-        // Hide current draft/rejected/suspended content from former cart holders.
-        product: displayable
-          ? {
-              id: product.id,
-              title: product.title!,
-              price: product.price!,
-              condition: product.condition!,
-              size: product.size,
-              color: product.color,
-              coverUrl: coverUrls.get(product.id) ?? null,
-            }
-          : null,
+        product: {
+          id: product.id,
+          title: product.title!,
+          price: product.price!,
+          condition: product.condition!,
+          size: product.size,
+          color: product.color,
+          coverUrl: cover ? this.storage.getPublicUrl(cover.storageKey) : null,
+        },
       });
-      result.summary.itemCount += 1;
+
+      summary.itemCount += 1;
       if (availability === CartAvailability.AVAILABLE) {
-        result.summary.availableItemCount += 1;
-        result.summary.totalPrice += product.price!;
+        summary.availableItemCount += 1;
+        summary.totalPrice += product.price!;
       }
     }
-    result.groups = [...groups.values()];
-  }
 
-  async readCart(manager: EntityManager, userId: string): Promise<CartView> {
-    const result: CartView = {
-      groups: [],
-      summary: {
-        itemCount: 0,
-        availableItemCount: 0,
-        totalPrice: 0,
-        currency: 'VND',
-      },
-    };
-    const cart = await manager.findOneBy(Cart, { userId });
-    if (!cart) return result;
-    const items = await manager.find(CartItem, {
-      where: { cartId: cart.id },
-      relations: { product: { category: true, shop: { logoMedia: true } } },
-      order: { createdAt: 'DESC', id: 'ASC' },
-    });
-    if (!items.length) return result;
-    const memberships = await manager.find(ShopMember, {
-      where: {
-        userId,
-        memberRole: ShopMemberRole.OWNER,
-      },
-      select: { shopId: true },
-    });
-    const ownedShops = new Set(memberships.map((member) => member.shopId));
-    const covers = await manager.find(ProductMedia, {
-      where: {
-        productId: In(items.map(({ product }) => product.id)),
-        role: MediaRole.COVER,
-      },
-      relations: { media: true },
-    });
-    const coverUrls = new Map(
-      covers.map((link) => [
-        link.productId,
-        this.storage.getPublicUrl(link.media.storageKey),
-      ]),
-    );
-    this.populateCartView(result, items, ownedShops, coverUrls);
-    return result;
+    return { groups: [...groups.values()], summary };
   }
 }

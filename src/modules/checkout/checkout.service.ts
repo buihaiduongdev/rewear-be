@@ -112,7 +112,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         lock: { mode: 'pessimistic_write' },
       });
       await this.lockProductEligibility(manager, products);
-      const cartView = await this.cartService.readCart(manager, buyerId);
+      const cartView = await this.cartService.findMine(buyerId, manager);
 
       const [{ disclosureNow }] = await manager.query(
         'SELECT clock_timestamp() AS "disclosureNow"',
@@ -218,7 +218,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     manager: EntityManager,
     checkout: Checkout,
     products: Product[],
-    cartView: Awaited<ReturnType<CartService['readCart']>>,
+    cartView: Awaited<ReturnType<CartService['findMine']>>,
     snapshot: CheckoutAddress,
   ) {
     const saved = new Map(

@@ -8,20 +8,13 @@ import { ShopStatus } from '@/modules/shop/enums';
 
 export interface ProductAvailabilityContext {
   product?: Product | null;
-  /** Danh sách shopId thuộc quyền sở hữu của người dùng hiện tại (nếu có) */
-  ownedShopIds?: Set<string> | readonly string[];
-  /** Bắt buộc kiểm tra các trường metadata thương mại hoàn chỉnh (tiêu đề, giá > 0, tình trạng) */
   requireCompleteMetadata?: boolean;
   requirePurchaseEligibility?: boolean;
 }
 
 export type ProductAvailabilityState =
-  'evaluating' | 'available' | 'held' | 'sold' | 'ownProduct' | 'unavailable';
+  'evaluating' | 'available' | 'held' | 'sold' | 'unavailable';
 
-/**
- * XState State Machine kiểm soát và đánh giá mức độ khả dụng của sản phẩm.
- * Chuẩn hóa toàn bộ guard theo dạng declarative, có thể visual hóa trên Stately Studio.
- */
 export const productAvailabilityMachine = setup({
   types: {
     input: {} as ProductAvailabilityContext,
@@ -77,16 +70,6 @@ export const productAvailabilityMachine = setup({
       );
     },
 
-    isOwnerViewingOwnProduct: ({ context }) => {
-      if (!context.ownedShopIds || !context.product) {
-        return false;
-      }
-      const shopId = context.product.shopId;
-      return context.ownedShopIds instanceof Set
-        ? context.ownedShopIds.has(shopId)
-        : context.ownedShopIds.includes(shopId);
-    },
-
     isHeld: ({ context }) => context.product?.status === ProductStatus.HELD,
     isSold: ({ context }) => context.product?.status === ProductStatus.SOLD,
     isActive: ({ context }) => context.product?.status === ProductStatus.ACTIVE,
@@ -104,7 +87,6 @@ export const productAvailabilityMachine = setup({
         { target: 'unavailable', guard: 'isIdentityRestricted' },
         { target: 'unavailable', guard: 'isCategoryInactive' },
         { target: 'unavailable', guard: 'isIncompleteCommercialMetadata' },
-        { target: 'ownProduct', guard: 'isOwnerViewingOwnProduct' },
         { target: 'held', guard: 'isHeld' },
         { target: 'sold', guard: 'isSold' },
         { target: 'available', guard: 'isActive' },
@@ -114,7 +96,6 @@ export const productAvailabilityMachine = setup({
     available: { type: 'final' },
     held: { type: 'final' },
     sold: { type: 'final' },
-    ownProduct: { type: 'final' },
     unavailable: { type: 'final' },
   },
 });
@@ -127,19 +108,14 @@ const STATE_TO_AVAILABILITY_MAP: Record<
   available: CartAvailability.AVAILABLE,
   held: CartAvailability.HELD,
   sold: CartAvailability.SOLD,
-  ownProduct: CartAvailability.OWN_PRODUCT,
   unavailable: CartAvailability.UNAVAILABLE,
 };
 
 export interface EvaluateProductAvailabilityOptions {
-  ownedShopIds?: Set<string> | readonly string[];
   requireCompleteMetadata?: boolean;
   requirePurchaseEligibility?: boolean;
 }
 
-/**
- * Đánh giá trạng thái CartAvailability của sản phẩm thông qua máy trạng thái XState.
- */
 export function evaluateProductAvailability(
   product?: Product | null,
   options: EvaluateProductAvailabilityOptions = {},
@@ -148,7 +124,6 @@ export function evaluateProductAvailability(
     input: {
       product,
       requirePurchaseEligibility: options.requirePurchaseEligibility,
-      ownedShopIds: options.ownedShopIds,
       requireCompleteMetadata: options.requireCompleteMetadata,
     },
   });
@@ -159,9 +134,6 @@ export function evaluateProductAvailability(
   return STATE_TO_AVAILABILITY_MAP[state] ?? CartAvailability.UNAVAILABLE;
 }
 
-/**
- * Kiểm tra nhanh sản phẩm có đủ điều kiện hiển thị công khai tới người mua hay không.
- */
 export function isProductDisplayable(
   product?: Product | null,
   options: { requireCompleteMetadata?: boolean } = {},

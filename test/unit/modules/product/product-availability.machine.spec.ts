@@ -132,18 +132,6 @@ describe('productAvailabilityMachine (XState)', () => {
       expect(evaluateProductAvailability(product)).toBe(CartAvailability.SOLD);
     });
 
-    it('returns OWN_PRODUCT when user owns the shop', () => {
-      const product = createBaseProduct({
-        shopId: 'my-shop-id',
-        status: ProductStatus.ACTIVE,
-      });
-      expect(
-        evaluateProductAvailability(product, {
-          ownedShopIds: new Set(['my-shop-id']),
-        }),
-      ).toBe(CartAvailability.OWN_PRODUCT);
-    });
-
     it('returns UNAVAILABLE when shop is inactive even if product is ACTIVE', () => {
       const product = createBaseProduct({
         status: ProductStatus.ACTIVE,

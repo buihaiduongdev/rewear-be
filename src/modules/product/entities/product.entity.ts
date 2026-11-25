@@ -1,8 +1,17 @@
-import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Check,
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import type { ShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { Category } from '@/modules/category/entities';
+import type { ProductMedia } from '@/modules/media/entities';
 import { Shop } from '@/modules/shop/entities';
 
 import { ProductCondition, ProductStatus } from '../enums';
@@ -86,4 +95,7 @@ export class Product extends BaseEntity {
   @Index('IDX_products_reserved_order')
   @Column({ type: 'uuid', nullable: true })
   reservedOrderId: string | null;
+
+  @OneToMany('ProductMedia', 'product')
+  media?: ProductMedia[];
 }

@@ -5,9 +5,6 @@ import { ProductCondition } from '@/modules/product/enums';
 
 import { CartAvailability } from '../enums/cart-availability.enum';
 
-// Reject quantity/ownership fields even though PUT identifies the product in its path.
-export const addCartItemSchema = z.strictObject({}).default({});
-
 const cartProductSchema = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -39,4 +36,3 @@ export const cartSchema = z.object({
 });
 
 export type CartView = z.input<typeof cartSchema>;
-export type AddCartItemInput = z.output<typeof addCartItemSchema>;
