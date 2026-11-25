@@ -97,6 +97,23 @@ test('getPaymentLink extracts bank reference as providerTransId and sanitizes SD
   const info = await paid.getPaymentLink(1700000000123);
   assert.equal(info.status, 'PAID');
   assert.equal(info.providerTransId, 'FT240012345');
+
+  const multi = new api.PayosClient(config, {
+    paymentRequests: {
+      get: async () => ({
+        id: 'plink-2',
+        orderCode: 1700000000124,
+        amount: 230000,
+        amountPaid: 230000,
+        amountRemaining: 0,
+        status: 'PAID',
+        transactions: [{ reference: 'FT1' }, { reference: 'FT2' }],
+      }),
+    },
+    webhooks: {},
+  });
+  const multiInfo = await multi.getPaymentLink(1700000000124);
+  assert.equal(multiInfo.providerTransId, 'plink:plink-2:2');
 });
 
 test('verifyWebhook detects test ping and rejects invalid payloads or tampered fields', async () => {
@@ -109,21 +126,23 @@ test('verifyWebhook detects test ping and rejects invalid payloads or tampered f
       },
     },
   });
-  const ping = await client.verifyWebhook({
-    code: '00',
-    desc: 'success',
-    signature: 'valid',
-    data: {
-      orderCode: 123,
-      amount: 2000,
-      description: 'Ma giao dich thu nghiem',
-      reference: 'TF2302042130',
-      paymentLinkId: '123',
+  for (const description of ['Ma giao dich thu nghiem', 'VQRIO123']) {
+    const ping = await client.verifyWebhook({
       code: '00',
       desc: 'success',
-    },
-  });
-  assert.equal(ping.isTestPing, true);
+      signature: 'valid',
+      data: {
+        orderCode: 123,
+        amount: 2000,
+        description,
+        reference: 'TF2302042130',
+        paymentLinkId: '123',
+        code: '00',
+        desc: 'success',
+      },
+    });
+    assert.equal(ping.isTestPing, true);
+  }
 
   await assert.rejects(
     client.verifyWebhook({ signature: 'bad', data: {} }),

@@ -143,11 +143,15 @@ export class PayosClient {
       ) {
         throw new PayosTransportError();
       }
-      const reference = info.transactions?.find(
-        (tx) => typeof tx.reference === 'string' && tx.reference.trim(),
-      )?.reference;
+      const refs = (info.transactions ?? [])
+        .map((tx) =>
+          typeof tx.reference === 'string' ? tx.reference.trim() : '',
+        )
+        .filter(Boolean);
       const providerTransId =
-        reference?.trim() || (info.id ? String(info.id) : null);
+        refs.length > 1
+          ? `plink:${info.id || info.orderCode}:${refs.length}`.slice(0, 64)
+          : refs[0] || (info.id ? String(info.id) : null);
       return {
         orderCode: info.orderCode,
         status: info.status,
@@ -155,15 +159,6 @@ export class PayosClient {
         amountPaid: info.amountPaid,
         providerTransId,
       };
-    } catch {
-      throw new PayosTransportError();
-    }
-  }
-
-  async cancelPaymentLink(orderCode: number, reason?: string) {
-    this.assertOrderCode(orderCode);
-    try {
-      return await this.sdk.paymentRequests.cancel(orderCode, reason);
     } catch {
       throw new PayosTransportError();
     }
@@ -196,9 +191,7 @@ export class PayosClient {
       reference: verified.reference.trim(),
       paymentLinkId: verified.paymentLinkId ?? '',
       description: verified.description ?? '',
-      isTestPing:
-        verified.orderCode === 123 &&
-        verified.description === 'Ma giao dich thu nghiem',
+      isTestPing: verified.orderCode === 123,
     };
   }
 

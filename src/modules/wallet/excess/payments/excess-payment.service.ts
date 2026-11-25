@@ -40,7 +40,10 @@ import {
 } from '../policies/excess-transaction.policy';
 import { excessPaySchema } from '../schemas/excess.schema';
 import { ExcessAttemptService } from './excess-attempt.service';
-import { allocateExcessCapture } from './excess-capture.policy';
+import {
+  allocateExcessCapture,
+  queueExcessRefund,
+} from './excess-capture.policy';
 import { ExcessRefundService } from './excess-refund.service';
 
 @Injectable()
@@ -141,7 +144,13 @@ export class ExcessPaymentService {
       )
         throw new UnauthorizedException('Invalid recovery payment request');
       const outcome = providerOutcome(result.status);
-      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) {
+      const linkExpired =
+        now.getTime() >= row.createdAt.getTime() + EXCESS_POLICY.LINK_TTL_MS;
+      const partialCaptured =
+        result.amountPaid > 0 &&
+        (outcome === PAYMENT_PROVIDER_OUTCOME.FAILED ||
+          (result.status === PAYOS_STATUS.UNDERPAID && linkExpired));
+      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID && !partialCaptured) {
         if (
           row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED &&
           outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
@@ -183,6 +192,15 @@ export class ExcessPaymentService {
           reservations: [],
         }),
       );
+      if (partialCaptured) {
+        await queueExcessRefund(manager, capture, capture.amount, now);
+        if (row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED) {
+          row.state = EXCESS_PAYMENT_STATE.REVIEW;
+          row.payUrl = null;
+          await manager.save(row);
+        }
+        return;
+      }
       await allocateExcessCapture(manager, row, capture, now);
     });
   }

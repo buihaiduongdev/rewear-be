@@ -11,7 +11,7 @@ API backend và phạm vi triển khai thực tế: [Shop tiếp nhận đơn](o
 [Xác nhận nhận hàng và quyết toán 72 giờ](orders/SETTLEMENT.md),
 [Tiếp nhận khiếu nại và bằng chứng riêng tư](orders/DISPUTES.md),
 [Kết luận ban đầu của Admin](orders/DISPUTE_ADJUDICATION.md),
-[MoMo Sandbox](payments/MOMO_SANDBOX.md).
+[PayOS (thay thế MoMo Sandbox)](payments/MOMO_SANDBOX.md).
 Các hướng dẫn này nêu rõ phần đã kiểm thử và nghiệp vụ còn phải triển khai.
 
 Nền tảng thương mại điện tử chuyên biệt cho quần áo thời trang đã qua sử dụng (Secondhand / Pre-loved Fashion), giải quyết bài toán hàng độc bản (Single Inventory), chống tranh chấp mua đồng thời (Race Condition), tích hợp vận chuyển đa kiện và ký quỹ bảo vệ giao dịch.
@@ -54,7 +54,7 @@ Toàn bộ hồ sơ phục vụ các mốc đánh giá của Bộ môn và Cổn
 - **Frontend:** Next.js 16 (App Router, Turbopack), Tailwind CSS, React Query, NextAuth.
 - **Tích hợp bên ngoài:**
   - **GHN Sandbox:** Báo giá cước vận chuyển tự động theo từng kiện shop, tạo vận đơn bưu tá lấy hàng.
-  - **MoMo Sandbox:** Cổng thanh toán trực tuyến QR/App, IPN webhook và worker tra soát giao dịch.
+  - **PayOS:** Cổng thanh toán trực tuyến VietQR (`@payos/node`), webhook xác thực chữ ký và worker tra soát giao dịch.
   - **Google Gemini AI:** Gợi ý tiêu đề, mô tả sản phẩm thông minh từ dữ liệu form người bán nhập.
 - **Hệ thống sơ đồ thiết kế:** Bộ 28 biểu đồ PlantUML hoàn chỉnh được lưu trữ tại [`docs/diagrams/`](diagrams/README.md) (Usecase, Sequence, Activity, State Machine, Domain Model).
 

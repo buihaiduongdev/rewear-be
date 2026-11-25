@@ -114,7 +114,6 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
   async refund(id: string) {
     if (!this.client) return;
     await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const current = new Date(now);
       const refund = await manager.findOne(PaymentRefund, {

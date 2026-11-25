@@ -125,6 +125,9 @@ export class ExcessAttemptService {
         amount: payment.amount,
         description:
           EXCESS_PAYMENT_PREFIX + payment.id.slice(0, 8).toUpperCase(),
+        expiredAt: Math.floor(
+          (payment.nextQueryAt.getTime() + EXCESS_POLICY.LINK_TTL_MS) / 1000,
+        ),
       });
       await this.db.transaction(async (manager) => {
         const row = await manager.findOneOrFail(ExcessPayment, {

@@ -384,9 +384,13 @@ export class PaymentService {
         throw new UnauthorizedException('PayOS order reference mismatch');
       }
       const providerTransId = result.providerTransId?.trim() || '';
-      const isPaid = result.status === PAYOS_STATUS.PAID;
+      const hasCapturedFunds =
+        result.status === PAYOS_STATUS.PAID ||
+        (result.amountPaid > 0 &&
+          (providerOutcome(result.status) === PAYMENT_PROVIDER_OUTCOME.FAILED ||
+            result.status === PAYOS_STATUS.UNDERPAID));
       const captureFundsRecovery =
-        isPaid &&
+        hasCapturedFunds &&
         providerTransId.length > 0 &&
         (await manager.existsBy(ExcessCapture, { providerTransId }));
       if (captureFundsRecovery)
@@ -394,7 +398,7 @@ export class PaymentService {
           'PayOS capture already belongs to wallet recovery',
         );
       const captureAlreadyFundsFees =
-        isPaid &&
+        hasCapturedFunds &&
         providerTransId.length > 0 &&
         (await manager.existsBy(FeePaymentCapture, { providerTransId }));
       if (captureAlreadyFundsFees)
@@ -410,7 +414,7 @@ export class PaymentService {
       ).includes(attempt.state);
       if (attemptIsSettled) {
         if (
-          isPaid &&
+          hasCapturedFunds &&
           providerTransId &&
           attempt.providerTransId !== providerTransId
         ) {

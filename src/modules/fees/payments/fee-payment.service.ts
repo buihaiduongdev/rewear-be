@@ -119,6 +119,9 @@ export class FeePaymentService {
           description:
             FEE_PAYMENT_INFO_PREFIX +
             prepared.payment.id.slice(0, 8).toUpperCase(),
+          expiredAt: Math.floor(
+            prepared.payment.targetDeadline.getTime() / 1000,
+          ),
         });
         await this.db.transaction(async (manager) => {
           const payment = await manager.findOneOrFail(FeePayment, {
@@ -325,7 +328,12 @@ export class FeePaymentService {
       )
         throw new UnauthorizedException('Invalid fee request');
       const outcome = providerOutcome(result.status);
-      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) {
+      const partialCaptured =
+        result.amountPaid > 0 &&
+        (outcome === PAYMENT_PROVIDER_OUTCOME.FAILED ||
+          (result.status === PAYOS_STATUS.UNDERPAID &&
+            now > payment.targetDeadline));
+      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID && !partialCaptured) {
         if (
           payment.state !== FEE_PAYMENT_STATE.SUCCEEDED &&
           outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
@@ -372,6 +380,17 @@ export class FeePaymentService {
         allocatedAmount: 0,
       });
       await manager.save(capture);
+      if (partialCaptured) {
+        await this.queueRefund(manager, capture.id, capture.amount, null, now);
+        if (payment.state !== FEE_PAYMENT_STATE.SUCCEEDED) {
+          payment.state = FEE_PAYMENT_STATE.FAILED;
+          payment.nextQueryAt = new Date(
+            now.getTime() + FEE_PAYMENT_POLICY.FAILURE_QUERY_DELAY_MS,
+          );
+          await manager.save(payment);
+        }
+        return;
+      }
       await this.allocateCapture(manager, payment, capture, now);
     });
   }

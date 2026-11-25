@@ -25,8 +25,24 @@ test('a paid result settles only a live, matching, fully owned reservation once'
     { now: 2000 },
     { alreadyPaid: true },
     { ownsAllProducts: false },
+    { status: 'EXPIRED', amount: 50000 },
+    { status: 'CANCELLED', amount: 50000 },
+    { status: 'UNDERPAID', amount: 50000, now: 2000 },
   ])
     assert.equal(policy.captureDisposition({ ...input, ...change }), 'REFUND');
+  assert.equal(
+    policy.captureDisposition({ ...input, status: 'EXPIRED', amount: 0 }),
+    'FAILED',
+  );
+  assert.equal(
+    policy.captureDisposition({
+      ...input,
+      status: 'UNDERPAID',
+      amount: 50000,
+      now: 1500,
+    }),
+    'UNKNOWN',
+  );
 });
 
 test('unknown, pending, processing, and underpaid statuses never fulfil an order; explicit cancellation/expiry may retry', () => {

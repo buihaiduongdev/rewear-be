@@ -171,8 +171,10 @@ export class CodPolicy {
 
   async resolve(adminId: string, id: string, { reason }: RejectOrderInput) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      const row = await manager.findOneByOrFail(CodRestriction, { id });
+      const row = await manager.findOneOrFail(CodRestriction, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (row.resolvedAt) return row;
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       row.resolvedAt = new Date(now);

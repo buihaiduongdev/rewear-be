@@ -21,7 +21,6 @@ export class FeeDisclosureService {
   }
   publish(adminId: string, input: FeePolicyPublishInput) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const admin = await manager.findOneBy(User, {
         id: adminId,
         role: UserRole.ADMIN,
@@ -29,7 +28,11 @@ export class FeeDisclosureService {
       });
       if (!admin) throw new ForbiddenException('Active Admin is required');
       const parsed = feePolicyPublishSchema.parse(input);
-      const previous = await currentFeePolicy(manager);
+      const previous = await manager
+        .createQueryBuilder(FeePolicy, 'policy')
+        .orderBy('policy.version', 'DESC')
+        .setLock('pessimistic_write')
+        .getOne();
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       return manager.save(
         FeePolicy,
@@ -44,7 +47,6 @@ export class FeeDisclosureService {
   }
   accept(ownerId: string, shopId: string, policyId: string) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const user = await manager.findOneBy(User, {
         id: ownerId,
         status: UserStatus.ACTIVE,
@@ -65,21 +67,23 @@ export class FeeDisclosureService {
       const policy = await currentFeePolicy(manager);
       if (!policy || policy.id !== policyId)
         throw new ForbiddenException('Accept the current published fee policy');
-      const previous = await manager.findOneBy(FeePolicyShopAcceptance, {
-        shopId,
-        policyId,
-      });
-      if (previous) return previous;
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      return manager.save(
-        FeePolicyShopAcceptance,
-        manager.create(FeePolicyShopAcceptance, {
+      await manager
+        .createQueryBuilder()
+        .insert()
+        .into(FeePolicyShopAcceptance)
+        .values({
           shopId,
           policyId,
           ownerId,
           acceptedAt: new Date(now),
-        }),
-      );
+        })
+        .orIgnore()
+        .execute();
+      return manager.findOneByOrFail(FeePolicyShopAcceptance, {
+        shopId,
+        policyId,
+      });
     });
   }
 }

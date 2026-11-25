@@ -44,6 +44,7 @@ export const EXCESS_POLICY = {
   RESPONSE_BUSINESS_DAYS: 1,
   REFUND_ALERT_MS: ms('30m'),
   REFUND_RESPONSE_MS: ms('4h'),
+  LINK_TTL_MS: ms('30m'),
   LEASE_MS: ms('2m'),
   WORKER_MS: ms('30s'),
   BATCH: 50,

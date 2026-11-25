@@ -51,7 +51,17 @@ export function captureDisposition(input: {
   ownsAllProducts: boolean;
 }): CaptureDisposition {
   const outcome = providerOutcome(input.status);
-  if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) return outcome;
+  if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) {
+    if (
+      input.amount > 0 &&
+      (outcome === PAYMENT_PROVIDER_OUTCOME.FAILED ||
+        (input.status === PAYOS_STATUS.UNDERPAID &&
+          input.now >= input.expiresAt))
+    ) {
+      return PAYMENT_CAPTURE_DISPOSITION.REFUND;
+    }
+    return outcome;
+  }
   return input.amount === input.expectedAmount &&
     input.checkoutState === CHECKOUT_STATUS.HELD &&
     input.now < input.expiresAt &&
