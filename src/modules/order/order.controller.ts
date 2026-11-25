@@ -25,7 +25,7 @@ import {
   orderSchema,
   rejectOrderSchema,
 } from './schemas/order.schema';
-import type { OrderListInput } from './types/order.type';
+import type { OrderListInput } from './schemas/order.schema';
 
 @ApiTags('Orders')
 @ApiBearerAuth()

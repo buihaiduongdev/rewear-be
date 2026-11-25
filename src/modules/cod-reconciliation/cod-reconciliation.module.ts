@@ -9,7 +9,7 @@ import {
   CodCollection,
   CodRemittance,
   CodRemittanceAllocation,
-} from './entities/cod-reconciliation.entity';
+} from './entities';
 
 @Module({
   imports: [

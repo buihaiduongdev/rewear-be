@@ -1,7 +1,7 @@
 import type { EntityManager } from 'typeorm';
 
 import { VIETNAM_UTC_OFFSET_MS } from '../constants/calendar.constant';
-import { FulfillmentCalendar } from '../entities/late-handover.entity';
+import { FulfillmentCalendar } from '../entities';
 import { businessDeadline } from './business-calendar';
 
 /** A missing approved year must never turn into an assumed holiday schedule. */

@@ -22,31 +22,29 @@ import {
   PAYOUT_POLICY,
   PAYOUT_STATUS,
 } from './constants/payout.constant';
-import { ShopBankAccount } from './entities/shop-bank-account.entity';
 import {
+  ShopBankAccount,
   ShopPayout,
   ShopPayoutAllocation,
   ShopPayoutEvent,
   ShopPayoutRisk,
-} from './entities/shop-payout.entity';
+} from './entities';
 import {
   allocatePayout,
   assertExactTransfer,
   canReleasePayout,
 } from './payout-policy';
 import {
+  type BankAccountInput,
   bankAccountInputSchema,
   bankReviewSchema,
   payoutFailureSchema,
+  type PayoutRequestInput,
   payoutRequestSchema,
+  type PayoutStatus,
+  type PayoutSuccessInput,
   payoutSuccessSchema,
 } from './schemas/payout.schema';
-import type {
-  BankAccountInput,
-  PayoutRequestInput,
-  PayoutSuccessInput,
-} from './schemas/payout.schema';
-import type { PayoutStatus } from './types/payout.type';
 
 @Injectable()
 export class ShopPayoutService {
@@ -68,7 +66,6 @@ export class ShopPayoutService {
   }
 
   private async lock(manager: EntityManager): Promise<Date> {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(row.now);
   }

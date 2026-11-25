@@ -4,7 +4,7 @@ import { ConflictException } from '@nestjs/common';
 
 import type { EntityManager } from 'typeorm';
 
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import {
   FEE_COLLECTION_METHOD,
@@ -12,9 +12,9 @@ import {
   FEE_REFUND_STATE,
   FEE_STATUS,
 } from './constants/fee.constant';
-import { FeeAssessment, FeeCollection, FeeRefund } from './entities/fee.entity';
+import { FeeAssessment, FeeCollection, FeeRefund } from './entities';
 import { refundAllocations } from './policies/fee.policy';
-import type { FeeCollectionMethod } from './types/fee.type';
+import type { FeeCollectionMethod } from './schemas/fee.schema';
 
 /** All mutating callers hold the shared commerce advisory transaction lock. */
 export async function feeOutstanding(

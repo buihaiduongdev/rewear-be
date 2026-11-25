@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 export const createCoinProgramSchema = z.object({
   name: z.string().trim().min(1),

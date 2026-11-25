@@ -7,8 +7,8 @@ import {
 import { DisputeCase } from '@/modules/dispute/entities/dispute.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
+import { WalletAccount } from '@/modules/wallet/entities';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
 import {

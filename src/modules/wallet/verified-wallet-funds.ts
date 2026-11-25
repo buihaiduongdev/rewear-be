@@ -1,25 +1,22 @@
 import { EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import {
   FEE_COLLECTION_METHOD,
   FEE_PARTY,
   FEE_REFUND_STATE,
 } from '@/modules/fees/constants/fee.constant';
-import { FeeWalletDebit } from '@/modules/fees/settlement/entities/fee-settlement.entity';
+import { FeeWalletDebit } from '@/modules/fees/settlement/entities';
 
-import { WalletDebit } from './checkout/entities/wallet-checkout.entity';
-import { WalletAccount, WalletCredit } from './entities/wallet.entity';
+import { WalletDebit } from './checkout/entities';
+import { WalletAccount, WalletCredit } from './entities';
 import {
   EXCESS_METHOD,
   EXCESS_PAYMENT_STATE,
 } from './excess/constants/excess.constant';
-import {
-  ExcessCollection,
-  ExcessReturn,
-} from './excess/entities/excess.entity';
+import { ExcessCollection, ExcessReturn } from './excess/entities';
 import { walletProvenance } from './policies/wallet-provenance.policy';
 
 /** Caller holds commerce lock for writes; display may use a repeatable-read snapshot. */

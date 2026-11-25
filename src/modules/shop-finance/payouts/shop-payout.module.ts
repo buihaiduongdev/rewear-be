@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { ShopBankAccount } from './entities/shop-bank-account.entity';
 import {
   ShopPayout,
   ShopPayoutAllocation,
   ShopPayoutEvent,
   ShopPayoutRisk,
-} from './entities/shop-payout.entity';
+} from './entities';
+import { ShopBankAccount } from './entities/shop-bank-account.entity';
 import {
   AdminShopPayoutController,
   ShopPayoutController,

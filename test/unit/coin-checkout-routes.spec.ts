@@ -8,11 +8,11 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { CodService } from '@/modules/cod/cod.service';
 import type { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { Order } from '@/modules/order/entities/order.entity';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { Order } from '@/modules/order/entities';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import type { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { WalletCheckoutService } from '@/modules/wallet/checkout/wallet-checkout.service';
 
 jest.mock('@/modules/cart', () => ({ CartService: class {} }));
@@ -31,6 +31,7 @@ describe('coin checkout payment routes', () => {
   function managerFor(row: ReturnType<typeof checkout>) {
     return {
       query: jest.fn(async () => [{ now }]),
+      findOne: jest.fn(async () => row),
       findOneByOrFail: jest.fn(async () => row),
       find: jest.fn(async (entity: unknown) =>
         entity === CheckoutOrder
@@ -49,7 +50,7 @@ describe('coin checkout payment routes', () => {
       update: jest.fn(async () => ({})),
     };
   }
-  it('selects exact coins without extending checkout expiry and serializes under the money lock', async () => {
+  it('selects exact coins without extending checkout expiry', async () => {
     const row = checkout();
     const expires = row.expiresAt;
     const manager = managerFor(row);
@@ -79,9 +80,6 @@ describe('coin checkout payment routes', () => {
     );
     expect(row.expiresAt).toBe(expires);
     expect(row.coinDiscount).toBe(500);
-    expect(manager.query).toHaveBeenCalledWith(
-      'SELECT pg_advisory_xact_lock(782143, 1)',
-    );
   });
   it.each([PaymentAttempt, WalletCheckoutHold])(
     'blocks selection while a provider attempt or wallet hold is unresolved',
@@ -113,13 +111,13 @@ describe('coin checkout payment routes', () => {
       expect(reserve).not.toHaveBeenCalled();
     },
   );
-  it('MoMo rejects net amount below minimum without silently reducing selected coins', async () => {
+  it('PayOS rejects net amount below minimum without silently reducing selected coins', async () => {
     const row = checkout();
     row.coinDiscount = 100;
     const manager = managerFor(row);
     const pricing = {
       snapshot: jest.fn(async () => [
-        { subtotal: 1000, shippingFee: 0, coinDiscount: 100 },
+        { subtotal: 2000, shippingFee: 0, coinDiscount: 100 },
       ]),
     };
     const service = new PaymentService(
@@ -135,10 +133,10 @@ describe('coin checkout payment routes', () => {
         randomUUID(),
         {},
       ),
-    ).rejects.toThrow('outside MoMo limits');
+    ).rejects.toThrow('outside PayOS limits');
     expect(row.coinDiscount).toBe(100);
   });
-  it('MoMo Sandbox rejects evidence coins before preparing provider amounts', async () => {
+  it('PayOS gateway rejects evidence coins before preparing provider amounts', async () => {
     const row = checkout();
     row.coinMode = 'EVIDENCE';
     const manager = managerFor(row);

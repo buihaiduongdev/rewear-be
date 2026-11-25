@@ -12,7 +12,7 @@ import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { AuthProvider } from '@/modules/auth/enums';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';

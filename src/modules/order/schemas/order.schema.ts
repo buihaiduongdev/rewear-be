@@ -11,7 +11,26 @@ import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
+  orderEventActions,
+  orderStates,
 } from '../constants/order.constant';
+
+export type OrderState = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
+export type OrderEventAction =
+  (typeof ORDER_EVENT_ACTION)[keyof typeof ORDER_EVENT_ACTION];
+export type OrderCancellationReason =
+  (typeof ORDER_CANCELLATION_REASON)[keyof typeof ORDER_CANCELLATION_REASON];
+export type OrderCancelState =
+  (typeof ORDER_CANCEL_STATE)[keyof typeof ORDER_CANCEL_STATE];
+export type OrderPaymentMethod =
+  (typeof ORDER_PAYMENT_METHOD)[keyof typeof ORDER_PAYMENT_METHOD];
+export type OrderListInput = {
+  status?: OrderState;
+  limit?: number;
+  offset?: number;
+};
+
+export { orderStates, orderEventActions };
 
 export const orderListInputSchema = z.strictObject({
   status: z.enum(ORDER_STATUS).optional(),

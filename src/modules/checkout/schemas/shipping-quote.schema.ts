@@ -41,7 +41,5 @@ export const shippingQuoteSchema = z.object({
 
 export const refreshShippingQuoteSchema = z.strictObject({});
 
-export type {
-  ShippingQuoteResult,
-  QuoteOrder,
-} from '../types/shipping-quote.type';
+export type ShippingQuoteResult = z.output<typeof shippingQuoteSchema>;
+export type QuoteOrder = z.output<typeof quoteOrderSchema>;

@@ -5,21 +5,21 @@ import { FEE_KIND } from '@/modules/fees/constants/fee.constant';
 import {
   FeePolicy,
   FeePolicyShopAcceptance,
-} from '@/modules/fees/disclosure/fee-disclosure.entity';
-import { FeeNotice } from '@/modules/fees/entities/fee.entity';
+} from '@/modules/fees/disclosure/entities';
+import { FeeNotice } from '@/modules/fees/entities';
 import {
   FeeAssessment,
   FeeCollection,
   FeeRefund,
-} from '@/modules/fees/entities/fee.entity';
+} from '@/modules/fees/entities';
 import {
   feeOutstanding,
   queueFeeCorrections,
   recordFeeCollection,
 } from '@/modules/fees/fee-accounting';
 import { FeeService } from '@/modules/fees/fee.service';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
@@ -68,7 +68,7 @@ describe('fee source corrections (PostgreSQL)', () => {
         {
           feeId: fee.id,
           mode: 'SIMULATION',
-          method: 'MOMO',
+          method: 'PAYOS',
           sourceId: randomUUID(),
           amount: 5000,
         },
@@ -98,7 +98,7 @@ describe('fee source corrections (PostgreSQL)', () => {
       const input = {
         feeId: fee.id,
         mode: 'SIMULATION' as const,
-        method: 'MOMO' as const,
+        method: 'PAYOS' as const,
         sourceId: randomUUID(),
         amount: 5001,
       };
@@ -461,7 +461,7 @@ describe('fee source corrections (PostgreSQL)', () => {
         {
           feeId: fee.id,
           mode: 'SIMULATION',
-          method: 'MOMO',
+          method: 'PAYOS',
           sourceId: randomUUID(),
           amount: 3000,
         },
@@ -495,7 +495,7 @@ describe('fee source corrections (PostgreSQL)', () => {
         {
           feeId: assessed.id,
           mode: 'SIMULATION',
-          method: 'MOMO',
+          method: 'PAYOS',
           sourceId: 'private-capture-reference',
           amount: 5000,
         },
@@ -517,7 +517,7 @@ describe('fee source corrections (PostgreSQL)', () => {
     expect(corrected.refunds[0]).toMatchObject({
       amount: 3000,
       state: 'PENDING',
-      method: 'MOMO',
+      method: 'PAYOS',
     });
     expect(Object.keys(corrected.collections[0]).sort()).toEqual([
       'amount',

@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 export function walletCheckoutTotal(
   orders: { subtotal: number; shippingFee: number; coinDiscount?: number }[],

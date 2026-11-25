@@ -7,18 +7,18 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/order-fingerprint.policy';
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
-import { verifiedMomoCapture } from '@/modules/payment/verified-momo-capture';
+import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { ORDER_PAYMENT_METHOD, ORDER_POLICY } from './constants/order.constant';
-import { Order } from './entities/order.entity';
+import { Order } from './entities';
 
 @Injectable()
 export class OrderFundingService {
@@ -32,8 +32,8 @@ export class OrderFundingService {
       return this.codCredit(manager, order, shipment, money.sellerNet);
     if (order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET)
       return this.walletCredit(manager, order, money.sellerNet);
-    if (order.paymentMethod !== ORDER_PAYMENT_METHOD.MOMO) return null;
-    return this.momoCredit(manager, order, money.sellerNet);
+    if (order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS) return null;
+    return this.payosCredit(manager, order, money.sellerNet);
   }
 
   private async walletCredit(
@@ -121,13 +121,13 @@ export class OrderFundingService {
     return creditMatches ? credit : null;
   }
 
-  private async momoCredit(
+  private async payosCredit(
     manager: EntityManager,
     order: Order,
     sellerNet: number,
   ) {
     if (!order.deliveryObservedAt) return null;
-    const payment = await verifiedMomoCapture(manager, order);
+    const payment = await verifiedPayosCapture(manager, order);
     if (
       !payment ||
       !payment.paidAt ||
@@ -146,7 +146,7 @@ export class OrderFundingService {
       orderId: order.id,
     });
     if (!credit) {
-      // Current provider is MoMo Sandbox. Never expose its funds as real evidence.
+      // PayOS sandbox/testing simulation ledger entry.
       credit = await manager.save(
         ShopLedgerEntry,
         manager.create(ShopLedgerEntry, {
@@ -154,14 +154,14 @@ export class OrderFundingService {
           shopId: order.shopId,
           collectionId: null,
           mode: RECONCILIATION_MODE.SIMULATION,
-          type: SHOP_LEDGER_TYPE.MOMO_FUNDED_HELD,
+          type: SHOP_LEDGER_TYPE.PAYOS_FUNDED_HELD,
           amount: sellerNet,
           actorId: null,
         }),
       );
     }
     const matchesCredit =
-      credit.type === SHOP_LEDGER_TYPE.MOMO_FUNDED_HELD &&
+      credit.type === SHOP_LEDGER_TYPE.PAYOS_FUNDED_HELD &&
       credit.mode === RECONCILIATION_MODE.SIMULATION &&
       credit.shopId === order.shopId &&
       credit.collectionId === null &&

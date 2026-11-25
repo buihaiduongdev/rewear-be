@@ -10,7 +10,7 @@ test('a paid result settles only a live, matching, fully owned reservation once'
   const input = {
     amount: 230000,
     expectedAmount: 230000,
-    resultCode: 0,
+    status: 'PAID',
     checkoutState: 'HELD',
     expiresAt: 2000,
     now: 1000,
@@ -29,11 +29,12 @@ test('a paid result settles only a live, matching, fully owned reservation once'
     assert.equal(policy.captureDisposition({ ...input, ...change }), 'REFUND');
 });
 
-test('unknown and authorization statuses never fulfil an order; explicit user cancellation may retry', () => {
-  for (const resultCode of [10, 40, 42, 99, 1000, 7000, 7002, 9000, 123456])
-    assert.equal(policy.providerOutcome(resultCode), 'UNKNOWN');
-  assert.equal(policy.providerOutcome(1006), 'FAILED');
-  assert.equal(policy.providerOutcome(0), 'PAID');
+test('unknown, pending, processing, and underpaid statuses never fulfil an order; explicit cancellation/expiry may retry', () => {
+  for (const status of ['PENDING', 'PROCESSING', 'UNDERPAID', 'OTHER'])
+    assert.equal(policy.providerOutcome(status), 'UNKNOWN');
+  for (const status of ['CANCELLED', 'EXPIRED', 'FAILED'])
+    assert.equal(policy.providerOutcome(status), 'FAILED');
+  assert.equal(policy.providerOutcome('PAID'), 'PAID');
 });
 
 test('maximum three attempts, unknown blocks retries, repeated same request does not consume quota', () => {

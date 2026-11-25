@@ -25,7 +25,7 @@ export class FeePaymentController {
   constructor(private readonly payments: FeePaymentService) {}
   @AuthenticatedAccess()
   @Serialize(feePaymentViewSchema)
-  @Post('momo')
+  @Post('payos')
   @HttpCode(200)
   create(
     @CurrentUser() user: User,

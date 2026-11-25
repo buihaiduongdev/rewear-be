@@ -6,7 +6,7 @@ import z from 'zod';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 
 import { walletPoolFields } from '../checkout/policies/wallet-checkout.policy';
-import { WalletAccount } from '../entities/wallet.entity';
+import { WalletAccount } from '../entities';
 import { verifiedWalletFunds } from '../verified-wallet-funds';
 import {
   EXCESS_EVENT,
@@ -14,11 +14,7 @@ import {
   EXCESS_POLICY,
   EXCESS_REVIEW,
 } from './constants/excess.constant';
-import {
-  ExcessAudit,
-  ExcessCollection,
-  WalletExcess,
-} from './entities/excess.entity';
+import { ExcessAudit, ExcessCollection, WalletExcess } from './entities';
 import { excessEvent } from './excess.lifecycle';
 import { settleExcessReservations } from './payments/settle-excess-reservations';
 import {
@@ -269,32 +265,32 @@ export class WalletExcessService {
       return this.detail(manager, row);
     });
   }
-  find(actorId: string, id: string, admin = false) {
-    return this.db.transaction('REPEATABLE READ', async (manager) =>
-      this.detail(manager, await excessAccess(manager, actorId, id, admin)),
+  async find(actorId: string, id: string, admin = false) {
+    return this.detail(
+      this.db.manager,
+      await excessAccess(this.db.manager, actorId, id, admin),
     );
   }
-  list(
+  async list(
     actorId: string,
     input: z.input<typeof excessQuerySchema>,
     admin = false,
   ) {
     const data = excessQuerySchema.parse(input);
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await excessActor(manager, actorId, admin);
-      const [rows, totalCount] = await manager.findAndCount(WalletExcess, {
-        where: admin ? {} : { buyerId: actorId },
-        order: { verifiedAt: 'DESC', id: 'DESC' },
-        take: data.limit,
-        skip: data.offset,
-      });
-      const items = await Promise.all(
-        rows.map(async (row) => ({
-          ...row,
-          ...(await excessTotals(manager, row)),
-        })),
-      );
-      return { items, totalCount, ...data };
+    const manager = this.db.manager;
+    await excessActor(manager, actorId, admin);
+    const [rows, totalCount] = await manager.findAndCount(WalletExcess, {
+      where: admin ? {} : { buyerId: actorId },
+      order: { verifiedAt: 'DESC', id: 'DESC' },
+      take: data.limit,
+      skip: data.offset,
     });
+    const items = await Promise.all(
+      rows.map(async (row) => ({
+        ...row,
+        ...(await excessTotals(manager, row)),
+      })),
+    );
+    return { items, totalCount, ...data };
   }
 }

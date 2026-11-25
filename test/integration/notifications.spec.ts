@@ -13,8 +13,8 @@ import { NotificationEmailService } from '@/modules/notifications/notification-e
 import { NotificationProjector } from '@/modules/notifications/notification-projector.service';
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { publishNotification } from '@/modules/notifications/publish-notification';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentNotice } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentNotice } from '@/modules/shipment/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
 import { ShopInvitationStatus } from '@/modules/shop/enums/shop-invitation-status.enum';
@@ -117,7 +117,7 @@ describe('Central notifications PostgreSQL', () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     await db.manager.update(Order, f.order.id, {
-      paymentMethod: 'MOMO',
+      paymentMethod: 'PAYOS',
       coinMode: null,
     });
     const notices = await db.manager.save(

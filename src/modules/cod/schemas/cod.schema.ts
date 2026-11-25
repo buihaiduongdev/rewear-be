@@ -9,6 +9,11 @@ import {
   COD_RESTRICTION_CAUSE,
 } from '../constants/cod.constant';
 
+export type CodRestrictionCause =
+  (typeof COD_RESTRICTION_CAUSE)[keyof typeof COD_RESTRICTION_CAUSE];
+export type CodCancellationReason =
+  (typeof COD_CANCELLATION_REASON)[keyof typeof COD_CANCELLATION_REASON];
+
 export const placeCodSchema = z.strictObject({
   expectedTotal: vndAmountSchema,
 });
@@ -28,4 +33,5 @@ export const codRestrictionsSchema = z.array(
   }),
 );
 
-export type { PlaceCodInput, CancelCodInput } from '../types/cod.type';
+export type PlaceCodInput = z.output<typeof placeCodSchema>;
+export type CancelCodInput = z.output<typeof cancelCodSchema>;

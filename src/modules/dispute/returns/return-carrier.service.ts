@@ -2,9 +2,9 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { CodRemittance } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodRemittance } from '@/modules/cod-reconciliation/entities';
 import { FEE_STATUS } from '@/modules/fees/constants/fee.constant';
-import { FeeAssessment } from '@/modules/fees/entities/fee.entity';
+import { FeeAssessment } from '@/modules/fees/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { DISPUTE_RESPONSIBILITY } from '../constants/dispute.constant';

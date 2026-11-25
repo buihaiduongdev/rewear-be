@@ -8,7 +8,7 @@ import {
   In,
 } from 'typeorm';
 
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';

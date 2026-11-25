@@ -7,12 +7,12 @@ import { OrderModule } from '@/modules/order/order.module';
 
 import { CarrierIncidentController } from './carrier-incident.controller';
 import { CarrierIncidentService } from './carrier-incident.service';
-import { CarrierIncident } from './entities/carrier-incident.entity';
 import {
   FulfillmentCalendar,
   FulfillmentNotice,
   HandoverCase,
-} from './entities/late-handover.entity';
+} from './entities';
+import { CarrierIncident } from './entities/carrier-incident.entity';
 import { ShipmentReturnInspection } from './entities/shipment-return-inspection.entity';
 import { Shipment } from './entities/shipment.entity';
 import { LateHandoverController } from './late-handover.controller';

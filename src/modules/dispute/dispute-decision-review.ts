@@ -5,7 +5,7 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager, In } from 'typeorm';
 
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 
 import {
   DisputeAttachment,

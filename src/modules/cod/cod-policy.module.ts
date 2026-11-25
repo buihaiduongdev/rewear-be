@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { CodBuyerCancellation, CodRestriction } from './entities/cod.entity';
+import { CodBuyerCancellation, CodRestriction } from './entities';
 import { CodPolicy } from './policies/cod.policy';
 
 @Module({

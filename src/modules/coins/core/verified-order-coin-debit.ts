@@ -1,7 +1,7 @@
 import type { EntityManager } from 'typeorm';
 
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import type { Order } from '@/modules/order/entities/order.entity';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import type { Order } from '@/modules/order/entities';
 
 import { CoinGrant, CoinOrderDebit, CoinReservation } from './entities';
 

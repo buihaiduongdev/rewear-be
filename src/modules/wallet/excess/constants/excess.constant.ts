@@ -10,7 +10,7 @@ export const EXCESS_REVIEW = {
   OPEN: 'OPEN',
   CLOSED: 'CLOSED',
 } as const;
-export const EXCESS_METHOD = { WALLET: 'WALLET', MOMO: 'MOMO' } as const;
+export const EXCESS_METHOD = { WALLET: 'WALLET', PAYOS: 'PAYOS' } as const;
 export const EXCESS_EVENT = {
   WITHDRAW: 'WITHDRAW',
   WITHDRAWN: 'WITHDRAWN',
@@ -49,5 +49,4 @@ export const EXCESS_POLICY = {
   BATCH: 50,
   MAX_TARGETS: 50,
 } as const;
-export const EXCESS_MOMO_CLIENT = Symbol('EXCESS_MOMO_CLIENT');
-export const EXCESS_PAYMENT_PREFIX = 'Rewear wallet recovery ';
+export const EXCESS_PAYMENT_PREFIX = 'RW REC ';

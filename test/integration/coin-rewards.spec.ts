@@ -15,8 +15,8 @@ import {
   DisputeRefundCredit,
 } from '@/modules/dispute/entities/dispute-refund.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 

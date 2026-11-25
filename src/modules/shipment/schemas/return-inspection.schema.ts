@@ -26,4 +26,4 @@ export const returnInspectionViewSchema = z.object({
   requiresAdmin: z.boolean(),
 });
 
-export type { ReturnInspectionInput } from '../types/shipment.type';
+export type { ReturnInspectionInput } from '../schemas/shipment.schema';

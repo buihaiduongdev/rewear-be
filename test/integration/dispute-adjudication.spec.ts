@@ -12,14 +12,14 @@ import {
   DisputeMessage,
   DisputeNotice,
 } from '@/modules/dispute/entities/dispute.entity';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { OrderAccess } from '@/modules/order/order.access';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';

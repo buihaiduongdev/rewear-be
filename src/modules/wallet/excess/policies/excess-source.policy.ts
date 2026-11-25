@@ -8,11 +8,11 @@ import {
   FEE_PARTY,
   FEE_REFUND_STATE,
 } from '@/modules/fees/constants/fee.constant';
-import { FeeAssessment, FeeRefund } from '@/modules/fees/entities/fee.entity';
+import { FeeAssessment, FeeRefund } from '@/modules/fees/entities';
 
-import { WalletCredit } from '../../entities/wallet.entity';
+import { WalletCredit } from '../../entities';
 import { EXCESS_SOURCE } from '../constants/excess.constant';
-import type { ExcessSource } from '../types/excess.type';
+import type { ExcessSource } from '../schemas/excess.schema';
 
 export async function excessSource(
   manager: EntityManager,

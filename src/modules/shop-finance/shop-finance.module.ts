@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { OrderModule } from '@/modules/order/order.module';
 
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';

@@ -34,8 +34,8 @@ import type {
   CalendarInput,
   HandoverProposal,
   HandoverStop,
-} from './types/late-handover.type';
-import type { FulfillmentListInput } from './types/shipment.type';
+} from './schemas/late-handover.schema';
+import type { FulfillmentListInput } from './schemas/shipment.schema';
 
 @ApiTags('Fulfillment recovery')
 @ApiBearerAuth()

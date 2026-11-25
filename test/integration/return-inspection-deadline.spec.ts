@@ -6,8 +6,8 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { ShipmentReturnInspection } from '@/modules/shipment/entities/shipment-return-inspection.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ReturnInspectionDeadlineService } from '@/modules/shipment/return-inspection-deadline.service';

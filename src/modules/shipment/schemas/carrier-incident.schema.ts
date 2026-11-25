@@ -30,4 +30,4 @@ export const carrierIncidentSchema = z.object({
   ),
 });
 
-export type { CarrierIncidentDecision } from '../types/shipment.type';
+export type { CarrierIncidentDecision } from '../schemas/shipment.schema';

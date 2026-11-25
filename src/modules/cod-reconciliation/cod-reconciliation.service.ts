@@ -4,11 +4,10 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
-import type { ReconciliationReviewReason } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/return-exception.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 
@@ -21,25 +20,24 @@ import {
   CodCollection,
   CodRemittance,
   CodRemittanceAllocation,
-} from './entities/cod-reconciliation.entity';
+} from './entities';
 import { requiresFulfillmentReview } from './policies/cod-funding.policy';
 import { reconciliationMoney } from './policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from './policies/order-fingerprint.policy';
+import type {
+  CollectionContext,
+  CollectionInput,
+  FinanceListInput,
+  ReconciliationMode,
+  ReconciliationReviewReason,
+  RemittanceAllocationInput,
+  RemittanceInput,
+  ValidatedRemittanceAllocation,
+} from './schemas/cod-reconciliation.schema';
 import {
   collectionInputSchema,
   remittanceInputSchema,
 } from './schemas/cod-reconciliation.schema';
-import type {
-  CollectionContext,
-  ReconciliationMode,
-  RemittanceAllocationInput,
-  ValidatedRemittanceAllocation,
-} from './types/cod-reconciliation.type';
-import type {
-  CollectionInput,
-  RemittanceInput,
-} from './types/cod-reconciliation.type';
-import type { FinanceListInput } from './types/cod-reconciliation.type';
 
 const fingerprint = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -48,9 +46,7 @@ const fingerprint = (value: unknown) =>
 export class CodReconciliationService {
   constructor(private readonly db: DataSource) {}
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-  }
+  private async lock(_manager: EntityManager) {}
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
@@ -201,29 +197,28 @@ export class CodReconciliationService {
     };
   }
   async detail(orderId: string, input: Pick<FinanceListInput, 'offset'> = {}) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const collection = await manager.findOneByOrFail(CodCollection, {
-        orderId,
-      });
-      const allocations = await manager.find(CodRemittanceAllocation, {
-        where: { collectionId: collection.id },
-        order: { createdAt: 'DESC', id: 'DESC' },
-        take: 100,
-        skip: input.offset ?? 0,
-      });
-      const remittances = allocations.length
-        ? await manager.find(CodRemittance, {
-            where: { id: In(allocations.map((row) => row.remittanceId)) },
-            order: { receivedAt: 'ASC', id: 'ASC' },
-          })
-        : [];
-      return {
-        collection,
-        remittances: await Promise.all(
-          remittances.map((row) => this.remittanceView(manager, row)),
-        ),
-      };
+    const manager = this.db.manager;
+    const collection = await manager.findOneByOrFail(CodCollection, {
+      orderId,
     });
+    const allocations = await manager.find(CodRemittanceAllocation, {
+      where: { collectionId: collection.id },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: 100,
+      skip: input.offset ?? 0,
+    });
+    const remittances = allocations.length
+      ? await manager.find(CodRemittance, {
+          where: { id: In(allocations.map((row) => row.remittanceId)) },
+          order: { receivedAt: 'ASC', id: 'ASC' },
+        })
+      : [];
+    return {
+      collection,
+      remittances: await Promise.all(
+        remittances.map((row) => this.remittanceView(manager, row)),
+      ),
+    };
   }
 
   private async findCollectionReplay(

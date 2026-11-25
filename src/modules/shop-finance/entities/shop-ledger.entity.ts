@@ -1,10 +1,10 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
-import type { ShopLedgerType } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import { Order } from '@/modules/order/entities/order.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
+import type { ShopLedgerType } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { Order } from '@/modules/order/entities';
 import { Shop } from '@/modules/shop/entities';
 
 @Entity('shop_ledger_entries')

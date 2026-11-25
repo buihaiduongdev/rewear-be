@@ -2,13 +2,47 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
+import type {
+  CheckoutAddress,
+  CheckoutItem,
+} from '@/modules/checkout/schemas/checkout.schema';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   PAYMENT_ATTEMPT_STATE,
+  PAYMENT_CAPTURE_DISPOSITION,
+  PAYMENT_PROVIDER_OUTCOME,
+  PAYMENT_REFUND_REASON,
   PAYMENT_REFUND_STATE,
 } from '../constants/payment.constant';
 
+export type AttemptState =
+  (typeof PAYMENT_ATTEMPT_STATE)[keyof typeof PAYMENT_ATTEMPT_STATE];
+export type RefundState =
+  (typeof PAYMENT_REFUND_STATE)[keyof typeof PAYMENT_REFUND_STATE];
+export type RefundReason =
+  (typeof PAYMENT_REFUND_REASON)[keyof typeof PAYMENT_REFUND_REASON];
+export type ProviderOutcome =
+  (typeof PAYMENT_PROVIDER_OUTCOME)[keyof typeof PAYMENT_PROVIDER_OUTCOME];
+export type CaptureDisposition =
+  (typeof PAYMENT_CAPTURE_DISPOSITION)[keyof typeof PAYMENT_CAPTURE_DISPOSITION];
+
+export interface PaymentOrderSnapshot {
+  coinDiscount?: number;
+  coinMode?: ReconciliationMode | null;
+  feeDisclosure?: FeeDisclosure | null;
+  checkoutOrderId: string;
+  shopId: string;
+  shopName: string;
+  subtotal: number;
+  shippingFee: number;
+  address: CheckoutAddress;
+  items: CheckoutItem[];
+}
+
 export const createPaymentSchema = z.strictObject({ requestId: z.uuid() });
+
 export const paymentViewSchema = z.object({
   id: z.uuid(),
   checkoutId: z.uuid(),
@@ -24,20 +58,21 @@ export const paymentViewSchema = z.object({
     }),
   ),
 });
-export const momoIpnSchema = z.object({
-  partnerCode: z.string().max(50),
-  orderId: z.string().max(200),
-  requestId: z.string().max(50),
-  amount: safeBalanceSchema,
-  transId: safeBalanceSchema,
-  resultCode: z.number().int().nonnegative(),
-  responseTime: safeBalanceSchema,
-  message: z.string().max(1000),
-  orderInfo: z.string().max(255),
-  orderType: z.string().max(50),
-  payType: z.string().max(50),
-  extraData: z.string().max(1000),
-  signature: z.string().regex(/^[a-f0-9]{64}$/i),
+
+export const payosWebhookSchema = z.object({
+  code: z.string(),
+  desc: z.string(),
+  success: z.boolean().optional(),
+  data: z
+    .object({
+      orderCode: safeBalanceSchema,
+      amount: safeBalanceSchema,
+      description: z.string(),
+      reference: z.string(),
+    })
+    .passthrough(),
+  signature: z.string().min(1),
 });
 
 export type CreatePaymentInput = z.output<typeof createPaymentSchema>;
+export type PayosWebhookBody = z.output<typeof payosWebhookSchema>;

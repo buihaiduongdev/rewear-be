@@ -6,19 +6,16 @@ import { CategoryFactory } from '@/database/factories/category.factory';
 import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import { PayosClient } from '@/infrastructure/payment/payos.client';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -35,16 +32,20 @@ import { WalletService } from '@/modules/wallet/wallet.service';
 import { createTestDatabase } from '../support/database';
 import type { TestDatabase } from '../support/database';
 
-describe('MoMo checkout settlement (PostgreSQL)', () => {
+describe('PayOS checkout settlement (PostgreSQL)', () => {
   let database: TestDatabase;
   let service: PaymentService;
-  const client = { create: jest.fn(), query: jest.fn(), verifyIpn: jest.fn() };
+  const client = {
+    createPaymentLink: jest.fn(),
+    getPaymentLink: jest.fn(),
+    verifyWebhook: jest.fn(),
+  };
   const carrier = { quote: jest.fn() };
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new PaymentService(
       database.dataSource,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
       new PaymentPricing(
         new ShippingQuoteService(
           database.dataSource,
@@ -154,22 +155,20 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
     });
     carrier.quote.mockReset();
     carrier.quote.mockResolvedValue({ fee: 30000, estimatedDeliveryAt: null });
-    client.create.mockImplementation(
-      async (input: {
-        orderId: string;
-        requestId: string;
-        amount: number;
-      }) => ({
-        ...input,
-        resultCode: 0,
-        payUrl: 'https://test-payment.momo.vn/pay',
+    client.createPaymentLink.mockImplementation(
+      async (input: { orderCode: number; amount: number }) => ({
+        orderCode: input.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'PENDING',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
       }),
     );
-    client.verifyIpn.mockImplementation((value) => value);
+    client.verifyWebhook.mockImplementation(async (value) => value);
     return { db, buyer, product, checkout, shop };
   }
 
-  it('charges only server total and concurrent duplicate IPNs create one order and consume stock once', async () => {
+  it('charges only server total and concurrent duplicate webhooks create one order and consume stock once', async () => {
     const { db, buyer, product, checkout } = await fixture();
     const requestId = randomUUID();
     const payment = await service.create(buyer.id, checkout.id, {
@@ -180,22 +179,23 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       (await service.create(buyer.id, checkout.id, { requestId: requestId }))
         .id,
     ).toBe(payment.id);
+    const saved = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: payment.id });
     const notification = {
-      partnerCode: 'TEST',
-      orderId: payment.id,
-      requestId: payment.id,
+      orderCode: Number(saved.providerOrderCode),
       amount: 230000,
-      transId: 123456,
-      resultCode: 0,
-      orderInfo: `Rewear ${checkout.id}`,
-      orderType: 'momo_wallet',
-      message: '',
-      payType: 'qr',
-      responseTime: Date.now(),
-      extraData: '',
-      signature: 'test',
+      code: '00',
+      desc: 'success',
+      reference: 'FT123456',
+      paymentLinkId: 'plink-1',
+      description: `RW ${payment.id.slice(0, 8)}`,
+      isTestPing: false,
     };
-    await Promise.all([service.ipn(notification), service.ipn(notification)]);
+    await Promise.all([
+      service.webhook(notification),
+      service.webhook(notification),
+    ]);
     expect(
       await db.getRepository(Order).countBy({ paymentId: payment.id }),
     ).toBe(1);
@@ -234,13 +234,15 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
       reservationId: null,
       heldUntil: null,
     });
+    const savedAttempt = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: payment.id });
     await service.applyResult(payment.id, {
-      partnerCode: 'TEST',
-      orderId: payment.id,
-      requestId: payment.id,
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID',
       amount: 230000,
-      transId: 222222,
-      resultCode: 0,
+      amountPaid: 222222,
+      providerTransId: 'FT222222',
     });
     expect(
       await db.getRepository(Order).countBy({ paymentId: payment.id }),
@@ -265,13 +267,15 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
     await expect(
       service.findMine(randomUUID(), payment.id),
     ).rejects.toBeInstanceOf(EntityNotFoundError);
+    const savedAttempt = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: payment.id });
     await service.applyResult(payment.id, {
-      partnerCode: 'TEST',
-      orderId: payment.id,
-      requestId: payment.id,
-      amount: 220000,
-      transId: 333333,
-      resultCode: 0,
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID',
+      amount: 230000,
+      amountPaid: 220000,
+      providerTransId: 'FT333333',
     });
     expect(
       (
@@ -346,18 +350,20 @@ describe('MoMo checkout settlement (PostgreSQL)', () => {
     ).toBe(0);
   });
 
-  it('never recreates an expired Shop order or refunds MoMo again when its successful capture is replayed', async () => {
+  it('never recreates an expired Shop order or refunds PayOS again when its successful capture is replayed', async () => {
     const { db, buyer, checkout, product } = await fixture();
     const payment = await service.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
     });
+    const savedAttempt = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: payment.id });
     const capture = {
-      partnerCode: 'TEST',
-      orderId: payment.id,
-      requestId: payment.id,
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID' as const,
       amount: 230000,
-      transId: 777777,
-      resultCode: 0,
+      amountPaid: 230000,
+      providerTransId: 'FT777777',
     };
     await service.applyResult(payment.id, capture);
     const order = await db

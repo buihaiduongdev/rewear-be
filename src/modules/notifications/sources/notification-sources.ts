@@ -3,7 +3,7 @@ import type { EntityManager, EntityTarget } from 'typeorm';
 import type { BaseEntity } from '@/common/entities';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
 import {
@@ -12,16 +12,16 @@ import {
   DisputeNotice,
 } from '@/modules/dispute/entities/dispute.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
-import { FeeAssessment, FeeNotice } from '@/modules/fees/entities/fee.entity';
+import { FeeAssessment, FeeNotice } from '@/modules/fees/entities';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { ShopRating, ShopRatingNotice } from '@/modules/ratings/entities';
-import { FulfillmentNotice } from '@/modules/shipment/entities/late-handover.entity';
+import { FulfillmentNotice } from '@/modules/shipment/entities';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
-import { WalletDebit } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletDebit } from '@/modules/wallet/checkout/entities';
 
 import {
   NOTIFICATION_KIND,
@@ -48,7 +48,7 @@ export type NotificationSource<T extends BaseEntity = BaseEntity> = {
 };
 
 async function orderNotificationMode(manager: EntityManager, order: Order) {
-  if (order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO)
+  if (order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS)
     return RECONCILIATION_MODE.SIMULATION;
   if (order.walletDebitId)
     return (

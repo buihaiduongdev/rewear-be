@@ -3,7 +3,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import { Shop } from '@/modules/shop/entities';
 
-import type { CheckoutAddress, CheckoutItem } from '../types/checkout.type';
+import type { CheckoutAddress, CheckoutItem } from '../schemas/checkout.schema';
 import { Checkout } from './checkout.entity';
 
 @Entity('checkout_orders')

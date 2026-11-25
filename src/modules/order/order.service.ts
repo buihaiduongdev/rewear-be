@@ -13,10 +13,10 @@ import {
 import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/constants/shipment.constant';
 import { RETURN_INSPECTION_CONDITION } from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import type { ReturnInspectionCondition } from '@/modules/shipment/types/shipment.type';
+import type { ReturnInspectionCondition } from '@/modules/shipment/schemas/shipment.schema';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { ORDER_POLICY } from './constants/order.constant';
@@ -27,9 +27,8 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from './constants/order.constant';
-import { Order, OrderEvent } from './entities/order.entity';
-import type { RejectOrderInput } from './schemas/order.schema';
-import type { OrderListInput } from './types/order.type';
+import { Order, OrderEvent } from './entities';
+import type { OrderListInput, RejectOrderInput } from './schemas/order.schema';
 
 @Injectable()
 export class OrderService {
@@ -296,9 +295,7 @@ export class OrderService {
     await manager.save(order);
   }
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-  }
+  private async lock(_manager: EntityManager) {}
 
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');

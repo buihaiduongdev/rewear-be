@@ -4,11 +4,11 @@ import { BaseEntity } from '@/common/entities';
 import type {
   CheckoutAddress,
   CheckoutItem,
-} from '@/modules/checkout/types/checkout.type';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+} from '@/modules/checkout/schemas/checkout.schema';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
-import { WalletDebit } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
+import { WalletDebit } from '@/modules/wallet/checkout/entities';
 
 import {
   ORDER_PAYMENT_METHOD,
@@ -17,10 +17,9 @@ import {
 import type {
   OrderCancellationReason,
   OrderCancelState,
-  OrderEventAction,
   OrderPaymentMethod,
   OrderState,
-} from '../types/order.type';
+} from '../schemas/order.schema';
 
 @Entity('orders')
 @Index(['checkoutOrderId'], { unique: true })
@@ -71,7 +70,7 @@ export class Order extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   checkoutId: string | null;
 
-  @Column({ type: 'varchar', length: 10, default: ORDER_PAYMENT_METHOD.MOMO })
+  @Column({ type: 'varchar', length: 10, default: ORDER_PAYMENT_METHOD.PAYOS })
   paymentMethod: OrderPaymentMethod;
 
   @Column({ type: 'timestamptz', nullable: true })
@@ -157,30 +156,4 @@ export class Order extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   expiryRetryAt: Date | null;
-}
-
-@Entity('order_events')
-@Index(['orderId', 'action'], { unique: true })
-export class OrderEvent extends BaseEntity {
-  @Column('uuid')
-  orderId: string;
-
-  @ManyToOne(() => Order, { onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'orderId' })
-  order: Order;
-
-  @Column({ type: 'varchar', length: 40 })
-  action: OrderEventAction;
-
-  @Column({ type: 'uuid', nullable: true })
-  actorId: string | null;
-
-  @Column({ type: 'varchar', length: 1000, nullable: true })
-  reason: string | null;
-
-  @Column({ type: 'varchar', length: 2000, nullable: true })
-  evidence: string | null;
-
-  @Column({ type: 'boolean', nullable: true })
-  approved: boolean | null;
 }

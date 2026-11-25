@@ -13,7 +13,7 @@ import { ReturnExceptionReadService } from '@/modules/dispute/returns/return-exc
 import { ReturnSafetyService } from '@/modules/dispute/returns/return-safety.service';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount } from '@/modules/wallet/entities';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
 import {

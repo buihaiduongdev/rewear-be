@@ -1,7 +1,7 @@
 import { Check, Column, Entity } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 @Entity('coin_programs')
 @Check('CHK_coin_program_budget', '"budget" >= "issued" AND "issued" >= 0')

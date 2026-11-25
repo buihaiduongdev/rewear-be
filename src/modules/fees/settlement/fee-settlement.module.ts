@@ -6,7 +6,7 @@ import {
   FeeOffsetAllocation,
   FeeSettlementIncident,
   FeeWalletDebit,
-} from './entities/fee-settlement.entity';
+} from './entities';
 import { FeeSettlementController } from './fee-settlement.controller';
 import { FeeSettlementService } from './fee-settlement.service';
 import { FeeSettlementWorker } from './fee-settlement.worker';

@@ -3,8 +3,8 @@ import { ConflictException } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
-import type { Order } from '@/modules/order/entities/order.entity';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import type { Order } from '@/modules/order/entities';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { CoinService } from '../core/coin.service';
 import { CoinPurchaseReward, CoinRewardAdjustmentNotice } from './entities';

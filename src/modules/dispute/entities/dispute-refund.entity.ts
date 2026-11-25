@@ -1,8 +1,8 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import { Order } from '@/modules/order/entities/order.entity';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { Order } from '@/modules/order/entities';
 
 import type { RefundBlock, RefundState } from '../types/refund-execution.type';
 import { DisputeFinalDecision } from './dispute-appeal.entity';

@@ -1,6 +1,6 @@
 import { ORDER_POLICY } from '../constants/order.constant';
+import type { Order } from '../entities';
 import type { OrderDeliveryVerification } from '../entities/order-delivery-verification.entity';
-import type { Order } from '../entities/order.entity';
 
 export function isSettlementWindowDue(
   order: Pick<Order, 'deliveryVerifiedAt' | 'disputeDeadlineAt'>,

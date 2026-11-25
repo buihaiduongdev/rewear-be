@@ -16,9 +16,9 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -29,11 +29,14 @@ import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/ide
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 
 import { CodPolicy } from './policies/cod.policy';
-import { codOrderTotalSchema, placeCodSchema } from './schemas/cod.schema';
-import type { PlaceCodInput } from './types/cod.type';
+import {
+  codOrderTotalSchema,
+  type PlaceCodInput,
+  placeCodSchema,
+} from './schemas/cod.schema';
 
 @Injectable()
 export class CodService {
@@ -73,7 +76,6 @@ export class CodService {
       throw error;
     }
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const checkout = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,
         buyerId,

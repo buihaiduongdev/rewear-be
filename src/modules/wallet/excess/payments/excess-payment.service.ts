@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -11,24 +12,20 @@ import z from 'zod';
 
 import { vndAmountSchema } from '@/common/schemas/money.schema';
 import {
-  type MomoNotification,
-  type MomoResult,
-  MomoSandboxClient,
-} from '@/infrastructure/payment/momo-sandbox.client';
-import { FeePaymentCapture } from '@/modules/fees/payments/entities/fee-payment.entity';
+  PayosClient,
+  type PayosPaymentResult,
+  type PayosWebhookResult,
+} from '@/infrastructure/payment/payos.client';
+import { FeePaymentCapture } from '@/modules/fees/payments/entities';
 import {
   PAYMENT_PROVIDER_OUTCOME,
-  PAYMENT_PROVIDER_SUCCESS_CODE,
+  PAYOS_STATUS,
 } from '@/modules/payment/constants/payment.constant';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
+import { PAYOS_CLIENT } from '@/modules/payment/payment.config';
 import { providerOutcome } from '@/modules/payment/policies/payment.policy';
 
 import {
-  EXCESS_MOMO_CLIENT,
-  EXCESS_PAYMENT_PREFIX,
   EXCESS_PAYMENT_STATE,
   EXCESS_POLICY,
 } from '../constants/excess.constant';
@@ -36,7 +33,7 @@ import {
   ExcessCapture,
   ExcessPayment,
   ExcessProviderRefund,
-} from '../entities/excess.entity';
+} from '../entities';
 import {
   excessActor,
   excessClock,
@@ -50,81 +47,104 @@ import { ExcessRefundService } from './excess-refund.service';
 export class ExcessPaymentService {
   constructor(
     private readonly db: DataSource,
-    @Inject(EXCESS_MOMO_CLIENT)
-    private readonly client: MomoSandboxClient | null,
+    @Inject(PAYOS_CLIENT)
+    private readonly client: PayosClient | null,
     private readonly attempts: ExcessAttemptService,
     private readonly refunds: ExcessRefundService,
   ) {}
+
   private gateway() {
     if (!this.client)
-      throw new ServiceUnavailableException('MoMo Sandbox is disabled');
+      throw new ServiceUnavailableException('PayOS gateway is disabled');
     return this.client;
   }
+
   async create(actorId: string, input: z.input<typeof excessPaySchema>) {
     const id = await this.attempts.create(actorId, input);
     return this.view(actorId, id);
   }
-  handles(id: string) {
-    return this.db.getRepository(ExcessPayment).existsBy({ id });
+
+  handlesOrderCode(providerOrderCode: string) {
+    return this.db.getRepository(ExcessPayment).existsBy({ providerOrderCode });
   }
-  view(actorId: string, id: string, admin = false) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await excessActor(manager, actorId, admin);
-      const row = await manager.findOneBy(
-        ExcessPayment,
-        admin ? { id } : { id, buyerId: actorId },
-      );
-      if (!row) throw new UnauthorizedException();
-      const captures = await manager.findBy(ExcessCapture, { paymentId: id });
-      const refunds = captures.length
-        ? await manager.findBy(ExcessProviderRefund, {
-            captureId: In(captures.map((c) => c.id)),
-          })
-        : [];
-      return {
-        id: row.id,
-        amount: row.amount,
-        mode: 'SIMULATION' as const,
-        state: row.state,
-        payUrl: row.state === EXCESS_PAYMENT_STATE.PENDING ? row.payUrl : null,
-        targets: row.targets,
-        refunds: refunds.map((r) => ({
-          id: r.id,
-          amount: r.amount,
-          state: r.state,
-          alertedAt: r.alertedAt,
-          responseDueAt: r.responseDueAt,
-        })),
-      };
-    });
+
+  async view(actorId: string, id: string, admin = false) {
+    const manager = this.db.manager;
+    await excessActor(manager, actorId, admin);
+    const row = await manager.findOneBy(
+      ExcessPayment,
+      admin ? { id } : { id, buyerId: actorId },
+    );
+    if (!row) throw new UnauthorizedException();
+    const captures = await manager.findBy(ExcessCapture, { paymentId: id });
+    const refunds = captures.length
+      ? await manager.findBy(ExcessProviderRefund, {
+          captureId: In(captures.map((c) => c.id)),
+        })
+      : [];
+    return {
+      id: row.id,
+      amount: row.amount,
+      mode: 'SIMULATION' as const,
+      state: row.state,
+      payUrl: row.state === EXCESS_PAYMENT_STATE.PENDING ? row.payUrl : null,
+      targets: row.targets,
+      refunds: refunds.map((r) => ({
+        id: r.id,
+        amount: r.amount,
+        state: r.state,
+        alertedAt: r.alertedAt,
+        responseDueAt: r.responseDueAt,
+      })),
+    };
   }
-  async ipn(input: MomoNotification) {
-    let result: MomoNotification;
+
+  async webhook(input: unknown) {
+    let verified: PayosWebhookResult;
     try {
-      result = this.gateway().verifyIpn(input);
+      verified = await this.gateway().verifyWebhook(input);
     } catch {
       throw new UnauthorizedException('Invalid recovery payment signature');
     }
-    const valid =
-      result.orderType === 'momo_wallet' &&
-      result.requestId === result.orderId &&
-      result.orderInfo === EXCESS_PAYMENT_PREFIX + result.orderId;
-    if (!valid)
-      throw new UnauthorizedException('Invalid recovery payment reference');
-    await this.apply(result);
+    if (verified.isTestPing) return;
+    await this.applyWebhook(verified);
   }
-  async apply(result: MomoResult) {
+
+  async applyWebhook(verified: PayosWebhookResult) {
+    if (verified.isTestPing) return;
+    const row = await this.db.getRepository(ExcessPayment).findOneBy({
+      providerOrderCode: String(verified.orderCode),
+    });
+    if (!row) {
+      throw new UnauthorizedException('Invalid recovery payment reference');
+    }
+    await this.apply(row.id, {
+      orderCode: verified.orderCode,
+      status: verified.code === '00' ? PAYOS_STATUS.PAID : PAYOS_STATUS.PENDING,
+      amount: verified.amount,
+      amountPaid: verified.amount,
+      providerTransId: verified.reference || null,
+    });
+  }
+
+  async apply(id: string, result: PayosPaymentResult) {
     await this.db.transaction(async (manager) => {
       const now = await excessClock(manager);
-      const row = await manager.findOneByOrFail(ExcessPayment, {
-        id: result.orderId,
+      const row = await manager.findOne(ExcessPayment, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
       });
-      if (result.requestId !== row.id)
+      if (!row) throw new NotFoundException('Recovery payment not found');
+      if (
+        row.providerOrderCode &&
+        Number(row.providerOrderCode) !== result.orderCode
+      )
         throw new UnauthorizedException('Invalid recovery payment request');
-      if (result.resultCode !== PAYMENT_PROVIDER_SUCCESS_CODE) {
+      const outcome = providerOutcome(result.status);
+      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) {
         if (
           row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED &&
-          providerOutcome(result.resultCode) === PAYMENT_PROVIDER_OUTCOME.FAILED
+          outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
         ) {
           row.state = EXCESS_PAYMENT_STATE.FAILED;
           row.payUrl = null;
@@ -132,14 +152,13 @@ export class ExcessPaymentService {
         }
         return;
       }
+      const providerTransId = result.providerTransId?.trim() || '';
       const validCapture =
-        Number.isSafeInteger(result.transId) &&
-        result.transId > 0 &&
-        vndAmountSchema.safeParse(result.amount).success &&
-        result.amount > 0;
+        providerTransId.length > 0 &&
+        vndAmountSchema.safeParse(result.amountPaid).success &&
+        result.amountPaid > 0;
       if (!validCapture)
         throw new ConflictException('Invalid recovery capture');
-      const providerTransId = String(result.transId);
       const reused =
         (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
         (await manager.existsBy(PaymentRefund, { providerTransId })) ||
@@ -150,7 +169,7 @@ export class ExcessPaymentService {
         );
       const prior = await manager.findOneBy(ExcessCapture, { providerTransId });
       if (prior) {
-        if (prior.paymentId !== row.id || prior.amount !== result.amount)
+        if (prior.paymentId !== row.id || prior.amount !== result.amountPaid)
           throw new ConflictException('Recovery capture reused');
         return;
       }
@@ -159,7 +178,7 @@ export class ExcessPaymentService {
         manager.create(ExcessCapture, {
           paymentId: row.id,
           providerTransId,
-          amount: result.amount,
+          amount: result.amountPaid,
           allocated: 0,
           reservations: [],
         }),
@@ -167,24 +186,35 @@ export class ExcessPaymentService {
       await allocateExcessCapture(manager, row, capture, now);
     });
   }
+
   async query(id: string) {
     const gateway = this.gateway();
-    const row = await this.db.transaction(async (manager) => {
+    const orderCode = await this.db.transaction(async (manager) => {
       const now = await excessClock(manager);
-      const row = await manager.findOneByOrFail(ExcessPayment, { id });
-      if (row.state === EXCESS_PAYMENT_STATE.SUCCEEDED || row.nextQueryAt > now)
+      const row = await manager.findOne(ExcessPayment, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !row ||
+        !row.providerOrderCode ||
+        row.state === EXCESS_PAYMENT_STATE.SUCCEEDED ||
+        row.nextQueryAt > now
+      )
         return null;
       row.nextQueryAt = new Date(now.getTime() + EXCESS_POLICY.LEASE_MS);
       await manager.save(row);
-      return row;
+      return Number(row.providerOrderCode);
     });
-    if (row)
+    if (orderCode) {
       try {
-        await this.apply(await gateway.query(id, id));
+        await this.apply(id, await gateway.getPaymentLink(orderCode));
       } catch {
         /* Persisted lease preserves unresolved state. */
       }
+    }
   }
+
   async run() {
     if (!this.client) return;
     const rows = await this.db.getRepository(ExcessPayment).find({

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { AuthProvider } from '@/modules/auth/enums';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
@@ -11,7 +11,7 @@ import {
   ShopPayout,
   ShopPayoutAllocation,
   ShopPayoutEvent,
-} from '@/modules/shop-finance/payouts/entities/shop-payout.entity';
+} from '@/modules/shop-finance/payouts/entities';
 import { payoutOwnerViewSchema } from '@/modules/shop-finance/payouts/schemas/payout.schema';
 import { ShopPayoutService } from '@/modules/shop-finance/payouts/shop-payout.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';

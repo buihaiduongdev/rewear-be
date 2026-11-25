@@ -3,8 +3,8 @@ import {
   ORDER_CANCEL_STATE,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import type { Order } from '@/modules/order/entities/order.entity';
-import type { OrderState } from '@/modules/order/types/order.type';
+import type { Order } from '@/modules/order/entities';
+import type { OrderState } from '@/modules/order/schemas/order.schema';
 import {
   SHIPMENT_STATE,
   UNSAFE_CARRIER_REVIEW_REASONS,

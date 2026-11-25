@@ -3,11 +3,25 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { vndAmountSchema } from '@/common/schemas/money.schema';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
+import type { Order } from '@/modules/order/entities';
+import type { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
+  RECONCILIATION_REVIEW_REASON,
+  SHOP_LEDGER_TYPE,
 } from '../constants/cod-reconciliation.constant';
+import type { CodCollection } from '../entities';
+
+export type ReconciliationMode =
+  (typeof RECONCILIATION_MODE)[keyof typeof RECONCILIATION_MODE];
+export type CodReconciliationStatus =
+  (typeof COD_RECONCILIATION_STATUS)[keyof typeof COD_RECONCILIATION_STATUS];
+export type ReconciliationReviewReason =
+  (typeof RECONCILIATION_REVIEW_REASON)[keyof typeof RECONCILIATION_REVIEW_REASON];
+export type ShopLedgerType =
+  (typeof SHOP_LEDGER_TYPE)[keyof typeof SHOP_LEDGER_TYPE];
 
 export const vndSchema = vndAmountSchema;
 const requestIdSchema = z.uuid().transform((value) => value.toLowerCase());
@@ -136,8 +150,13 @@ export const adminReconciliationDetailSchema = z.object({
   remittances: z.array(remittanceViewSchema),
 });
 
-export type {
-  CollectionInput,
-  RemittanceInput,
-  FinanceListInput,
-} from '../types/cod-reconciliation.type';
+export type CollectionInput = z.output<typeof collectionInputSchema>;
+export type RemittanceInput = z.output<typeof remittanceInputSchema>;
+export type FinanceListInput = z.output<typeof financeListSchema>;
+
+export type CollectionContext = { order: Order; shipment: Shipment };
+export type RemittanceAllocationInput = RemittanceInput['allocations'][number];
+export type ValidatedRemittanceAllocation = {
+  collection: CodCollection;
+  allocation: RemittanceAllocationInput;
+};

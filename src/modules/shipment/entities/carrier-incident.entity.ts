@@ -2,11 +2,11 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
-import type { CarrierIncidentAudit } from '../types/shipment.type';
-import type { CarrierIncidentState } from '../types/shipment.type';
+import type { CarrierIncidentAudit } from '../schemas/shipment.schema';
+import type { CarrierIncidentState } from '../schemas/shipment.schema';
 import { Shipment } from './shipment.entity';
 
-export type { CarrierIncidentAudit } from '../types/shipment.type';
+export type { CarrierIncidentAudit } from '../schemas/shipment.schema';
 
 @Entity('carrier_incidents')
 @Index(['shipmentId'], { unique: true })

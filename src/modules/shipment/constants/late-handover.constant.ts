@@ -24,4 +24,4 @@ export const HANDOVER_STOP_REASON = {
   EXTENSION_EXHAUSTED: 'EXTENSION_EXHAUSTED',
 } as const;
 
-export type { HandoverState } from '../types/late-handover.type';
+export type { HandoverState } from '../schemas/late-handover.schema';

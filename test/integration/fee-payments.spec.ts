@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import { UserFactory } from '@/database/factories/user.factory';
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import { PayosClient } from '@/infrastructure/payment/payos.client';
 import {
   FeeAssessment,
   FeeCollection,
   FeeRefund,
-} from '@/modules/fees/entities/fee.entity';
+} from '@/modules/fees/entities';
 import {
   queueFeeCorrections,
   recordFeeCollection,
@@ -15,28 +15,26 @@ import {
   FeePayment,
   FeePaymentCapture,
   FeeProviderRefund,
-} from '@/modules/fees/payments/entities/fee-payment.entity';
+} from '@/modules/fees/payments/entities';
 import { FeePaymentService } from '@/modules/fees/payments/fee-payment.service';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
 
-describe('separate MoMo fee payments (PostgreSQL)', () => {
+describe('separate PayOS fee payments (PostgreSQL)', () => {
   let database: TestDatabase;
   let service: FeePaymentService;
   const client = {
-    create: jest.fn(),
-    query: jest.fn(),
-    verifyIpn: jest.fn(),
-    refund: jest.fn(),
-    queryRefund: jest.fn(),
+    createPaymentLink: jest.fn(),
+    getPaymentLink: jest.fn(),
+    verifyWebhook: jest.fn(),
   };
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new FeePaymentService(
       database.dataSource,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
     );
   });
   afterAll(async () => {
@@ -44,7 +42,7 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
   });
   beforeEach(() => {
     jest.resetAllMocks();
-    client.verifyIpn.mockImplementation((value) => value);
+    client.verifyWebhook.mockImplementation(async (value) => value);
   });
   async function fixture(amount = 5000) {
     const db = database.dataSource;
@@ -72,16 +70,18 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
       dueAt: new Date(Date.now() + 86400000),
       objectionUsed: false,
     });
-    client.create.mockImplementation(async (input) => {
+    client.createPaymentLink.mockImplementation(async (input) => {
       expect(
-        await db.getRepository(FeePayment).existsBy({ id: input.orderId }),
+        await db
+          .getRepository(FeePayment)
+          .existsBy({ providerOrderCode: String(input.orderCode) }),
       ).toBe(true);
       return {
-        ...input,
-        partnerCode: 'TEST',
-        resultCode: 0,
-        transId: 0,
-        payUrl: 'https://test-payment.momo.vn/pay',
+        orderCode: input.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'PENDING',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
       };
     });
     const input = {
@@ -92,49 +92,55 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
     };
     return { db, user, fee, input };
   }
-  function notification(id: string, amount: number, transId = 12345) {
+  async function notification(id: string, amount: number, transId = 'FT12345') {
+    const payment = await database.dataSource
+      .getRepository(FeePayment)
+      .findOneByOrFail({ id });
     return {
-      orderId: id,
-      requestId: id,
+      orderCode: Number(payment.providerOrderCode),
       amount,
-      transId,
-      resultCode: 0,
-      orderInfo: 'Rewear fee ' + id,
-      orderType: 'momo_wallet',
-    } as never;
+      code: '00',
+      desc: 'success',
+      reference: transId,
+      paymentLinkId: 'plink-1',
+      description: 'RW FEE ' + id.slice(0, 8),
+      isTestPing: false,
+    };
   }
   it('persists before HTTP and rejects changed replay targets', async () => {
     const { user, input } = await fixture();
     const payment = await service.create(user.id, input);
     expect((await service.create(user.id, input)).id).toBe(payment.id);
-    expect(client.create).toHaveBeenCalledTimes(1);
+    expect(client.createPaymentLink).toHaveBeenCalledTimes(1);
     await expect(
       service.create(user.id, { ...input, amount: 4000 }),
     ).rejects.toThrow('Request id reused');
   });
   it('queries an ambiguous create without another create request', async () => {
     const { db, user, input } = await fixture();
-    client.create.mockRejectedValue(new Error('timeout'));
+    client.createPaymentLink.mockRejectedValue(new Error('timeout'));
     const payment = await service.create(user.id, input);
+    const saved = await db
+      .getRepository(FeePayment)
+      .findOneByOrFail({ id: payment.id });
     await db
       .getRepository(FeePayment)
       .update(payment.id, { nextQueryAt: new Date(0) });
-    client.query.mockResolvedValue({
-      orderId: payment.id,
-      requestId: payment.id,
+    client.getPaymentLink.mockResolvedValue({
+      orderCode: Number(saved.providerOrderCode),
+      status: 'PAID',
       amount: 5000,
-      transId: 12346,
-      resultCode: 0,
+      amountPaid: 5000,
+      providerTransId: 'FT12346',
     });
     await service.queryAttempt(payment.id);
     expect((await service.view(user.id, payment.id)).state).toBe('SUCCEEDED');
-    expect(client.create).toHaveBeenCalledTimes(1);
+    expect(client.createPaymentLink).toHaveBeenCalledTimes(1);
   });
-  it('allocates only remaining debt and confirms the original capture excess by query', async () => {
+  it('allocates only remaining debt and escalates original capture excess for manual review', async () => {
     const { db, user, fee, input } = await fixture();
     const payment = await service.create(user.id, input);
     await db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await recordFeeCollection(
         manager,
         {
@@ -147,8 +153,8 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
         new Date(),
       );
     });
-    await service.ipn(notification(payment.id, 5000, 12347));
-    await service.ipn(notification(payment.id, 5000, 12347));
+    await service.webhook(await notification(payment.id, 5000, 'FT12347'));
+    await service.webhook(await notification(payment.id, 5000, 'FT12347'));
     const capture = await db
       .getRepository(FeePaymentCapture)
       .findOneByOrFail({ paymentId: payment.id });
@@ -160,72 +166,39 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
       .getRepository(FeeProviderRefund)
       .findOneByOrFail({ captureId: capture.id });
     expect(refund.amount).toBe(3000);
+    expect(refund.state).toBe('REVIEW');
     expect((await service.view(user.id, payment.id)).refunds).toEqual([
       expect.objectContaining({
         id: refund.id,
         amount: 3000,
-        state: 'PENDING',
+        state: 'REVIEW',
       }),
     ]);
-    client.refund.mockResolvedValue({ resultCode: 0 });
-    client.queryRefund.mockResolvedValue(false);
-    await service.refund(refund.id);
-    expect(
-      (
-        await db
-          .getRepository(FeeProviderRefund)
-          .findOneByOrFail({ id: refund.id })
-      ).state,
-    ).toBe('UNKNOWN');
-    await db
-      .getRepository(FeeProviderRefund)
-      .update(refund.id, { nextQueryAt: new Date(0) });
-    client.queryRefund.mockResolvedValue(true);
-    await service.refund(refund.id);
-    expect(client.refund).toHaveBeenCalledTimes(1);
-    expect(
-      (
-        await db
-          .getRepository(FeeProviderRefund)
-          .findOneByOrFail({ id: refund.id })
-      ).state,
-    ).toBe('SUCCEEDED');
   });
-  it('links a correction refund to its original capture and only confirms accounting after provider proof', async () => {
+  it('links a correction refund to its original capture and escalates for operational settlement', async () => {
     const { db, user, fee, input } = await fixture();
     const payment = await service.create(user.id, input);
-    await service.ipn(notification(payment.id, 5000, 12348));
+    await service.webhook(await notification(payment.id, 5000, 'FT12348'));
     await db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const current = await manager.findOneByOrFail(FeeAssessment, {
         id: fee.id,
       });
       await queueFeeCorrections(manager, current, 3000, new Date());
     });
-    client.refund.mockResolvedValue({ resultCode: 0 });
-    client.queryRefund.mockResolvedValue(false);
     await service.runRefunds();
     const core = await db
       .getRepository(FeeRefund)
       .findOneByOrFail({ feeId: fee.id });
-    expect(core.state).toBe('UNKNOWN');
+    expect(core.state).toBe('REVIEW');
     const provider = await db
       .getRepository(FeeProviderRefund)
       .findOneByOrFail({ feeRefundId: core.id });
-    await db
-      .getRepository(FeeProviderRefund)
-      .update(provider.id, { nextQueryAt: new Date(0) });
-    client.queryRefund.mockResolvedValue(true);
-    await service.refund(provider.id);
-    expect(
-      (await db.getRepository(FeeRefund).findOneByOrFail({ id: core.id }))
-        .state,
-    ).toBe('SUCCEEDED');
+    expect(provider.state).toBe('REVIEW');
   });
   it('rejects evidence-mode fees and foreign views', async () => {
     const { db, user, fee, input } = await fixture();
     await db.getRepository(FeeAssessment).update(fee.id, { mode: 'EVIDENCE' });
-    await expect(service.create(user.id, input)).rejects.toThrow('Sandbox');
+    await expect(service.create(user.id, input)).rejects.toThrow('PayOS');
     await db
       .getRepository(FeeAssessment)
       .update(fee.id, { mode: 'SIMULATION' });
@@ -240,7 +213,7 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
   it('refunds a wrong amount without discharging the fee', async () => {
     const { db, user, fee, input } = await fixture();
     const payment = await service.create(user.id, input);
-    await service.ipn(notification(payment.id, 6000, 12349));
+    await service.webhook(await notification(payment.id, 6000, 'FT12349'));
     expect(
       await db.getRepository(FeeCollection).countBy({ feeId: fee.id }),
     ).toBe(0);
@@ -259,7 +232,7 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
     const { db, user, fee, input } = await fixture();
     const payment = await service.create(user.id, input);
     await db.getRepository(FeeAssessment).update(fee.id, { status: 'REVIEW' });
-    await service.ipn(notification(payment.id, 5000, 12350));
+    await service.webhook(await notification(payment.id, 5000, 'FT12350'));
     expect(
       await db.getRepository(FeeCollection).countBy({ feeId: fee.id }),
     ).toBe(0);
@@ -278,7 +251,6 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
     const { db, user, fee, input } = await fixture();
     const payment = await service.create(user.id, input);
     await db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await recordFeeCollection(
         manager,
         {
@@ -291,7 +263,7 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
         new Date(),
       );
     });
-    await service.ipn(notification(payment.id, 5000, 12351));
+    await service.webhook(await notification(payment.id, 5000, 'FT12351'));
     const capture = await db
       .getRepository(FeePaymentCapture)
       .findOneByOrFail({ paymentId: payment.id });
@@ -305,7 +277,6 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
       4 * 3600000,
     );
     await service.refund(refund.id);
-    expect(client.refund).not.toHaveBeenCalled();
     const admin = await db.getRepository(User).save(
       new UserFactory().build({
         status: UserStatus.ACTIVE,
@@ -333,21 +304,28 @@ describe('separate MoMo fee payments (PostgreSQL)', () => {
     expect(
       outcomes.filter((result) => result.status === 'fulfilled'),
     ).toHaveLength(1);
-    expect(client.create).toHaveBeenCalledTimes(1);
+    expect(client.createPaymentLink).toHaveBeenCalledTimes(1);
   });
-  it('keeps captured success immutable when create responds after its callback and later failure', async () => {
-    const { user, input } = await fixture();
-    client.create.mockImplementation(async (request) => {
-      await service.ipn(notification(request.orderId, request.amount, 12352));
-      return { ...request, resultCode: 1006 };
+  it('keeps captured success immutable when create responds after its webhook and later cancellation', async () => {
+    const { db, user, input } = await fixture();
+    client.createPaymentLink.mockImplementation(async (request) => {
+      const target = await db
+        .getRepository(FeePayment)
+        .findOneByOrFail({ providerOrderCode: String(request.orderCode) });
+      await service.webhook(
+        await notification(target.id, request.amount, 'FT12352'),
+      );
+      return {
+        orderCode: request.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'CANCELLED',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
+      };
     });
     const payment = await service.create(user.id, input);
     expect(payment.state).toBe('SUCCEEDED');
     expect(payment.payUrl).toBeNull();
-    await service.ipn({
-      ...(notification(payment.id, 5000, 12352) as object),
-      resultCode: 1006,
-    } as never);
     expect((await service.view(user.id, payment.id)).state).toBe('SUCCEEDED');
   });
 });

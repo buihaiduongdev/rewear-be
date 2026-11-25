@@ -7,17 +7,17 @@ import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
-import { verifiedMomoCapture } from '@/modules/payment/verified-momo-capture';
+import { Order } from '@/modules/order/entities';
+import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
 
 import { verifiedWalletCapture } from './checkout/verified-wallet-capture';
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
-import { WalletAccount, WalletCredit } from './entities/wallet.entity';
+import { WalletAccount, WalletCredit } from './entities';
 import { EXCESS_SOURCE } from './excess/constants/excess.constant';
 import { offsetExcessRefund } from './excess/policies/excess-accounting.policy';
 import { orderRefundSchema } from './schemas/wallet-refund.schema';
 import { walletBalanceSchema } from './schemas/wallet.schema';
-import type { WalletQueryInput } from './types/wallet.type';
+import type { WalletQueryInput } from './schemas/wallet.schema';
 import { verifiedWalletFunds } from './verified-wallet-funds';
 
 @Injectable()
@@ -27,7 +27,6 @@ export class WalletService {
   // Caller owns the order cancellation transaction; the ledger and stock/order
   // state must commit together. No top-up or generic credit endpoint exists.
   async creditCancellation(manager: EntityManager, order: Order) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     if (!orderRefundSchema.safeParse(order).success)
       throw new ConflictException('Invalid order refund amount');
     const refundAmount = order.subtotal + order.shippingFee;
@@ -40,11 +39,11 @@ export class WalletService {
       order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
         ? await verifiedWalletCapture(manager, order)
         : null;
-    const momo =
-      order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO
-        ? await verifiedMomoCapture(manager, order)
+    const payos =
+      order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS
+        ? await verifiedPayosCapture(manager, order)
         : null;
-    const invalidSource = !momo && !capture;
+    const invalidSource = !payos && !capture;
     if (invalidSource)
       throw new ConflictException(
         'Cancellation payment source requires reconciliation',
@@ -100,44 +99,43 @@ export class WalletService {
     return credit;
   }
 
-  mine(userId: string, input: WalletQueryInput) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const account = await manager.findOneBy(WalletAccount, { userId });
-      const evidence = await verifiedWalletFunds(
-        manager,
-        userId,
-        RECONCILIATION_MODE.EVIDENCE,
-      );
-      const simulation = await verifiedWalletFunds(
-        manager,
-        userId,
-        RECONCILIATION_MODE.SIMULATION,
-      );
-      const credits = await manager.find(WalletCredit, {
-        where: { userId },
-        order: { createdAt: 'DESC', id: 'DESC' },
-        take: input.limit ?? 100,
-        skip: input.offset ?? 0,
-      });
-      const disputeRefunds = await manager.find(DisputeRefundCredit, {
-        where: { buyerId: userId },
-        order: { createdAt: 'DESC', id: 'DESC' },
-        take: input.limit ?? 100,
-        skip: input.offset ?? 0,
-      });
-      return {
-        simulationBalance: account?.simulationBalance ?? 0,
-        heldBalance: evidence.held,
-        simulationHeldBalance: simulation.held,
-        spendableBalance: evidence.spendable,
-        simulationSpendableBalance: simulation.spendable,
-        quarantinedBalance: evidence.quarantined,
-        simulationQuarantinedBalance: simulation.quarantined,
-        disputeRefunds,
-        balance: account?.balance ?? 0,
-        currency: MONEY_CURRENCY.VND,
-        credits,
-      };
+  async mine(userId: string, input: WalletQueryInput) {
+    const manager = this.db.manager;
+    const account = await manager.findOneBy(WalletAccount, { userId });
+    const evidence = await verifiedWalletFunds(
+      manager,
+      userId,
+      RECONCILIATION_MODE.EVIDENCE,
+    );
+    const simulation = await verifiedWalletFunds(
+      manager,
+      userId,
+      RECONCILIATION_MODE.SIMULATION,
+    );
+    const credits = await manager.find(WalletCredit, {
+      where: { userId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: input.limit ?? 100,
+      skip: input.offset ?? 0,
     });
+    const disputeRefunds = await manager.find(DisputeRefundCredit, {
+      where: { buyerId: userId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: input.limit ?? 100,
+      skip: input.offset ?? 0,
+    });
+    return {
+      simulationBalance: account?.simulationBalance ?? 0,
+      heldBalance: evidence.held,
+      simulationHeldBalance: simulation.held,
+      spendableBalance: evidence.spendable,
+      simulationSpendableBalance: simulation.spendable,
+      quarantinedBalance: evidence.quarantined,
+      simulationQuarantinedBalance: simulation.quarantined,
+      disputeRefunds,
+      balance: account?.balance ?? 0,
+      currency: MONEY_CURRENCY.VND,
+      credits,
+    };
   }
 }

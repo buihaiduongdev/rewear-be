@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,47 +13,47 @@ import ms from 'ms';
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
-import type {
-  MomoNotification,
-  MomoResult,
-} from '@/infrastructure/payment/momo-sandbox.client';
+import {
+  generatePayosOrderCode,
+  PayosClient,
+  type PayosPaymentResult,
+  type PayosWebhookResult,
+} from '@/infrastructure/payment/payos.client';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { FeePaymentCapture } from '@/modules/fees/payments/entities/fee-payment.entity';
-import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
+import { FeePaymentCapture } from '@/modules/fees/payments/entities';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
+  ORDER_POLICY,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
-import { ExcessCapture } from '@/modules/wallet/excess/entities/excess.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
+import { ExcessCapture } from '@/modules/wallet/excess/entities';
 
-import {
-  PAYMENT_MAX_AMOUNT,
-  PAYMENT_MIN_AMOUNT,
-} from './constants/payment.constant';
 import {
   PAYMENT_ATTEMPT_STATE,
   PAYMENT_CAPTURE_DISPOSITION,
-  PAYMENT_PROVIDER_SUCCESS_CODE,
+  PAYMENT_MAX_AMOUNT,
+  PAYMENT_MIN_AMOUNT,
+  PAYMENT_PROVIDER_OUTCOME,
   PAYMENT_QUERY_LEASE_MS,
   PAYMENT_REFUND_REASON,
   PAYMENT_REFUND_STATE,
+  PAYOS_STATUS,
 } from './constants/payment.constant';
-import { PaymentAttempt, PaymentRefund } from './entities/payment.entity';
-import { MOMO_CLIENT } from './payment.config';
+import { PaymentAttempt, PaymentRefund } from './entities';
+import { PAYOS_CLIENT } from './payment.config';
 import { PaymentPricing } from './payment.pricing';
 import {
   canStartAttempt,
@@ -66,19 +67,17 @@ import type { CreatePaymentInput } from './schemas/payment.schema';
 export class PaymentService {
   constructor(
     private readonly db: DataSource,
-    @Inject(MOMO_CLIENT) private readonly client: MomoSandboxClient | null,
+    @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
     private readonly pricing: PaymentPricing,
   ) {}
 
   private gateway() {
     if (!this.client)
-      throw new ServiceUnavailableException('MoMo Sandbox is disabled');
+      throw new ServiceUnavailableException('PayOS gateway is disabled');
     return this.client;
   }
 
-  private async lock(manager: EntityManager): Promise<Date> {
-    // Same order as checkout create/cancel/expiry across every process.
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  private async now(manager: EntityManager): Promise<Date> {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }
@@ -96,32 +95,27 @@ export class PaymentService {
     });
     if (existing) return this.findMine(buyerId, existing.id);
     const quote = await this.pricing.quote(buyerId, checkoutId);
-    const prepared = await this.db.transaction(async (manager) => {
-      return this.prepareAttempt(
-        manager,
-        buyerId,
-        checkoutId,
-        requestId,
-        quote,
-      );
-    });
+    const prepared = await this.db.transaction(async (manager) =>
+      this.prepareAttempt(manager, buyerId, checkoutId, requestId, quote),
+    );
     if (!prepared.send) return this.findMine(buyerId, prepared.attempt.id);
     const attempt = prepared.attempt;
+    const orderCode = Number(attempt.providerOrderCode);
+    const expiredAt = Math.floor(prepared.expiresAt.getTime() / 1000);
     // Persist before HTTP: a timeout/crash must not allow another charge.
     try {
-      const result = await gateway.create({
-        orderId: attempt.id,
-        requestId: attempt.id,
+      const result = await gateway.createPaymentLink({
+        orderCode,
         amount: attempt.amount,
-        orderInfo: `Rewear ${checkoutId}`,
+        description: `RW ${attempt.id.slice(0, 8).toUpperCase()}`,
+        expiredAt,
       });
       await this.db.transaction(async (manager) => {
-        await this.lock(manager);
-        const current = await manager.findOneByOrFail(PaymentAttempt, {
-          id: attempt.id,
+        const current = await manager.findOneOrFail(PaymentAttempt, {
+          where: { id: attempt.id },
+          lock: { mode: 'pessimistic_write' },
         });
-        // A concurrent query may have changed CREATING to UNKNOWN. Preserve a
-        // valid payment URL for unresolved attempts, but never overwrite capture.
+        // A concurrent query/webhook may have already updated state. Never overwrite capture.
         const attemptIsResolved = !(
           [
             PAYMENT_ATTEMPT_STATE.CREATING,
@@ -130,15 +124,16 @@ export class PaymentService {
           ] as readonly string[]
         ).includes(current.state);
         if (attemptIsResolved) return;
+        const outcome = providerOutcome(result.status);
         current.state =
-          result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE
+          result.status === PAYOS_STATUS.PENDING ||
+          outcome === PAYMENT_PROVIDER_OUTCOME.PAID
             ? PAYMENT_ATTEMPT_STATE.PENDING
-            : providerOutcome(result.resultCode) ===
-                PAYMENT_ATTEMPT_STATE.FAILED
+            : outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
               ? PAYMENT_ATTEMPT_STATE.FAILED
               : PAYMENT_ATTEMPT_STATE.UNKNOWN;
-        current.resultCode = result.resultCode;
-        current.payUrl = result.payUrl ?? null;
+        current.providerStatus = result.status;
+        current.payUrl = result.checkoutUrl ?? null;
         await manager.save(current);
       });
     } catch {
@@ -159,17 +154,24 @@ export class PaymentService {
     requestId: string,
     quote: Awaited<ReturnType<PaymentPricing['quote']>>,
   ) {
-    const now = await this.lock(manager);
-    const checkout = await manager.findOneByOrFail(Checkout, {
-      id: checkoutId,
-      buyerId,
+    const now = await this.now(manager);
+    const checkout = await manager.findOne(Checkout, {
+      where: { id: checkoutId, buyerId },
+      lock: { mode: 'pessimistic_write' },
     });
+    if (!checkout) throw new NotFoundException('Checkout not found');
     const attempts = await manager.find(PaymentAttempt, {
       where: { checkoutId },
       order: { createdAt: 'ASC', id: 'ASC' },
     });
     const previous = attempts.find((item) => item.requestId === requestId);
-    if (previous) return { attempt: previous, send: false };
+    if (previous) {
+      return {
+        attempt: previous,
+        send: false,
+        expiresAt: checkout.expiresAt ?? now,
+      };
+    }
     const expiresAt = checkout.expiresAt;
     const checkoutIsInactive =
       checkout.status !== CHECKOUT_STATUS.HELD ||
@@ -188,7 +190,7 @@ export class PaymentService {
       })
     )
       throw new ConflictException(
-        'Release wallet reservation before choosing MoMo',
+        'Release wallet reservation before choosing PayOS',
       );
     checkout.walletPaymentSelected = false;
     await manager.save(checkout);
@@ -196,19 +198,19 @@ export class PaymentService {
       (checkout.coinDiscount ?? 0) > 0 &&
       checkout.coinMode !== RECONCILIATION_MODE.SIMULATION
     )
-      throw new ConflictException('MoMo Sandbox requires simulation coins');
+      throw new ConflictException('PayOS gateway requires simulation coins');
     const orders = await this.pricing.snapshot(manager, checkout, quote);
     const amount = orders.reduce(
       (sum, order) =>
         sum + order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
       0,
     );
-    const amountIsOutsideMomoLimits =
+    const amountIsOutsidePayosLimits =
       !Number.isSafeInteger(amount) ||
       amount < PAYMENT_MIN_AMOUNT ||
       amount > PAYMENT_MAX_AMOUNT;
-    if (amountIsOutsideMomoLimits)
-      throw new ConflictException('Checkout total is outside MoMo limits');
+    if (amountIsOutsidePayosLimits)
+      throw new ConflictException('Checkout total is outside PayOS limits');
     const products = await this.lockProducts(manager, checkout);
     const stockIsNoLongerReserved = !this.ownsProducts(
       checkout,
@@ -237,7 +239,7 @@ export class PaymentService {
       now,
       expiresAt,
     );
-    return { attempt, send: true };
+    return { attempt, send: true, expiresAt };
   }
 
   private savePreparedAttempt(
@@ -257,12 +259,13 @@ export class PaymentService {
         checkoutId,
         buyerId,
         requestId,
+        providerOrderCode: String(generatePayosOrderCode()),
         amount,
         orders,
         state: PAYMENT_ATTEMPT_STATE.CREATING,
         payUrl: null,
         providerTransId: null,
-        resultCode: null,
+        providerStatus: null,
         capturedAmount: null,
         paidAt: null,
         nextQueryAt: new Date(
@@ -295,22 +298,32 @@ export class PaymentService {
     };
   }
 
-  async ipn(body: MomoNotification) {
-    let result: MomoNotification;
+  async webhook(body: unknown) {
+    let verified: PayosWebhookResult;
     try {
-      result = this.gateway().verifyIpn(body);
+      verified = await this.gateway().verifyWebhook(body);
     } catch {
-      throw new UnauthorizedException('Invalid MoMo notification');
+      throw new UnauthorizedException('Invalid PayOS webhook');
     }
-    // Provider requestId is our attempt ID, distinct from client idempotency key.
-    const notificationReferenceIsInvalid =
-      result.requestId !== result.orderId ||
-      result.orderInfo !==
-        `Rewear ${(await this.db.getRepository(PaymentAttempt).findOneByOrFail({ id: result.orderId })).checkoutId}` ||
-      result.orderType !== 'momo_wallet';
-    if (notificationReferenceIsInvalid)
-      throw new UnauthorizedException('MoMo reference mismatch');
-    await this.applyResult(result.orderId, result);
+    if (verified.isTestPing) return;
+    await this.applyWebhook(verified);
+  }
+
+  async applyWebhook(verified: PayosWebhookResult) {
+    if (verified.isTestPing) return;
+    const attempt = await this.db.getRepository(PaymentAttempt).findOneBy({
+      providerOrderCode: String(verified.orderCode),
+    });
+    if (!attempt) {
+      throw new UnauthorizedException('PayOS order reference mismatch');
+    }
+    await this.applyResult(attempt.id, {
+      orderCode: verified.orderCode,
+      status: verified.code === '00' ? PAYOS_STATUS.PAID : PAYOS_STATUS.PENDING,
+      amount: verified.amount,
+      amountPaid: verified.amount,
+      providerTransId: verified.reference || null,
+    });
   }
 
   async reconcile(buyerId: string, id: string) {
@@ -323,55 +336,69 @@ export class PaymentService {
 
   async queryAttempt(id: string) {
     const gateway = this.gateway();
-    const claimed = await this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
+    const orderCode = await this.db.transaction(async (manager) => {
+      const now = await this.now(manager);
+      const attempt = await manager.findOne(PaymentAttempt, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!attempt) throw new NotFoundException('Payment attempt not found');
       const attemptCannotBeQueried =
+        !attempt.providerOrderCode ||
         !(
           [
             PAYMENT_ATTEMPT_STATE.CREATING,
             PAYMENT_ATTEMPT_STATE.PENDING,
             PAYMENT_ATTEMPT_STATE.UNKNOWN,
           ] as readonly string[]
-        ).includes(attempt.state) || attempt.nextQueryAt > now;
-      if (attemptCannotBeQueried) return false;
+        ).includes(attempt.state) ||
+        attempt.nextQueryAt > now;
+      if (attemptCannotBeQueried) return null;
       // Lease is longer than maximum configured HTTP timeout (60 seconds).
       attempt.nextQueryAt = new Date(now.getTime() + PAYMENT_QUERY_LEASE_MS);
       await manager.save(attempt);
-      return true;
+      return Number(attempt.providerOrderCode);
     });
-    if (!claimed) return;
+    if (!orderCode) return;
     try {
-      const result = await gateway.query(id, randomUUID());
+      const result = await gateway.getPaymentLink(orderCode);
       await this.applyResult(id, result);
     } catch {
       // Keep the durable unknown state and lease, never infer failure from HTTP.
     }
   }
 
-  async applyResult(id: string, result: MomoResult) {
-    if (result.orderId !== id)
-      throw new UnauthorizedException('MoMo reference mismatch');
+  async applyResult(id: string, result: PayosPaymentResult) {
     await this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const attempt = await manager.findOneByOrFail(PaymentAttempt, { id });
+      const now = await this.now(manager);
+      const attempt = await manager.findOne(PaymentAttempt, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!attempt) throw new NotFoundException('Payment attempt not found');
+      if (
+        attempt.providerOrderCode &&
+        Number(attempt.providerOrderCode) !== result.orderCode
+      ) {
+        throw new UnauthorizedException('PayOS order reference mismatch');
+      }
+      const providerTransId = result.providerTransId?.trim() || '';
+      const isPaid = result.status === PAYOS_STATUS.PAID;
       const captureFundsRecovery =
-        result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
-        (await manager.existsBy(ExcessCapture, {
-          providerTransId: String(result.transId),
-        }));
+        isPaid &&
+        providerTransId.length > 0 &&
+        (await manager.existsBy(ExcessCapture, { providerTransId }));
       if (captureFundsRecovery)
         throw new ConflictException(
-          'MoMo capture already belongs to wallet recovery',
+          'PayOS capture already belongs to wallet recovery',
         );
       const captureAlreadyFundsFees =
-        result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
-        (await manager.existsBy(FeePaymentCapture, {
-          providerTransId: String(result.transId),
-        }));
+        isPaid &&
+        providerTransId.length > 0 &&
+        (await manager.existsBy(FeePaymentCapture, { providerTransId }));
       if (captureAlreadyFundsFees)
         throw new ConflictException(
-          'MoMo capture already belongs to a fee payment',
+          'PayOS capture already belongs to a fee payment',
         );
       const attemptIsSettled = (
         [
@@ -382,8 +409,9 @@ export class PaymentService {
       ).includes(attempt.state);
       if (attemptIsSettled) {
         if (
-          result.resultCode === PAYMENT_PROVIDER_SUCCESS_CODE &&
-          attempt.providerTransId !== String(result.transId)
+          isPaid &&
+          providerTransId &&
+          attempt.providerTransId !== providerTransId
         ) {
           const outstanding = await this.queueRefund(manager, id, result, now);
           if (attempt.state === PAYMENT_ATTEMPT_STATE.REFUNDED && outstanding) {
@@ -393,9 +421,11 @@ export class PaymentService {
         }
         return;
       }
-      const checkout = await manager.findOneByOrFail(Checkout, {
-        id: attempt.checkoutId,
+      const checkout = await manager.findOne(Checkout, {
+        where: { id: attempt.checkoutId },
+        lock: { mode: 'pessimistic_write' },
       });
+      if (!checkout) throw new NotFoundException('Checkout not found');
       const products = await this.lockProducts(manager, checkout);
       const expectedIds = attempt.orders.flatMap((order) =>
         order.items.map((item) => item.productId),
@@ -408,7 +438,7 @@ export class PaymentService {
         result,
         now,
       );
-      attempt.resultCode = result.resultCode;
+      attempt.providerStatus = result.status;
       if (outcome === PAYMENT_CAPTURE_DISPOSITION.FAILED)
         attempt.state = PAYMENT_ATTEMPT_STATE.FAILED;
       else if (outcome === PAYMENT_CAPTURE_DISPOSITION.UNKNOWN) {
@@ -416,17 +446,16 @@ export class PaymentService {
           attempt.state = PAYMENT_ATTEMPT_STATE.UNKNOWN;
       } else {
         const capturedFundsAreInvalid =
-          !Number.isSafeInteger(result.transId) ||
-          result.transId <= 0 ||
-          !Number.isSafeInteger(result.amount) ||
-          result.amount <= 0 ||
-          result.amount > MAX_VND_AMOUNT;
+          !providerTransId ||
+          !Number.isSafeInteger(result.amountPaid) ||
+          result.amountPaid <= 0 ||
+          result.amountPaid > MAX_VND_AMOUNT;
         if (capturedFundsAreInvalid)
           throw new ConflictException(
             'Invalid captured funds require reconciliation',
           );
-        attempt.providerTransId = String(result.transId);
-        attempt.capturedAmount = result.amount;
+        attempt.providerTransId = providerTransId;
+        attempt.capturedAmount = result.amountPaid;
         attempt.paidAt = now;
         if (outcome === PAYMENT_CAPTURE_DISPOSITION.REFUND) {
           attempt.state = PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED;
@@ -458,7 +487,7 @@ export class PaymentService {
     attempt: PaymentAttempt,
     checkout: Checkout,
     products: Product[],
-    result: MomoResult,
+    result: PayosPaymentResult,
     now: Date,
   ) {
     let shopsActive = true;
@@ -480,9 +509,9 @@ export class PaymentService {
       order.items.map((item) => item.productId),
     );
     return captureDisposition({
-      amount: result.amount,
+      amount: result.amountPaid,
       expectedAmount: attempt.amount,
-      resultCode: result.resultCode,
+      status: result.status,
       checkoutState: checkout.status,
       expiresAt: checkout.expiresAt?.getTime() ?? 0,
       now: now.getTime(),
@@ -562,7 +591,7 @@ export class PaymentService {
         checkoutOrderId,
         checkoutId: checkout.id,
         feeDisclosure: snapshot.feeDisclosure ?? null,
-        paymentMethod: ORDER_PAYMENT_METHOD.MOMO,
+        paymentMethod: ORDER_PAYMENT_METHOD.PAYOS,
         paymentId: attempt.id,
         buyerId: attempt.buyerId,
         shopId,
@@ -611,25 +640,27 @@ export class PaymentService {
   private async queueRefund(
     manager: EntityManager,
     paymentId: string,
-    result: MomoResult,
+    result: PayosPaymentResult,
     now: Date,
   ) {
+    const providerTransId = result.providerTransId?.trim() || '';
     const capturedFundsAreInvalid =
-      !Number.isSafeInteger(result.transId) ||
-      result.transId <= 0 ||
-      !Number.isSafeInteger(result.amount) ||
-      result.amount <= 0 ||
-      result.amount > MAX_VND_AMOUNT;
+      !providerTransId ||
+      !Number.isSafeInteger(result.amountPaid) ||
+      result.amountPaid <= 0 ||
+      result.amountPaid > MAX_VND_AMOUNT;
     if (capturedFundsAreInvalid)
       throw new ConflictException(
         'Invalid captured funds require reconciliation',
       );
-    const providerTransId = String(result.transId);
     const previous = await manager.findOneBy(PaymentRefund, {
       providerTransId,
     });
     if (previous) {
-      if (previous.paymentId !== paymentId || previous.amount !== result.amount)
+      if (
+        previous.paymentId !== paymentId ||
+        previous.amount !== result.amountPaid
+      )
         throw new ConflictException(
           'Conflicting capture requires reconciliation',
         );
@@ -640,13 +671,9 @@ export class PaymentService {
       manager.create(PaymentRefund, {
         paymentId,
         providerTransId,
-        amount: result.amount,
+        amount: result.amountPaid,
         reason: PAYMENT_REFUND_REASON.LATE_OR_INVALID_CAPTURE,
-        state:
-          result.amount < PAYMENT_MIN_AMOUNT ||
-          result.amount > PAYMENT_MAX_AMOUNT
-            ? PAYMENT_REFUND_STATE.REVIEW_REQUIRED
-            : PAYMENT_REFUND_STATE.QUEUED,
+        state: PAYMENT_REFUND_STATE.REVIEW_REQUIRED,
         nextQueryAt: now,
         alertedAt: null,
       }),

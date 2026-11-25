@@ -7,7 +7,7 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 
 import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
@@ -19,8 +19,10 @@ import {
 } from './constants/shipment.constant';
 import { CarrierIncident } from './entities/carrier-incident.entity';
 import { Shipment } from './entities/shipment.entity';
-import type { CarrierIncidentDecision } from './types/shipment.type';
-import type { FulfillmentListInput } from './types/shipment.type';
+import type {
+  CarrierIncidentDecision,
+  FulfillmentListInput,
+} from './schemas/shipment.schema';
 import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 
 @Injectable()
@@ -43,7 +45,6 @@ export class CarrierIncidentService {
     input: CarrierIncidentDecision,
   ): Promise<CarrierIncident> {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const incident = await manager.findOneByOrFail(CarrierIncident, { id });
       if (incident.state === CARRIER_INCIDENT_STATE.RESOLVED)
         throw new ConflictException('Carrier incident is already resolved');
@@ -95,7 +96,6 @@ export class CarrierIncidentService {
   }
   async run(): Promise<void> {
     await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

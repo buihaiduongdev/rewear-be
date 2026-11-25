@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 
 import { EntityManager } from 'typeorm';
 
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 
 import { DISPUTE_ACTION } from '../constants/dispute.constant';

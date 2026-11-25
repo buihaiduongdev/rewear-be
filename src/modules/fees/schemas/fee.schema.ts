@@ -12,6 +12,14 @@ import {
   FEE_STATUS,
 } from '../constants/fee.constant';
 
+export type FeeParty = (typeof FEE_PARTY)[keyof typeof FEE_PARTY];
+export type FeeKind = (typeof FEE_KIND)[keyof typeof FEE_KIND];
+export type FeeStatus = (typeof FEE_STATUS)[keyof typeof FEE_STATUS];
+export type FeeCollectionMethod =
+  (typeof FEE_COLLECTION_METHOD)[keyof typeof FEE_COLLECTION_METHOD];
+export type FeeRefundState =
+  (typeof FEE_REFUND_STATE)[keyof typeof FEE_REFUND_STATE];
+
 const proof = z.string().trim().min(10).max(4000);
 export const feeAssessmentSchema = z.strictObject({
   orderId: z.uuid(),
@@ -94,3 +102,8 @@ export const feeHistorySchema = z.array(
     createdAt: dateTimeSchema,
   }),
 );
+
+export type FeeAssessmentInput = z.output<typeof feeAssessmentSchema>;
+export type FeeObjectionInput = z.output<typeof feeObjectionSchema>;
+export type FeeCorrectionInput = z.output<typeof feeCorrectionSchema>;
+export type FeeAdminQueueInput = z.output<typeof feeAdminQueueSchema>;

@@ -9,19 +9,19 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 
 import { CheckoutService } from './checkout.service';
-import { confirmIdentityCheckoutSchema } from './schemas/checkout.schema';
-import { selectCheckoutCoinsSchema } from './schemas/checkout.schema';
-import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
 import {
   checkoutSchema,
+  confirmIdentityCheckoutSchema,
+  type CreateCheckoutInput,
   createCheckoutSchema,
+  type SelectCheckoutCoinsInput,
+  selectCheckoutCoinsSchema,
 } from './schemas/checkout.schema';
 import {
   refreshShippingQuoteSchema,
   shippingQuoteSchema,
 } from './schemas/shipping-quote.schema';
 import { ShippingQuoteService } from './shipping-quote.service';
-import type { CreateCheckoutInput } from './types/checkout.type';
 
 @ApiTags('Checkout')
 @ApiBearerAuth()

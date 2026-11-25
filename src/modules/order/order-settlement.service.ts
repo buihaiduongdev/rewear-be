@@ -17,12 +17,13 @@ import {
   ORDER_POLICY,
   ORDER_STATUS,
 } from './constants/order.constant';
-import { OrderDeliveryVerification } from './entities/order-delivery-verification.entity';
-import { Order, OrderEvent } from './entities/order.entity';
+import { Order, OrderDeliveryVerification, OrderEvent } from './entities';
 import { OrderFundingService } from './order-funding.service';
 import { isSettlementWindowDue } from './policies/order-settlement.policy';
-import { verifyDeliverySchema } from './schemas/order-settlement.schema';
-import type { VerifyDeliveryInput } from './types/order-settlement.type';
+import {
+  type VerifyDeliveryInput,
+  verifyDeliverySchema,
+} from './schemas/order-settlement.schema';
 
 const receiptStates = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
 
@@ -36,7 +37,6 @@ export class OrderSettlementService {
   ) {}
 
   private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }

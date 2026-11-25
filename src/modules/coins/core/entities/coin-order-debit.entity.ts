@@ -1,7 +1,7 @@
 import { Check, Column, Entity, Index } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import type { CoinAllocation } from '../schemas/coin.schema';
 

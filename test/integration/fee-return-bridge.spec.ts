@@ -10,18 +10,18 @@ import {
 import {
   FeePolicy,
   FeePolicyShopAcceptance,
-} from '@/modules/fees/disclosure/fee-disclosure.entity';
+} from '@/modules/fees/disclosure/entities';
 import {
   FeeAssessment,
   FeeCollection,
   FeeRefund,
-} from '@/modules/fees/entities/fee.entity';
+} from '@/modules/fees/entities';
 import { FeeService } from '@/modules/fees/fee.service';
-import { FeeWalletDebit } from '@/modules/fees/settlement/entities/fee-settlement.entity';
+import { FeeWalletDebit } from '@/modules/fees/settlement/entities';
 import { importVerifiedReturnFee } from '@/modules/fees/settlement/fee-return-bridge';
 import { feeMoneyLock } from '@/modules/fees/settlement/fee-settlement.access';
 import { FeeSettlementService } from '@/modules/fees/settlement/fee-settlement.service';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';

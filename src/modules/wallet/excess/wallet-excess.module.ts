@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
-import { readMomoSettings } from '@/modules/payment/payment.config';
+import { PayosModule } from '@/infrastructure/payment/payos.module';
 
-import { EXCESS_MOMO_CLIENT } from './constants/excess.constant';
 import {
   ExcessAudit,
   ExcessCapture,
@@ -15,7 +13,7 @@ import {
   ExcessProviderRefund,
   ExcessReturn,
   WalletExcess,
-} from './entities/excess.entity';
+} from './entities';
 import { ExcessOperationsService } from './excess-operations.service';
 import { ExcessAttemptService } from './payments/excess-attempt.service';
 import { ExcessPaymentService } from './payments/excess-payment.service';
@@ -26,6 +24,7 @@ import { WalletExcessWorker } from './wallet-excess.worker';
 
 @Module({
   imports: [
+    PayosModule,
     TypeOrmModule.forFeature([
       WalletExcess,
       ExcessAudit,
@@ -45,13 +44,6 @@ import { WalletExcessWorker } from './wallet-excess.worker';
     ExcessAttemptService,
     ExcessRefundService,
     WalletExcessWorker,
-    {
-      provide: EXCESS_MOMO_CLIENT,
-      useFactory: () => {
-        const settings = readMomoSettings();
-        return settings ? new MomoSandboxClient(settings) : null;
-      },
-    },
   ],
   controllers: [WalletExcessController],
   exports: [ExcessPaymentService],

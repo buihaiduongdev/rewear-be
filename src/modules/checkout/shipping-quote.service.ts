@@ -20,8 +20,8 @@ import { Checkout } from './entities/checkout.entity';
 import { pruneIdentityCheckout } from './identity-checkout.policy';
 import { identityQuoteFingerprint } from './identity-quote.policy';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
+import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
 import { quoteInputs } from './shipping-quote.inputs';
-import type { ShippingQuoteResult } from './types/shipping-quote.type';
 
 @Injectable()
 export class ShippingQuoteService {
@@ -35,7 +35,6 @@ export class ShippingQuoteService {
     checkoutId: string,
   ): Promise<ShippingQuoteResult> {
     await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const row = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,
@@ -107,7 +106,6 @@ export class ShippingQuoteService {
   ) {
     const quote = await this.refresh(buyerId, checkoutId);
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const checkout = await manager.findOneByOrFail(Checkout, {
         id: checkoutId,

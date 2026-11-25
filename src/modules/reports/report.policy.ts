@@ -9,7 +9,7 @@ import { type EntityManager, In } from 'typeorm';
 import { Category } from '@/modules/category/entities';
 import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
 import { notifyShopDeactivatedForReport } from '@/modules/notifications/sources/violation-report.notification';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,

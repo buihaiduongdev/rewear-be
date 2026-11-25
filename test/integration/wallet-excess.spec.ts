@@ -2,20 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import { CheckoutFactory } from '@/database/factories/checkout.factory';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import {
   WalletCheckoutHold,
   WalletDebit,
-} from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
-import {
-  ExcessAudit,
-  WalletExcess,
-} from '@/modules/wallet/excess/entities/excess.entity';
+} from '@/modules/wallet/checkout/entities';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
+import { ExcessAudit, WalletExcess } from '@/modules/wallet/excess/entities';
 import { ExcessOperationsService } from '@/modules/wallet/excess/excess-operations.service';
 import { offsetExcessRefund } from '@/modules/wallet/excess/policies/excess-accounting.policy';
 import { WalletExcessService } from '@/modules/wallet/excess/wallet-excess.service';

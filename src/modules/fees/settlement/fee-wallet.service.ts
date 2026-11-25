@@ -3,16 +3,16 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { walletPoolFields } from '@/modules/wallet/checkout/policies/wallet-checkout.policy';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount } from '@/modules/wallet/entities';
 import { verifiedWalletFunds } from '@/modules/wallet/verified-wallet-funds';
 
 import { FEE_COLLECTION_METHOD, FEE_PARTY } from '../constants/fee.constant';
-import { FeeAssessment } from '../entities/fee.entity';
+import { FeeAssessment } from '../entities';
 import { feeOutstanding, recordFeeCollection } from '../fee-accounting';
-import { FeeWalletDebit } from './entities/fee-settlement.entity';
+import { FeeWalletDebit } from './entities';
 import { assertFeeBuyer, feeMoneyLock } from './fee-settlement.access';
 import { feeWalletPaymentSchema } from './schemas/fee-settlement.schema';
-import type { FeeWalletPaymentInput } from './types/fee-settlement.type';
+import type { FeeWalletPaymentInput } from './schemas/fee-settlement.schema';
 
 @Injectable()
 export class FeeWalletService {

@@ -5,8 +5,8 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import {
   ShopRating,
   ShopRatingModerationAudit,

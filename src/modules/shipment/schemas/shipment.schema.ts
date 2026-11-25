@@ -5,7 +5,35 @@ import { trimmedTextSchema } from '@/common/schemas/request.schema';
 import { ghnParcelSchema } from '@/infrastructure/shipping/schemas/ghn-shipment.schema';
 import { orderSchema } from '@/modules/order/schemas/order.schema';
 
-import { SHIPMENT_STATE } from '../constants/shipment.constant';
+import {
+  CARRIER_INCIDENT_OUTCOME,
+  CARRIER_INCIDENT_STATE,
+  RETURN_INSPECTION_CONDITION,
+  SHIPMENT_REVIEW_REASON,
+  SHIPMENT_STATE,
+} from '../constants/shipment.constant';
+import type { carrierIncidentDecisionSchema } from './carrier-incident.schema';
+import type { fulfillmentListSchema } from './fulfillment-list.schema';
+import type { returnInspectionSchema } from './return-inspection.schema';
+
+export type ShipmentState =
+  (typeof SHIPMENT_STATE)[keyof typeof SHIPMENT_STATE];
+export type ShipmentReviewReason =
+  (typeof SHIPMENT_REVIEW_REASON)[keyof typeof SHIPMENT_REVIEW_REASON];
+export type CarrierIncidentState =
+  (typeof CARRIER_INCIDENT_STATE)[keyof typeof CARRIER_INCIDENT_STATE];
+export type CarrierIncidentOutcome =
+  (typeof CARRIER_INCIDENT_OUTCOME)[keyof typeof CARRIER_INCIDENT_OUTCOME];
+export type ReturnInspectionCondition =
+  (typeof RETURN_INSPECTION_CONDITION)[keyof typeof RETURN_INSPECTION_CONDITION];
+
+export interface CarrierIncidentAudit {
+  outcome: CarrierIncidentOutcome;
+  actorId: string;
+  at: string;
+  reason: string;
+  evidence: string;
+}
 
 export const shipmentCreateSchema = z.strictObject({
   parcel: ghnParcelSchema.strict().optional(),
@@ -42,7 +70,10 @@ export const fulfillmentIncidentsSchema = z.object({
   orders: z.array(orderSchema),
 });
 
-export type {
-  ShipmentCreateInput,
-  CancellationDecision,
-} from '../types/shipment.type';
+export type ShipmentCreateInput = z.output<typeof shipmentCreateSchema>;
+export type CancellationDecision = z.output<typeof cancellationDecisionSchema>;
+export type ReturnInspectionInput = z.output<typeof returnInspectionSchema>;
+export type CarrierIncidentDecision = z.output<
+  typeof carrierIncidentDecisionSchema
+>;
+export type FulfillmentListInput = z.output<typeof fulfillmentListSchema>;

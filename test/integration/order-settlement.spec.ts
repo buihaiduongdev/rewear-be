@@ -5,13 +5,10 @@ import ms from 'ms';
 import { AuthProvider } from '@/modules/auth/enums';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
@@ -20,7 +17,7 @@ import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
 
@@ -281,7 +278,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
         .disputeDeadlineAt,
     ).toEqual(first.disputeDeadlineAt);
   });
-  async function momoFixture(age = ms('73h')) {
+  async function payosFixture(age = ms('73h')) {
     const f = await fixture(age);
     const checkout = await f.db.getRepository(Checkout).save({
       buyerId: f.buyer.id,
@@ -316,7 +313,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     await f.db.getRepository(Order).update(f.order.id, {
       paymentId: payment.id,
       checkoutId: checkout.id,
-      paymentMethod: 'MOMO',
+      paymentMethod: 'PAYOS',
     });
     await f.db.getRepository(Shipment).update(f.shipment.id, { codAmount: 0 });
     await service.verifyDelivery(adminId, f.order.id, {
@@ -325,14 +322,14 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     });
     return { ...f, payment };
   }
-  it('holds verified MoMo Sandbox funds before 72h and releases only simulation balances later', async () => {
-    const early = await momoFixture(ms('1h'));
+  it('holds verified PayOS gateway funds before 72h and releases only simulation balances later', async () => {
+    const early = await payosFixture(ms('1h'));
     await service.settleOrder(early.order.id);
     const finance = new ShopFinanceService(early.db);
     expect(
       await finance.view(early.buyer.id, early.shop.id, { mode: 'SIMULATION' }),
     ).toMatchObject({ held: 194000, available: 0 });
-    const due = await momoFixture();
+    const due = await payosFixture();
     await service.settleOrder(due.order.id);
     expect(
       await finance.view(due.buyer.id, due.shop.id, { mode: 'SIMULATION' }),
@@ -349,8 +346,8 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     'commission',
     'provider refund',
     'wallet refund',
-  ])('blocks MoMo release with changed %s', async (change) => {
-    const f = await momoFixture();
+  ])('blocks PayOS release with changed %s', async (change) => {
+    const f = await payosFixture();
     if (change === 'payment state')
       await f.db
         .getRepository(PaymentAttempt)
@@ -418,7 +415,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     ).toBe(1);
   });
   it('a refund of a duplicate capture does not block the valid original capture', async () => {
-    const f = await momoFixture();
+    const f = await payosFixture();
     await f.db.getRepository(PaymentRefund).save({
       paymentId: f.payment.id,
       providerTransId: randomUUID(),

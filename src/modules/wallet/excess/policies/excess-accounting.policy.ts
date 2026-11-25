@@ -3,10 +3,10 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager, In } from 'typeorm';
 
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { walletPoolFields } from '../../checkout/policies/wallet-checkout.policy';
-import { WalletAccount } from '../../entities/wallet.entity';
+import { WalletAccount } from '../../entities';
 import {
   EXCESS_EVENT,
   EXCESS_METHOD,
@@ -18,9 +18,9 @@ import {
   ExcessOffsetSource,
   ExcessReturn,
   WalletExcess,
-} from '../entities/excess.entity';
+} from '../entities';
 import { excessEvent } from '../excess.lifecycle';
-import type { ExcessSource } from '../types/excess.type';
+import type { ExcessSource } from '../schemas/excess.schema';
 import { excessSource } from './excess-source.policy';
 
 export async function excessTotals(manager: EntityManager, row: WalletExcess) {

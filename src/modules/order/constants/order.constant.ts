@@ -29,7 +29,7 @@ export const ORDER_CANCEL_STATE = {
 } as const;
 
 export const ORDER_PAYMENT_METHOD = {
-  MOMO: 'MOMO',
+  PAYOS: 'PAYOS',
   COD: 'COD',
   WALLET: 'WALLET',
 } as const;

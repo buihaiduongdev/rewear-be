@@ -12,9 +12,9 @@ import {
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
@@ -22,13 +22,10 @@ import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/ide
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 
-import { WalletAccount } from '../entities/wallet.entity';
+import { WalletAccount } from '../entities';
 import { verifiedWalletFunds } from '../verified-wallet-funds';
 import { WALLET_HOLD_STATE } from './constants/wallet-checkout.constant';
-import {
-  WalletCheckoutHold,
-  WalletDebit,
-} from './entities/wallet-checkout.entity';
+import { WalletCheckoutHold, WalletDebit } from './entities';
 import {
   walletCheckoutTotal,
   walletPoolFields,
@@ -43,7 +40,6 @@ export class WalletCheckoutService {
     private readonly pricing: PaymentPricing,
   ) {}
   private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }

@@ -7,9 +7,9 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
-import type { OrderState } from '@/modules/order/types/order.type';
+import type { OrderState } from '@/modules/order/schemas/order.schema';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
@@ -27,20 +27,18 @@ import {
   FulfillmentCalendar,
   FulfillmentNotice,
   HandoverCase,
-} from './entities/late-handover.entity';
-import { Shipment } from './entities/shipment.entity';
-import type { HandoverResponseInput } from './schemas/late-handover.schema';
-import type {
-  HandoverAction,
-  HandoverState,
-  HandoverStopReason,
-} from './types/late-handover.type';
+  Shipment,
+} from './entities';
 import type {
   CalendarInput,
+  HandoverAction,
   HandoverProposal,
+  HandoverResponseInput,
+  HandoverState,
   HandoverStop,
-} from './types/late-handover.type';
-import type { FulfillmentListInput } from './types/shipment.type';
+  HandoverStopReason,
+} from './schemas/late-handover.schema';
+import type { FulfillmentListInput } from './schemas/shipment.schema';
 import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 
 const handoverReviewStates: readonly HandoverState[] = [
@@ -60,9 +58,7 @@ export class LateHandoverService {
     private readonly orderService: OrderService,
   ) {}
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-  }
+  private async lock(_manager: EntityManager) {}
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);

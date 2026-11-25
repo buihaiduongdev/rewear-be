@@ -10,8 +10,8 @@ import {
   DisputeEvidence,
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
-import { Order } from '@/modules/order/entities/order.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { Order } from '@/modules/order/entities';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';

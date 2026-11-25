@@ -11,7 +11,7 @@ import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.ent
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { installReturnLabel } from '@/modules/dispute/returns/return.lifecycle';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { adjudicationFixture } from './adjudication-fixture';

@@ -3,7 +3,7 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
 import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
@@ -18,8 +18,8 @@ import {
   ACTIVE_PAYOUT_STATUSES,
   PAYOUT_STATUS,
 } from './payouts/constants/payout.constant';
-import type { PayoutSource } from './payouts/types/payout.type';
-import type { PayoutSourceRow } from './types/payout-source.type';
+import type { PayoutSource } from './payouts/schemas/payout.schema';
+import type { PayoutSourceRow } from './schemas/shop-finance.schema';
 
 /** Sources remain attributable after late refunds; debt never consumes another order. */
 export async function readPayoutSources(

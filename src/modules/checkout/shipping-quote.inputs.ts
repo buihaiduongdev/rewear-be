@@ -11,7 +11,7 @@ import {
 } from './constants/shipping-quote.constant';
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
-import type { QuoteOrder } from './types/shipping-quote.type';
+import type { QuoteOrder } from './schemas/shipping-quote.schema';
 
 export async function quoteInputs(
   manager: EntityManager,

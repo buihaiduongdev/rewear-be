@@ -23,8 +23,8 @@ import {
   carrierIncidentSchema,
 } from './schemas/carrier-incident.schema';
 import { fulfillmentListSchema } from './schemas/fulfillment-list.schema';
-import type { CarrierIncidentDecision } from './types/shipment.type';
-import type { FulfillmentListInput } from './types/shipment.type';
+import type { CarrierIncidentDecision } from './schemas/shipment.schema';
+import type { FulfillmentListInput } from './schemas/shipment.schema';
 
 @ApiTags('Fulfillment recovery')
 @ApiBearerAuth()

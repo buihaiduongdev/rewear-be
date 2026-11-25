@@ -2,7 +2,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, IsNull, MoreThan } from 'typeorm';
 
-import { CodRemittance } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodRemittance } from '@/modules/cod-reconciliation/entities';
 import {
   CarrierCompensationReceipt,
   ReturnShippingCharge,
@@ -14,19 +14,19 @@ import {
   FEE_REFUND_STATE,
   FEE_STATUS,
 } from '../constants/fee.constant';
-import { FeeAssessment, FeeRefund } from '../entities/fee.entity';
+import { FeeAssessment, FeeRefund } from '../entities';
 import { FeeService } from '../fee.service';
 import {
   FEE_SETTLEMENT_POLICY,
   FEE_SETTLEMENT_RECORD,
 } from './constants/fee-settlement.constant';
-import { FeeSettlementIncident } from './entities/fee-settlement.entity';
+import { FeeSettlementIncident } from './entities';
 import { settleInternalFeeRefund } from './fee-internal-refunds';
 import { settleShopFees } from './fee-offset';
 import { importVerifiedReturnFee } from './fee-return-bridge';
 import { assertFeeAdmin, feeMoneyLock } from './fee-settlement.access';
 import { feeCarrierRefundSchema } from './schemas/fee-settlement.schema';
-import type { FeeCarrierRefundInput } from './types/fee-settlement.type';
+import type { FeeCarrierRefundInput } from './schemas/fee-settlement.schema';
 
 @Injectable()
 export class FeeSettlementService {

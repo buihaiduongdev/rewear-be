@@ -11,7 +11,8 @@ import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-executi
 
 import { WALLET_CREDIT_REASON } from '../constants/wallet.constant';
 
-export type { WalletQueryInput } from '../types/wallet.type';
+export type WalletCreditReason =
+  (typeof WALLET_CREDIT_REASON)[keyof typeof WALLET_CREDIT_REASON];
 
 export const walletBalanceSchema = safeBalanceSchema;
 
@@ -19,6 +20,8 @@ export const walletQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
+
+export type WalletQueryInput = z.output<typeof walletQuerySchema>;
 
 export const walletViewSchema = z.object({
   balance: walletBalanceSchema,

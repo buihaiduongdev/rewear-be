@@ -4,24 +4,23 @@ import {
   PAYMENT_CAPTURE_DISPOSITION,
   PAYMENT_EXPIRY_RECONCILIATION_WINDOW_MS,
   PAYMENT_MAX_ATTEMPTS,
-  PAYMENT_PROVIDER_FAILURE_CODES,
+  PAYMENT_PROVIDER_FAILURE_STATUSES,
   PAYMENT_PROVIDER_OUTCOME,
-  PAYMENT_PROVIDER_SUCCESS_CODE,
   PAYMENT_RECONCILIATION_DELAY_MS,
+  PAYOS_STATUS,
 } from '../constants/payment.constant';
 import type {
   AttemptState,
   CaptureDisposition,
   ProviderOutcome,
-} from '../types/payment.type';
+} from '../schemas/payment.schema';
 
-export type { AttemptState } from '../types/payment.type';
+export type { AttemptState } from '../schemas/payment.schema';
 
-// Fail closed for undocumented, ambiguous, maintenance and authorization results.
-export function providerOutcome(code: number): ProviderOutcome {
-  if (code === PAYMENT_PROVIDER_SUCCESS_CODE)
-    return PAYMENT_PROVIDER_OUTCOME.PAID;
-  if (PAYMENT_PROVIDER_FAILURE_CODES.includes(code))
+// Fail closed for undocumented, pending, processing, or underpaid provider states.
+export function providerOutcome(status: string): ProviderOutcome {
+  if (status === PAYOS_STATUS.PAID) return PAYMENT_PROVIDER_OUTCOME.PAID;
+  if (PAYMENT_PROVIDER_FAILURE_STATUSES.includes(status))
     return PAYMENT_PROVIDER_OUTCOME.FAILED;
   return PAYMENT_PROVIDER_OUTCOME.UNKNOWN;
 }
@@ -44,14 +43,14 @@ export function canStartAttempt(states: AttemptState[]): boolean {
 export function captureDisposition(input: {
   amount: number;
   expectedAmount: number;
-  resultCode: number;
+  status: string;
   checkoutState: string;
   expiresAt: number;
   now: number;
   alreadyPaid: boolean;
   ownsAllProducts: boolean;
 }): CaptureDisposition {
-  const outcome = providerOutcome(input.resultCode);
+  const outcome = providerOutcome(input.status);
   if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID) return outcome;
   return input.amount === input.expectedAmount &&
     input.checkoutState === CHECKOUT_STATUS.HELD &&

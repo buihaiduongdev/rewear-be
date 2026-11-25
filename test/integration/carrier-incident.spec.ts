@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { CarrierIncidentService } from '@/modules/shipment/carrier-incident.service';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { CarrierIncident } from '@/modules/shipment/entities/carrier-incident.entity';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -293,7 +293,7 @@ describe('Carrier incident resolution (PostgreSQL)', () => {
   });
 
   it.each([
-    { paymentMethod: 'MOMO' as const },
+    { paymentMethod: 'PAYOS' as const },
     { status: 'shipping' as const },
     { cancelState: 'ADMIN_REVIEW' as const },
   ])('requires eligible approved COD order %j', async (change) => {

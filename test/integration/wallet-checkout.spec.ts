@@ -4,7 +4,7 @@ import { CategoryFactory } from '@/database/factories/category.factory';
 import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import { PayosClient } from '@/infrastructure/payment/payos.client';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
@@ -20,12 +20,9 @@ import {
 import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -43,12 +40,9 @@ import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-ch
 import {
   WalletCheckoutHold,
   WalletDebit,
-} from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+} from '@/modules/wallet/checkout/entities';
 import { WalletCheckoutService } from '@/modules/wallet/checkout/wallet-checkout.service';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
@@ -58,7 +52,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
   let database: TestDatabase;
   let wallet: WalletCheckoutService;
   const carrier = { quote: jest.fn() };
-  const client = { create: jest.fn(), verifyIpn: jest.fn() };
+  const client = { createPaymentLink: jest.fn(), verifyWebhook: jest.fn() };
   beforeAll(async () => {
     database = await createTestDatabase();
     wallet = new WalletCheckoutService(
@@ -169,18 +163,16 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     });
     carrier.quote.mockReset();
     carrier.quote.mockResolvedValue({ fee: 30000, estimatedDeliveryAt: null });
-    client.create.mockImplementation(
-      async (input: {
-        orderId: string;
-        requestId: string;
-        amount: number;
-      }) => ({
-        ...input,
-        resultCode: 0,
-        payUrl: 'https://test-payment.momo.vn/pay',
+    client.createPaymentLink.mockImplementation(
+      async (input: { orderCode: number; amount: number }) => ({
+        orderCode: input.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'PENDING',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
       }),
     );
-    client.verifyIpn.mockImplementation((value) => value);
+    client.verifyWebhook.mockImplementation(async (value) => value);
     return { db, buyer, product, checkout, shop };
   }
 
@@ -204,7 +196,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       checkoutId: source.checkout.id,
       buyerId,
       shopName: 'Funding source',
-      paymentMethod: 'MOMO',
+      paymentMethod: 'PAYOS',
       paymentId: null,
       total: 230000,
       status: 'cancelled',
@@ -276,18 +268,18 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     ).toMatchObject({ held: 0, spent: 20000 });
   });
 
-  it('charges MoMo only the remainder and freezes coins while provider outcome is unresolved', async () => {
+  it('charges PayOS only the remainder and freezes coins while provider outcome is unresolved', async () => {
     const { db, buyer, checkout } = await fixture();
     await coinSelection(buyer.id, checkout.id, 'SIMULATION');
     const pricing = new PaymentPricing(
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
-    const momo = new PaymentService(
+    const payos = new PaymentService(
       db,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
       pricing,
     );
-    const attempt = await momo.create(buyer.id, checkout.id, {
+    const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
     });
     expect(attempt.amount).toBe(210000);
@@ -298,13 +290,15 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         { requestId: randomUUID(), amount: 0, mode: 'SIMULATION' },
       ),
     ).rejects.toThrow('Resolve payment');
-    await momo.applyResult(attempt.id, {
-      partnerCode: 'MOMO',
-      requestId: attempt.id,
-      orderId: attempt.id,
+    const savedAttempt = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: attempt.id });
+    await payos.applyResult(attempt.id, {
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID',
       amount: 210000,
-      resultCode: 0,
-      transId: 123456789,
+      amountPaid: 210000,
+      providerTransId: 'FT123456789',
     });
     const order = await db
       .getRepository(Order)
@@ -469,12 +463,12 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         carrier as unknown as GhnSandboxAdapter,
       ),
     );
-    const momo = new PaymentService(
+    const payos = new PaymentService(
       first.db,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
       pricing,
     );
-    const attempt = await momo.create(first.buyer.id, first.checkout.id, {
+    const attempt = await payos.create(first.buyer.id, first.checkout.id, {
       requestId: randomUUID(),
     });
     expect(attempt.amount).toBe(420000);
@@ -491,15 +485,15 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     expect(saved.orders.map((row) => row.subtotal)).toEqual([200000, 200000]);
   });
 
-  it('requires conscious coin reduction when the selected discount puts MoMo below its minimum', async () => {
+  it('requires conscious coin reduction when the selected discount puts PayOS below its minimum', async () => {
     const f = await fixture();
     const snapshot = await f.db
       .getRepository(CheckoutOrder)
       .findOneByOrFail({ checkoutId: f.checkout.id });
     await f.db.getRepository(CheckoutOrder).update(snapshot.id, {
-      subtotal: 1000,
+      subtotal: 2000,
       shippingFee: 0,
-      items: snapshot.items.map((item) => ({ ...item, price: 1000 })),
+      items: snapshot.items.map((item) => ({ ...item, price: 2000 })),
     });
     carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
     await f.db.getRepository(CoinGrant).save({
@@ -519,14 +513,14 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     const pricing = new PaymentPricing(
       new ShippingQuoteService(f.db, carrier as unknown as GhnSandboxAdapter),
     );
-    const momo = new PaymentService(
+    const payos = new PaymentService(
       f.db,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
       pricing,
     );
     await expect(
-      momo.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
-    ).rejects.toThrow('outside MoMo limits');
+      payos.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
+    ).rejects.toThrow('outside PayOS limits');
     expect(
       await f.db.getRepository(Checkout).findOneByOrFail({ id: f.checkout.id }),
     ).toMatchObject({ coinDiscount: 100 });
@@ -542,20 +536,20 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     });
     expect(
       (
-        await momo.create(f.buyer.id, f.checkout.id, {
+        await payos.create(f.buyer.id, f.checkout.id, {
           requestId: randomUUID(),
         })
       ).amount,
-    ).toBe(1000);
+    ).toBe(2000);
   });
 
-  it('retains an explicit coin selection when MoMo remainder falls below its minimum', async () => {
+  it('retains an explicit coin selection when PayOS remainder falls below its minimum', async () => {
     const { db, buyer, checkout } = await fixture();
     const snapshot = await db
       .getRepository(CheckoutOrder)
       .findOneByOrFail({ checkoutId: checkout.id });
-    snapshot.subtotal = 1000;
-    snapshot.items[0].price = 1000;
+    snapshot.subtotal = 2000;
+    snapshot.items[0].price = 2000;
     await db.getRepository(CheckoutOrder).save(snapshot);
     carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
     const grant = await db.getRepository(CoinGrant).save({
@@ -576,12 +570,12 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
     await expect(
-      new PaymentService(
-        db,
-        client as unknown as MomoSandboxClient,
-        pricing,
-      ).create(buyer.id, checkout.id, { requestId: randomUUID() }),
-    ).rejects.toThrow('outside MoMo limits');
+      new PaymentService(db, client as unknown as PayosClient, pricing).create(
+        buyer.id,
+        checkout.id,
+        { requestId: randomUUID() },
+      ),
+    ).rejects.toThrow('outside PayOS limits');
     expect(
       await db.getRepository(Checkout).findOneByOrFail({ id: checkout.id }),
     ).toMatchObject({ coinDiscount: 100 });
@@ -736,17 +730,17 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       ).heldBalance,
     ).toBe(0);
   });
-  it('blocks unresolved external payment and refunds a late failed MoMo capture after wallet selection', async () => {
+  it('blocks unresolved external payment and refunds a late failed PayOS capture after wallet selection', async () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id);
-    const momo = new PaymentService(
+    const payos = new PaymentService(
       db,
-      client as unknown as MomoSandboxClient,
+      client as unknown as PayosClient,
       new PaymentPricing(
         new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
       ),
     );
-    const attempt = await momo.create(buyer.id, checkout.id, {
+    const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
     });
     await expect(
@@ -764,13 +758,15 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       expectedTotal: 230000,
       mode: 'EVIDENCE',
     });
-    await momo.applyResult(attempt.id, {
-      orderId: attempt.id,
+    const savedAttempt = await db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: attempt.id });
+    await payos.applyResult(attempt.id, {
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID',
       amount: 230000,
-      resultCode: 0,
-      transId: 99111,
-      partnerCode: 'TEST',
-      requestId: attempt.id,
+      amountPaid: 230000,
+      providerTransId: 'FT99111',
     });
     expect(
       (

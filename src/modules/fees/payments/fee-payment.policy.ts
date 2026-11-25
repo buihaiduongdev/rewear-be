@@ -1,5 +1,5 @@
 import { FEE_PAYMENT_STATE } from './constants/fee-payment.constant';
-import type { FeePaymentState, FeeTarget } from './types/fee-payment.type';
+import type { FeePaymentState, FeeTarget } from './schemas/fee-payment.schema';
 
 export function hasOverlappingFeeAttempt(
   attempts: { state: FeePaymentState; targets: Pick<FeeTarget, 'feeId'>[] }[],

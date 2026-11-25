@@ -1,5 +1,5 @@
 import { FEE_PARTY, FEE_POLICY, FEE_STATUS } from '../constants/fee.constant';
-import type { FeeParty } from '../types/fee.type';
+import type { FeeParty } from '../schemas/fee.schema';
 
 export function withinActualFeeInvoice(
   amount: number,

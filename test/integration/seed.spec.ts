@@ -14,7 +14,7 @@ import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { ProductMedia } from '@/modules/media/entities';
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { ORDER_EVENT_ACTION, ORDER_STATUS } from '@/modules/order/constants';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { OrderService } from '@/modules/order/order.service';

@@ -3,7 +3,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { User } from '@/modules/user/entities';

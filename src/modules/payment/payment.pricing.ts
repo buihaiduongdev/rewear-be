@@ -5,8 +5,8 @@ import { EntityManager } from 'typeorm';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { identityQuoteFingerprint } from '@/modules/checkout/identity-quote.policy';
+import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
-import type { ShippingQuoteResult } from '@/modules/checkout/types/shipping-quote.type';
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
 
 import {
@@ -14,7 +14,7 @@ import {
   SHIPPING_QUOTE_ORDER_STATUS,
   SHIPPING_QUOTE_STATUS,
 } from '../checkout/constants/shipping-quote.constant';
-import type { PaymentOrderSnapshot } from './types/payment.type';
+import type { PaymentOrderSnapshot } from './schemas/payment.schema';
 
 // Never accept a client amount, fee or quote object as an authoritative price.
 @Injectable()

@@ -16,6 +16,19 @@ import {
 } from '@/modules/dispute/returns/schemas/return-exception.schema';
 import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
+import type { PayoutSource } from '../payouts/schemas/payout.schema';
+
+export interface PayoutSourceRow {
+  kind: PayoutSource['kind'];
+  sourceId: string;
+  orderId: string;
+  net: string;
+  paid: string;
+  reserved: string;
+  feeSpent: string;
+  blocked: boolean;
+}
+
 export const shopFinanceViewSchema = z.object({
   shopId: z.uuid(),
   mode: z.enum(RECONCILIATION_MODE),

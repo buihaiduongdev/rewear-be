@@ -16,7 +16,7 @@ import {
   ExcessPayment,
   ExcessProviderRefund,
   WalletExcess,
-} from './entities/excess.entity';
+} from './entities';
 import { excessEvent } from './excess.lifecycle';
 import { settleExcessReservations } from './payments/settle-excess-reservations';
 import {
@@ -151,14 +151,13 @@ export class ExcessOperationsService {
       return { id: row.id };
     });
   }
-  refundQueue(actorId: string) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await excessActor(manager, actorId, true);
-      return manager.find(ExcessProviderRefund, {
-        where: { state: Not(EXCESS_PAYMENT_STATE.SUCCEEDED) },
-        order: { nextQueryAt: 'ASC', id: 'ASC' },
-        take: EXCESS_POLICY.BATCH,
-      });
+  async refundQueue(actorId: string) {
+    const manager = this.db.manager;
+    await excessActor(manager, actorId, true);
+    return manager.find(ExcessProviderRefund, {
+      where: { state: Not(EXCESS_PAYMENT_STATE.SUCCEEDED) },
+      order: { nextQueryAt: 'ASC', id: 'ASC' },
+      take: EXCESS_POLICY.BATCH,
     });
   }
   respondRefund(

@@ -6,16 +6,16 @@ import {
   RECONCILIATION_REVIEW_REASON,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/order-fingerprint.policy';
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 /** Only server-verified payment data establishes a refund source. Delivery alone never does. */
 export async function refundFunding(
@@ -31,7 +31,7 @@ export async function refundFunding(
   if (!shipment) return null;
   const money = reconciliationMoney(order);
   if (
-    order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO ||
+    order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS ||
     order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
   ) {
     const credit = await new OrderFundingService().heldCredit(

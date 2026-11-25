@@ -3,8 +3,26 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 
-import { HANDOVER_ACTION } from '../constants/late-handover.constant';
-import { HANDOVER_STATE } from '../constants/late-handover.constant';
+import {
+  HANDOVER_ACTION,
+  HANDOVER_STATE,
+  HANDOVER_STOP_REASON,
+} from '../constants/late-handover.constant';
+
+export type HandoverState =
+  (typeof HANDOVER_STATE)[keyof typeof HANDOVER_STATE];
+export type HandoverAction =
+  (typeof HANDOVER_ACTION)[keyof typeof HANDOVER_ACTION];
+export type HandoverStopReason =
+  (typeof HANDOVER_STOP_REASON)[keyof typeof HANDOVER_STOP_REASON];
+
+export interface HandoverAudit {
+  action: HandoverAction;
+  actorId: string | null;
+  at: string;
+  reason: string;
+  evidence?: string;
+}
 
 export const handoverProposalSchema = z.strictObject({
   deadline: z.iso.datetime({ offset: true }),
@@ -54,10 +72,8 @@ export const handoverCaseSchema = z.object({
   ),
 });
 
-export type {
-  HandoverProposal,
-  HandoverStop,
-  CalendarInput,
-} from '../types/late-handover.type';
+export type HandoverProposal = z.output<typeof handoverProposalSchema>;
+export type HandoverStop = z.output<typeof handoverStopSchema>;
+export type CalendarInput = z.output<typeof fulfillmentCalendarSchema>;
 
 export type HandoverResponseInput = z.output<typeof handoverResponseSchema>;
