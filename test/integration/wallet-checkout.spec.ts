@@ -861,7 +861,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         providerStatus: 'delivered',
       });
       await db.transaction(async (manager) => {
-        await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
         const credit = await new OrderFundingService().heldCredit(
           manager,
           order,

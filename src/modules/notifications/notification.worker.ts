@@ -1,33 +1,26 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { NOTIFICATION_POLICY } from './constants/notification.constant';
 import { NotificationEmailService } from './notification-email.service';
 import { NotificationProjector } from './notification-projector.service';
 
 @Injectable()
-export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
+export class NotificationWorker implements OnModuleInit {
   private readonly logger = new Logger(NotificationWorker.name);
-  private timer?: ReturnType<typeof setInterval>;
   private running = false;
+
   constructor(
     private readonly projector: NotificationProjector,
     private readonly emails: NotificationEmailService,
   ) {}
+
   async onModuleInit() {
     await this.projector.initialize();
-    // HTTP tests drive the projector/sender explicitly with a fake SMTP sender.
-    if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => {
-      void this.tick();
-    }, NOTIFICATION_POLICY.WORKER_INTERVAL_MS);
-    this.timer.unref();
   }
-  async tick() {
+
+  @Interval(NOTIFICATION_POLICY.WORKER_INTERVAL_MS)
+  async run() {
     if (this.running) return;
     this.running = true;
     try {
@@ -38,8 +31,5 @@ export class NotificationWorker implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.running = false;
     }
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
   }
 }

@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
@@ -40,14 +41,24 @@ const EXPIRE_BATCH_SIZE = 100;
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
+  private running = false;
 
   constructor(
     private readonly db: DataSource,
     private readonly cartService: CartService,
   ) {}
 
+  @Interval(30_000)
   async run() {
-    await this.expire();
+    if (this.running) return;
+    this.running = true;
+    try {
+      await this.expire();
+    } catch {
+      this.logger.error('Checkout expiry scan failed; retry required');
+    } finally {
+      this.running = false;
+    }
   }
 
   async create(buyerId: string, input: CreateCheckoutInput) {

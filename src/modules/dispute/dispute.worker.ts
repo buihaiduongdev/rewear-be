@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { DisputeAdjudicationService } from './dispute-adjudication.service';
 import { DisputeRefundService } from './dispute-refund.service';
@@ -13,6 +14,7 @@ export class DisputeWorker {
     private readonly refunds: DisputeRefundService,
   ) {}
 
+  @Interval(60_000)
   async run() {
     if (this.running) return;
     this.running = true;

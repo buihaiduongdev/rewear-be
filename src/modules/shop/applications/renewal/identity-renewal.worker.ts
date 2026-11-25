@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { DataSource } from 'typeorm';
 
@@ -23,9 +24,31 @@ const { VIETNAM_OFFSET_MS, DAY_MS, GRACE_DAYS, BATCH_SIZE } =
 
 @Injectable()
 export class IdentityRenewalWorker {
+  private readonly logger = new Logger(IdentityRenewalWorker.name);
+  private running = false;
+
   constructor(private readonly db: DataSource) {}
 
-  async run(now = new Date()) {
+  @Cron(CronExpression.EVERY_HOUR)
+  async run(now?: Date) {
+    if (this.running) return;
+    this.running = true;
+    const current = now instanceof Date ? now : new Date();
+    try {
+      await this.scan(current);
+    } catch (error) {
+      this.logger.error(
+        error instanceof Error
+          ? error.message
+          : 'Identity renewal scan failed; retry required',
+      );
+      if (now instanceof Date) throw error;
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async scan(now: Date) {
     await this.db.transaction(async (manager) => {
       const today = new Date(now.getTime() + VIETNAM_OFFSET_MS)
         .toISOString()

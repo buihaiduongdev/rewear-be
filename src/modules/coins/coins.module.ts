@@ -9,6 +9,8 @@ import {
   CoinPurchaseReward,
   CoinReservation,
 } from './core/entities';
+import { CoinRewardService } from './rewards/coin-reward.service';
+import { CoinRewardWorker } from './rewards/coin-reward.worker';
 
 @Global()
 @Module({
@@ -21,7 +23,7 @@ import {
     ]),
   ],
   controllers: [CoinController],
-  providers: [CoinService],
-  exports: [CoinService],
+  providers: [CoinService, CoinRewardService, CoinRewardWorker],
+  exports: [CoinService, CoinRewardService],
 })
 export class CoinsModule {}

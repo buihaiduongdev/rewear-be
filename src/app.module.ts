@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
@@ -15,7 +16,6 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CodReconciliationModule } from './modules/cod-reconciliation/cod-reconciliation.module';
 import { CodModule } from './modules/cod/cod.module';
 import { CoinsModule } from './modules/coins/coins.module';
-import { CoinRewardModule } from './modules/coins/rewards/coin-reward.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DisputeModule } from './modules/dispute/dispute.module';
 import { MediaModule } from './modules/media';
@@ -36,6 +36,7 @@ import { WishlistModule } from './modules/wishlist';
 
 @Module({
   imports: [
+    ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
     ConfigModule,
     DatabaseModule,
     AdministrativeDivisionModule,
@@ -49,7 +50,6 @@ import { WishlistModule } from './modules/wishlist';
     DisputeModule,
     CodModule,
     CoinsModule,
-    CoinRewardModule,
     RatingsModule,
     ReportModule,
     CodReconciliationModule,

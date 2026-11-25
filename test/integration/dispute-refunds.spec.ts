@@ -4,10 +4,7 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import {
-  CoinAccount,
-  CoinPurchaseReward,
-} from '@/modules/coins/core/entities';
+import { CoinAccount, CoinPurchaseReward } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
@@ -271,7 +268,9 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       reason: 'Verified delivery',
       evidence: 'Signed handoff',
     });
-    const prevStatus = f.issue.status;
+    const { status: prevStatus } = await f.db
+      .getRepository(DisputeIssue)
+      .findOneByOrFail({ id: f.issue.id });
     await f.db
       .getRepository(DisputeIssue)
       .update(f.issue.id, { status: 'RESOLVED_NO_REFUND' });

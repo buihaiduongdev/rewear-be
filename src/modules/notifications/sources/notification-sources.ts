@@ -124,7 +124,7 @@ const orderEvent: NotificationSource<OrderEvent> = {
                 order.shopId,
                 SHOP_PERMISSIONS.ORDER_VIEW,
               )
-            ).filter((recipient) => recipient.userId !== row.buyerId),
+            ).filter((recipient) => recipient.userId !== order.buyerId),
           ],
     };
   },

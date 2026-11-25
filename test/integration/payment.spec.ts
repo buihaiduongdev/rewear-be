@@ -332,10 +332,9 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
   it('allows checkout cancellation during carrier HTTP and never charges the cancelled checkout', async () => {
     const { db, buyer, checkout } = await fixture();
     carrier.quote.mockImplementation(async () => {
-      // Acquiring the shared lifecycle lock here would deadlock if GHN HTTP
-      // were running inside the payment transaction.
+      // Updating the checkout row here would deadlock if GHN HTTP
+      // were running inside the payment transaction while Checkout is locked.
       await db.transaction(async (manager) => {
-        await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
         await manager.update(Checkout, checkout.id, { status: 'CANCELLED' });
       });
       return { fee: 30000, estimatedDeliveryAt: null };

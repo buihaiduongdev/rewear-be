@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { CoinRewardService } from './coin-reward.service';
 
@@ -9,6 +10,7 @@ export class CoinRewardWorker {
 
   constructor(private readonly rewards: CoinRewardService) {}
 
+  @Interval(60_000)
   async run() {
     if (this.running) return;
     this.running = true;
