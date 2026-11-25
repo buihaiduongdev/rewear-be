@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
-import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import type { MailService } from '@/modules/mail/mail.service';
 import {
   Notification,
@@ -13,7 +12,7 @@ import { NotificationEmailService } from '@/modules/notifications/notification-e
 import { NotificationProjector } from '@/modules/notifications/notification-projector.service';
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { publishNotification } from '@/modules/notifications/publish-notification';
-import { Order } from '@/modules/order/entities';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
 import { ShopInvitationStatus } from '@/modules/shop/enums/shop-invitation-status.enum';
@@ -112,44 +111,33 @@ describe('Central notifications PostgreSQL', () => {
     ).toMatchObject({ state: 'FAILED', leaseToken: null });
     expect(send).toHaveBeenCalledTimes(1);
   });
-  it('resolves dispute targets for each audience and labels sandbox fulfillment without coin redemption', async () => {
+  it('labels sandbox order updates without coin redemption', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     await db.manager.update(Order, f.order.id, {
       paymentMethod: 'PAYOS',
       coinMode: null,
     });
-    const notices = await db.manager.save(
-      DisputeNotice,
-      ['BUYER', 'SHOP', 'ADMIN'].map((audience) =>
-        db.manager.create(DisputeNotice, {
-          issueId: f.issue.id,
-          action: 'OPENED',
-          audience: audience as DisputeNotice['audience'],
-          eventKey: randomUUID(),
-          reason: 'SECRET PRIVATE EVIDENCE',
-        }),
-      ),
+    const event = await db.manager.save(
+      OrderEvent,
+      db.manager.create(OrderEvent, {
+        orderId: f.order.id,
+        action: 'SHIPPING',
+        actorId: null,
+        reason: null,
+      }),
     );
     await new NotificationProjector(db).run();
-    const buyerNotice = await db.manager.findOneByOrFail(Notification, {
-      eventKey: 'dispute:' + notices[0].id,
-      recipientId: f.buyer.id,
-    });
-    const adminNotice = await db.manager.findOneByOrFail(Notification, {
-      eventKey: 'dispute:' + notices[2].id,
-      recipientId: f.admin.id,
-    });
-    expect(buyerNotice).toMatchObject({
+    expect(
+      await db.manager.findOneByOrFail(Notification, {
+        eventKey: 'order-event:' + event.id,
+        recipientId: f.buyer.id,
+      }),
+    ).toMatchObject({
+      mode: 'SIMULATION',
       sourceId: f.order.id,
       targetType: 'ORDER',
-      mode: 'SIMULATION',
     });
-    expect(adminNotice).toMatchObject({
-      sourceId: f.row.id,
-      targetType: 'DISPUTE_CASE',
-    });
-    expect(buyerNotice.body).not.toContain('SECRET');
   });
   it('persists once, rolls back with the domain transaction, and isolates recipient unread/read operations', async () => {
     const db = database.dataSource;

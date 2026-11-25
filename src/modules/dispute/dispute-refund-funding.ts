@@ -17,7 +17,6 @@ import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { WalletCredit } from '@/modules/wallet/entities';
 
-/** Only server-verified payment data establishes a refund source. Delivery alone never does. */
 export async function refundFunding(
   manager: EntityManager,
   order: Order,
@@ -53,8 +52,9 @@ export async function refundFunding(
     orderId: order.id,
   });
   if (!collection) return null;
-  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode)))
+  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode))) {
     return null;
+  }
   const reviewAcceptable =
     collection.reviewReason === null ||
     collection.reviewReason ===

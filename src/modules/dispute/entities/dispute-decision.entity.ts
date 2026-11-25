@@ -3,16 +3,13 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 
 import type {
-  DisputeDecisionBasis,
   DisputeDecisionOutcome,
   DisputeResponsibility,
-} from '../schemas/dispute-decision.schema';
-import type { DisputeRefundPlan } from '../schemas/dispute-refund-plan.schema';
+} from '../schemas/dispute.schema';
 import { DisputeIssue } from './dispute-issue.entity';
 
 @Entity('dispute_decisions')
 @Index(['issueId'], { unique: true })
-@Index(['requestId'], { unique: true })
 @Check('CHK_dispute_decision_item_price', '"itemPrice" >= 0')
 export class DisputeDecision extends BaseEntity {
   @Column('uuid')
@@ -23,16 +20,7 @@ export class DisputeDecision extends BaseEntity {
   issue: DisputeIssue;
 
   @Column('uuid')
-  requestId: string;
-
-  @Column('uuid')
   actorId: string;
-
-  @Column({ type: 'varchar', length: 64 })
-  requestFingerprint: string;
-
-  @Column({ type: 'varchar', length: 64 })
-  reviewToken: string;
 
   @Column({ type: 'varchar', length: 24 })
   outcome: DisputeDecisionOutcome;
@@ -43,33 +31,30 @@ export class DisputeDecision extends BaseEntity {
   @Column('text')
   reason: string;
 
-  @Column('text')
-  evidenceAssessment: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  refundPlan: DisputeRefundPlan | null;
-
   @Column('integer')
   itemPrice: number;
 
-  @Column({ length: 73 })
-  remedyKey: string;
-
-  @Column('jsonb')
-  basis: DisputeDecisionBasis;
+  @Column({ type: 'integer', nullable: true })
+  refundAmount: number | null;
 
   @Column('timestamptz')
   decidedAt: Date;
 
   @Column('timestamptz')
-  notifiedAt: Date;
+  appealUntil: Date;
 
   @Column({ type: 'timestamptz', nullable: true })
-  appealUntil: Date | null;
+  finalizedAt: Date | null;
 
-  @Column({ default: false })
-  calendarMissing: boolean;
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  finalOutcome: DisputeDecisionOutcome | null;
 
-  @Column({ type: 'boolean', nullable: true })
-  reviewLate: boolean | null;
+  @Column({ type: 'integer', nullable: true })
+  finalRefundAmount: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  finalReason: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  finalActorId: string | null;
 }

@@ -28,12 +28,10 @@ export class DisputeEvidence extends BaseEntity {
   @Column('jsonb')
   tags: string[];
 
-  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
-  recordedAt: Date;
-
   get mimeType() {
     return this.media.mimeType;
   }
+
   get sizeBytes() {
     return this.media.sizeBytes;
   }

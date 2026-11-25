@@ -4,11 +4,6 @@ import type { BaseEntity } from '@/common/entities';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
-import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
-import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
-import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
-import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
-import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -22,15 +17,8 @@ import {
   NOTIFICATION_KIND,
   NOTIFICATION_TARGET,
 } from '../constants/notification.constant';
-import type {
-  NotificationInput,
-  NotificationRecipient,
-} from '../schemas/notification.schema';
-import {
-  adminRecipients,
-  personalRecipient,
-  shopRecipients,
-} from './notification-recipients';
+import type { NotificationInput } from '../schemas/notification.schema';
+import { personalRecipient, shopRecipients } from './notification-recipients';
 
 export type NotificationSource<T extends BaseEntity = BaseEntity> = {
   entity: EntityTarget<T>;
@@ -56,61 +44,6 @@ async function orderNotificationMode(manager: EntityManager, order: Order) {
     null
   );
 }
-
-const dispute: NotificationSource<DisputeNotice> = {
-  entity: DisputeNotice,
-  prefix: 'dispute:',
-  build: async (manager, row) => {
-    const issue = await manager.findOneByOrFail(DisputeIssue, {
-      id: row.issueId,
-    });
-    const dispute = await manager.findOneByOrFail(DisputeCase, {
-      id: issue.caseId,
-    });
-    let recipients: NotificationRecipient[];
-    if (row.audience === DISPUTE_NOTICE_AUDIENCE.BUYER)
-      recipients = [personalRecipient(dispute.buyerId)];
-    else if (row.audience === DISPUTE_NOTICE_AUDIENCE.SHOP)
-      recipients = await shopRecipients(
-        manager,
-        dispute.shopId,
-        SHOP_PERMISSIONS.SHOP_OWNER,
-      );
-    else recipients = await adminRecipients(manager);
-    return {
-      kind: NOTIFICATION_KIND.DISPUTE,
-      sourceId:
-        row.audience === DISPUTE_NOTICE_AUDIENCE.ADMIN
-          ? dispute.id
-          : dispute.orderId,
-      targetType:
-        row.audience === DISPUTE_NOTICE_AUDIENCE.ADMIN
-          ? NOTIFICATION_TARGET.DISPUTE_CASE
-          : NOTIFICATION_TARGET.ORDER,
-      title: 'Cập nhật khiếu nại',
-      body: 'Hồ sơ khiếu nại có cập nhật. Mở hồ sơ để xem nội dung và thời hạn xử lý.',
-      mode: await orderNotificationMode(
-        manager,
-        await manager.findOneByOrFail(Order, { id: dispute.orderId }),
-      ),
-      recipients,
-    };
-  },
-};
-
-const coins: NotificationSource<CoinRewardAdjustmentNotice> = {
-  entity: CoinRewardAdjustmentNotice,
-  prefix: 'coin-adjustment:',
-  build: async (_manager, row) => ({
-    kind: NOTIFICATION_KIND.COIN_ADJUSTMENT,
-    targetType: NOTIFICATION_TARGET.COIN_HISTORY,
-    sourceId: row.orderId,
-    title: 'Điều chỉnh xu thưởng',
-    body: 'Xu thưởng của đơn hàng được điều chỉnh theo khoản hoàn tiền đã xác nhận. Mở lịch sử xu để xem căn cứ.',
-    mode: row.mode,
-    recipients: [personalRecipient(row.buyerId)],
-  }),
-};
 
 const rating: NotificationSource<ShopRatingNotice> = {
   entity: ShopRatingNotice,
@@ -191,15 +124,13 @@ const orderEvent: NotificationSource<OrderEvent> = {
                 order.shopId,
                 SHOP_PERMISSIONS.ORDER_VIEW,
               )
-            ).filter((recipient) => recipient.userId !== order.buyerId),
+            ).filter((recipient) => recipient.userId !== row.buyerId),
           ],
     };
   },
 };
 
 export const notificationSources = [
-  dispute,
-  coins,
   rating,
   order,
   orderEvent,
