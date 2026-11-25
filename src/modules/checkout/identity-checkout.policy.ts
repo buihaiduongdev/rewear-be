@@ -52,6 +52,8 @@ export async function pruneIdentityCheckout(
   }
   const holds = await manager.find(WalletCheckoutHold, {
     where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+    order: { id: 'ASC' },
+    lock: { mode: 'pessimistic_write' },
   });
   for (const hold of holds)
     await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.RELEASED);
