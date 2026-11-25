@@ -1,6 +1,6 @@
 # Re.wear
 
-[Tổng quan tính năng, link Figma và mục lục tài liệu](docs/README.md).
+[Tổng quan dự án, kiến trúc và mục lục tài liệu](docs/README.md).
 
 ## Project setup
 
@@ -168,8 +168,7 @@ Product creation now saves incomplete drafts. Publishing requires submission and
 admin approval; seller status updates only hide/reactivate approved listings.
 Product responses include `coverUrl` and `mediaCount`. Draft fields can be null;
 regenerate API clients from `/api/docs-json` after switching to this backend.
-See [product lifecycle/API contract](docs/PRODUCT_LIFECYCLE.md) for routes,
-photo/measurement requirements, image retention and PostgreSQL test setup.
+See Swagger (`/api/docs`) for product routes and photo/measurement validation rules.
 Upload clients must send the returned `If-None-Match` header; configure bucket
 CORS to allow that header before testing direct uploads.
 
@@ -187,8 +186,8 @@ For an existing development database that already has the demo accounts, run
 the schema. The buyer account is `buyer.demo@seed.rewear.test`; seeded accounts
 use the password `RewearSeed123!`.
 
-## Dispute appeals
+## Order lifecycle, payments, disputes, and wallet
 
-Buyer/Shop appeals and final Admin conclusions are documented in
-[Dispute appeals](docs/orders/DISPUTE_APPEALS.md). Eligible wallet execution is documented in
-[Dispute refunds](docs/orders/DISPUTE_REFUNDS.md); [return verification and exceptions](docs/orders/DISPUTE_RETURNS.md) are implemented. Full-checkout wallet payments and manual Shop bank payouts are documented in [Wallet checkout and payouts](docs/orders/WALLET_CHECKOUT_AND_PAYOUTS.md). Verified fees, objections, source refunds and COD-only debt restrictions are documented in [Fees and debt](docs/orders/FEES_AND_DEBT.md).
+Checkout locks single-item inventory for 10 minutes (`FEAT-04`), supports online VietQR payments through PayOS with webhook verification, status polling, and automatic late-payment refunds (`FEAT-06`), and integrates GHN Sandbox shipping and COD with 24-hour seller confirmation, 2-way return shipping fee ledger accounting, and COD abuse restrictions (`FEAT-05`, `FEAT-07`).
+
+Delivered orders enter a 72-hour escrow window (`FEAT-08`) during which buyers may open a dispute with photo/unbox video evidence for Seller response, Admin adjudication (3–5 business days SLA), a one-time appeal within 2 business days, and GHN return tracking (`FEAT-09`). Approved cancellations and dispute refunds credit the internal refund-only wallet (usable for 100% of future checkouts), alongside 0.5% order-completion reward coins (capped at 10% of subtotal) and Admin-approved manual Shop bank payouts (`FEAT-10`). See [`docs/submission_docs/COMMITMENT_STEP3.MD`](docs/submission_docs/COMMITMENT_STEP3.MD) for the full committed product scope.
