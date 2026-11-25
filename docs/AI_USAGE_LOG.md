@@ -1242,3 +1242,15 @@
 - **Cách kiểm chứng:** `pnpm check` đạt; `chat-schema.spec.ts` đạt 3/3 tests (cùng 24/24 node tests); integration/e2e đã cập nhật theo contract mới để CI chạy.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #68; branch `buihaiduongdev/chat-cleanup`.
+
+### 2026-11-25 — Tinh gọn nhóm module phụ trợ Wave 1
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn 9 module phụ trợ thuộc Wave 1 (`chat`, `mail`, `wishlist`, `user`, `user-address`, `shop-follows`, `ratings`, `reports`, `notifications`) theo chuẩn ít file, mỗi bảng một entity, loại bỏ khóa advisory/transaction đọc thừa và gộp logic lặp.
+- **Prompt chính:** Rà soát toàn bộ nhóm module phụ trợ Wave 1: tách các file gộp nhiều entity thành từng bảng riêng, gộp các file policy/access/type/view-schema/service nhỏ lẻ, bỏ advisory lock toàn cục và transaction `REPEATABLE READ` thừa ở các luồng đọc, gộp truy vấn ảnh bìa ở wishlist, xử lý các `//TODO` ở user và chuyển helper tạo thông báo về đúng phân hệ thông báo; giữ nguyên `mail` và `user-address` vì đã gọn.
+- **Đầu ra AI được sử dụng:** Bỏ các `pg_advisory_xact_lock` thừa ở `chat`, `shop-follows` và `ratings`; gộp tải ảnh qua quan hệ sản phẩm ở `wishlist`; xử lý các `//TODO` ở `user`; làm phẳng `shop-follows` (9 còn 5 file); tách entity và gộp access/type/schema ở `ratings`; tách entity, làm phẳng policy/media/access/lifecycle/service và chuyển thông báo vi phạm sang `notifications/sources/` ở `reports`; tách 4 entity, gộp type/source wrapper và bỏ transaction đọc thừa ở `notifications`; cập nhật đồng bộ bộ test liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Định hướng chiến lược chia 4 Wave PR, giữ lại các module đã gọn (`mail`, `user-address`) và rà soát các chỗ gắn mác bảo vệ toàn vẹn nhưng dư thừa so với constraint cơ sở dữ liệu.
+- **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test:payment:core` đạt 24/24 tests; `pnpm test:unit` đạt 67/67 suites (407/407 tests); integration/E2E được cập nhật theo cấu trúc mới để CI kiểm tra trên PR.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Branch `buihaiduongdev/refactor-wave-1`.
