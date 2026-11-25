@@ -26,12 +26,31 @@ export interface PayosCreateResult {
   qrCode: string;
 }
 
+export interface PayosPaymentTransaction {
+  providerTransId: string;
+  amount: number;
+}
+
 export interface PayosPaymentResult {
   orderCode: number;
   status: PayosPaymentStatus;
   amount: number;
   amountPaid: number;
   providerTransId: string | null;
+  transactions?: PayosPaymentTransaction[];
+}
+
+export function isIncludedInAggregateTransId(
+  aggregateId: string | null | undefined,
+  providerTransId: string,
+): boolean {
+  if (!aggregateId || !providerTransId || !aggregateId.startsWith('plink:')) {
+    return false;
+  }
+  return aggregateId
+    .slice('plink:'.length)
+    .split('+')
+    .includes(providerTransId);
 }
 
 export interface PayosWebhookResult {
@@ -143,14 +162,19 @@ export class PayosClient {
       ) {
         throw new PayosTransportError();
       }
-      const refs = (info.transactions ?? [])
-        .map((tx) =>
-          typeof tx.reference === 'string' ? tx.reference.trim() : '',
-        )
-        .filter(Boolean);
+      const transactions: PayosPaymentTransaction[] = [];
+      const refs: string[] = [];
+      for (const tx of info.transactions ?? []) {
+        const ref = typeof tx.reference === 'string' ? tx.reference.trim() : '';
+        if (!ref) continue;
+        refs.push(ref);
+        if (Number.isSafeInteger(tx.amount) && tx.amount > 0) {
+          transactions.push({ providerTransId: ref, amount: tx.amount });
+        }
+      }
       const providerTransId =
         refs.length > 1
-          ? `plink:${info.id || info.orderCode}:${refs.length}`.slice(0, 64)
+          ? `plink:${refs.join('+')}`.slice(0, 64)
           : refs[0] || (info.id ? String(info.id) : null);
       return {
         orderCode: info.orderCode,
@@ -158,6 +182,7 @@ export class PayosClient {
         amount: info.amount,
         amountPaid: info.amountPaid,
         providerTransId,
+        ...(transactions.length > 0 ? { transactions } : {}),
       };
     } catch {
       throw new PayosTransportError();

@@ -107,13 +107,32 @@ test('getPaymentLink extracts bank reference as providerTransId and sanitizes SD
         amountPaid: 230000,
         amountRemaining: 0,
         status: 'PAID',
-        transactions: [{ reference: 'FT1' }, { reference: 'FT2' }],
+        transactions: [
+          { reference: 'FT1', amount: 100000 },
+          { reference: 'FT2', amount: 130000 },
+        ],
       }),
     },
     webhooks: {},
   });
   const multiInfo = await multi.getPaymentLink(1700000000124);
-  assert.equal(multiInfo.providerTransId, 'plink:plink-2:2');
+  assert.equal(multiInfo.providerTransId, 'plink:FT1+FT2');
+  assert.deepEqual(multiInfo.transactions, [
+    { providerTransId: 'FT1', amount: 100000 },
+    { providerTransId: 'FT2', amount: 130000 },
+  ]);
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT1'),
+    true,
+  );
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT2'),
+    true,
+  );
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT3'),
+    false,
+  );
 });
 
 test('verifyWebhook detects test ping and rejects invalid payloads or tampered fields', async () => {

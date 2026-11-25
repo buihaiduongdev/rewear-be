@@ -14,6 +14,7 @@ import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import {
   generatePayosOrderCode,
+  isIncludedInAggregateTransId,
   PayosClient,
   type PayosPaymentResult,
   type PayosWebhookResult,
@@ -346,52 +347,88 @@ export class FeePaymentService {
         }
         return;
       }
-      const providerTransId = result.providerTransId?.trim() || '';
-      if (
-        !providerTransId ||
-        !Number.isSafeInteger(result.amountPaid) ||
-        result.amountPaid <= 0 ||
-        result.amountPaid > MAX_VND_AMOUNT
-      )
-        throw new ConflictException('Invalid capture');
-      if (
-        (await manager.existsBy(ExcessCapture, { providerTransId })) ||
-        (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
-        (await manager.existsBy(PaymentRefund, { providerTransId }))
-      )
-        throw new ConflictException(
-          'Capture already belongs to another payment source',
-        );
-      const existing = await manager.findOneBy(FeePaymentCapture, {
-        providerTransId,
-      });
-      if (existing) {
-        if (
-          existing.paymentId !== payment.id ||
-          existing.amount !== result.amountPaid
-        )
-          throw new ConflictException('Capture reference reused');
-        return;
-      }
-      const capture = manager.create(FeePaymentCapture, {
+      const existingCaptures = await manager.findBy(FeePaymentCapture, {
         paymentId: payment.id,
-        providerTransId,
-        amount: result.amountPaid,
-        allocatedAmount: 0,
       });
-      await manager.save(capture);
-      if (partialCaptured) {
-        await this.queueRefund(manager, capture.id, capture.amount, null, now);
-        if (payment.state !== FEE_PAYMENT_STATE.SUCCEEDED) {
-          payment.state = FEE_PAYMENT_STATE.FAILED;
-          payment.nextQueryAt = new Date(
-            now.getTime() + FEE_PAYMENT_POLICY.FAILURE_QUERY_DELAY_MS,
-          );
-          await manager.save(payment);
+      const isMultiRefund =
+        (partialCaptured || result.amountPaid !== payment.amount) &&
+        Boolean(result.transactions && result.transactions.length > 1);
+      const capturesToRecord = isMultiRefund
+        ? result.transactions!
+        : [
+            {
+              providerTransId: result.providerTransId?.trim() || '',
+              amount: result.amountPaid,
+            },
+          ];
+      for (const entry of capturesToRecord) {
+        const providerTransId = entry.providerTransId.trim();
+        if (
+          !providerTransId ||
+          !Number.isSafeInteger(entry.amount) ||
+          entry.amount <= 0 ||
+          entry.amount > MAX_VND_AMOUNT
+        )
+          throw new ConflictException('Invalid capture');
+        if (
+          existingCaptures.some((c) =>
+            isIncludedInAggregateTransId(c.providerTransId, providerTransId),
+          )
+        ) {
+          continue;
         }
-        return;
+        if (
+          (await manager.existsBy(ExcessCapture, { providerTransId })) ||
+          (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
+          (await manager.existsBy(PaymentRefund, { providerTransId }))
+        )
+          throw new ConflictException(
+            'Capture already belongs to another payment source',
+          );
+        const existing = await manager.findOneBy(FeePaymentCapture, {
+          providerTransId,
+        });
+        if (existing) {
+          if (
+            existing.paymentId !== payment.id ||
+            existing.amount !== entry.amount
+          )
+            throw new ConflictException('Capture reference reused');
+          continue;
+        }
+        const capture = manager.create(FeePaymentCapture, {
+          paymentId: payment.id,
+          providerTransId,
+          amount: entry.amount,
+          allocatedAmount: 0,
+        });
+        await manager.save(capture);
+        if (partialCaptured || isMultiRefund) {
+          await this.queueRefund(
+            manager,
+            capture.id,
+            capture.amount,
+            null,
+            now,
+          );
+        } else {
+          await this.allocateCapture(manager, payment, capture, now);
+        }
       }
-      await this.allocateCapture(manager, payment, capture, now);
+      if (partialCaptured && payment.state !== FEE_PAYMENT_STATE.SUCCEEDED) {
+        payment.state = FEE_PAYMENT_STATE.FAILED;
+        payment.nextQueryAt = new Date(
+          now.getTime() + FEE_PAYMENT_POLICY.FAILURE_QUERY_DELAY_MS,
+        );
+        await manager.save(payment);
+      } else if (
+        isMultiRefund &&
+        payment.state !== FEE_PAYMENT_STATE.SUCCEEDED
+      ) {
+        payment.state = FEE_PAYMENT_STATE.SUCCEEDED;
+        payment.paidAt ??= now;
+        await manager.save(payment);
+      }
     });
   }
 

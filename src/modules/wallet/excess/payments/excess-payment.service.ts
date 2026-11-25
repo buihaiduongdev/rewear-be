@@ -12,6 +12,7 @@ import z from 'zod';
 
 import { vndAmountSchema } from '@/common/schemas/money.schema';
 import {
+  isIncludedInAggregateTransId,
   PayosClient,
   type PayosPaymentResult,
   type PayosWebhookResult,
@@ -145,7 +146,7 @@ export class ExcessPaymentService {
         throw new UnauthorizedException('Invalid recovery payment request');
       const outcome = providerOutcome(result.status);
       const linkExpired =
-        now.getTime() >= row.createdAt.getTime() + EXCESS_POLICY.LINK_TTL_MS;
+        now.getTime() > row.createdAt.getTime() + EXCESS_POLICY.LINK_TTL_MS;
       const partialCaptured =
         result.amountPaid > 0 &&
         (outcome === PAYMENT_PROVIDER_OUTCOME.FAILED ||
@@ -161,47 +162,79 @@ export class ExcessPaymentService {
         }
         return;
       }
-      const providerTransId = result.providerTransId?.trim() || '';
-      const validCapture =
-        providerTransId.length > 0 &&
-        vndAmountSchema.safeParse(result.amountPaid).success &&
-        result.amountPaid > 0;
-      if (!validCapture)
-        throw new ConflictException('Invalid recovery capture');
-      const reused =
-        (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
-        (await manager.existsBy(PaymentRefund, { providerTransId })) ||
-        (await manager.existsBy(FeePaymentCapture, { providerTransId }));
-      if (reused)
-        throw new ConflictException(
-          'Capture belongs to another payment source',
-        );
-      const prior = await manager.findOneBy(ExcessCapture, { providerTransId });
-      if (prior) {
-        if (prior.paymentId !== row.id || prior.amount !== result.amountPaid)
-          throw new ConflictException('Recovery capture reused');
-        return;
-      }
-      const capture = await manager.save(
-        ExcessCapture,
-        manager.create(ExcessCapture, {
-          paymentId: row.id,
-          providerTransId,
-          amount: result.amountPaid,
-          allocated: 0,
-          reservations: [],
-        }),
-      );
-      if (partialCaptured) {
-        await queueExcessRefund(manager, capture, capture.amount, now);
-        if (row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED) {
-          row.state = EXCESS_PAYMENT_STATE.REVIEW;
-          row.payUrl = null;
-          await manager.save(row);
+      const existingCaptures = await manager.findBy(ExcessCapture, {
+        paymentId: row.id,
+      });
+      const isMultiRefund =
+        (partialCaptured || result.amountPaid !== row.amount) &&
+        Boolean(result.transactions && result.transactions.length > 1);
+      const capturesToRecord = isMultiRefund
+        ? result.transactions!
+        : [
+            {
+              providerTransId: result.providerTransId?.trim() || '',
+              amount: result.amountPaid,
+            },
+          ];
+      for (const entry of capturesToRecord) {
+        const providerTransId = entry.providerTransId.trim();
+        const validCapture =
+          providerTransId.length > 0 &&
+          vndAmountSchema.safeParse(entry.amount).success &&
+          entry.amount > 0;
+        if (!validCapture)
+          throw new ConflictException('Invalid recovery capture');
+        if (
+          existingCaptures.some((c) =>
+            isIncludedInAggregateTransId(c.providerTransId, providerTransId),
+          )
+        ) {
+          continue;
         }
-        return;
+        const reused =
+          (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
+          (await manager.existsBy(PaymentRefund, { providerTransId })) ||
+          (await manager.existsBy(FeePaymentCapture, { providerTransId }));
+        if (reused)
+          throw new ConflictException(
+            'Capture belongs to another payment source',
+          );
+        const prior = await manager.findOneBy(ExcessCapture, {
+          providerTransId,
+        });
+        if (prior) {
+          if (prior.paymentId !== row.id || prior.amount !== entry.amount)
+            throw new ConflictException('Recovery capture reused');
+          continue;
+        }
+        const capture = await manager.save(
+          ExcessCapture,
+          manager.create(ExcessCapture, {
+            paymentId: row.id,
+            providerTransId,
+            amount: entry.amount,
+            allocated: 0,
+            reservations: [],
+          }),
+        );
+        if (partialCaptured || isMultiRefund) {
+          await queueExcessRefund(manager, capture, capture.amount, now);
+        } else {
+          await allocateExcessCapture(manager, row, capture, now);
+        }
       }
-      await allocateExcessCapture(manager, row, capture, now);
+      if (partialCaptured && row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED) {
+        row.state = EXCESS_PAYMENT_STATE.FAILED;
+        row.payUrl = null;
+        await manager.save(row);
+      } else if (
+        isMultiRefund &&
+        row.state !== EXCESS_PAYMENT_STATE.SUCCEEDED
+      ) {
+        row.state = EXCESS_PAYMENT_STATE.SUCCEEDED;
+        row.payUrl = null;
+        await manager.save(row);
+      }
     });
   }
 

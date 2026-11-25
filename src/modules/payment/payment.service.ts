@@ -15,6 +15,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import {
   generatePayosOrderCode,
+  isIncludedInAggregateTransId,
   PayosClient,
   type PayosPaymentResult,
   type PayosWebhookResult,
@@ -416,9 +417,18 @@ export class PaymentService {
         if (
           hasCapturedFunds &&
           providerTransId &&
-          attempt.providerTransId !== providerTransId
+          attempt.providerTransId !== providerTransId &&
+          !isIncludedInAggregateTransId(
+            attempt.providerTransId,
+            providerTransId,
+          )
         ) {
-          const outstanding = await this.queueRefund(manager, id, result, now);
+          const outstanding = await this.queueResultRefunds(
+            manager,
+            id,
+            result,
+            now,
+          );
           if (attempt.state === PAYMENT_ATTEMPT_STATE.REFUNDED && outstanding) {
             attempt.state = PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED;
             await manager.save(attempt);
@@ -464,7 +474,7 @@ export class PaymentService {
         attempt.paidAt = now;
         if (outcome === PAYMENT_CAPTURE_DISPOSITION.REFUND) {
           attempt.state = PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED;
-          await this.queueRefund(manager, id, result, now);
+          await this.queueResultRefunds(manager, id, result, now);
         } else {
           attempt.state = PAYMENT_ATTEMPT_STATE.PAID;
           // Save payment first for order FK. All writes roll back together.
@@ -640,6 +650,29 @@ export class PaymentService {
         soldAt: now,
       },
     );
+  }
+
+  private async queueResultRefunds(
+    manager: EntityManager,
+    paymentId: string,
+    result: PayosPaymentResult,
+    now: Date,
+  ) {
+    const parts =
+      result.transactions && result.transactions.length > 1
+        ? result.transactions.map((tx) => ({
+            ...result,
+            amountPaid: tx.amount,
+            providerTransId: tx.providerTransId,
+          }))
+        : [result];
+    let outstanding = false;
+    for (const part of parts) {
+      if (await this.queueRefund(manager, paymentId, part, now)) {
+        outstanding = true;
+      }
+    }
+    return outstanding;
   }
 
   private async queueRefund(

@@ -33,10 +33,18 @@ class CoinService {
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
 const generatePayosOrderCode = () => Date.now() * 1000 + randomInt(1000);
+const isIncludedInAggregateTransId = (aggregateId, providerTransId) =>
+  Boolean(
+    aggregateId &&
+      providerTransId &&
+      aggregateId.startsWith('plink:') &&
+      aggregateId.slice('plink:'.length).split('+').includes(providerTransId),
+  );
 const deps = {
   ms,
   randomUUID,
   generatePayosOrderCode,
+  isIncludedInAggregateTransId,
   In,
   ...policy,
   ...(await load(
@@ -335,4 +343,62 @@ test('a new capture after a previous refund reopens the outstanding refund state
   });
   await f.service.applyResult(attempt.id, paid(attempt, 'FT24002'));
   assert.equal(attempt.state, 'REFUNDED');
+});
+
+test('multi-transfer settled or expired links deduplicate delayed per-transfer webhooks without double refunds', async () => {
+  const settled = setup();
+  await settled.service.create('buyer', 'checkout', { requestId: 'req-settled' });
+  const a1 = settled.rows(PaymentAttempt)[0];
+  await settled.service.applyResult(a1.id, {
+    orderCode: Number(a1.providerOrderCode),
+    status: 'PAID',
+    amount: a1.amount,
+    amountPaid: a1.amount,
+    providerTransId: 'plink:FT1+FT2',
+    transactions: [
+      { providerTransId: 'FT1', amount: 100000 },
+      { providerTransId: 'FT2', amount: a1.amount - 100000 },
+    ],
+  });
+  await settled.service.applyResult(a1.id, {
+    orderCode: Number(a1.providerOrderCode),
+    status: 'PAID',
+    amount: 100000,
+    amountPaid: 100000,
+    providerTransId: 'FT1',
+  });
+  assert.equal(settled.rows(Order).length, 1);
+  assert.equal(settled.rows(PaymentRefund).length, 0);
+
+  const expired = setup();
+  await expired.service.create('buyer', 'checkout', { requestId: 'req-expired' });
+  const a2 = expired.rows(PaymentAttempt)[0];
+  await expired.service.applyResult(a2.id, {
+    orderCode: Number(a2.providerOrderCode),
+    status: 'EXPIRED',
+    amount: a2.amount,
+    amountPaid: 7000,
+    providerTransId: 'plink:FT1+FT2',
+    transactions: [
+      { providerTransId: 'FT1', amount: 3000 },
+      { providerTransId: 'FT2', amount: 4000 },
+    ],
+  });
+  await expired.service.applyResult(a2.id, {
+    orderCode: Number(a2.providerOrderCode),
+    status: 'PAID',
+    amount: 3000,
+    amountPaid: 3000,
+    providerTransId: 'FT1',
+  });
+  assert.equal(expired.rows(PaymentRefund).length, 2);
+  assert.deepEqual(
+    expired
+      .rows(PaymentRefund)
+      .map((r) => ({ id: r.providerTransId, amount: r.amount })),
+    [
+      { id: 'FT1', amount: 3000 },
+      { id: 'FT2', amount: 4000 },
+    ],
+  );
 });
