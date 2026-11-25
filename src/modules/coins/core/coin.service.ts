@@ -137,15 +137,15 @@ export class CoinService {
       where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
       lock: { mode: 'pessimistic_write' },
     });
+    if (!rows.length) return;
     for (const row of rows) {
       const account = await this.lockAccount(manager, row.buyerId);
       const fields = this.balanceFields(row.mode);
       account[fields.held] -= row.amount;
       account[fields.available] += row.amount;
       await manager.save(CoinAccount, account);
-      row.state = COIN_RESERVATION_STATE.RELEASED;
-      await manager.save(CoinReservation, row);
     }
+    await manager.remove(CoinReservation, rows);
   }
 
   async consumeCheckoutCoins(
@@ -195,18 +195,6 @@ export class CoinService {
       this.validAmount(amount);
       if (!amount) continue;
       await manager.save(
-        CoinReservation,
-        manager.create(CoinReservation, {
-          checkoutId,
-          orderId: order.id,
-          buyerId,
-          mode,
-          amount,
-          state: COIN_RESERVATION_STATE.CONSUMED,
-          expiresAt: null,
-        }),
-      );
-      await manager.save(
         CoinOrderDebit,
         manager.create(CoinOrderDebit, {
           orderId: order.id,
@@ -235,16 +223,24 @@ export class CoinService {
     );
     if (!rows.length) {
       if (expected === 0) return;
-      const committed = await manager.findBy(CoinReservation, {
-        checkoutId,
-        orderId: In(orders.map((order) => order.id)),
-        state: In([
-          COIN_RESERVATION_STATE.COD,
-          COIN_RESERVATION_STATE.CONSUMED,
-          COIN_RESERVATION_STATE.RELEASED,
-        ]),
-      });
-      if (committed.reduce((sum, row) => sum + row.amount, 0) !== expected)
+      const orderIds = orders.map((order) => order.id);
+      const [committed, debits] = await Promise.all([
+        manager.findBy(CoinReservation, {
+          checkoutId,
+          orderId: In(orderIds),
+          state: In([
+            COIN_RESERVATION_STATE.COD,
+            COIN_RESERVATION_STATE.RELEASED,
+          ]),
+        }),
+        manager.findBy(CoinOrderDebit, {
+          orderId: In(orderIds),
+        }),
+      ]);
+      const total =
+        committed.reduce((sum, row) => sum + row.amount, 0) +
+        debits.reduce((sum, row) => sum + row.amount, 0);
+      if (total !== expected)
         throw new BadRequestException('COD coin reservation mismatch');
       return;
     }
@@ -311,13 +307,8 @@ export class CoinService {
     this.assertTransaction(manager);
     if (order.coinMode && order.coinMode !== mode)
       throw new BadRequestException('Coin order mode mismatch');
-    const prior = await manager.findOneBy(CoinOrderDebit, {
-      orderId: order.id,
-    });
-    if (prior) {
-      await this.verifyDebit(manager, order, mode);
-      return prior;
-    }
+    const amount = order.coinDiscount ?? 0;
+    this.validAmount(amount);
     const rows = await manager.find(CoinReservation, {
       where: {
         orderId: order.id,
@@ -325,6 +316,17 @@ export class CoinService {
       },
       lock: { mode: 'pessimistic_write' },
     });
+    if (!rows.length) {
+      const prior = await manager.findOneBy(CoinOrderDebit, {
+        orderId: order.id,
+      });
+      if (prior) {
+        await this.verifyDebit(manager, order, mode);
+        return prior;
+      }
+      if (!amount) return null;
+      throw new BadRequestException('Coin order reservation mismatch');
+    }
     if (
       rows.some(
         (row) =>
@@ -333,8 +335,6 @@ export class CoinService {
       )
     )
       throw new BadRequestException('Coin checkout reservation expired');
-    const amount = order.coinDiscount ?? 0;
-    this.validAmount(amount);
     if (amount !== rows.reduce((sum, row) => sum + row.amount, 0))
       throw new BadRequestException('Coin order reservation mismatch');
     if (!amount) return null;
@@ -345,10 +345,7 @@ export class CoinService {
     const fields = this.balanceFields(mode);
     account[fields.held] -= amount;
     await manager.save(CoinAccount, account);
-    for (const row of rows) {
-      row.state = COIN_RESERVATION_STATE.CONSUMED;
-      await manager.save(CoinReservation, row);
-    }
+    await manager.remove(CoinReservation, rows);
     return manager.save(
       CoinOrderDebit,
       manager.create(CoinOrderDebit, {
@@ -392,6 +389,7 @@ export class CoinService {
   ) {
     this.assertTransaction(manager);
     this.validAmount(amount);
+    const account = await this.lockAccount(manager, buyerId);
     const prior = await manager.findOneBy(CoinPurchaseReward, { orderId });
     if (prior) {
       if (
@@ -402,8 +400,12 @@ export class CoinService {
         throw new BadRequestException('Purchase grant amount or mode changed');
       return prior;
     }
-    const account = await this.lockAccount(manager, buyerId);
     const fields = this.balanceFields(mode);
+    if (
+      account[fields.available] + account[fields.held] + amount >
+      COIN_POLICY.MAX_POSTGRES_AMOUNT
+    )
+      throw new BadRequestException('Coin balance limit exceeded');
     account[fields.available] += amount;
     await manager.save(CoinAccount, account);
     return manager.save(

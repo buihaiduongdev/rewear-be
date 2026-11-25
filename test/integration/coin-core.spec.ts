@@ -133,6 +133,78 @@ describe('Coin account, checkout holds, and reward clawback (PostgreSQL)', () =>
         orderId: order.id,
       }),
     ).toBe(1);
+    expect(
+      await database.dataSource.manager.countBy(CoinReservation, {
+        checkoutId: checkout.id,
+      }),
+    ).toBe(0);
+  });
+
+  it('serializes concurrent grantPurchaseReward and concurrent consumeOrderCoins idempotently', async () => {
+    const buyerId = randomUUID();
+    const rewardOrderId = randomUUID();
+    const [r1, r2] = await Promise.all([
+      database.dataSource.transaction((manager) =>
+        coins.grantPurchaseReward(
+          manager,
+          buyerId,
+          rewardOrderId,
+          200,
+          'EVIDENCE',
+          now,
+        ),
+      ),
+      database.dataSource.transaction((manager) =>
+        coins.grantPurchaseReward(
+          manager,
+          buyerId,
+          rewardOrderId,
+          200,
+          'EVIDENCE',
+          now,
+        ),
+      ),
+    ]);
+    expect(r1.id).toBe(r2.id);
+
+    const checkout = {
+      id: randomUUID(),
+      buyerId,
+      subtotal: 2000,
+      expiresAt: new Date(now.getTime() + 600_000),
+    };
+    const codOrder = {
+      id: randomUUID(),
+      buyerId,
+      coinDiscount: 200,
+      coinMode: 'EVIDENCE' as const,
+    };
+    await database.dataSource.transaction(async (manager) => {
+      await coins.reserveCheckoutCoins(
+        manager,
+        checkout,
+        200,
+        'EVIDENCE',
+        randomUUID(),
+        now,
+      );
+      await coins.commitCodCoins(manager, checkout.id, [codOrder], now);
+    });
+
+    const [d1, d2] = await Promise.all([
+      database.dataSource.transaction((manager) =>
+        coins.consumeOrderCoins(manager, codOrder, 'EVIDENCE', now),
+      ),
+      database.dataSource.transaction((manager) =>
+        coins.consumeOrderCoins(manager, codOrder, 'EVIDENCE', now),
+      ),
+    ]);
+    expect(d1?.id).toBe(d2?.id);
+    expect(
+      await database.dataSource.manager.findOneByOrFail(CoinAccount, {
+        userId: buyerId,
+      }),
+    ).toMatchObject({ balance: 0, heldBalance: 0 });
   });
 
   it('updates checkout holds cleanly on re-selection and restores balance on release', async () => {

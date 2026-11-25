@@ -171,8 +171,9 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     ).toBeNull();
   });
 
-  it('rewards once after verified 72h without waiting COD remittance, including concurrent workers', async () => {
+  it('rewards once after verified 72h via evaluateDue and concurrent evaluate without waiting COD remittance', async () => {
     const f = await fixture();
+    await f.service.evaluateDue();
     await Promise.all([
       f.service.evaluate(f.order.id),
       f.service.evaluate(f.order.id),

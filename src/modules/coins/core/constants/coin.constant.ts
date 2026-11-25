@@ -5,7 +5,6 @@ export const COIN_MODES = ['EVIDENCE', 'SIMULATION'] as const;
 export const COIN_RESERVATION_STATE = {
   HELD: 'HELD',
   COD: 'COD',
-  CONSUMED: 'CONSUMED',
   RELEASED: 'RELEASED',
 } as const;
 

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import type { EntityManager } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 import { CoinService } from '@/modules/coins/core/coin.service';
+import { COIN_POLICY } from '@/modules/coins/core/constants/coin.constant';
 import {
   CoinAccount,
   CoinOrderDebit,
@@ -11,8 +12,10 @@ import {
 } from '@/modules/coins/core/entities';
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
+import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
+import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import type { Order } from '@/modules/order/entities';
 import { WalletCredit } from '@/modules/wallet/entities';
 
@@ -122,6 +125,8 @@ function createInMemoryManager() {
     findBy: async (entity: unknown, where: any) => {
       if (entity === CoinReservation)
         return reservations.filter((r) => matchWhere(r, where));
+      if (entity === CoinOrderDebit)
+        return debits.filter((r) => matchWhere(r, where));
       if (entity === DisputeRefundCredit)
         return disputeRefunds.filter((r) => matchWhere(r, where));
       return [];
@@ -142,7 +147,7 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
   const coins = new CoinService();
   const now = new Date('2026-11-25T00:00:00Z');
 
-  it('grants purchase rewards, caps checkout holds at 10%, and captures verified order debits', async () => {
+  it('grants purchase rewards, caps checkout holds at 10%, removes consumed holds, and captures verified order debits', async () => {
     const store = createInMemoryManager();
     const buyerId = randomUUID();
     const rewardOrderId = randomUUID();
@@ -156,6 +161,17 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
       now,
     );
     expect(store.accounts.get(buyerId)?.balance).toBe(500);
+
+    await expect(
+      coins.grantPurchaseReward(
+        store.manager,
+        buyerId,
+        randomUUID(),
+        COIN_POLICY.MAX_POSTGRES_AMOUNT,
+        'EVIDENCE',
+        now,
+      ),
+    ).rejects.toThrow('limit exceeded');
 
     const checkout = {
       id: randomUUID(),
@@ -202,6 +218,8 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
       'EVIDENCE',
       now,
     );
+    expect(store.reservations).toHaveLength(0);
+    expect(store.debits).toHaveLength(1);
     expect(store.accounts.get(buyerId)).toMatchObject({
       balance: 100,
       heldBalance: 0,
@@ -214,7 +232,7 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
     ).toBe(false);
   });
 
-  it('commits COD holds, releases on cancel, and claws back refunded purchase rewards safely', async () => {
+  it('commits COD holds, handles consumeOrderCoins replay after reservation removal, and claws back refunded rewards', async () => {
     const store = createInMemoryManager();
     const buyerId = randomUUID();
     const rewardedOrderId = randomUUID();
@@ -259,6 +277,21 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
       }),
     ]);
 
+    const firstDebit = await coins.consumeOrderCoins(
+      store.manager,
+      codOrder,
+      'EVIDENCE',
+      now,
+    );
+    expect(store.reservations).toHaveLength(0);
+    const replayDebit = await coins.consumeOrderCoins(
+      store.manager,
+      codOrder,
+      'EVIDENCE',
+      now,
+    );
+    expect(replayDebit?.id).toBe(firstDebit?.id);
+
     store.disputeRefunds.push({
       orderId: rewardedOrderId,
       mode: 'EVIDENCE',
@@ -282,14 +315,60 @@ describe('CoinService flat balance, hold, debit, and reward clawback', () => {
     });
     expect(store.accounts.get(buyerId)).toMatchObject({
       balance: 0,
-      heldBalance: 300,
-    });
-
-    await coins.releaseOrderCoins(store.manager, codOrder, 'SELLER', now);
-    expect(store.accounts.get(buyerId)).toMatchObject({
-      balance: 300,
       heldBalance: 0,
     });
+  });
+
+  it('advances evaluateDue() cursor past unfunded/null batches and resets at tail', async () => {
+    const batchSize = ORDER_POLICY.SETTLEMENT_BATCH_SIZE;
+    const firstBatch = Array.from({ length: batchSize }, (_, i) => ({
+      id: `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`,
+    }));
+    const secondBatch = [{ id: '00000000-0000-0000-0000-000000000999' }];
+    const seenCursors: (string | undefined)[] = [];
+    let call = 0;
+
+    const makeQb = () => {
+      let currentCursor: string | undefined;
+      const qb: any = {
+        innerJoin: () => qb,
+        leftJoin: () => qb,
+        select: () => qb,
+        where: () => qb,
+        andWhere: (clause: unknown, params?: Record<string, any>) => {
+          if (typeof clause === 'function') clause(qb);
+          if (params?.cursor) currentCursor = params.cursor;
+          return qb;
+        },
+        subQuery: () => qb,
+        from: () => qb,
+        getQuery: () => '(SELECT 1)',
+        orderBy: () => qb,
+        limit: () => qb,
+        getRawMany: async () => {
+          seenCursors.push(currentCursor);
+          return call++ === 0 ? firstBatch : secondBatch;
+        },
+      };
+      return qb;
+    };
+
+    const db = {
+      manager: { createQueryBuilder: () => makeQb() },
+    } as unknown as DataSource;
+    const service = new CoinRewardService(db, coins);
+    const evaluateSpy = jest.spyOn(service, 'evaluate').mockResolvedValue(null);
+
+    await service.evaluateDue();
+    await service.evaluateDue();
+    await service.evaluateDue();
+
+    expect(seenCursors).toEqual([
+      undefined,
+      firstBatch[firstBatch.length - 1].id,
+      undefined,
+    ]);
+    expect(evaluateSpy).toHaveBeenCalledTimes(batchSize + 2);
   });
 
   it('exposes a non-overlapping public run() method on CoinRewardWorker without timers', async () => {
