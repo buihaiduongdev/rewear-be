@@ -1253,4 +1253,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Định hướng chiến lược chia 4 Wave PR, giữ lại các module đã gọn (`mail`, `user-address`) và rà soát các chỗ gắn mác bảo vệ toàn vẹn nhưng dư thừa so với constraint cơ sở dữ liệu.
 - **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test:payment:core` đạt 24/24 tests; `pnpm test:unit` đạt 67/67 suites (407/407 tests); integration/E2E được cập nhật theo cấu trúc mới để CI kiểm tra trên PR.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `buihaiduongdev/refactor-wave-1`.
+- **Minh chứng:** PR #69; branch `buihaiduongdev/refactor-wave-1`.
