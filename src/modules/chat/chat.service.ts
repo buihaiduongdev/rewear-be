@@ -11,9 +11,11 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { MediaService } from '@/modules/media/media.service';
 import { notifyChatMessage } from '@/modules/notifications/sources/chat-message.notification';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
-import { isProductDisplayable } from '@/modules/product/machines/product-availability.machine';
+import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -377,9 +379,17 @@ export class ChatService {
       },
       relations: { category: true, shop: true },
     });
+    const approved =
+      product &&
+      (await manager.existsBy(ProductModeration, {
+        productId: product.id,
+        status: ProductModerationStatus.APPROVED,
+      }));
     if (
       !product ||
-      !isProductDisplayable(product, { requireCompleteMetadata: true })
+      !approved ||
+      product.category?.isActive !== true ||
+      product.shop?.status !== ShopStatus.ACTIVE
     ) {
       throw new BadRequestException(
         'Product must be a public approved listing of this Shop',
