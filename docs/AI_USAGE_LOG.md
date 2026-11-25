@@ -1229,4 +1229,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Review từng hàm, định hướng bỏ phần ẩn `UNAVAILABLE` rườm rà và xóa comment thừa.
 - **Cách kiểm chứng:** `pnpm check` đạt; `product-availability.machine.spec.ts` đạt 12/12 tests.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `buihaiduongdev/cart-cleanup`.
+- **Minh chứng:** PR #67; branch `buihaiduongdev/cart-cleanup`.
