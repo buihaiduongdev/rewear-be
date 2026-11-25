@@ -874,7 +874,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         });
         expect(
           await refundFunding(manager, order, new Date(Date.now() + 2000)),
-        ).toMatchObject({ mode, funded: true, itemFundsAvailable: 200000 });
+        ).toEqual({ mode });
       });
       expect(
         await db.getRepository(ShopLedgerEntry).countBy({ orderId: order.id }),

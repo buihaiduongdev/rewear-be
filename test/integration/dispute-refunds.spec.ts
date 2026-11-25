@@ -21,6 +21,8 @@ import { OrderSettlementService } from '@/modules/order/order-settlement.service
 import { OrderAccess } from '@/modules/order/order.access';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { User } from '@/modules/user/entities';
 import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
@@ -407,5 +409,78 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
           .findOneByOrFail({ id: cancelled.issue.id })
       ).status,
     ).toBe('AWAITING_EXECUTION');
+  });
+
+  it('isolates COD_SHIPPING_DEBIT ledger entries from refund funding, coin rewards, and shop refund deductions', async () => {
+    const f = await fundedCodFixture('EVIDENCE', 40000);
+    await f.db.getRepository(ShopLedgerEntry).save({
+      orderId: f.order.id,
+      shopId: f.shop.id,
+      collectionId: null,
+      mode: 'EVIDENCE',
+      type: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
+      amount: 60000,
+      actorId: f.admin.id,
+    });
+
+    await adjudication.refreshIssue(f.issue.id);
+    expect(
+      await f.db
+        .getRepository(DisputeRefundCredit)
+        .countBy({ orderId: f.order.id }),
+    ).toBe(1);
+
+    const finance = new ShopFinanceService(f.db);
+    const awaitingView = await finance.view(f.owner.id, f.shop.id, {});
+    expect(awaitingView).toMatchObject({
+      held: 0,
+      receivable: 58201,
+      shippingDebit: 60000,
+      paidOutDebt: 60000,
+    });
+
+    await new CodReconciliationService(f.db).recordRemittance(f.admin.id, {
+      requestId: randomUUID(),
+      reference: randomUUID(),
+      mode: 'EVIDENCE',
+      netAmount: f.order.total,
+      receivedAt: new Date().toISOString(),
+      reason: 'Received order cash alongside shipping debit',
+      evidence: 'Bank receipt',
+      allocations: [
+        { orderId: f.order.id, cashAmount: f.order.total, feeDeducted: 0 },
+      ],
+    });
+
+    const fundedView = await finance.view(f.owner.id, f.shop.id, {});
+    expect(fundedView).toMatchObject({
+      held: 58201,
+      receivable: 0,
+      shippingDebit: 60000,
+      paidOutDebt: 60000,
+    });
+
+    const deliveredAt = new Date(Date.now() - 4 * 86400000);
+    const disputeDeadlineAt = new Date(deliveredAt.getTime() + 72 * 3600000);
+    await f.db.getRepository(Order).update(f.order.id, {
+      createdAt: new Date(deliveredAt.getTime() - 3600000),
+      deliveryObservedAt: deliveredAt,
+      deliveryVerifiedAt: deliveredAt,
+      disputeDeadlineAt,
+    });
+    await f.db.getRepository(OrderDeliveryVerification).save({
+      orderId: f.order.id,
+      deliveredAt,
+      disputeDeadlineAt,
+      mode: 'EVIDENCE',
+      actorId: f.admin.id,
+      reason: 'Verified delivery',
+      evidence: 'Signed handoff',
+    });
+    const rewards = new CoinRewardService(f.db, new CoinService());
+    expect(await rewards.evaluate(f.order.id)).toMatchObject({
+      entitlement: 300,
+      grantedAmount: 300,
+    });
   });
 });

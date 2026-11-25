@@ -1,37 +1,37 @@
 import { refundAllocation } from '@/modules/dispute/dispute-refund-accounting';
 
 describe('Item refund allocation', () => {
-  it('refunds only the increase in entitlement, never adds overlapping issue ceilings', () => {
-    expect(refundAllocation(100001, 100001, 40000, 300)).toEqual({
-      amount: 60001,
-      commissionReversed: 1800,
-      sellerDebit: 58201,
+  it('computes full item refund and commission reversal accurately', () => {
+    expect(refundAllocation(100001, 100001, 300)).toEqual({
+      amount: 100001,
+      commissionReversed: 3000,
+      sellerDebit: 97001,
     });
-    expect(refundAllocation(100001, 100001, 100001, 300)).toEqual({
-      amount: 0,
-      commissionReversed: 0,
-      sellerDebit: 0,
+    expect(refundAllocation(100001, 40000, 300)).toEqual({
+      amount: 40000,
+      commissionReversed: 1200,
+      sellerDebit: 38800,
     });
   });
 
   it('uses snapshot floor rounding before and after partial refund', () => {
-    expect(refundAllocation(101, 50, 0, 300)).toEqual({
+    expect(refundAllocation(101, 50, 300)).toEqual({
       amount: 50,
       commissionReversed: 2,
       sellerDebit: 48,
     });
   });
 
-  it('rejects invalid ceilings, paid totals and commission instead of clamping corruption', () => {
+  it('rejects invalid ceilings and commission instead of clamping corruption', () => {
     for (const values of [
-      [100, 101, 0, 300],
-      [100, 10, 101, 300],
-      [100, 10, -1, 300],
-      [100, 10, 0, 10001],
-      [100, 0, 0, 300],
+      [100, 101, 300],
+      [100, 10, 10001],
+      [100, 0, 300],
+      [0, 0, 300],
+      [100, 10, -1],
     ]) {
       expect(() =>
-        refundAllocation(...(values as [number, number, number, number])),
+        refundAllocation(...(values as [number, number, number])),
       ).toThrow('Invalid refund allocation');
     }
   });

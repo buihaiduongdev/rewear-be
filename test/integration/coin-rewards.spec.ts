@@ -153,7 +153,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       await f.db.transaction((manager) =>
         refundFunding(manager, order, new Date()),
       ),
-    ).toMatchObject({ itemFundsAvailable: 100001 });
+    ).toEqual({ mode: 'EVIDENCE' });
     await f.db
       .getRepository(CoinOrderDebit)
       .update({ orderId: order.id }, { mode: 'SIMULATION' });

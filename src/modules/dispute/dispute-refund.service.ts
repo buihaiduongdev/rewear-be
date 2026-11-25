@@ -62,7 +62,6 @@ export class DisputeRefundService {
       ? refundAllocation(
           decision.itemPrice,
           entitlement,
-          0,
           order.commissionBasisPoints,
         )
       : null;
@@ -160,7 +159,6 @@ export class DisputeRefundService {
     const allocation = refundAllocation(
       decision.itemPrice,
       decision.finalRefundAmount,
-      0,
       order.commissionBasisPoints,
     );
 

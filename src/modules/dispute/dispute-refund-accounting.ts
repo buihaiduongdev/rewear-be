@@ -8,35 +8,32 @@ import {
   RECONCILIATION_REVIEW_REASON,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 
 import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
 
 export function refundAllocation(
   price: number,
   entitlement: number,
-  paid: number,
   basisPoints: number,
 ) {
   const amountsValid =
-    [price, entitlement, paid, basisPoints].every(Number.isSafeInteger) &&
+    [price, entitlement, basisPoints].every(Number.isSafeInteger) &&
     price > 0 &&
     entitlement > 0 &&
     entitlement <= price &&
-    paid >= 0 &&
-    paid <= price &&
     basisPoints >= 0 &&
     basisPoints <= BASIS_POINTS_SCALE;
   if (!amountsValid) throw new ConflictException('Invalid refund allocation');
-  const amount = Math.max(0, entitlement - paid);
   const fee = (remaining: number) =>
     Number(
       (BigInt(remaining) * BigInt(basisPoints)) / BigInt(BASIS_POINTS_SCALE),
     );
-  const commissionReversed = fee(price - paid) - fee(price - paid - amount);
+  const commissionReversed = fee(price) - fee(price - entitlement);
   return {
-    amount,
+    amount: entitlement,
     commissionReversed,
-    sellerDebit: amount - commissionReversed,
+    sellerDebit: entitlement - commissionReversed,
   };
 }
 
@@ -66,7 +63,7 @@ export async function shopRefundDeductions(
       COALESCE(SUM(CASE WHEN release.id IS NOT NULL THEN refund."sellerDebit" ELSE 0 END),0) AS settled,
       COALESCE(SUM(CASE WHEN entry.id IS NULL AND (collection.status = ANY($3::varchar[]) OR (collection.status=$4 AND collection."reviewReason"=$5)) THEN refund."sellerDebit" ELSE 0 END),0) AS receivable
     FROM dispute_refund_credits refund
-    LEFT JOIN shop_ledger_entries entry ON entry."orderId"=refund."orderId" AND entry."shopId"=refund."shopId" AND entry.mode=refund.mode
+    LEFT JOIN shop_ledger_entries entry ON entry."orderId"=refund."orderId" AND entry."shopId"=refund."shopId" AND entry.mode=refund.mode AND entry.type<>$6
     LEFT JOIN shop_settlements release ON release."orderId"=refund."orderId" AND release."shopId"=refund."shopId" AND release.mode=refund.mode
     LEFT JOIN cod_collections collection ON collection."orderId"=refund."orderId" AND collection."shopId"=refund."shopId" AND collection.mode=refund.mode
     WHERE refund."shopId"=$1 AND refund.mode=$2`,
@@ -76,6 +73,7 @@ export async function shopRefundDeductions(
       [COD_RECONCILIATION_STATUS.AWAITING, COD_RECONCILIATION_STATUS.PARTIAL],
       COD_RECONCILIATION_STATUS.REVIEW,
       RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW,
+      SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
     ],
   );
   return {
