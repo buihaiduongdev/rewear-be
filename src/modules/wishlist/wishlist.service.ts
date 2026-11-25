@@ -1,9 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { DataSource, In } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
-import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition } from '@/modules/product/enums';
@@ -22,37 +21,26 @@ export class WishlistService {
   async findMine(userId: string): Promise<WishlistView> {
     const items = await this.dataSource.getRepository(WishlistItem).find({
       where: { userId },
-      relations: { product: { shop: { logoMedia: true }, category: true } },
+      relations: {
+        product: {
+          shop: { logoMedia: true },
+          category: true,
+          media: { media: true },
+        },
+      },
       order: { createdAt: 'DESC' },
     });
 
-    if (!items.length) {
-      return { items: [], totalCount: 0 };
-    }
-
-    const covers = await this.dataSource.getRepository(ProductMedia).find({
-      where: {
-        productId: In(items.map((i) => i.productId)),
-        role: MediaRole.COVER,
-      },
-      relations: { media: true },
-    });
-    const coverUrls = new Map(
-      covers.map((c) => [
-        c.productId,
-        this.storage.getPublicUrl(c.media.storageKey),
-      ]),
-    );
-
     const mappedItems = items.map((item) => {
       const p = item.product;
-      const availability = evaluateProductAvailability(p);
+      const coverKey = p?.media?.find((m) => m.role === MediaRole.COVER)?.media
+        ?.storageKey;
 
       return {
         id: item.id,
         productId: item.productId,
         addedAt: item.createdAt,
-        availability,
+        availability: evaluateProductAvailability(p),
         product: p
           ? {
               id: p.id,
@@ -61,7 +49,7 @@ export class WishlistService {
               condition: p.condition ?? ProductCondition.GOOD,
               size: p.size,
               color: p.color,
-              coverUrl: coverUrls.get(p.id) ?? null,
+              coverUrl: coverKey ? this.storage.getPublicUrl(coverKey) : null,
               shop: p.shop
                 ? {
                     id: p.shop.id,

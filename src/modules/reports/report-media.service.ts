@@ -16,28 +16,28 @@ import {
   REPORT_MIME_TYPES,
   REPORT_POLICY,
   REPORT_STATUS,
-} from '../constants/report.constant';
-import { ReportEvidence } from '../entities/report.entity';
-import { reportTargetSnapshot } from '../policies/report-target.policy';
-import { reportClock } from '../policies/report-transaction.policy';
-import { ReportAccess } from '../report.access';
-import { reportUploadSchema } from '../schemas/report.schema';
+} from './constants/report.constant';
+import { ReportEvidence } from './entities';
+import { reportTargetSnapshot } from './report.policy';
+import { reportUploadSchema } from './schemas/report.schema';
+import { ViolationReportService } from './violation-report.service';
 
 @Injectable()
 export class ReportMediaService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: ReportAccess,
+    private readonly reports: ViolationReportService,
     private readonly storage: StorageService,
     private readonly media: MediaService,
   ) {}
+
   async attach(userId: string, input: z.input<typeof reportUploadSchema>) {
     const data = reportUploadSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      const now = await reportClock(manager);
-      await this.access.active(manager, userId);
+      const now = await this.reports.clock(manager);
+      await this.reports.assertActiveUser(manager, userId);
       const report = data.reportId
-        ? await this.access.own(manager, userId, data.reportId)
+        ? await this.reports.loadOwn(manager, userId, data.reportId)
         : null;
       if (
         report &&
@@ -85,16 +85,14 @@ export class ReportMediaService {
     });
   }
 
-  download(userId: string, id: string) {
-    return this.db.transaction(async (manager) => {
-      const actor = await this.access.active(manager, userId);
-      const row = await manager.findOneBy(ReportEvidence, { id });
-      if (!row?.reportId || row.media.retiredAt)
-        throw new NotFoundException('Attached report evidence not found');
-      if (actor.role === UserRole.ADMIN)
-        await this.access.adminReport(manager, userId, row.reportId);
-      else await this.access.own(manager, userId, row.reportId);
-      return this.storage.createDownloadUrl(row.media.storageKey);
-    });
+  async download(userId: string, id: string) {
+    const actor = await this.reports.assertActiveUser(this.db.manager, userId);
+    const row = await this.db.manager.findOneBy(ReportEvidence, { id });
+    if (!row?.reportId || row.media.retiredAt)
+      throw new NotFoundException('Attached report evidence not found');
+    if (actor.role === UserRole.ADMIN)
+      await this.reports.loadAdminReport(this.db.manager, userId, row.reportId);
+    else await this.reports.loadOwn(this.db.manager, userId, row.reportId);
+    return this.storage.createDownloadUrl(row.media.storageKey);
   }
 }

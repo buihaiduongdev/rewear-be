@@ -15,8 +15,8 @@ import {
   Notification,
   NotificationEmailJob,
   NotificationEvent,
-} from './entities/notification.entity';
-import type { NotificationInput } from './types/notification.type';
+} from './entities';
+import type { NotificationInput } from './schemas/notification.schema';
 
 /** Caller transaction commits the source event, inbox and email intent atomically. */
 export async function publishNotification(

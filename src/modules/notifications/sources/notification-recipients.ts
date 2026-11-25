@@ -6,7 +6,7 @@ import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { NOTIFICATION_SCOPE } from '../constants/notification.constant';
-import type { NotificationRecipient } from '../types/notification.type';
+import type { NotificationRecipient } from '../schemas/notification.schema';
 
 export async function shopRecipients(
   manager: EntityManager,

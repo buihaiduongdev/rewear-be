@@ -6,9 +6,9 @@ import { DisputeNotice } from '@/modules/dispute/entities/dispute.entity';
 import type { MailService } from '@/modules/mail/mail.service';
 import {
   Notification,
+  NotificationEmailJob,
   NotificationEvent,
-} from '@/modules/notifications/entities/notification.entity';
-import { NotificationEmailJob } from '@/modules/notifications/entities/notification.entity';
+} from '@/modules/notifications/entities';
 import { NotificationEmailService } from '@/modules/notifications/notification-email.service';
 import { NotificationProjector } from '@/modules/notifications/notification-projector.service';
 import { NotificationService } from '@/modules/notifications/notification.service';

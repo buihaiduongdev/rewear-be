@@ -153,10 +153,13 @@ describe('Seed data (PostgreSQL)', () => {
     } as never).findMine(buyer.id);
     expect(wishlist.totalCount).toBe(3);
     expect(wishlist.items.every((item) => item.product?.coverUrl)).toBe(true);
-    const follows = await new ShopFollowService(db).list(buyer.id, {
-      limit: 20,
-      offset: 0,
-    });
+    const follows = await new ShopFollowService(db, {} as never).list(
+      buyer.id,
+      {
+        limit: 20,
+        offset: 0,
+      },
+    );
     expect(follows.totalCount).toBe(3);
     const authorization = new AuthorizationService(db);
     const chat = new ChatService(db, authorization, {} as never);

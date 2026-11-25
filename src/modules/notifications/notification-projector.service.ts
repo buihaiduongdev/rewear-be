@@ -3,13 +3,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { NOTIFICATION_POLICY } from './constants/notification.constant';
-import {
-  NotificationCheckpoint,
-  NotificationEvent,
-} from './entities/notification.entity';
+import { NotificationCheckpoint, NotificationEvent } from './entities';
 import { publishNotification } from './publish-notification';
-import type { NotificationSource } from './sources/notification-source.types';
-import { notificationSources } from './sources/notification-sources';
+import {
+  type NotificationSource,
+  notificationSources,
+} from './sources/notification-sources';
 
 @Injectable()
 export class NotificationProjector {

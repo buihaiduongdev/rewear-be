@@ -12,8 +12,7 @@ import {
   ShopRatingModerationAudit,
   ShopRatingNotice,
   ShopRatingVersion,
-} from '@/modules/ratings/entities/shop-rating.entity';
-import { RatingAccess } from '@/modules/ratings/rating.access';
+} from '@/modules/ratings/entities';
 import { RatingsService } from '@/modules/ratings/ratings.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
@@ -28,7 +27,7 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const auth = new AuthorizationService(database.dataSource);
-    ratings = new RatingsService(database.dataSource, new RatingAccess(auth));
+    ratings = new RatingsService(database.dataSource, auth);
   });
   afterAll(async () => database?.destroy());
   async function fixture() {

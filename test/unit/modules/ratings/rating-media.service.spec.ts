@@ -4,12 +4,8 @@ import type { DataSource } from 'typeorm';
 
 import type { StorageService } from '@/infrastructure/storage';
 import type { MediaService } from '@/modules/media/media.service';
-import {
-  ShopRating,
-  ShopRatingMedia,
-} from '@/modules/ratings/entities/shop-rating.entity';
+import { ShopRating, ShopRatingMedia } from '@/modules/ratings/entities';
 import { RatingMediaService } from '@/modules/ratings/rating-media.service';
-import type { RatingAccess } from '@/modules/ratings/rating.access';
 import type { RatingsService } from '@/modules/ratings/ratings.service';
 
 function fixture() {
@@ -36,7 +32,6 @@ function fixture() {
   };
   const service = new RatingMediaService(
     db as unknown as DataSource,
-    {} as RatingAccess,
     { clock: async () => new Date() } as unknown as RatingsService,
     storage as unknown as StorageService,
     {} as MediaService,

@@ -167,3 +167,25 @@ export const reportDownloadSchema = z.object({
   headers: z.record(z.string(), z.string()),
   expiresAt: dateTimeSchema,
 });
+
+export type ReportTargetType =
+  (typeof REPORT_TARGET)[keyof typeof REPORT_TARGET];
+export type ReportStatus = (typeof REPORT_STATUS)[keyof typeof REPORT_STATUS];
+export type ReportReason = (typeof REPORT_REASON)[keyof typeof REPORT_REASON];
+export type ReportOutcome =
+  (typeof REPORT_OUTCOME)[keyof typeof REPORT_OUTCOME];
+export type ReportMeasure =
+  (typeof REPORT_MEASURE)[keyof typeof REPORT_MEASURE];
+export type ReportAction = (typeof REPORT_ACTION)[keyof typeof REPORT_ACTION];
+export type ReportTargetSnapshot = {
+  type: ReportTargetType;
+  id: string;
+  shopId: string;
+  label: string;
+  contextOrderId: string | null;
+};
+export type CreateReportInput = z.infer<typeof createReportSchema>;
+export type ReportQuery = z.infer<typeof reportQuerySchema>;
+export type ReportSupplementInput = z.infer<typeof reportSupplementSchema>;
+export type ClaimReportInput = z.infer<typeof claimReportSchema>;
+export type ResolveReportInput = z.infer<typeof resolveReportSchema>;

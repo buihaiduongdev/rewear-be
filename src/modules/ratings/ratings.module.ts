@@ -11,9 +11,8 @@ import {
   ShopRatingModerationAudit,
   ShopRatingNotice,
   ShopRatingVersion,
-} from './entities/shop-rating.entity';
+} from './entities';
 import { RatingMediaService } from './rating-media.service';
-import { RatingAccess } from './rating.access';
 import { RatingsController } from './ratings.controller';
 import { RatingsService } from './ratings.service';
 
@@ -31,7 +30,7 @@ import { RatingsService } from './ratings.service';
     ]),
   ],
   controllers: [RatingsController],
-  providers: [RatingAccess, RatingsService, RatingMediaService],
+  providers: [RatingsService, RatingMediaService],
   exports: [RatingsService],
 })
 export class RatingsModule {}

@@ -43,10 +43,6 @@ export class ChatService {
   open(buyerId: string, shopId: string) {
     return this.db.transaction(async (manager) => {
       await this.assertActiveUser(manager, buyerId);
-      await manager.query(
-        'SELECT pg_advisory_xact_lock(782146, hashtext($1))',
-        [buyerId + ':' + shopId],
-      );
       let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
       if (!row) {
         await this.assertActiveShop(manager, shopId);
@@ -55,16 +51,23 @@ export class ChatService {
             'Shop members cannot open a buyer conversation with their own Shop',
           );
         }
-        row = await manager.save(
-          ChatConversation,
-          manager.create(ChatConversation, {
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(ChatConversation)
+          .values({
             buyerId,
             shopId,
             buyerLastReadAt: null,
             shopLastReadAt: null,
             lastMessageAt: null,
-          }),
-        );
+          })
+          .orIgnore()
+          .execute();
+        row = await manager.findOneByOrFail(ChatConversation, {
+          buyerId,
+          shopId,
+        });
       }
       return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
     });

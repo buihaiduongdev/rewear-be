@@ -18,22 +18,18 @@ import {
   shopFollowInputSchema,
   shopFollowPageSchema,
   shopFollowProductPageSchema,
+  type ShopFollowQuery,
   shopFollowQuerySchema,
   shopFollowStateSchema,
 } from './schemas/shop-follow.schema';
-import { ShopFollowFeedService } from './shop-follow-feed.service';
 import { ShopFollowService } from './shop-follow.service';
-import type { ShopFollowQuery } from './types/shop-follow.type';
 
 @ApiTags('Follow Shop')
 @ApiBearerAuth()
 @AuthenticatedAccess()
 @Controller('shop-follows')
 export class ShopFollowController {
-  constructor(
-    private readonly follows: ShopFollowService,
-    private readonly feed: ShopFollowFeedService,
-  ) {}
+  constructor(private readonly follows: ShopFollowService) {}
   @Get()
   @Serialize(shopFollowPageSchema)
   list(
@@ -48,7 +44,7 @@ export class ShopFollowController {
     @CurrentUser() user: User,
     @Query({ schema: shopFollowQuerySchema }) query: ShopFollowQuery,
   ) {
-    return this.feed.products(user.id, query);
+    return this.follows.products(user.id, query);
   }
   @Get('shops/:shopId')
   @Serialize(shopFollowStateSchema)

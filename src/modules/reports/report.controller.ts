@@ -17,30 +17,26 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { ReportMediaService } from './media/report-media.service';
-import { ReportAdminService } from './report-admin.service';
-import { ReportReadService } from './report-read.service';
+import { ReportMediaService } from './report-media.service';
 import {
   adminReportPageSchema,
   adminReportViewSchema,
+  type ClaimReportInput,
   claimReportSchema,
+  type CreateReportInput,
   createReportSchema,
   reportDownloadSchema,
   reportEvidenceViewSchema,
   reportPageSchema,
+  type ReportQuery,
   reportQuerySchema,
+  type ReportSupplementInput,
   reportSupplementSchema,
   reportUploadSchema,
   reportViewSchema,
+  type ResolveReportInput,
   resolveReportSchema,
 } from './schemas/report.schema';
-import type {
-  ClaimReportInput,
-  CreateReportInput,
-  ReportQuery,
-  ReportSupplementInput,
-  ResolveReportInput,
-} from './types/report.type';
 import { ViolationReportService } from './violation-report.service';
 
 @ApiTags('Violation reports')
@@ -50,10 +46,9 @@ import { ViolationReportService } from './violation-report.service';
 export class ReportController {
   constructor(
     private readonly reports: ViolationReportService,
-    private readonly read: ReportReadService,
-    private readonly admin: ReportAdminService,
     private readonly media: ReportMediaService,
   ) {}
+
   @Post()
   @HttpCode(200)
   @Serialize(reportViewSchema)
@@ -63,14 +58,16 @@ export class ReportController {
   ) {
     return this.reports.create(user.id, input);
   }
+
   @Get('mine')
   @Serialize(reportPageSchema)
   mine(
     @CurrentUser() user: User,
     @Query({ schema: reportQuerySchema }) input: ReportQuery,
   ) {
-    return this.read.list(user.id, input);
+    return this.reports.list(user.id, input);
   }
+
   @Post('evidence')
   @HttpCode(200)
   @Serialize(reportEvidenceViewSchema)
@@ -81,6 +78,7 @@ export class ReportController {
   ) {
     return this.media.attach(user.id, input);
   }
+
   @Get('evidence/:id/download')
   @Serialize(reportDownloadSchema)
   download(
@@ -89,6 +87,7 @@ export class ReportController {
   ) {
     return this.media.download(user.id, id);
   }
+
   @Get('admin')
   @Roles(UserRole.ADMIN)
   @Serialize(adminReportPageSchema)
@@ -96,8 +95,9 @@ export class ReportController {
     @CurrentUser() user: User,
     @Query({ schema: reportQuerySchema }) input: ReportQuery,
   ) {
-    return this.read.list(user.id, input, true);
+    return this.reports.list(user.id, input, true);
   }
+
   @Get('admin/:id')
   @Roles(UserRole.ADMIN)
   @Serialize(adminReportViewSchema)
@@ -105,8 +105,9 @@ export class ReportController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.read.adminDetail(user.id, id);
+    return this.reports.adminDetail(user.id, id);
   }
+
   @Post('admin/:id/claim')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
@@ -116,8 +117,9 @@ export class ReportController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: claimReportSchema }) input: ClaimReportInput,
   ) {
-    return this.admin.claim(user.id, id, input);
+    return this.reports.claim(user.id, id, input);
   }
+
   @Post('admin/:id/resolve')
   @HttpCode(200)
   @Roles(UserRole.ADMIN)
@@ -127,16 +129,18 @@ export class ReportController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: resolveReportSchema }) input: ResolveReportInput,
   ) {
-    return this.admin.resolve(user.id, id, input);
+    return this.reports.resolve(user.id, id, input);
   }
+
   @Get(':id')
   @Serialize(reportViewSchema)
   detail(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.read.mineDetail(user.id, id);
+    return this.reports.mineDetail(user.id, id);
   }
+
   @Post(':id/supplements')
   @HttpCode(200)
   @Serialize(reportViewSchema)

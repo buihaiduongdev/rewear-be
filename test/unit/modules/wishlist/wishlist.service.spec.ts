@@ -1,7 +1,7 @@
 import type { DataSource, Repository } from 'typeorm';
 
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
-import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { WishlistItem } from '@/modules/wishlist/entities';
@@ -22,10 +22,6 @@ describe('WishlistService', () => {
     findOneBy: jest.fn(),
   };
 
-  const mockMediaRepo: jest.Mocked<Pick<Repository<ProductMedia>, 'find'>> = {
-    find: jest.fn(),
-  };
-
   const mockQueryBuilder = {
     insert: jest.fn().mockReturnThis(),
     into: jest.fn().mockReturnThis(),
@@ -38,7 +34,6 @@ describe('WishlistService', () => {
     getRepository: jest.fn((entity) => {
       if (entity === WishlistItem) return mockWishlistRepo;
       if (entity === Product) return mockProductRepo;
-      if (entity === ProductMedia) return mockMediaRepo;
       throw new Error(`Unexpected entity: ${entity}`);
     }),
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
@@ -75,6 +70,12 @@ describe('WishlistService', () => {
         size: 'L',
         color: 'Beige',
         shop: { id: 'shop-1', name: 'Vintage Shop' },
+        media: [
+          {
+            role: MediaRole.COVER,
+            media: { storageKey: 'cover.jpg' },
+          },
+        ],
       } as unknown as Product;
 
       const mockWishlistItem = {
@@ -86,12 +87,6 @@ describe('WishlistService', () => {
       } as WishlistItem;
 
       mockWishlistRepo.find.mockResolvedValueOnce([mockWishlistItem]);
-      mockMediaRepo.find.mockResolvedValueOnce([
-        {
-          productId: productId,
-          media: { storageKey: 'cover.jpg' },
-        } as ProductMedia,
-      ]);
 
       const result = await service.findMine(userId);
 

@@ -3,9 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { StorageService } from '@/infrastructure/storage';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
-import { ReportMediaService } from '@/modules/reports/media/report-media.service';
-import { ReportReadService } from '@/modules/reports/report-read.service';
-import { ReportAccess } from '@/modules/reports/report.access';
+import { ReportMediaService } from '@/modules/reports/report-media.service';
 import { ViolationReportService } from '@/modules/reports/violation-report.service';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -55,7 +53,6 @@ describe('Violation report private evidence PostgreSQL', () => {
   };
   beforeAll(async () => {
     database = await createTestDatabase();
-    const access = new ReportAccess();
     uploads = new MediaService(
       database.dataSource.getRepository(Media),
       storage as unknown as StorageService,
@@ -66,16 +63,12 @@ describe('Violation report private evidence PostgreSQL', () => {
         },
       } as never,
     );
+    reports = new ViolationReportService(database.dataSource);
     media = new ReportMediaService(
       database.dataSource,
-      access,
+      reports,
       storage as unknown as StorageService,
       uploads,
-    );
-    reports = new ViolationReportService(
-      database.dataSource,
-      access,
-      new ReportReadService(database.dataSource, access),
     );
   });
   afterAll(async () => database?.destroy());

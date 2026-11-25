@@ -4,7 +4,7 @@ import ms from 'ms';
 import nodemailer, { Transporter } from 'nodemailer';
 
 import { ConfigService } from '@/modules/config';
-import type { Notification } from '@/modules/notifications/entities/notification.entity';
+import type { Notification } from '@/modules/notifications/entities';
 
 import { getResetPasswordTemplate, getVerifyEmailTemplate } from './templates';
 

@@ -26,24 +26,20 @@ import {
   privateRatingSchema,
   publicRatingPageSchema,
   ratingDownloadSchema,
-  ratingMediaViewSchema,
-  ratingNoticeSchema,
-  ratingVersionSchema,
-  shopReplyRatingSchema,
-} from './schemas/rating-view.schema';
-import {
+  type RatingInput,
   ratingInputSchema,
   ratingListSchema,
+  ratingMediaViewSchema,
+  type RatingMode,
+  type RatingModerationInput,
   ratingModerationSchema,
+  ratingNoticeSchema,
   ratingReplySchema,
+  type RatingUploadInput,
   ratingUploadSchema,
+  ratingVersionSchema,
+  shopReplyRatingSchema,
 } from './schemas/rating.schema';
-import type {
-  RatingInput,
-  RatingMode,
-  RatingModerationInput,
-  RatingUploadInput,
-} from './types/rating.type';
 
 @ApiTags('Shop ratings')
 @ApiBearerAuth()

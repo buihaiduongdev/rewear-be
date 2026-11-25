@@ -19,7 +19,7 @@ import { MediaType } from '@/modules/media/enums';
 import {
   Notification,
   NotificationEmailJob,
-} from '@/modules/notifications/entities/notification.entity';
+} from '@/modules/notifications/entities';
 import { NotificationWorker } from '@/modules/notifications/notification.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';

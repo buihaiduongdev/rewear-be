@@ -49,7 +49,6 @@ export class ChatMediaService {
     tags: string[],
   ) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const link = await this.loadPrivateMediaLink(
         manager,
         mediaId,

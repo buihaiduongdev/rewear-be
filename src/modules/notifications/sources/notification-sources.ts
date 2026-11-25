@@ -1,4 +1,9 @@
+import type { EntityManager, EntityTarget } from 'typeorm';
+
+import type { BaseEntity } from '@/common/entities';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
 import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities/coin-reward.entity';
 import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
 import {
@@ -8,27 +13,54 @@ import {
 } from '@/modules/dispute/entities/dispute.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
 import { FeeAssessment, FeeNotice } from '@/modules/fees/entities/fee.entity';
-import { ORDER_EVENT_ACTION } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import {
-  ShopRating,
-  ShopRatingNotice,
-} from '@/modules/ratings/entities/shop-rating.entity';
+  ORDER_EVENT_ACTION,
+  ORDER_PAYMENT_METHOD,
+} from '@/modules/order/constants/order.constant';
+import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { ShopRating, ShopRatingNotice } from '@/modules/ratings/entities';
 import { FulfillmentNotice } from '@/modules/shipment/entities/late-handover.entity';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
+import { WalletDebit } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
 
 import {
   NOTIFICATION_KIND,
   NOTIFICATION_TARGET,
 } from '../constants/notification.constant';
-import type { NotificationRecipient } from '../types/notification.type';
+import type {
+  NotificationInput,
+  NotificationRecipient,
+} from '../schemas/notification.schema';
 import {
   adminRecipients,
   personalRecipient,
   shopRecipients,
 } from './notification-recipients';
-import type { NotificationSource } from './notification-source.types';
-import { orderNotificationMode } from './order-notification-mode';
+
+export type NotificationSource<T extends BaseEntity = BaseEntity> = {
+  entity: EntityTarget<T>;
+  prefix: string;
+  build(
+    manager: EntityManager,
+    row: T,
+  ): Promise<Omit<NotificationInput, 'key' | 'email'>>;
+  importantEmail?: boolean;
+};
+
+async function orderNotificationMode(manager: EntityManager, order: Order) {
+  if (order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO)
+    return RECONCILIATION_MODE.SIMULATION;
+  if (order.walletDebitId)
+    return (
+      (await manager.findOneBy(WalletDebit, { id: order.walletDebitId }))
+        ?.mode ?? null
+    );
+  return (
+    (await manager.findOneBy(CodCollection, { orderId: order.id }))?.mode ??
+    order.coinMode ??
+    null
+  );
+}
 
 const dispute: NotificationSource<DisputeNotice> = {
   entity: DisputeNotice,

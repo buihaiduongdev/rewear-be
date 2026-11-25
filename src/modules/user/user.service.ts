@@ -131,14 +131,11 @@ export class UserService {
     }
 
     const byEmail = await this.findByEmail(profile.email);
-    //TODO early return?
-    if (byEmail) {
-      if (!byEmail.providerAccountId) {
-        byEmail.providerAccountId = profile.providerAccountId;
-        return this.userRepository.save(byEmail);
-      }
-      return byEmail;
+    if (byEmail && !byEmail.providerAccountId) {
+      byEmail.providerAccountId = profile.providerAccountId;
+      return this.userRepository.save(byEmail);
     }
+    if (byEmail) return byEmail;
 
     return this.userRepository.save(
       this.userRepository.create({
@@ -155,14 +152,13 @@ export class UserService {
 
   async update(id: string, input: UpdateUserInput): Promise<User> {
     const user = await this.findById(id);
-    if (input.email) {
-      user.email = this.normalizeEmail(input.email);
-    }
-    //TODO sao ko dung merge nhi
-    if (input.password) user.password = await argon2.hash(input.password);
-    if (input.fullName) user.fullName = input.fullName;
-    if (input.role) user.role = input.role;
-    if (input.status) user.status = input.status;
+    this.userRepository.merge(user, {
+      ...input,
+      ...(input.email ? { email: this.normalizeEmail(input.email) } : {}),
+      ...(input.password
+        ? { password: await argon2.hash(input.password) }
+        : {}),
+    });
     try {
       return await this.userRepository.save(user);
     } catch (error) {
@@ -183,7 +179,6 @@ export class UserService {
     if (!result.affected) throw new NotFoundException('User not found');
   }
 
-  //TODO cai nay co schema trim o tang tren roi ma
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
