@@ -1278,3 +1278,12 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện AI từng bỏ nhầm khóa ghi tài chính cốt lõi, kiểm tra ping webhook PayOS quá chặt theo chuỗi mô tả cũ (chặn `VQRIO123`), bỏ sót `expiredAt` ở link phí/thu hồi ví và xử lý thiếu trường hợp chuyển khoản một phần khi link hết hạn; đã khắc phục toàn bộ trước khi đẩy lên CI.
 - **Minh chứng:** PR #71; branch `buihaiduongdev/refactor-wave-3`.
+
+### 2026-11-25 — Tinh gọn module khiếu nại và hoàn trả Wave 4
+
+- **Phạm vi công việc:** Nhóm module khiếu nại, kháng cáo, xét xử, hoàn trả hàng và xử lý hoàn tiền sau phán quyết trong nhánh `buihaiduongdev/refactor-wave-4`.
+- **Công cụ AI đã sử dụng:** Trợ lý AI viết mã.
+- **Mục đích sử dụng:** Tách gọn các thực thể đang gom nhiều bảng trong cùng một tệp về chuẩn một thực thể mỗi tệp kèm tệp export tổng; gộp các khai báo kiểu nhỏ vào nhóm schema tương ứng; loại bỏ khóa cố vấn toàn cục dư thừa và bỏ giao dịch cô lập ở các thao tác chỉ đọc nhưng vẫn giữ nguyên toàn bộ giao dịch ghi, đồng hồ cơ sở dữ liệu và ràng buộc duy nhất.
+- **Người thực hiện kiểm tra và chỉnh sửa:** Kiểm tra và cập nhật lại toàn bộ đường dẫn import ở mã nguồn lẫn các bộ kiểm thử liên quan, chạy định dạng, kiểm tra kiểu, phân tích tĩnh, biên dịch và toàn bộ bài kiểm thử đơn vị.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Chưa phát hiện lỗi ngoài việc cần đồng bộ lại các đường dẫn tham chiếu thực thể và schema sau khi tách gọn cấu trúc thư mục.
+- **Minh chứng:** Pending PR Wave 4; branch `buihaiduongdev/refactor-wave-4`.
