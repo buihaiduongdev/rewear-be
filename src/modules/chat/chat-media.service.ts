@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import { DISPUTE_POLICY } from '@/modules/dispute/constants/dispute.constant';
@@ -16,29 +16,25 @@ import {
 } from '@/modules/dispute/schemas/dispute.schema';
 import { Order } from '@/modules/order/entities/order.entity';
 
-import { ChatAccess } from './chat.access';
+import { ChatService } from './chat.service';
 import { ChatMessageMedia } from './entities/chat-message-media.entity';
 
 @Injectable()
 export class ChatMediaService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: ChatAccess,
+    private readonly chat: ChatService,
     private readonly storage: StorageService,
     private readonly dispute: DisputeAccess,
   ) {}
 
   async download(userId: string, id: string) {
-    const link = await this.db.manager
-      .createQueryBuilder(ChatMessageMedia, 'link')
-      .innerJoinAndSelect('link.media', 'media')
-      .innerJoinAndSelect('link.message', 'message')
-      .where('link.mediaId = :id', { id })
-      .getOne();
-    if (!link || link.media.visibility !== 'private' || link.media.retiredAt) {
-      throw new NotFoundException('Attached chat media not found');
-    }
-    await this.access.load(
+    const link = await this.loadPrivateMediaLink(
+      this.db.manager,
+      id,
+      'Attached chat media not found',
+    );
+    await this.chat.loadConversation(
       this.db.manager,
       userId,
       link.message.conversationId,
@@ -54,21 +50,13 @@ export class ChatMediaService {
   ) {
     return this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      const link = await manager
-        .createQueryBuilder(ChatMessageMedia, 'link')
-        .innerJoinAndSelect('link.media', 'media')
-        .innerJoinAndSelect('link.message', 'message')
-        .where('link.mediaId = :mediaId', { mediaId })
-        .getOne();
-      if (
-        !link ||
-        link.media.visibility !== 'private' ||
-        link.media.retiredAt
-      ) {
-        throw new NotFoundException('Chat media not found');
-      }
+      const link = await this.loadPrivateMediaLink(
+        manager,
+        mediaId,
+        'Chat media not found',
+      );
 
-      const { row: conversation } = await this.access.load(
+      const { row: conversation } = await this.chat.loadConversation(
         manager,
         userId,
         link.message.conversationId,
@@ -138,6 +126,23 @@ export class ChatMediaService {
       );
       return this.evidenceView(evidence);
     });
+  }
+
+  private async loadPrivateMediaLink(
+    manager: EntityManager,
+    mediaId: string,
+    notFoundMessage: string,
+  ) {
+    const link = await manager
+      .createQueryBuilder(ChatMessageMedia, 'link')
+      .innerJoinAndSelect('link.media', 'media')
+      .innerJoinAndSelect('link.message', 'message')
+      .where('link.mediaId = :mediaId', { mediaId })
+      .getOne();
+    if (!link || link.media.visibility !== 'private' || link.media.retiredAt) {
+      throw new NotFoundException(notFoundMessage);
+    }
+    return link;
   }
 
   private evidenceView(evidence: DisputeEvidence) {

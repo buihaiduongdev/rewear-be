@@ -1,7 +1,6 @@
 import ms from 'ms';
 
 export const CHAT_SIDE = { BUYER: 'BUYER', SHOP: 'SHOP' } as const;
-export const CHAT_CARD = { PRODUCT: 'PRODUCT', ORDER: 'ORDER' } as const;
 export const CHAT_MIME_TYPES = [
   'image/jpeg',
   'image/png',

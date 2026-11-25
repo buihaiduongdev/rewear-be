@@ -5,36 +5,30 @@ import z from 'zod';
 import * as schemas from '@/modules/chat/schemas/chat.schema';
 
 describe('Chat contracts', () => {
-  it('requires content and rejects sender impersonation, fake card fields and arbitrary media URLs', () => {
-    expect(
-      schemas.sendChatSchema.safeParse({ clientMessageId: randomUUID() })
-        .success,
-    ).toBe(false);
+  it('requires content and rejects unknown fields and arbitrary media URLs', () => {
+    expect(schemas.sendChatSchema.safeParse({}).success).toBe(false);
     expect(
       schemas.sendChatSchema.safeParse({
-        clientMessageId: randomUUID(),
         text: 'Hello',
         senderSide: 'SHOP',
       }).success,
     ).toBe(false);
     expect(
       schemas.sendChatSchema.safeParse({
-        clientMessageId: randomUUID(),
-        card: { type: 'PRODUCT', id: randomUUID(), price: 1 },
+        mediaIds: ['https://example.test/private'],
       }).success,
     ).toBe(false);
     expect(
       schemas.sendChatSchema.safeParse({
-        clientMessageId: randomUUID(),
-        mediaIds: ['https://example.test/private'],
+        productId: randomUUID(),
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
-  it('bounds text, cursor and upload size while accepting video', () => {
-    expect(
-      schemas.chatPageSchema.safeParse({ after: 1, before: 2 }).success,
-    ).toBe(false);
+  it('bounds pagination and upload size while accepting video', () => {
     expect(schemas.chatPageSchema.safeParse({ limit: 101 }).success).toBe(
+      false,
+    );
+    expect(schemas.chatPageSchema.safeParse({ offset: -1 }).success).toBe(
       false,
     );
     expect(

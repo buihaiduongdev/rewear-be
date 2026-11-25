@@ -1,6 +1,6 @@
 import type { DeepPartial } from 'typeorm';
 
-import { ChatMessage } from '@/modules/chat/entities/chat.entity';
+import { ChatMessage } from '@/modules/chat/entities';
 
 import { BaseFactory } from './base.factory';
 

@@ -20,12 +20,10 @@ import {
   chatConversationPageSchema,
   chatConversationViewSchema,
   chatDownloadSchema,
-  chatListSchema,
   chatMessagePageSchema,
   chatMessageViewSchema,
   type ChatPageInput,
   chatPageSchema,
-  chatReadSchema,
   importedEvidenceViewSchema,
   importEvidenceSchema,
   openChatSchema,
@@ -57,7 +55,7 @@ export class ChatController {
   @Serialize(chatConversationPageSchema)
   list(
     @CurrentUser() user: User,
-    @Query({ schema: chatListSchema }) input: { limit: number; offset: number },
+    @Query({ schema: chatPageSchema }) input: ChatPageInput,
   ) {
     return this.service.list(user.id, input);
   }
@@ -98,9 +96,8 @@ export class ChatController {
   read(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: chatReadSchema }) input: { throughSequence: number },
   ) {
-    return this.service.read(user.id, id, input.throughSequence);
+    return this.service.read(user.id, id);
   }
 
   @Get('media/:id/download')

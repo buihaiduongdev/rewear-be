@@ -107,23 +107,14 @@ describe('Buyer–Shop chat HTTP', () => {
     await request(server)
       .post(`/api/chat/conversations/${conversationId}/messages`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ clientMessageId: randomUUID(), text: 'fake', senderSide: 'SHOP' })
+      .send({ text: 'fake', senderSide: 'SHOP' })
       .expect(400);
-    const input = { clientMessageId: randomUUID(), text: 'Còn hàng không?' };
     const sent = await request(server)
       .post(`/api/chat/conversations/${conversationId}/messages`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send(input)
+      .send({ text: 'Còn hàng không?' })
       .expect(200);
-    const replay = await request(server)
-      .post(`/api/chat/conversations/${conversationId}/messages`)
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send(input)
-      .expect(200);
-    expect(replay.body.data.id).toBe(sent.body.data.id);
-    expect(sent.body.data).not.toHaveProperty('senderId');
-    expect(sent.body.data).not.toHaveProperty('fingerprint');
-    expect(sent.body.data.senderSide).toBe('BUYER');
+    expect(sent.body.data.senderId).toBe(f.buyer.id);
     expect((await app.get(NotificationService).unread(f.owner.id)).count).toBe(
       1,
     );
@@ -144,11 +135,7 @@ describe('Buyer–Shop chat HTTP', () => {
     const sent = await request(server)
       .post(`${base}/messages`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({
-        clientMessageId: randomUUID(),
-        mediaIds: [mediaId],
-        card: { type: 'ORDER', id: f.order.id },
-      })
+      .send({ mediaIds: [mediaId] })
       .expect(200);
     expect(JSON.stringify(sent.body)).not.toContain('storageKey');
     await request(server)
@@ -167,17 +154,11 @@ describe('Buyer–Shop chat HTTP', () => {
     expect(imported.body.data.mimeType).toBe('video/mp4');
     expect(imported.body.data).not.toHaveProperty('storageKey');
   });
-  it('bounds read cursors, lists only own conversations and generates OpenAPI', async () => {
+  it('marks read, lists only own conversations and generates OpenAPI', async () => {
     const server = app.getHttpServer();
     await request(server)
       .post(`/api/chat/conversations/${conversationId}/read`)
       .auth(token(f.owner), { type: 'bearer' })
-      .send({ throughSequence: 99 })
-      .expect(400);
-    await request(server)
-      .post(`/api/chat/conversations/${conversationId}/read`)
-      .auth(token(f.owner), { type: 'bearer' })
-      .send({ throughSequence: 2 })
       .expect(200);
     const page = await request(server)
       .get('/api/chat/conversations')

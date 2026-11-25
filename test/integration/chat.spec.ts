@@ -6,21 +6,15 @@ import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-
 import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { Category } from '@/modules/category/entities';
-import { ChatAccess } from '@/modules/chat/chat.access';
 import { ChatService } from '@/modules/chat/chat.service';
-import {
-  ChatConversation,
-  ChatMessage,
-} from '@/modules/chat/entities/chat.entity';
+import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
 import { NotificationService } from '@/modules/notifications/notification.service';
-import { Order } from '@/modules/order/entities/order.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
-import { ShopMember } from '@/modules/shop/entities';
-import { Shop } from '@/modules/shop/entities';
+import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -33,12 +27,12 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     database = await createTestDatabase();
     service = new ChatService(
       database.dataSource,
-      new ChatAccess(new AuthorizationService(database.dataSource)),
+      new AuthorizationService(database.dataSource),
       {} as never,
     );
   });
   afterAll(async () => database?.destroy());
-  it('allows only currently public approved product cards from the same Shop', async () => {
+  it('allows only currently public approved product attachments from the same Shop', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const thread = await service.open(f.buyer.id, f.shop.id);
@@ -70,12 +64,10 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       }),
     );
     const sent = await service.send(f.buyer.id, thread.id, {
-      clientMessageId: randomUUID(),
       mediaIds: [],
-      card: { type: 'PRODUCT', id: product.id },
+      productId: product.id,
     });
-    expect(sent.card).toEqual({
-      type: 'PRODUCT',
+    expect(sent.product).toEqual({
       id: product.id,
       title: 'Áo khoác',
       price: 200000,
@@ -86,14 +78,13 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     });
     await expect(
       service.send(f.buyer.id, thread.id, {
-        clientMessageId: randomUUID(),
         mediaIds: [],
-        card: { type: 'PRODUCT', id: product.id },
+        productId: product.id,
       }),
     ).rejects.toThrow('public approved listing');
     expect(
-      (await service.messages(f.owner.id, thread.id, { limit: 50, after: 0 }))
-        .items[0].card?.title,
+      (await service.messages(f.owner.id, thread.id, { limit: 50, offset: 0 }))
+        .items[0].product?.title,
     ).toBe('Áo khoác');
     await db.manager.update(ProductModeration, moderation.id, {
       status: ProductModerationStatus.APPROVED,
@@ -101,18 +92,16 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     await db.manager.update(Category, category.id, { isActive: false });
     await expect(
       service.send(f.buyer.id, thread.id, {
-        clientMessageId: randomUUID(),
         mediaIds: [],
-        card: { type: 'PRODUCT', id: product.id },
+        productId: product.id,
       }),
     ).rejects.toThrow('public approved listing');
     await db.manager.update(Category, category.id, { isActive: true });
     await db.manager.update(Shop, f.shop.id, { status: ShopStatus.INACTIVE });
     await expect(
       service.send(f.owner.id, thread.id, {
-        clientMessageId: randomUUID(),
         mediaIds: [],
-        card: { type: 'PRODUCT', id: product.id },
+        productId: product.id,
       }),
     ).rejects.toThrow('public approved listing');
   });
@@ -135,10 +124,9 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     const other = await adjudicationFixture(database.dataSource);
     const thread = await service.open(f.buyer.id, f.shop.id);
     await expect(
-      service.messages(other.buyer.id, thread.id, { limit: 50, after: 0 }),
+      service.messages(other.buyer.id, thread.id, { limit: 50, offset: 0 }),
     ).rejects.toThrow('Chat access denied');
     await service.send(f.owner.id, thread.id, {
-      clientMessageId: randomUUID(),
       text: 'Shop trả lời',
       mediaIds: [],
     });
@@ -147,43 +135,24 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       shopId: f.shop.id,
     });
     await expect(
-      service.messages(f.owner.id, thread.id, { limit: 50, after: 0 }),
+      service.messages(f.owner.id, thread.id, { limit: 50, offset: 0 }),
     ).rejects.toThrow('Chat access denied');
   });
-  it('stores immutable messages once, assigns ordered sequences and prevents reading unseen messages', async () => {
+  it('tracks unread count and marks conversation read using timestamps', async () => {
     const f = await adjudicationFixture(database.dataSource);
     const thread = await service.open(f.buyer.id, f.shop.id);
-    const input = {
-      clientMessageId: randomUUID(),
+    await service.send(f.buyer.id, thread.id, {
       text: 'Xin chào',
       mediaIds: [],
-    };
-    const [a, b] = await Promise.all([
-      service.send(f.buyer.id, thread.id, input),
-      service.send(f.buyer.id, thread.id, input),
-    ]);
-    expect(a.id).toBe(b.id);
-    expect(a.sequence).toBe(1);
-    await expect(
-      service.send(f.buyer.id, thread.id, {
-        ...input,
-        text: 'Nội dung bị đổi',
-      }),
-    ).rejects.toThrow('Message request payload changed');
-    const reply = await service.send(f.owner.id, thread.id, {
-      clientMessageId: randomUUID(),
+    });
+    expect((await service.detail(f.owner.id, thread.id)).unreadCount).toBe(1);
+    await service.send(f.owner.id, thread.id, {
       text: 'Chào bạn',
       mediaIds: [],
     });
-    expect(reply.sequence).toBe(2);
-    await expect(service.read(f.buyer.id, thread.id, 3)).rejects.toThrow(
-      'Read cursor exceeds conversation',
-    );
-    await service.read(f.buyer.id, thread.id, 1);
     expect((await service.detail(f.buyer.id, thread.id)).unreadCount).toBe(1);
-    await service.read(f.buyer.id, thread.id, 2);
-    await service.read(f.buyer.id, thread.id, 1);
-    expect((await service.detail(f.buyer.id, thread.id)).readSequence).toBe(2);
+    await service.read(f.buyer.id, thread.id);
+    expect((await service.detail(f.buyer.id, thread.id)).unreadCount).toBe(0);
     expect(
       await database.dataSource.manager.countBy(ChatMessage, {
         conversationId: thread.id,
@@ -222,7 +191,6 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       }),
     );
     await service.send(f.buyer.id, thread.id, {
-      clientMessageId: randomUUID(),
       text: 'Hỗ trợ giúp tôi',
       mediaIds: [],
     });
@@ -233,70 +201,40 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     expect((await inbox.unread(f.owner.id)).count).toBe(0);
     await expect(
       service.send(f.owner.id, thread.id, {
-        clientMessageId: randomUUID(),
         text: 'Không còn quyền',
         mediaIds: [],
       }),
     ).rejects.toThrow('Chat access denied');
   });
-  it('validates order context ownership and preserves immutable server snapshots', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    const other = await adjudicationFixture(db);
-    const thread = await service.open(f.buyer.id, f.shop.id);
-    await expect(
-      service.send(f.buyer.id, thread.id, {
-        clientMessageId: randomUUID(),
-        card: { type: 'ORDER', id: other.order.id },
-        mediaIds: [],
-      }),
-    ).rejects.toThrow('Order card must belong');
-    const sent = await service.send(f.buyer.id, thread.id, {
-      clientMessageId: randomUUID(),
-      card: { type: 'ORDER', id: f.order.id },
-      mediaIds: [],
-    });
-    expect(sent.card).toEqual({
-      type: 'ORDER',
-      id: f.order.id,
-      status: 'dispute',
-    });
-    expect(JSON.stringify(sent)).not.toContain('address');
-    expect(sent).not.toHaveProperty('senderId');
-    expect(sent).not.toHaveProperty('fingerprint');
-    await db.manager.update(Order, f.order.id, { status: 'completed' });
-    expect(
-      (await service.messages(f.buyer.id, thread.id, { limit: 50, after: 0 }))
-        .items[0].card?.status,
-    ).toBe('dispute');
-  });
-  it('paginates in stable sequence order and preserves support chat when the Shop stops new business', async () => {
+  it('paginates messages and preserves support chat when the Shop stops new business', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const thread = await service.open(f.buyer.id, f.shop.id);
     for (let i = 0; i < 4; i++)
       await service.send(f.buyer.id, thread.id, {
-        clientMessageId: randomUUID(),
         text: `Message ${i}`,
         mediaIds: [],
       });
-    const latest = await service.messages(f.buyer.id, thread.id, { limit: 2 });
-    expect(latest.items.map((row) => row.sequence)).toEqual([3, 4]);
-    expect(latest.hasMore).toBe(true);
+    const latest = await service.messages(f.buyer.id, thread.id, {
+      limit: 2,
+      offset: 0,
+    });
+    expect(latest.items.map((row) => row.text)).toEqual([
+      'Message 2',
+      'Message 3',
+    ]);
+    expect(latest.total).toBe(4);
     const older = await service.messages(f.buyer.id, thread.id, {
       limit: 2,
-      before: latest.nextBefore!,
+      offset: 2,
     });
-    expect(older.items.map((row) => row.sequence)).toEqual([1, 2]);
-    expect(
-      (
-        await service.messages(f.buyer.id, thread.id, { limit: 2, after: 2 })
-      ).items.map((row) => row.sequence),
-    ).toEqual([3, 4]);
+    expect(older.items.map((row) => row.text)).toEqual([
+      'Message 0',
+      'Message 1',
+    ]);
     await db.manager.update(Shop, f.shop.id, { status: ShopStatus.INACTIVE });
     expect((await service.open(f.buyer.id, f.shop.id)).id).toBe(thread.id);
     await service.send(f.owner.id, thread.id, {
-      clientMessageId: randomUUID(),
       text: 'Tiếp tục hỗ trợ đơn cũ',
       mediaIds: [],
     });

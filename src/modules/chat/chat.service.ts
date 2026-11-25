@@ -1,28 +1,28 @@
-import { createHash } from 'node:crypto';
-
 import {
   BadRequestException,
-  ConflictException,
+  ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { Brackets, DataSource, type EntityManager, In } from 'typeorm';
 
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { MediaService } from '@/modules/media/media.service';
-import { Order } from '@/modules/order/entities/order.entity';
+import { notifyChatMessage } from '@/modules/notifications/sources/chat-message.notification';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { isProductDisplayable } from '@/modules/product/machines/product-availability.machine';
 import { Shop, ShopMember } from '@/modules/shop/entities';
+import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
+import { UserStatus } from '@/modules/user/enums';
 
-import { notifyChatMessage } from './chat-message.notification';
-import { ChatAccess } from './chat.access';
-import { CHAT_CARD, CHAT_SIDE } from './constants/chat.constant';
+import { CHAT_SIDE } from './constants/chat.constant';
+import { ChatConversation, ChatMessage } from './entities';
 import { ChatMessageMedia } from './entities/chat-message-media.entity';
-import { ChatConversation, ChatMessage } from './entities/chat.entity';
 import {
-  type ChatCardSnapshot,
   type ChatPageInput,
   type ChatSide,
   chatUploadSchema,
@@ -34,20 +34,20 @@ import {
 export class ChatService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: ChatAccess,
+    private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
   ) {}
 
   open(buyerId: string, shopId: string) {
     return this.db.transaction(async (manager) => {
-      await this.access.active(manager, buyerId);
+      await this.assertActiveUser(manager, buyerId);
       await manager.query(
         'SELECT pg_advisory_xact_lock(782146, hashtext($1))',
         [buyerId + ':' + shopId],
       );
       let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
       if (!row) {
-        await this.access.activeShop(manager, shopId);
+        await this.assertActiveShop(manager, shopId);
         if (await manager.existsBy(ShopMember, { userId: buyerId, shopId })) {
           throw new BadRequestException(
             'Shop members cannot open a buyer conversation with their own Shop',
@@ -58,28 +58,37 @@ export class ChatService {
           manager.create(ChatConversation, {
             buyerId,
             shopId,
-            lastSequence: 0,
-            buyerReadSequence: 0,
-            shopReadSequence: 0,
+            buyerLastReadAt: null,
+            shopLastReadAt: null,
             lastMessageAt: null,
           }),
         );
       }
-      return this.conversationView(manager, row, CHAT_SIDE.BUYER);
+      return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
     });
   }
 
   async detail(userId: string, id: string) {
-    const { row, side } = await this.access.load(this.db.manager, userId, id);
-    return this.conversationView(this.db.manager, row, side);
+    const { row, side } = await this.loadConversation(
+      this.db.manager,
+      userId,
+      id,
+    );
+    return this.conversationView(this.db.manager, row, userId, side);
   }
 
-  async list(userId: string, input: { limit: number; offset: number }) {
+  async list(userId: string, input: ChatPageInput) {
     const manager = this.db.manager;
-    await this.access.active(manager, userId);
+    await this.assertActiveUser(manager, userId);
     const member = await manager.findOneBy(ShopMember, { userId });
     const shopId =
-      member && (await this.access.canManage(manager, userId, member.shopId))
+      member &&
+      (await this.authorization.hasPermission(
+        userId,
+        member.shopId,
+        SHOP_PERMISSIONS.CHAT_MANAGE,
+        manager,
+      ))
         ? member.shopId
         : null;
 
@@ -101,21 +110,10 @@ export class ChatService {
 
     if (!rows.length) return { items: [], total, ...input };
 
-    const unreadRows: Array<{ conversationId: string; cnt: string }> =
-      await manager.query(
-        `
-        SELECT m."conversationId", COUNT(*)::int AS cnt
-        FROM chat_messages m
-        JOIN chat_conversations c ON c.id = m."conversationId"
-        WHERE m."conversationId" = ANY($1::uuid[])
-          AND m."senderId" != $2
-          AND m.sequence > CASE WHEN c."buyerId" = $2 THEN c."buyerReadSequence" ELSE c."shopReadSequence" END
-        GROUP BY m."conversationId"
-        `,
-        [rows.map((r) => r.id), userId],
-      );
-    const unreadMap = new Map(
-      unreadRows.map((r) => [r.conversationId, Number(r.cnt)]),
+    const unreadMap = await this.unreadCounts(
+      manager,
+      rows.map((r) => r.id),
+      userId,
     );
 
     const items = rows.map((row) => {
@@ -133,50 +131,28 @@ export class ChatService {
 
   async messages(userId: string, id: string, input: ChatPageInput) {
     const manager = this.db.manager;
-    await this.access.load(manager, userId, id);
-    const query = manager
+    await this.loadConversation(manager, userId, id);
+    const [rows, total] = await manager
       .createQueryBuilder(ChatMessage, 'message')
-      .where('message.conversationId = :id', { id });
-    if (input.after !== undefined) {
-      query.andWhere('message.sequence > :after', { after: input.after });
-    }
-    if (input.before !== undefined) {
-      query.andWhere('message.sequence < :before', { before: input.before });
-    }
-    const ascending = input.after !== undefined;
-    let rows = await query
-      .orderBy('message.sequence', ascending ? 'ASC' : 'DESC')
-      .take(input.limit + 1)
-      .getMany();
-    const hasMore = rows.length > input.limit;
-    rows = rows.slice(0, input.limit);
-    if (!ascending) rows.reverse();
+      .leftJoinAndSelect('message.product', 'product')
+      .where('message.conversationId = :id', { id })
+      .orderBy('message.createdAt', 'DESC')
+      .addOrderBy('message.id', 'DESC')
+      .take(input.limit)
+      .skip(input.offset)
+      .getManyAndCount();
+    rows.reverse();
     return {
       items: await this.messageViews(manager, rows),
-      hasMore,
-      nextAfter: rows.at(-1)?.sequence ?? null,
-      nextBefore: rows[0]?.sequence ?? null,
+      total,
+      ...input,
     };
   }
 
   send(userId: string, id: string, input: SendChatInput) {
     const parsed = sendChatSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      const { row, side } = await this.access.load(manager, userId, id, true);
-      const fingerprint = createHash('sha256')
-        .update(JSON.stringify(parsed))
-        .digest('hex');
-      const prior = await manager.findOneBy(ChatMessage, {
-        conversationId: id,
-        senderId: userId,
-        clientMessageId: parsed.clientMessageId,
-      });
-      if (prior) {
-        if (prior.fingerprint !== fingerprint) {
-          throw new ConflictException('Message request payload changed');
-        }
-        return (await this.messageViews(manager, [prior]))[0];
-      }
+      const { row } = await this.loadConversation(manager, userId, id);
 
       for (const mediaId of [...parsed.mediaIds].sort()) {
         const media = await this.media.verifyMedia(
@@ -196,18 +172,18 @@ export class ChatService {
         }
       }
 
-      const card = await this.resolveCardSnapshot(manager, row, parsed.card);
+      const product = parsed.productId
+        ? await this.resolveProduct(manager, row, parsed.productId)
+        : null;
+
       const message = await manager.save(
         ChatMessage,
         manager.create(ChatMessage, {
           conversationId: id,
-          sequence: row.lastSequence + 1,
           senderId: userId,
-          senderSide: side,
-          clientMessageId: parsed.clientMessageId,
-          fingerprint,
           text: parsed.text ?? null,
-          card,
+          productId: product?.id ?? null,
+          product,
         }),
       );
 
@@ -224,59 +200,116 @@ export class ChatService {
         );
       }
 
-      row.lastSequence = message.sequence;
       row.lastMessageAt = message.createdAt;
-      await manager.save(row);
+      await manager.update(ChatConversation, row.id, {
+        lastMessageAt: message.createdAt,
+      });
       await notifyChatMessage(manager, row, message);
       return (await this.messageViews(manager, [message]))[0];
     });
   }
 
-  read(userId: string, id: string, throughSequence: number) {
+  read(userId: string, id: string) {
     return this.db.transaction(async (manager) => {
-      const { row, side } = await this.access.load(manager, userId, id, true);
-      if (
-        !Number.isSafeInteger(throughSequence) ||
-        throughSequence < 0 ||
-        throughSequence > row.lastSequence
-      ) {
-        throw new BadRequestException('Read cursor exceeds conversation');
-      }
+      const { row, side } = await this.loadConversation(manager, userId, id);
+      const [{ now: timestamp }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(timestamp);
       if (side === CHAT_SIDE.BUYER) {
-        row.buyerReadSequence = Math.max(
-          row.buyerReadSequence,
-          throughSequence,
-        );
+        row.buyerLastReadAt = now;
       } else {
-        row.shopReadSequence = Math.max(row.shopReadSequence, throughSequence);
+        row.shopLastReadAt = now;
       }
       await manager.save(row);
-      return this.conversationView(manager, row, side);
+      return this.conversationView(manager, row, userId, side);
     });
+  }
+
+  async loadConversation(manager: EntityManager, userId: string, id: string) {
+    const row = await manager.findOneBy(ChatConversation, { id });
+    if (!row) throw new NotFoundException('Conversation not found');
+    const side = await this.resolveSide(manager, userId, row);
+    return { row, side };
+  }
+
+  private async assertActiveUser(manager: EntityManager, userId: string) {
+    const user = await manager.findOneBy(User, {
+      id: userId,
+      status: UserStatus.ACTIVE,
+    });
+    if (!user) throw new ForbiddenException('Active chat participant required');
+    return user;
+  }
+
+  private async resolveSide(
+    manager: EntityManager,
+    userId: string,
+    row: ChatConversation,
+  ) {
+    await this.assertActiveUser(manager, userId);
+    if (row.buyerId === userId) return CHAT_SIDE.BUYER;
+    if (
+      await this.authorization.hasPermission(
+        userId,
+        row.shopId,
+        SHOP_PERMISSIONS.CHAT_MANAGE,
+        manager,
+      )
+    )
+      return CHAT_SIDE.SHOP;
+    throw new ForbiddenException('Chat access denied');
+  }
+
+  private async assertActiveShop(manager: EntityManager, shopId: string) {
+    if (
+      !(await manager.existsBy(Shop, { id: shopId, status: ShopStatus.ACTIVE }))
+    )
+      throw new ForbiddenException('Shop is not accepting new chat messages');
+  }
+
+  private async unreadCounts(
+    manager: EntityManager,
+    conversationIds: string[],
+    userId: string,
+  ) {
+    if (!conversationIds.length) return new Map<string, number>();
+    const rows: Array<{ conversationId: string; cnt: string }> =
+      await manager.query(
+        `
+        SELECT m."conversationId", COUNT(*)::int AS cnt
+        FROM chat_messages m
+        JOIN chat_conversations c ON c.id = m."conversationId"
+        WHERE m."conversationId" = ANY($1::uuid[])
+          AND (
+            (c."buyerId" = $2 AND m."senderId" != c."buyerId" AND (c."buyerLastReadAt" IS NULL OR m."createdAt" > c."buyerLastReadAt"))
+            OR
+            (c."buyerId" != $2 AND m."senderId" = c."buyerId" AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt"))
+          )
+        GROUP BY m."conversationId"
+        `,
+        [conversationIds, userId],
+      );
+    return new Map(rows.map((r) => [r.conversationId, Number(r.cnt)]));
   }
 
   private async conversationView(
     manager: EntityManager,
     row: ChatConversation,
+    userId: string,
     side: ChatSide,
   ) {
-    const buyer = await manager.findOneByOrFail(User, { id: row.buyerId });
-    const shop = await manager.findOneByOrFail(Shop, { id: row.shopId });
-    const readSequence =
-      side === CHAT_SIDE.BUYER ? row.buyerReadSequence : row.shopReadSequence;
-    const unreadCount = await manager
-      .createQueryBuilder(ChatMessage, 'message')
-      .where(
-        'message.conversationId = :id AND message.sequence > :readSequence AND message.senderSide != :side',
-        { id: row.id, readSequence, side },
-      )
-      .getCount();
+    const buyer =
+      row.buyer ?? (await manager.findOneByOrFail(User, { id: row.buyerId }));
+    const shop =
+      row.shop ?? (await manager.findOneByOrFail(Shop, { id: row.shopId }));
+    const unreadMap = await this.unreadCounts(manager, [row.id], userId);
     return this.formatConversationView(
       row,
       buyer.fullName,
       shop.name,
       side,
-      unreadCount,
+      unreadMap.get(row.id) ?? 0,
     );
   }
 
@@ -287,8 +320,6 @@ export class ChatService {
     side: ChatSide,
     unreadCount: number,
   ) {
-    const readSequence =
-      side === CHAT_SIDE.BUYER ? row.buyerReadSequence : row.shopReadSequence;
     return {
       id: row.id,
       buyerId: row.buyerId,
@@ -296,10 +327,6 @@ export class ChatService {
       shopId: row.shopId,
       shopName,
       side,
-      lastSequence: row.lastSequence,
-      readSequence,
-      peerReadSequence:
-        side === CHAT_SIDE.BUYER ? row.shopReadSequence : row.buyerReadSequence,
       unreadCount,
       lastMessageAt: row.lastMessageAt,
     };
@@ -316,11 +343,16 @@ export class ChatService {
     return rows.map((row) => ({
       id: row.id,
       conversationId: row.conversationId,
-      sequence: row.sequence,
-      senderSide: row.senderSide,
-      clientMessageId: row.clientMessageId,
+      senderId: row.senderId,
       text: row.text,
-      card: row.card,
+      product: row.product
+        ? {
+            id: row.product.id,
+            title: row.product.title ?? '',
+            price: row.product.price,
+            status: row.product.status,
+          }
+        : null,
       createdAt: row.createdAt,
       media: links
         .filter((link) => link.messageId === row.id)
@@ -332,29 +364,14 @@ export class ChatService {
     }));
   }
 
-  private async resolveCardSnapshot(
+  private async resolveProduct(
     manager: EntityManager,
     conversation: ChatConversation,
-    card: SendChatInput['card'],
-  ): Promise<ChatCardSnapshot | null> {
-    if (!card) return null;
-    if (card.type === CHAT_CARD.ORDER) {
-      const order = await manager.findOneBy(Order, {
-        id: card.id,
-        buyerId: conversation.buyerId,
-        shopId: conversation.shopId,
-      });
-      if (!order) {
-        throw new BadRequestException(
-          'Order card must belong to this buyer and Shop',
-        );
-      }
-      return { type: CHAT_CARD.ORDER, id: order.id, status: order.status };
-    }
-
+    productId: string,
+  ) {
     const product = await manager.findOne(Product, {
       where: {
-        id: card.id,
+        id: productId,
         shopId: conversation.shopId,
         status: ProductStatus.ACTIVE,
       },
@@ -365,15 +382,9 @@ export class ChatService {
       !isProductDisplayable(product, { requireCompleteMetadata: true })
     ) {
       throw new BadRequestException(
-        'Product card must be a public approved listing of this Shop',
+        'Product must be a public approved listing of this Shop',
       );
     }
-    return {
-      type: CHAT_CARD.PRODUCT,
-      id: product.id,
-      title: product.title ?? '',
-      price: product.price,
-      status: product.status,
-    };
+    return product;
   }
 }
