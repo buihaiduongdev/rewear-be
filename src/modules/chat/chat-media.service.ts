@@ -15,6 +15,7 @@ import {
   disputeUploadSchema,
 } from '@/modules/dispute/schemas/dispute.schema';
 import { Order } from '@/modules/order/entities/order.entity';
+import { ShopMember } from '@/modules/shop/entities';
 
 import { ChatService } from './chat.service';
 import { ChatMessageMedia } from './entities/chat-message-media.entity';
@@ -29,11 +30,18 @@ export class ChatMediaService {
   ) {}
 
   async download(userId: string, id: string) {
-    const link = await this.loadPrivateMediaLink(
+    const links = await this.loadPrivateMediaLinks(
       this.db.manager,
       id,
       'Attached chat media not found',
     );
+    const member = await this.db.manager.findOneBy(ShopMember, { userId });
+    const link =
+      links.find(
+        (row) =>
+          row.message.conversation.buyerId === userId ||
+          (member && row.message.conversation.shopId === member.shopId),
+      ) ?? links[0];
     await this.chat.loadConversation(
       this.db.manager,
       userId,
@@ -49,11 +57,20 @@ export class ChatMediaService {
     tags: string[],
   ) {
     return this.db.transaction(async (manager) => {
-      const link = await this.loadPrivateMediaLink(
+      const links = await this.loadPrivateMediaLinks(
         manager,
         mediaId,
         'Chat media not found',
       );
+      const order = await manager.findOneBy(Order, { id: orderId });
+      const link =
+        (order &&
+          links.find(
+            (row) =>
+              row.message.conversation.buyerId === order.buyerId &&
+              row.message.conversation.shopId === order.shopId,
+          )) ??
+        links[0];
 
       const { row: conversation } = await this.chat.loadConversation(
         manager,
@@ -65,12 +82,11 @@ export class ChatMediaService {
       );
       const now = new Date(timestamp);
 
-      const order = await manager.findOneBy(Order, {
-        id: orderId,
-        buyerId: conversation.buyerId,
-        shopId: conversation.shopId,
-      });
-      if (!order) {
+      if (
+        !order ||
+        order.buyerId !== conversation.buyerId ||
+        order.shopId !== conversation.shopId
+      ) {
         throw new BadRequestException(
           'Chat evidence order must belong to this buyer and Shop',
         );
@@ -127,21 +143,24 @@ export class ChatMediaService {
     });
   }
 
-  private async loadPrivateMediaLink(
+  private async loadPrivateMediaLinks(
     manager: EntityManager,
     mediaId: string,
     notFoundMessage: string,
   ) {
-    const link = await manager
+    const links = await manager
       .createQueryBuilder(ChatMessageMedia, 'link')
       .innerJoinAndSelect('link.media', 'media')
       .innerJoinAndSelect('link.message', 'message')
+      .innerJoinAndSelect('message.conversation', 'conversation')
       .where('link.mediaId = :mediaId', { mediaId })
-      .getOne();
-    if (!link || link.media.visibility !== 'private' || link.media.retiredAt) {
+      .andWhere('media.visibility = :visibility', { visibility: 'private' })
+      .andWhere('media.retiredAt IS NULL')
+      .getMany();
+    if (!links.length) {
       throw new NotFoundException(notFoundMessage);
     }
-    return link;
+    return links;
   }
 
   private evidenceView(evidence: DisputeEvidence) {

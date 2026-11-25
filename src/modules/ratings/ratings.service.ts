@@ -179,10 +179,10 @@ export class RatingsService {
         proof.mode,
         value.mediaIds,
       );
-      await manager.query(
-        'SELECT pg_advisory_xact_lock(782145, hashtext($1))',
-        [`${buyerId}:${order.shopId}`],
-      );
+      await manager.findOneOrFail(User, {
+        where: { id: buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const repo = manager.getRepository(ShopRating);
       let row = await repo.findOneBy({ buyerId, shopId: order.shopId });
       const editing = Boolean(row);

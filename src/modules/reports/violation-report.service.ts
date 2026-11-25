@@ -152,10 +152,10 @@ export class ViolationReportService {
     const fingerprint = this.fingerprint(data);
     return this.db.transaction(async (manager) => {
       await this.assertActiveUser(manager, userId);
-      await manager.query(
-        'SELECT pg_advisory_xact_lock(782143, hashtext($1))',
-        [`${userId}:${data.requestId}`],
-      );
+      await manager.findOneOrFail(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const existing = await manager.findOneBy(ViolationReport, {
         reporterId: userId,
         requestId: data.requestId,
