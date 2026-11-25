@@ -8,7 +8,6 @@ import { ShopApplication } from './shop-application.entity';
 
 @Entity('shop_application_documents')
 @Index(['applicationId'])
-@Index(['uploadedById', 'createdAt'])
 export class ShopApplicationDocument extends BaseEntity {
   @Column('uuid')
   applicationId: string;
@@ -32,7 +31,4 @@ export class ShopApplicationDocument extends BaseEntity {
 
   @Column('boolean', { default: false })
   isSelected: boolean;
-
-  @Column('boolean', { default: false })
-  isSubmitted: boolean;
 }

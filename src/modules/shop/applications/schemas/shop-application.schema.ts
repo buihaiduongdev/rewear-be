@@ -136,9 +136,6 @@ export const adminApplicationViewSchema = applicationViewSchema.extend({
   applicantId: z.uuid(),
   reviewedById: z.uuid().nullable(),
   adminNote: z.string().nullable(),
-  identityMatches: z.array(
-    z.object({ identityId: z.uuid(), ownerId: z.uuid() }),
-  ),
 });
 
 export const applicationPageSchema = z.object({

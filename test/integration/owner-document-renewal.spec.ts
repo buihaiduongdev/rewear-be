@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import { AuthProvider } from '@/modules/auth/enums';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
 import { Notification } from '@/modules/notifications/entities';
+import { IDENTITY_RENEWAL_POLICY } from '@/modules/shop/applications/constants/shop-application.constant';
 import {
   ShopApplication,
   ShopApplicationDocument,
@@ -11,6 +13,8 @@ import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/ident
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';
 import { Shop } from '@/modules/shop/entities';
+import { User } from '@/modules/user/entities';
+import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
@@ -22,9 +26,11 @@ describe('Owner document renewal (PostgreSQL)', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new ShopApplicationService(database.dataSource, {
-      getPublicUrl: (key: string) => `https://public.test/${key}`,
-    } as never);
+    service = new ShopApplicationService(
+      database.dataSource,
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      {} as never,
+    );
   });
 
   afterAll(async () => database?.destroy());
@@ -78,7 +84,6 @@ describe('Owner document renewal (PostgreSQL)', () => {
         slot,
         mediaId: file.id,
         isSelected: false,
-        isSubmitted: false,
       });
       ids.push(doc.id);
     }
@@ -136,20 +141,72 @@ describe('Owner document renewal (PostgreSQL)', () => {
     expect(shopAllowsIdentitySales(shop)).toBe(true);
   });
 
-  it('persists one safe expiry notice across repeated worker scans', async () => {
-    const f = await fixture();
+  it('persists one safe expiry notice per stage and advances past already-notified batches without starvation', async () => {
     const db = database.dataSource;
     const worker = new IdentityRenewalWorker(db);
+    const total = IDENTITY_RENEWAL_POLICY.BATCH_SIZE + 2;
+    const owners: User[] = [];
 
-    await worker.run();
-    const firstCount = await db
-      .getRepository(Notification)
-      .countBy({ recipientId: f.owner.id });
-    expect(firstCount).toBeGreaterThan(0);
+    for (let i = 0; i < total; i++) {
+      const owner = await db.getRepository(User).save({
+        email: `renewal-batch-${i}-${randomUUID()}@test.local`,
+        password: null,
+        fullName: `Batch Owner ${i}`,
+        provider: AuthProvider.GOOGLE,
+        providerAccountId: randomUUID(),
+        role: UserRole.USER,
+        status: UserStatus.ACTIVE,
+      });
+      owners.push(owner);
+      const expiresOn =
+        i < IDENTITY_RENEWAL_POLICY.BATCH_SIZE ? '2020-01-01' : '2026-10-15';
+      const shop = await db.getRepository(Shop).save({
+        name: `Batch Shop ${i}`,
+        onboardingRequired: true,
+        approvedAt: new Date('2020-01-01T00:00:00Z'),
+        identityExpiresOn: expiresOn,
+      });
+      await db.getRepository(ShopApplication).save({
+        shopId: shop.id,
+        applicantId: owner.id,
+        kind: 'INITIAL',
+        state: 'APPROVED',
+        documentType: 'NATIONAL_ID',
+        documentNumber: String(100000000000 + i),
+        issuingCountry: 'VN',
+        fullName: owner.fullName,
+        birthDate: '1990-01-01',
+        expiresOn,
+      });
+    }
 
-    await worker.run();
+    const scanTime = new Date('2026-10-20T00:00:00Z');
+    await worker.run(scanTime);
+    const tailOwner = owners[total - 1];
     expect(
-      await db.getRepository(Notification).countBy({ recipientId: f.owner.id }),
-    ).toBe(firstCount);
+      await db
+        .getRepository(Notification)
+        .countBy({ recipientId: tailOwner.id }),
+    ).toBe(0);
+
+    await worker.run(scanTime);
+    const graceNotice = await db
+      .getRepository(Notification)
+      .findOneByOrFail({ recipientId: tailOwner.id });
+    expect(graceNotice.title).toContain('ân hạn');
+
+    await worker.run(scanTime);
+    expect(
+      await db
+        .getRepository(Notification)
+        .countBy({ recipientId: tailOwner.id }),
+    ).toBe(1);
+
+    await worker.run(new Date('2026-11-20T00:00:00Z'));
+    expect(
+      await db
+        .getRepository(Notification)
+        .countBy({ recipientId: tailOwner.id }),
+    ).toBe(2);
   });
 });

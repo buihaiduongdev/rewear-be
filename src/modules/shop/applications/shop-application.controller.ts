@@ -32,7 +32,6 @@ import {
   type SubmitIdentityRenewalInput,
   submitIdentityRenewalSchema,
 } from './schemas/shop-application.schema';
-import { ShopApplicationMediaService } from './shop-application-media.service';
 import { ShopApplicationService } from './shop-application.service';
 
 @ApiTags('Shop applications')
@@ -40,10 +39,7 @@ import { ShopApplicationService } from './shop-application.service';
 @AuthenticatedAccess()
 @Controller()
 export class ShopApplicationController {
-  constructor(
-    private readonly applications: ShopApplicationService,
-    private readonly media: ShopApplicationMediaService,
-  ) {}
+  constructor(private readonly applications: ShopApplicationService) {}
 
   @Post('shops/:shopId/application')
   @HttpCode(200)
@@ -147,7 +143,7 @@ export class ShopApplicationController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: applicationUploadSchema }) input: ApplicationUploadInput,
   ) {
-    return this.media.attach(user.id, id, input);
+    return this.applications.attach(user.id, id, input);
   }
 
   @Get('shop-application-documents/:id/download')
@@ -156,6 +152,6 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.media.download(user.id, id);
+    return this.applications.download(user.id, id);
   }
 }

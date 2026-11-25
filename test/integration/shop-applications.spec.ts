@@ -18,7 +18,6 @@ import {
   ShopApplication,
   ShopApplicationDocument,
 } from '@/modules/shop/applications/entities';
-import { ShopApplicationMediaService } from '@/modules/shop/applications/shop-application-media.service';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -32,7 +31,6 @@ import { createTestDatabase } from '../support/database';
 describe('Shop Owner application (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let service: ShopApplicationService;
-  let media: ShopApplicationMediaService;
   let shops: ShopService;
   let uploads: MediaService;
 
@@ -61,10 +59,6 @@ describe('Shop Owner application (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const db = database.dataSource;
-    service = new ShopApplicationService(
-      db,
-      storage as unknown as StorageService,
-    );
     uploads = new MediaService(
       db.getRepository(Media),
       storage as unknown as StorageService,
@@ -75,9 +69,8 @@ describe('Shop Owner application (PostgreSQL)', () => {
         },
       } as never,
     );
-    media = new ShopApplicationMediaService(
+    service = new ShopApplicationService(
       db,
-      service,
       storage as unknown as StorageService,
       uploads,
     );
@@ -143,7 +136,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
         sizeBytes: 1024,
         visibility: 'private',
       });
-      const upload = await media.attach(f.owner.id, app.id, {
+      const upload = await service.attach(f.owner.id, app.id, {
         slot,
         mediaId: ticket.mediaId,
       });
@@ -177,7 +170,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       'not found',
     );
     await expect(
-      media.download(f.buyer.id, f.input.documentIds[0]),
+      service.download(f.buyer.id, f.input.documentIds[0]),
     ).rejects.toThrow('not found');
 
     const approved = await service.decide(f.admin.id, f.app.id, {
@@ -263,13 +256,16 @@ describe('Shop Owner application (PostgreSQL)', () => {
     ).rejects.toThrow('Shop is not active');
   });
 
-  it('accepts only passport slot for passport applications, enforces age/expiry, and protects draft uploads', async () => {
+  it('accepts only passport slot for passport applications, enforces age/expiry, and hides unsubmitted/retired uploads from Admin', async () => {
     const f = await fixture();
     const other = await fixture();
     const db = database.dataSource;
 
+    expect(
+      (await service.detail(f.admin.id, f.app.id, true)).documents,
+    ).toEqual([]);
     await expect(
-      media.download(f.admin.id, f.input.documentIds[0]),
+      service.download(f.admin.id, f.input.documentIds[0]),
     ).rejects.toThrow('not found');
     await expect(
       service.submit(f.owner.id, f.app.id, {
@@ -282,7 +278,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
         await db
           .getRepository(ShopApplicationDocument)
           .findOneByOrFail({ id: f.input.documentIds[0] })
-      ).isSubmitted,
+      ).isSelected,
     ).toBe(false);
 
     await expect(
@@ -309,7 +305,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       sizeBytes: 1024,
       visibility: 'private',
     });
-    const upload = await media.attach(f.owner.id, f.app.id, {
+    const upload = await service.attach(f.owner.id, f.app.id, {
       slot: 'PASSPORT',
       mediaId: ticket.mediaId,
     });
@@ -323,9 +319,14 @@ describe('Shop Owner application (PostgreSQL)', () => {
       documentIds: [upload.id],
     });
     expect(submitted.documents.filter((d) => d.isSelected)).toHaveLength(1);
-    await expect(media.download(f.admin.id, upload.id)).resolves.toHaveProperty(
-      'url',
-    );
+    const adminView = await service.detail(f.admin.id, f.app.id, true);
+    expect(adminView.documents.map((d) => d.id)).toEqual([upload.id]);
+    await expect(
+      service.download(f.admin.id, f.input.documentIds[0]),
+    ).rejects.toThrow('not found');
+    await expect(
+      service.download(f.admin.id, upload.id),
+    ).resolves.toHaveProperty('url');
   });
 
   it('serializes duplicate identity approvals and leaves the losing Shop pending', async () => {
@@ -389,7 +390,11 @@ describe('Shop Owner application (PostgreSQL)', () => {
       }
     }
 
-    const review = new GatedService(db, storage as unknown as StorageService);
+    const review = new GatedService(
+      db,
+      storage as unknown as StorageService,
+      uploads,
+    );
     const pending = review.decide(f.admin.id, f.app.id, {
       outcome: 'APPROVED',
       reason: 'Identity checked with account lock',

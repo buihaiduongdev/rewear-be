@@ -3,10 +3,7 @@ import { randomUUID } from 'node:crypto';
 import z from 'zod';
 
 import * as schemas from '@/modules/shop/applications/schemas/shop-application.schema';
-import {
-  normalizeIdentityName,
-  validateApplicantIdentity,
-} from '@/modules/shop/applications/shop-application.service';
+import { validateApplicantIdentity } from '@/modules/shop/applications/shop-application.service';
 
 describe('Shop application validation', () => {
   const identity = {
@@ -53,7 +50,7 @@ describe('Shop application validation', () => {
     ).toBe(false);
   });
 
-  it('uses Vietnam dates for age/expiry and normalizes Vietnamese owner names', () => {
+  it('uses Vietnam dates for age and expiry checks', () => {
     const now = new Date('2026-11-22T17:00:00Z');
     expect(() =>
       validateApplicantIdentity({ ...identity, birthDate: '2008-11-23' }, now),
@@ -64,7 +61,6 @@ describe('Shop application validation', () => {
     expect(() =>
       validateApplicantIdentity({ ...identity, expiresOn: '2026-11-22' }, now),
     ).toThrow('expired');
-    expect(normalizeIdentityName('  Đặng   Thị Ánh  ')).toBe('DANG THI ANH');
   });
 
   it('bounds queue/media and converts every exported schema to OpenAPI JSON schema', () => {

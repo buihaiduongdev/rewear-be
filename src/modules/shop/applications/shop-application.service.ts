@@ -12,6 +12,7 @@ import { DataSource, type EntityManager, In, IsNull, Not } from 'typeorm';
 import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 import { StorageService } from '@/infrastructure/storage';
 import { Media } from '@/modules/media/entities';
+import { MediaService } from '@/modules/media/media.service';
 import { notifyShopApplication } from '@/modules/notifications/sources/shop-application.notification';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
@@ -23,6 +24,7 @@ import { ShopMemberRole, ShopStatus } from '../enums';
 import {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
+  IDENTITY_IMAGE_MIME,
   IDENTITY_RENEWAL_POLICY,
   SHOP_APPLICATION_ACTION,
   SHOP_APPLICATION_KIND,
@@ -42,20 +44,13 @@ import {
   applicationQuerySchema,
   type ApplicationSubmitInput,
   applicationSubmitSchema,
+  type ApplicationUploadInput,
+  applicationUploadSchema,
   type ShopApplicationKind,
   type ShopApplicationState,
   type SubmitIdentityRenewalInput,
   submitIdentityRenewalSchema,
 } from './schemas/shop-application.schema';
-
-export const normalizeIdentityName = (name: string) =>
-  name
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .trim()
-    .toUpperCase()
-    .replaceAll('Đ', 'D')
-    .replace(/\s+/g, ' ');
 
 export const editableApplication = (state: ShopApplicationState) =>
   (
@@ -92,6 +87,7 @@ export class ShopApplicationService {
   constructor(
     private readonly db: DataSource,
     private readonly storage: StorageService,
+    private readonly media: MediaService,
   ) {}
 
   async assertActiveUser(
@@ -141,22 +137,18 @@ export class ShopApplicationService {
     userId: string,
     id: string,
   ) {
-    await this.assertActiveUser(manager, userId);
-    const target = await manager.findOneBy(ShopApplication, {
-      id,
-      applicantId: userId,
-    });
-    if (!target) throw new NotFoundException('Shop application not found');
-    await this.assertOwner(manager, userId, target.shopId);
-    const shop = await manager.findOneOrFail(Shop, {
-      where: { id: target.shopId },
-      lock: { mode: 'pessimistic_write' },
-    });
-    const row = await manager.findOneOrFail(ShopApplication, {
-      where: { id, applicantId: userId },
-      lock: { mode: 'pessimistic_write' },
-    });
-    return { row, shop };
+    const row = await manager
+      .createQueryBuilder(ShopApplication, 'a')
+      .innerJoinAndSelect('a.shop', 'shop')
+      .setLock('pessimistic_write')
+      .where('a.id = :id AND a.applicantId = :userId', { id, userId })
+      .getOne();
+    if (!row) {
+      await this.assertActiveUser(manager, userId);
+      throw new NotFoundException('Shop application not found');
+    }
+    await this.assertOwner(manager, userId, row.shopId);
+    return { row, shop: row.shop };
   }
 
   private extractIdentity(row: ShopApplication): ApplicantIdentity | null {
@@ -257,7 +249,7 @@ export class ShopApplicationService {
     await manager.update(
       ShopApplicationDocument,
       { id: In(documentIds), applicationId: row.id },
-      { isSelected: true, isSubmitted: true },
+      { isSelected: true },
     );
   }
 
@@ -283,14 +275,9 @@ export class ShopApplicationService {
         ownerId: row.applicantId,
       });
     Object.assign(record, {
-      applicationId: row.id,
       documentType: identity.documentType,
       issuingCountry: identity.issuingCountry,
       documentNumber: identity.documentNumber,
-      fullName: identity.fullName,
-      normalizedName: normalizeIdentityName(identity.fullName),
-      birthDate: identity.birthDate,
-      expiresOn: identity.expiresOn,
     });
     try {
       await manager.save(OwnerIdentity, record);
@@ -481,21 +468,19 @@ export class ShopApplicationService {
     return this.db.transaction(async (manager) => {
       const now = new Date();
       await this.assertActiveUser(manager, actorId, true);
-      const target = await manager.findOneBy(ShopApplication, { id });
-      if (!target) throw new NotFoundException('Shop application not found');
-      if (actorId === target.applicantId)
+      const row = await manager
+        .createQueryBuilder(ShopApplication, 'a')
+        .innerJoinAndSelect('a.shop', 'shop')
+        .setLock('pessimistic_write')
+        .where('a.id = :id', { id })
+        .getOne();
+      if (!row) throw new NotFoundException('Shop application not found');
+      if (actorId === row.applicantId)
         throw new ForbiddenException(
           'An Admin cannot review their own application',
         );
-      await this.assertOwner(manager, target.applicantId, target.shopId);
-      const shop = await manager.findOneOrFail(Shop, {
-        where: { id: target.shopId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const row = await manager.findOneOrFail(ShopApplication, {
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      await this.assertOwner(manager, row.applicantId, row.shopId);
+      const shop = row.shop;
       const identity = this.extractIdentity(row);
       if (row.state !== SHOP_APPLICATION_STATE.SUBMITTED || !identity)
         throw new ConflictException('Application is not awaiting review');
@@ -547,6 +532,72 @@ export class ShopApplicationService {
     });
   }
 
+  attach(userId: string, applicationId: string, input: ApplicationUploadInput) {
+    const data = applicationUploadSchema.parse(input);
+    return this.db.transaction(async (manager) => {
+      const { row, shop } = await this.loadOwnForWrite(
+        manager,
+        userId,
+        applicationId,
+      );
+      if (!editableApplication(row.state))
+        throw new ConflictException(
+          'Application is not open for document uploads',
+        );
+      this.assertShopKindEligibility(shop, row.kind);
+      const file = await this.media.verifyMedia(
+        manager,
+        userId,
+        data.mediaId,
+        SHOP_APPLICATION_POLICY.MAX_IMAGE_BYTES,
+        'private',
+      );
+      if (!IDENTITY_IMAGE_MIME.some((mime) => mime === file.mimeType))
+        throw new BadRequestException('Unsupported identity document type');
+      const doc = await manager.save(
+        ShopApplicationDocument,
+        manager.create(ShopApplicationDocument, {
+          applicationId,
+          uploadedById: userId,
+          slot: data.slot,
+          mediaId: file.id,
+          isSelected: false,
+        }),
+      );
+      return {
+        id: doc.id,
+        slot: doc.slot,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        isSelected: doc.isSelected,
+      };
+    });
+  }
+
+  async download(userId: string, id: string) {
+    const manager = this.db.manager;
+    const row = await manager.findOne(ShopApplicationDocument, {
+      where: { id },
+      relations: { application: true },
+    });
+    if (!row || row.media.visibility !== 'private' || row.media.retiredAt) {
+      await this.assertActiveUser(manager, userId);
+      throw new NotFoundException('Identity document not found');
+    }
+    if (row.uploadedById === userId && row.application.applicantId === userId) {
+      await this.assertOwner(manager, userId, row.application.shopId);
+    } else {
+      const actor = await this.assertActiveUser(manager, userId);
+      if (
+        actor.role !== UserRole.ADMIN ||
+        !row.isSelected ||
+        row.application.state === SHOP_APPLICATION_STATE.DRAFT
+      )
+        throw new NotFoundException('Identity document not found');
+    }
+    return this.storage.createDownloadUrl(row.media.storageKey);
+  }
+
   private summary(row: ShopApplication) {
     return {
       id: row.id,
@@ -582,10 +633,15 @@ export class ShopApplicationService {
           })
         : Promise.resolve(null),
     ]);
-    const identity = this.extractIdentity(row);
+    const visibleDocs = documents.filter(
+      (d) =>
+        !d.media.retiredAt &&
+        (!admin ||
+          (d.isSelected && row.state !== SHOP_APPLICATION_STATE.DRAFT)),
+    );
     const result = {
       ...this.summary(row),
-      identity,
+      identity: this.extractIdentity(row),
       shop: {
         id: shop.id,
         name: shop.name,
@@ -619,7 +675,7 @@ export class ShopApplicationService {
             confirmedBy: bank.confirmedBy,
           }
         : null,
-      documents: documents.map((d) => ({
+      documents: visibleDocs.map((d) => ({
         id: d.id,
         slot: d.slot,
         mimeType: d.media.mimeType,
@@ -628,27 +684,11 @@ export class ShopApplicationService {
       })),
     };
     if (!admin) return result;
-    const identityMatches = identity
-      ? (
-          await manager.findBy(OwnerIdentity, [
-            {
-              documentType: identity.documentType,
-              issuingCountry: identity.issuingCountry,
-              documentNumber: identity.documentNumber,
-            },
-            {
-              normalizedName: normalizeIdentityName(identity.fullName),
-              birthDate: identity.birthDate,
-            },
-          ])
-        ).map((m) => ({ identityId: m.id, ownerId: m.ownerId }))
-      : [];
     return {
       ...result,
       applicantId: row.applicantId,
       reviewedById: row.reviewedById,
       adminNote: row.adminNote,
-      identityMatches,
     };
   }
 
@@ -660,12 +700,14 @@ export class ShopApplicationService {
       if (!row) throw new NotFoundException('Shop application not found');
       return this.view(manager, row, true);
     }
-    await this.assertActiveUser(manager, userId);
     const row = await manager.findOneBy(ShopApplication, {
       id,
       applicantId: userId,
     });
-    if (!row) throw new NotFoundException('Shop application not found');
+    if (!row) {
+      await this.assertActiveUser(manager, userId);
+      throw new NotFoundException('Shop application not found');
+    }
     await this.assertOwner(manager, userId, row.shopId);
     return this.view(manager, row);
   }

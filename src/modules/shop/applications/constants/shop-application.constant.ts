@@ -42,8 +42,6 @@ export const IDENTITY_RENEWAL_POLICY = {
 export const SHOP_APPLICATION_POLICY = {
   MIN_AGE: 18,
   MAX_IMAGE_BYTES: 10 * 1024 * 1024,
-  UPLOADS_PER_DAY: 100,
-  DAY_MS: ms('1d'),
   MAX_DOCUMENTS: 3,
 } as const;
 

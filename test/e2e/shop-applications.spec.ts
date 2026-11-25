@@ -253,7 +253,7 @@ describe('Owner KYC application HTTP', () => {
       .expect(200);
     expect(detail.body.data.state).toBe('APPROVED');
     expect(JSON.stringify(detail.body)).not.toContain('PRIVATE ADMIN NOTE');
-    expect(detail.body.data).not.toHaveProperty('identityMatches');
+    expect(detail.body.data).not.toHaveProperty('adminNote');
     await request(server).get(`/api/shops/${shopId}`).expect(200);
     const notifications = await db
       .getRepository(Notification)

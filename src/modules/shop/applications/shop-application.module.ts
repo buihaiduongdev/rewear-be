@@ -10,7 +10,6 @@ import {
   ShopApplicationDocument,
 } from './entities';
 import { IdentityRenewalWorker } from './renewal/identity-renewal.worker';
-import { ShopApplicationMediaService } from './shop-application-media.service';
 import { ShopApplicationController } from './shop-application.controller';
 import { ShopApplicationService } from './shop-application.service';
 
@@ -24,11 +23,7 @@ import { ShopApplicationService } from './shop-application.service';
       OwnerIdentity,
     ]),
   ],
-  providers: [
-    IdentityRenewalWorker,
-    ShopApplicationService,
-    ShopApplicationMediaService,
-  ],
+  providers: [IdentityRenewalWorker, ShopApplicationService],
   controllers: [ShopApplicationController],
 })
 export class ShopApplicationModule {}
