@@ -3,7 +3,7 @@ import { Check, Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
-import type { CoinSource } from '../types/coin.type';
+import type { CoinSource } from '../schemas/coin.schema';
 
 @Entity('coin_grants')
 @Index(['source', 'sourceId', 'buyerId'], { unique: true })

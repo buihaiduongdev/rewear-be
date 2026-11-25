@@ -2,7 +2,7 @@ import { Check, Column, Entity, Index } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
-import type { CoinReservationState } from '../types/coin.type';
+import type { CoinReservationState } from '../schemas/coin.schema';
 
 @Entity('coin_reservations')
 @Check('CHK_coin_reservation_positive', '"amount" > 0')

@@ -25,7 +25,7 @@ import type {
   CoinCheckout,
   CoinOrder,
   CoinReleaseCause,
-} from './types/coin.type';
+} from './schemas/coin.schema';
 
 @Injectable()
 export class CoinService {

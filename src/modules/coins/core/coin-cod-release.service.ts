@@ -19,7 +19,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { CoinService } from './coin.service';
 import { CoinCodReleaseAudit, CoinOrderDebit } from './entities';
-import type { CoinReleaseCause } from './types/coin.type';
+import type { CoinReleaseCause } from './schemas/coin.schema';
 
 @Injectable()
 export class CoinCodReleaseService {

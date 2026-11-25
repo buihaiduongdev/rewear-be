@@ -3,7 +3,7 @@ import { Check, Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
-import type { CoinAllocation } from '../types/coin.type';
+import type { CoinAllocation } from '../schemas/coin.schema';
 
 @Entity('coin_order_debits')
 @Check('CHK_coin_order_debit_positive', '"amount" > 0')
