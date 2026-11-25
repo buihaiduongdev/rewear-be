@@ -1,6 +1,7 @@
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Media } from '@/modules/media/entities';
 
 import { ShopStatus } from '../enums';
 import { ShopMember } from './shop-member.entity';
@@ -36,8 +37,12 @@ export class Shop extends BaseEntity {
   @Column({ type: 'varchar', length: 1000, nullable: true })
   description: string | null;
 
-  @Column({ type: 'varchar', length: 2048, nullable: true })
-  logoUrl: string | null;
+  @Column({ type: 'uuid', nullable: true })
+  logoMediaId: string | null;
+
+  @ManyToOne(() => Media, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'logoMediaId' })
+  logoMedia: Media | null;
 
   @Column({ type: 'enum', enum: ShopStatus, default: ShopStatus.ACTIVE })
   status: ShopStatus;

@@ -22,7 +22,7 @@ export class WishlistService {
   async findMine(userId: string): Promise<WishlistView> {
     const items = await this.dataSource.getRepository(WishlistItem).find({
       where: { userId },
-      relations: { product: { shop: true, category: true } },
+      relations: { product: { shop: { logoMedia: true }, category: true } },
       order: { createdAt: 'DESC' },
     });
 
@@ -66,7 +66,9 @@ export class WishlistService {
                 ? {
                     id: p.shop.id,
                     name: p.shop.name,
-                    logoUrl: p.shop.logoUrl ?? null,
+                    logoUrl: p.shop.logoMedia
+                      ? this.storage.getPublicUrl(p.shop.logoMedia.storageKey)
+                      : null,
                   }
                 : null,
             }

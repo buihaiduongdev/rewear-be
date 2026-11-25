@@ -4,6 +4,8 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 
 import { EntityManager, In, IsNull } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
+import { Media } from '@/modules/media/entities';
 import { VIETNAM_UTC_OFFSET_MS } from '@/modules/shipment/constants/calendar.constant';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
@@ -112,9 +114,16 @@ export async function buildApplicationSnapshot(
   identity: ApplicantIdentity,
   bankAccountId: string,
   documentIds: string[],
+  storage: StorageService,
 ): Promise<ShopApplicationSnapshot> {
   const shop = await pendingApplicationShop(manager, row);
-  if (!shop.logoUrl || !shop.name.trim())
+  const logo = shop.logoMediaId
+    ? await manager.findOneBy(Media, {
+        id: shop.logoMediaId,
+        visibility: 'public',
+      })
+    : null;
+  if (!logo || logo.retiredAt || !shop.name.trim())
     throw new BadRequestException('Shop name and logo are required');
   const pickup = await manager.findOneBy(PickupLocation, {
     shopId: row.shopId,
@@ -160,7 +169,7 @@ export async function buildApplicationSnapshot(
       id: shop.id,
       name: shop.name,
       description: shop.description,
-      logoUrl: shop.logoUrl,
+      logoUrl: storage.getPublicUrl(logo.storageKey),
     },
     pickup: {
       id: pickup.id,

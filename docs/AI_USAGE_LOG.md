@@ -1195,3 +1195,14 @@
 - **Cách kiểm chứng:** TypeScript và lint đạt; 42/42 URL ảnh seed public trả HTTP thành công. Không chạy test theo yêu cầu của người dùng.
 - **Giới hạn:** Bucket private chưa cấu hình để kiểm thử upload thực tế; database dev cần seed lại để dùng key ảnh mới.
 - **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Liên kết logo shop với media
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Bỏ URL logo lưu trực tiếp ở shop, dùng khóa ngoại `logoMediaId` tới media.
+- **Prompt chính:** Bỏ URL hard và thay bằng media; không thêm bảng liên kết riêng.
+- **Đầu ra AI được sử dụng:** Cập nhật API shop, sản phẩm, giỏ hàng, wishlist và hồ sơ KYC; giữ `logoUrl` trong response và snapshot hồ sơ.
+- **Cách kiểm chứng:** TypeScript và lint đạt; không chạy test local theo yêu cầu, CI kiểm tra PR.
+- **Giới hạn:** Logo cũ được giữ lại để không làm hỏng ảnh trong snapshot KYC; FE cần gửi `logoMediaId` thay cho `logoUrl` khi tạo hoặc sửa shop.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.

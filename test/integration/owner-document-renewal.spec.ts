@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
 import { Notification } from '@/modules/notifications/entities/notification.entity';
 import {
   ShopApplication,
@@ -26,8 +28,12 @@ describe('Owner document renewal (PostgreSQL)', () => {
     const db = database.dataSource;
     const access = new ShopApplicationAccess();
     const read = new ShopApplicationReadService(db, access);
-    renewals = new OwnerIdentityRenewalService(db, access, read);
-    admins = new ShopApplicationAdminService(db, access, read);
+    renewals = new OwnerIdentityRenewalService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
+    admins = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
   afterAll(async () => database?.destroy());
   async function fixture(expiresOn = '2020-01-01') {
@@ -44,12 +50,23 @@ describe('Owner document renewal (PostgreSQL)', () => {
       birthDate: '1980-01-01',
       expiresOn,
     };
+    const logo = await db
+      .getRepository(Media)
+      .save({
+        uploadedById: f.owner.id,
+        storageKey: `logos/${randomUUID()}.jpg`,
+        visibility: 'public',
+        mediaType: MediaType.IMAGE,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+        isAttached: true,
+      });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {
         onboardingRequired: true,
         approvedAt: new Date(),
-        logoUrl: 'https://public.test/logo.jpg',
+        logoMediaId: logo.id,
         identityExpiresOn: expiresOn,
         identityDocumentVersion: 1,
       },

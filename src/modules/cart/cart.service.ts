@@ -122,7 +122,9 @@ export class CartService {
         ? {
             id: product.shopId,
             name: product.shop.name,
-            logoUrl: product.shop.logoUrl ?? null,
+            logoUrl: product.shop.logoMedia
+              ? this.storage.getPublicUrl(product.shop.logoMedia.storageKey)
+              : null,
           }
         : null;
       const key = shop?.id ?? 'UNAVAILABLE';
@@ -171,7 +173,7 @@ export class CartService {
     if (!cart) return result;
     const items = await manager.find(CartItem, {
       where: { cartId: cart.id },
-      relations: { product: { category: true, shop: true } },
+      relations: { product: { category: true, shop: { logoMedia: true } } },
       order: { createdAt: 'DESC', id: 'ASC' },
     });
     if (!items.length) return result;

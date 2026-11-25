@@ -7,6 +7,8 @@ import {
 import { DataSource } from 'typeorm';
 import z from 'zod';
 
+import { StorageService } from '@/infrastructure/storage';
+
 import {
   SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
@@ -30,6 +32,7 @@ export class ShopApplicationAdminService {
     private readonly db: DataSource,
     private readonly access: ShopApplicationAccess,
     private readonly read: ShopApplicationReadService,
+    private readonly storage: StorageService,
   ) {}
   decide(
     actorId: string,
@@ -58,7 +61,7 @@ export class ShopApplicationAdminService {
       if (row.kind === SHOP_APPLICATION_KIND.RENEWAL)
         await decideOwnerRenewal(manager, row, shop, data, now);
       else if (data.outcome === SHOP_APPLICATION_STATE.APPROVED)
-        await approveShopApplication(manager, row, shop, now);
+        await approveShopApplication(manager, row, shop, now, this.storage);
       row.state = data.outcome;
       row.version++;
       row.reason = data.reason;

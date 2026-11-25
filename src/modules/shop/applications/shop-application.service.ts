@@ -3,6 +3,8 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, In } from 'typeorm';
 import z from 'zod';
 
+import { StorageService } from '@/infrastructure/storage';
+
 import {
   SHOP_APPLICATION_ACTION,
   SHOP_APPLICATION_KIND,
@@ -39,6 +41,7 @@ export class ShopApplicationService {
     private readonly db: DataSource,
     private readonly access: ShopApplicationAccess,
     private readonly read: ShopApplicationReadService,
+    private readonly storage: StorageService,
   ) {}
   create(
     userId: string,
@@ -127,6 +130,7 @@ export class ShopApplicationService {
         data.identity,
         data.bankAccountId,
         data.documentIds,
+        this.storage,
       );
       row.snapshot = snapshot;
       row.snapshotFingerprint = applicationFingerprint(snapshot);

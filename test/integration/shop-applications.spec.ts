@@ -7,6 +7,7 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Category } from '@/modules/category/entities';
 import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
 import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
@@ -63,8 +64,12 @@ describe('Shop Owner application (PostgreSQL)', () => {
     const db = database.dataSource;
     const access = new ShopApplicationAccess();
     const read = new ShopApplicationReadService(db, access);
-    service = new ShopApplicationService(db, access, read);
-    admin = new ShopApplicationAdminService(db, access, read);
+    service = new ShopApplicationService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
+    admin = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     uploads = new MediaService(
       db.getRepository(Media),
       storage as unknown as StorageService,
@@ -86,12 +91,23 @@ describe('Shop Owner application (PostgreSQL)', () => {
   async function fixture() {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
+    const logo = await db
+      .getRepository(Media)
+      .save({
+        uploadedById: f.owner.id,
+        storageKey: `logos/${randomUUID()}.jpg`,
+        visibility: 'public',
+        mediaType: MediaType.IMAGE,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+        isAttached: true,
+      });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {
         status: ShopStatus.PENDING,
         onboardingRequired: true,
-        logoUrl: 'https://public.test/logo.jpg',
+        logoMediaId: logo.id,
       },
     );
     await db.getRepository(PickupLocation).save({
@@ -424,7 +440,9 @@ describe('Shop Owner application (PostgreSQL)', () => {
     }
     const access = new GatedAccess();
     const read = new ShopApplicationReadService(db, access);
-    const review = new ShopApplicationAdminService(db, access, read);
+    const review = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     const pending = review.decide(f.admin.id, f.app.id, {
       requestId: randomUUID(),
       expectedVersion: submitted.version,

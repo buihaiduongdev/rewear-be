@@ -552,6 +552,9 @@ export class ProductService {
         shop: product.shop
           ? {
               ...product.shop,
+              logoUrl: product.shop.logoMedia
+                ? this.storage.getPublicUrl(product.shop.logoMedia.storageKey)
+                : null,
               identitySalesPaused: !shopAllowsIdentitySales(product.shop),
             }
           : product.shop,
@@ -569,7 +572,8 @@ export class ProductService {
     return (manager?.getRepository(Product) ?? this.productRepository)
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.shop', 'shop');
+      .leftJoinAndSelect('product.shop', 'shop')
+      .leftJoinAndSelect('shop.logoMedia', 'shopLogo');
   }
 
   private async paginateProducts(
@@ -589,7 +593,7 @@ export class ProductService {
   async findManagedProduct(id: string, shopId?: string): Promise<ProductView> {
     const product = await this.productRepository.findOneOrFail({
       where: shopId ? { id, shopId } : { id },
-      relations: { category: true, shop: true },
+      relations: { category: true, shop: { logoMedia: true } },
     });
     const [view] = await this.loadMedia([product]);
     return view;
