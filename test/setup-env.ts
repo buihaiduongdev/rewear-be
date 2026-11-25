@@ -7,6 +7,7 @@ process.env.STORAGE_ENDPOINT ??= 'https://storage.example.test';
 process.env.STORAGE_ACCESS_KEY_ID ??= 'test-access-key';
 process.env.STORAGE_SECRET_ACCESS_KEY ??= 'test-secret-key';
 process.env.STORAGE_BUCKET ??= 'rewear-test';
+process.env.STORAGE_PRIVATE_BUCKET ??= 'rewear-private-test';
 process.env.STORAGE_PUBLIC_BASE_URL ??= 'https://storage.example.test';
 process.env.MAIL_HOST ??= '127.0.0.1';
 process.env.MAIL_PORT ??= '1025';

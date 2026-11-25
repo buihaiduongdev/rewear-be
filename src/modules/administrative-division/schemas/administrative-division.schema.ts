@@ -26,3 +26,20 @@ export const administrativeWardSchema = z.object({
 });
 
 export const administrativeWardListSchema = z.array(administrativeWardSchema);
+
+export type AdministrativeProvince = z.infer<
+  typeof administrativeProvinceSchema
+>;
+export type AdministrativeDistrict = z.infer<
+  typeof administrativeDistrictSchema
+>;
+export type AdministrativeWard = z.infer<typeof administrativeWardSchema>;
+
+export type ResolvedVietnamAddress = {
+  provinceId: number;
+  provinceName: string;
+  districtId: number;
+  districtName: string;
+  wardCode: string;
+  wardName: string;
+};

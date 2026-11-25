@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import {
   DeleteObjectCommand,
@@ -35,12 +35,7 @@ export class R2StorageService implements IStorageProvider {
 
   private bucket(visibility: StorageVisibility): string {
     const { bucket, privateBucket } = this.configService.storage;
-    if (visibility === 'public') return bucket;
-    if (!privateBucket || privateBucket === bucket)
-      throw new ServiceUnavailableException(
-        'Private evidence storage is not configured',
-      );
-    return privateBucket;
+    return visibility === 'public' ? bucket : privateBucket;
   }
 
   async createUploadTicket(

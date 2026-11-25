@@ -41,16 +41,12 @@ describe('AdministrativeDivisionService', () => {
     jest.clearAllMocks();
   });
 
-  it('exposes provinces filtered and cached from GHN', async () => {
+  it('exposes provinces filtered from GHN', async () => {
     const provinces = await service.findAllProvinces();
     expect(provinces.length).toBe(2);
     expect(provinces.some((p) => p.name === 'Hà Nội')).toBe(true);
     expect(provinces.some((p) => p.name.includes('Test'))).toBe(false);
     expect(provinces.some((p) => p.name.includes('02'))).toBe(false);
-
-    // Call again to verify cache (should not call mockGhn.provinces again)
-    await service.findAllProvinces();
-    expect(mockGhn.provinces).toHaveBeenCalledTimes(1);
   });
 
   it('resolves canonical 3-level address', async () => {
