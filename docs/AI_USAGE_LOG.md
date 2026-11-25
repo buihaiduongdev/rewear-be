@@ -1206,3 +1206,15 @@
 - **Cách kiểm chứng:** TypeScript và lint đạt; không chạy test local theo yêu cầu, CI kiểm tra PR.
 - **Giới hạn:** Logo cũ được giữ lại để không làm hỏng ảnh trong snapshot KYC; FE cần gửi `logoMediaId` thay cho `logoUrl` khi tạo hoặc sửa shop.
 - **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Bắt buộc private bucket, soft-delete media và tối giản tra cứu địa giới
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Hydrogen)
+- **Mục đích và phạm vi:** Bắt buộc cấu hình kho lưu trữ riêng tư cho bằng chứng, chuyển xóa ảnh sản phẩm sang soft-delete kèm cron dọn dẹp 24h, và bỏ cache RAM ở module địa giới hành chính.
+- **Prompt chính:** Bắt buộc cấu hình bucket private trên R2 từ lúc khởi động, chuyển xóa ảnh sản phẩm sang đánh dấu soft-delete để cron 24h tự dọn trên R2, đồng thời gộp type từ schema và gọi song song API GHN khi resolve địa chỉ.
+- **Đầu ra AI được sử dụng:** Cập nhật validate cấu hình storage, đơn giản hóa luồng xóa ảnh sản phẩm và chu kỳ cleanup worker 24h, suy ra type từ Zod schema và gọi song song GHN ở phân hệ địa giới hành chính.
+- **Phần tự làm hoặc đã chỉnh sửa:** Tự cấu hình quyền API token và kiểm thử upload/download thực tế trên bucket private của Cloudflare R2; quyết định bỏ cache RAM ở backend để tránh giữ state thừa.
+- **Cách kiểm chứng:** `pnpm check` đạt; 7/7 suite (33/33 unit test) thuộc storage, media, administrative-division và user-address đạt; kiểm thử PUT/GET/CORS thực tế trên R2 private thành công.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #66; branch `buihaiduongdev/storage-and-division-cleanup`.

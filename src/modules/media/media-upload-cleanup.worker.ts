@@ -9,7 +9,7 @@ import { DataSource } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 
-const HOUR = 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class MediaUploadCleanupWorker implements OnModuleInit, OnModuleDestroy {
@@ -24,7 +24,7 @@ export class MediaUploadCleanupWorker implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.run(), HOUR);
+    this.timer = setInterval(() => void this.run(), DAY);
     this.timer.unref();
   }
 

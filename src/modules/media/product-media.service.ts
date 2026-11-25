@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -25,8 +24,6 @@ import type { ProductMediaView } from './types/product-media.type';
 
 @Injectable()
 export class ProductMediaService {
-  private readonly logger = new Logger(ProductMediaService.name);
-
   constructor(
     @InjectRepository(ProductMedia)
     private readonly mediaLinkRepository: Repository<ProductMedia>,
@@ -251,39 +248,38 @@ export class ProductMediaService {
       shopId,
     );
     this.productService.assertEditable(managedProduct);
-    const { storageKey, remaining } = await this.dataSource.transaction(
-      async (manager) => {
-        const product = await this.productService.lockProduct(
-          manager,
-          productId,
-          shopId,
-        );
-        await this.productService.markContentChanged(manager, product);
-        const links = await this.findProductLinks(
-          manager.getRepository(ProductMedia),
-          productId,
-        );
-        const target = links.find((link) => link.mediaId === mediaId);
-        if (!target) throw new NotFoundException('Product media not found');
+    const remaining = await this.dataSource.transaction(async (manager) => {
+      const product = await this.productService.lockProduct(
+        manager,
+        productId,
+        shopId,
+      );
+      await this.productService.markContentChanged(manager, product);
+      const links = await this.findProductLinks(
+        manager.getRepository(ProductMedia),
+        productId,
+      );
+      const target = links.find((link) => link.mediaId === mediaId);
+      if (!target) throw new NotFoundException('Product media not found');
 
-        await manager.remove(target);
-        const remaining = links.filter((link) => link.mediaId !== mediaId);
-        remaining.forEach((link, index) => {
-          link.sortOrder = index;
-        });
-        const shouldPromoteCover =
-          target.role === MediaRole.COVER &&
-          remaining.length > 0 &&
-          !remaining.some((link) => link.role === MediaRole.COVER);
+      await manager.remove(target);
+      const remaining = links.filter((link) => link.mediaId !== mediaId);
+      remaining.forEach((link, index) => {
+        link.sortOrder = index;
+      });
+      const shouldPromoteCover =
+        target.role === MediaRole.COVER &&
+        remaining.length > 0 &&
+        !remaining.some((link) => link.role === MediaRole.COVER);
 
-        if (shouldPromoteCover) {
-          remaining[0].role = MediaRole.COVER;
-        }
+      if (shouldPromoteCover) {
+        remaining[0].role = MediaRole.COVER;
+      }
 
-        if (remaining.length > 0) {
-          const remainingIds = remaining.map((link) => link.mediaId);
-          await manager.query(
-            `
+      if (remaining.length > 0) {
+        const remainingIds = remaining.map((link) => link.mediaId);
+        await manager.query(
+          `
             WITH new_positions AS (
               SELECT id, (position - 1) AS new_sort_order
               FROM unnest($1::uuid[]) WITH ORDINALITY AS t(id, position)
@@ -299,21 +295,21 @@ export class ProductMediaService {
             WHERE link."mediaId" = new_positions.id
               AND link."productId" = $2
             `,
-            [remainingIds, productId, shouldPromoteCover],
-          );
-        }
+          [remainingIds, productId, shouldPromoteCover],
+        );
+      }
 
-        const otherLinkCount = await manager.count(ProductMedia, {
-          where: { mediaId },
-        });
-        if (otherLinkCount > 0) return { storageKey: null, remaining };
+      const otherLinkCount = await manager.count(ProductMedia, {
+        where: { mediaId },
+      });
+      if (otherLinkCount === 0) {
+        target.media.isAttached = false;
         target.media.retiredAt = new Date();
         await manager.save(target.media);
-        return { storageKey: target.media.storageKey, remaining };
-      },
-    );
+      }
+      return remaining;
+    });
 
-    if (storageKey) await this.deleteStoredObject(storageKey);
     return remaining.map((link) => this.toView(link));
   }
 
@@ -351,16 +347,5 @@ export class ProductMediaService {
       createdAt: link.media.createdAt,
       updatedAt: link.media.updatedAt,
     };
-  }
-
-  private async deleteStoredObject(storageKey: string): Promise<void> {
-    try {
-      await this.storageService.delete(storageKey);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(
-        `Failed to delete storage object ${storageKey}: ${message}`,
-      );
-    }
   }
 }

@@ -1,8 +1,9 @@
 import { R2StorageService } from '@/infrastructure/storage/provider/r2/r2-storage.service';
 import type { ConfigService } from '@/modules/config';
+import { storageSchema } from '@/modules/config/schemas/storage.schema';
 
 describe('R2 storage buckets', () => {
-  const config = (privateBucket?: string) =>
+  const config = (privateBucket = 'private-media') =>
     ({
       storage: {
         privateBucket,
@@ -14,20 +15,18 @@ describe('R2 storage buckets', () => {
         uploadExpiresInSeconds: 900,
       },
     }) as ConfigService;
-  it.each([undefined, 'public-media'])(
-    'rejects missing or public private bucket %s',
-    async (bucket) => {
-      await expect(
-        new R2StorageService(config(bucket)).createUploadTicket(
-          {
-            keyPrefix: 'test',
-            extension: 'jpg',
-            contentType: 'image/jpeg',
-            sizeBytes: 12,
-          },
-          'private',
-        ),
-      ).rejects.toMatchObject({ status: 503 });
+  it.each([undefined, '', 'public-media'])(
+    'rejects missing or public private bucket %s in storageSchema',
+    (privateBucket) => {
+      const result = storageSchema.safeParse({
+        endpoint: 'https://example.r2.cloudflarestorage.com',
+        accessKeyId: 'test',
+        secretAccessKey: 'secret',
+        bucket: 'public-media',
+        privateBucket,
+        publicBaseUrl: 'https://media.example.com',
+      });
+      expect(result.success).toBe(false);
     },
   );
   it('signs equivalent uploads for both buckets', async () => {

@@ -283,9 +283,10 @@ describe('ProductMediaService', () => {
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),
     );
+    expect(cover.media.isAttached).toBe(false);
     expect(cover.media.retiredAt).toBeInstanceOf(Date);
     expect(manager.save).toHaveBeenCalledWith(cover.media);
-    expect(storageService.delete).toHaveBeenCalledWith(cover.media.storageKey);
+    expect(storageService.delete).not.toHaveBeenCalled();
   });
 
   it('rejects setting a cover that is not attached to the product', async () => {
