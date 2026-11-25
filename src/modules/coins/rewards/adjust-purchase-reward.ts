@@ -7,10 +7,7 @@ import type { Order } from '@/modules/order/entities/order.entity';
 import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
 
 import { CoinService } from '../core/coin.service';
-import {
-  CoinPurchaseReward,
-  CoinRewardAdjustmentNotice,
-} from './entities/coin-reward.entity';
+import { CoinPurchaseReward, CoinRewardAdjustmentNotice } from './entities';
 import { purchaseRewardAmount } from './policies/purchase-reward.policy';
 
 /** Recovery belongs to the refund transaction, even while another issue remains open. */

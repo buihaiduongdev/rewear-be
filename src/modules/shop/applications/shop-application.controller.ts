@@ -17,12 +17,7 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { ShopApplicationMediaService } from './media/shop-application-media.service';
 import { OwnerIdentityRenewalService } from './renewal/owner-identity-renewal.service';
-import {
-  createIdentityRenewalSchema,
-  submitIdentityRenewalSchema,
-} from './renewal/renewal.schema';
 import {
   adminApplicationViewSchema,
   applicationCreateSchema,
@@ -34,8 +29,11 @@ import {
   applicationSubmitSchema,
   applicationUploadSchema,
   applicationViewSchema,
+  createIdentityRenewalSchema,
+  submitIdentityRenewalSchema,
 } from './schemas/shop-application.schema';
 import { ShopApplicationAdminService } from './shop-application-admin.service';
+import { ShopApplicationMediaService } from './shop-application-media.service';
 import { ShopApplicationReadService } from './shop-application-read.service';
 import { ShopApplicationService } from './shop-application.service';
 

@@ -17,9 +17,9 @@ import {
   OwnerIdentityDocument,
   ShopApplication,
   ShopApplicationDocument,
-} from '@/modules/shop/applications/entities/shop-application.entity';
-import { ShopApplicationMediaService } from '@/modules/shop/applications/media/shop-application-media.service';
+} from '@/modules/shop/applications/entities';
 import { ShopApplicationAdminService } from '@/modules/shop/applications/shop-application-admin.service';
+import { ShopApplicationMediaService } from '@/modules/shop/applications/shop-application-media.service';
 import { ShopApplicationReadService } from '@/modules/shop/applications/shop-application-read.service';
 import { ShopApplicationAccess } from '@/modules/shop/applications/shop-application.access';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';

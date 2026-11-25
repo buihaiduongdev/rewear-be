@@ -4,12 +4,9 @@ import ms from 'ms';
 
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import {
-  CoinGrant,
-  CoinOrderDebit,
-} from '@/modules/coins/core/entities/coin.entity';
+import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
-import { CoinPurchaseReward } from '@/modules/coins/rewards/entities/coin-reward.entity';
+import { CoinPurchaseReward } from '@/modules/coins/rewards/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';

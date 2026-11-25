@@ -9,24 +9,23 @@ import {
   COIN_PROGRAM_STATUS,
   COIN_SOURCE,
 } from '../core/constants/coin.constant';
-import { CoinGrant, CoinMovement } from '../core/entities/coin.entity';
+import { CoinGrant, CoinMovement } from '../core/entities';
 import {
   CoinProgram,
   CoinProgramAudit,
   CoinProgramBatch,
   CoinProgramMistake,
-} from './entities/coin-program.entity';
+} from './entities';
 import type {
   CoinProgramRecipient,
   CreateCoinProgram,
-} from './types/coin-program.type';
+} from './schemas/coin-program.schema';
 
 @Injectable()
 export class CoinProgramService {
   private async lock(manager: EntityManager) {
     if (!manager.queryRunner?.isTransactionActive)
       throw new Error('Coin mutations require caller transaction');
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   }
 
   private async audit(

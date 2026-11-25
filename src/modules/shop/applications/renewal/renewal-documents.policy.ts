@@ -6,11 +6,8 @@ import {
   IDENTITY_DOCUMENT_SLOT,
   IDENTITY_DOCUMENT_TYPE,
 } from '../constants/shop-application.constant';
-import {
-  ShopApplication,
-  ShopApplicationDocument,
-} from '../entities/shop-application.entity';
-import type { ApplicantIdentity } from '../types/shop-application.type';
+import { ShopApplication, ShopApplicationDocument } from '../entities';
+import type { ApplicantIdentity } from '../schemas/shop-application.schema';
 
 export async function renewalDocuments(
   manager: EntityManager,

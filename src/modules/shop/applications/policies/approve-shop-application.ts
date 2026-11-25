@@ -6,7 +6,7 @@ import { StorageService } from '@/infrastructure/storage';
 
 import { Shop } from '../../entities';
 import { ShopStatus } from '../../enums';
-import { ShopApplication } from '../entities/shop-application.entity';
+import { ShopApplication } from '../entities';
 import { claimVerifiedOwnerDocument } from './identity-document-claim.policy';
 import {
   applicationFingerprint,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
 export const createCoinProgramSchema = z.object({
   name: z.string().trim().min(1),
@@ -32,6 +33,16 @@ export const coinProgramCorrectionSchema = z.object({
   amount: z.number().int().positive().max(MAX_VND_AMOUNT),
   evidence: z.string().trim().min(1),
 });
+
+export type CreateCoinProgram = {
+  name: string;
+  reason: string;
+  audience: string;
+  budget: number;
+  mode: ReconciliationMode;
+  expiresAt: Date | null;
+};
+export type CoinProgramRecipient = { buyerId: string; amount: number };
 
 export const coinCodReleaseSchema = z.object({
   requestId: z.uuid(),

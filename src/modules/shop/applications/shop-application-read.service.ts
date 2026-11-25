@@ -12,7 +12,7 @@ import {
   ShopApplicationAudit,
   ShopApplicationDocument,
   ShopApplicationRevision,
-} from './entities/shop-application.entity';
+} from './entities';
 import {
   identityFingerprint,
   normalizeIdentityName,
@@ -118,49 +118,47 @@ export class ShopApplicationReadService {
     );
     return matches.map((m) => ({ identityId: m.id, ownerId: m.ownerId }));
   }
-  detail(userId: string, id: string, admin = false) {
-    return this.db.transaction('REPEATABLE READ', async (manager) =>
-      this.view(
-        manager,
-        admin
-          ? await this.access.admin(manager, userId, id)
-          : await this.access.own(manager, userId, id),
-        admin,
-      ),
+  async detail(userId: string, id: string, admin = false) {
+    const manager = this.db.manager;
+    return this.view(
+      manager,
+      admin
+        ? await this.access.admin(manager, userId, id)
+        : await this.access.own(manager, userId, id),
+      admin,
     );
   }
-  list(
+  async list(
     userId: string,
     input: z.input<typeof applicationQuerySchema>,
     admin = false,
   ) {
     const data = applicationQuerySchema.parse(input);
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await this.access.active(manager, userId, admin);
-      const query = manager.createQueryBuilder(ShopApplication, 'a');
-      if (!admin)
-        query
-          .innerJoin(
-            ShopMember,
-            'm',
-            'm.shopId=a.shopId AND m.userId=:userId AND m.memberRole=:owner',
-            { userId, owner: ShopMemberRole.OWNER },
-          )
-          .where('a.applicantId=:userId', { userId });
-      if (data.state) query.andWhere('a.state=:state', { state: data.state });
-      if (data.kind) query.andWhere('a.kind=:kind', { kind: data.kind });
-      const [rows, totalCount] = await query
-        .orderBy('a.createdAt', 'DESC')
-        .addOrderBy('a.id', 'DESC')
-        .take(data.limit)
-        .skip(data.offset)
-        .getManyAndCount();
-      return {
-        items: rows.map((row) => this.summary(row)),
-        totalCount,
-        limit: data.limit,
-        offset: data.offset,
-      };
-    });
+    const manager = this.db.manager;
+    await this.access.active(manager, userId, admin);
+    const query = manager.createQueryBuilder(ShopApplication, 'a');
+    if (!admin)
+      query
+        .innerJoin(
+          ShopMember,
+          'm',
+          'm.shopId=a.shopId AND m.userId=:userId AND m.memberRole=:owner',
+          { userId, owner: ShopMemberRole.OWNER },
+        )
+        .where('a.applicantId=:userId', { userId });
+    if (data.state) query.andWhere('a.state=:state', { state: data.state });
+    if (data.kind) query.andWhere('a.kind=:kind', { kind: data.kind });
+    const [rows, totalCount] = await query
+      .orderBy('a.createdAt', 'DESC')
+      .addOrderBy('a.id', 'DESC')
+      .take(data.limit)
+      .skip(data.offset)
+      .getManyAndCount();
+    return {
+      items: rows.map((row) => this.summary(row)),
+      totalCount,
+      limit: data.limit,
+      offset: data.offset,
+    };
   }
 }

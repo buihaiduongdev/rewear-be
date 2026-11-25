@@ -15,17 +15,17 @@ import { UserRole } from '@/modules/user/enums';
 import {
   IDENTITY_IMAGE_MIME,
   SHOP_APPLICATION_POLICY,
-} from '../constants/shop-application.constant';
-import { ShopApplicationDocument } from '../entities/shop-application.entity';
+} from './constants/shop-application.constant';
+import { ShopApplicationDocument } from './entities';
 import {
   editableApplication,
   pendingApplicationShop,
-} from '../policies/shop-application.policy';
-import { applicationUploadSchema } from '../schemas/shop-application.schema';
+} from './policies/shop-application.policy';
+import { applicationUploadSchema } from './schemas/shop-application.schema';
 import {
   applicationClock,
   ShopApplicationAccess,
-} from '../shop-application.access';
+} from './shop-application.access';
 
 @Injectable()
 export class ShopApplicationMediaService {

@@ -4,7 +4,7 @@ import type { BaseEntity } from '@/common/entities';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
-import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities/coin-reward.entity';
+import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
 import {
   DisputeCase,

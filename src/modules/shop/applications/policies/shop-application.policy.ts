@@ -19,15 +19,12 @@ import {
   SHOP_APPLICATION_POLICY,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
-import {
-  ShopApplication,
-  ShopApplicationDocument,
-} from '../entities/shop-application.entity';
+import { ShopApplication, ShopApplicationDocument } from '../entities';
 import type {
   ApplicantIdentity,
   ShopApplicationSnapshot,
   ShopApplicationState,
-} from '../types/shop-application.type';
+} from '../schemas/shop-application.schema';
 
 function canonicalApplicationValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalApplicationValue);

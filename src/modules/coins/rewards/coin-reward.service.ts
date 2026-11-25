@@ -16,7 +16,7 @@ import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement
 
 import { CoinService } from '../core/coin.service';
 import { adjustPurchaseReward } from './adjust-purchase-reward';
-import { CoinPurchaseReward } from './entities/coin-reward.entity';
+import { CoinPurchaseReward } from './entities';
 import { purchaseRewardAmount } from './policies/purchase-reward.policy';
 
 @Injectable()
@@ -30,7 +30,6 @@ export class CoinRewardService {
 
   async evaluate(orderId: string) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
