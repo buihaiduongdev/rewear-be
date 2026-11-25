@@ -1266,3 +1266,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy đầy đủ trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Gộp trùng hai khai báo kiểu khi hợp nhất schema xu thưởng, bỏ sót thư mục `coins/core/types/` và từng dùng khóa advisory toàn cục ở worker thưởng xu; đã thay bằng khóa dòng `pessimistic_write` trên `Order`, hợp nhất nốt `coins/core/schemas/` và chuẩn hóa lại tài liệu PR/AI log.
 - **Minh chứng:** PR #70; branch `buihaiduongdev/refactor-wave-2`.
+
+### 2026-11-25 — Tinh gọn nhóm module giao dịch - thanh toán Wave 3 và chuyển cổng thanh toán sang PayOS
+
+- **Mục tiêu công việc:** Chuyển toàn bộ hạ tầng thanh toán trực tuyến từ cổng MoMo Sandbox sang cổng PayOS thông qua gói chính thức của hãng, đồng thời rà soát và tinh gọn các module nghiệp vụ cốt lõi gồm thanh toán, đặt hàng, giỏ chốt đơn, thu hộ, đối soát, vận chuyển, tài chính cửa hàng, ví và phí.
+- **Công cụ & Phạm vi sử dụng AI:** Sử dụng AI hỗ trợ tích hợp thư viện PayOS v2 cho luồng tạo liên kết thanh toán, tra cứu trạng thái giao dịch và xác thực webhook; rà soát để bỏ khóa tư vấn toàn cục, bỏ giao dịch đọc cô lập cao không cần thiết, tách các bảng đang gộp chung thành từng tệp thực thể riêng và gom các tệp kiểu rời rạc về lớp lược đồ.
+- **Kết quả AI tạo ra (Tóm tắt):**
+  - Chuyển đổi luồng thanh toán đơn hàng, thanh toán phí và hoàn thu hồi ví sang sử dụng PayOS với mã giao dịch số duy nhất, kiểm tra chữ ký webhook chuẩn v2 và chuyển các trường hợp cần hoàn trả thủ công sang trạng thái rà soát vận hành.
+  - Gỡ bỏ toàn bộ khóa tư vấn toàn cục và giao dịch chỉ đọc cô lập cao ở các hàm đọc dữ liệu trên cả 9 module thuộc Wave 3, giữ nguyên khóa bản ghi theo từng giao dịch và ràng buộc duy nhất ở mức cơ sở dữ liệu.
+  - Tách 13 tệp thực thể gộp nhiều bảng ra từng tệp riêng lẻ một bảng một tệp, hợp nhất các tệp kiểu nhỏ vào lớp lược đồ và cập nhật đồng bộ toàn bộ mã nguồn cùng các bộ kiểm thử đơn vị, kiểm thử tích hợp và kiểm thử đầu cuối.
+- **Kiểm chứng và chỉnh sửa của nhóm:** Tự chạy định dạng mã nguồn, kiểm tra lint, kiểm tra kiểu, biên dịch ứng dụng, bộ kiểm thử thanh toán lõi và toàn bộ kiểm thử đơn vị sau chỉnh sửa.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Một số bài kiểm thử giả lập cũ còn giữ mock phương thức tìm kiếm đơn giản và tên hằng trạng thái cũ; đã cập nhật lại đầy đủ trước khi chạy toàn bộ kiểm thử.
+- **Minh chứng:** Chưa tạo PR; branch `buihaiduongdev/refactor-wave-3`.
