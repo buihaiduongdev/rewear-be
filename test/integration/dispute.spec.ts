@@ -11,6 +11,7 @@ import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.ent
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeMessage } from '@/modules/dispute/entities/dispute-message.entity';
 import { MediaService } from '@/modules/media/media.service';
+import { Notification } from '@/modules/notifications/entities';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -144,13 +145,23 @@ describe('Dispute 72h intake, evidence, and holds (PostgreSQL)', () => {
     };
     const [first, second] = await Promise.all([
       service.openIssue(f.buyer.id, f.order.id, input),
-      service.openIssue(f.buyer.id, f.order.id, input),
+      service.openIssue(f.buyer.id, f.order.id, {
+        ...input,
+        kind: 'NOT_AS_DESCRIBED',
+      }),
     ]);
     expect(first.id).toBe(second.id);
     expect(first.status).toBe('ACTIVE');
     expect(first.reviewDueAt).toBeInstanceOf(Date);
     expect(
       await f.db.getRepository(DisputeCase).countBy({ orderId: f.order.id }),
+    ).toBe(1);
+    expect(
+      await f.db.getRepository(Notification).countBy({
+        kind: 'DISPUTE',
+        sourceId: f.order.id,
+        recipientId: f.buyer.id,
+      }),
     ).toBe(1);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))

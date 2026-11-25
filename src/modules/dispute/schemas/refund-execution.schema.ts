@@ -14,7 +14,6 @@ export const refundCreditViewSchema = z.object({
   amount: vndAmountSchema,
   commissionReversed: vndAmountSchema,
   sellerDebit: vndAmountSchema,
-  advanceAmount: vndAmountSchema,
   createdAt: dateTimeSchema,
 });
 

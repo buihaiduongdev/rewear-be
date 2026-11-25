@@ -2,6 +2,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, Not } from 'typeorm';
 
+import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
@@ -258,7 +259,6 @@ export class DisputeAdjudicationService {
           reason: data.reason,
           itemPrice: item.price,
           refundAmount,
-          remedyKey: `${order.id}:${issue.productId}`,
           decidedAt: now,
           appealUntil: businessDeadline(
             now,
@@ -273,6 +273,9 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.AWAITING_APPEAL;
       await manager.save(issue);
+      await notifyDispute(manager, row, `decided:${decision.id}`, {
+        email: true,
+      });
       return decision;
     });
   }
@@ -288,14 +291,13 @@ export class DisputeAdjudicationService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      const { row, issue, decision } = await this.lockOrderIssueAndDecision(
-        manager,
-        decisionId,
-      );
+      const { row, order, issue, decision } =
+        await this.lockOrderIssueAndDecision(manager, decisionId);
       const { party } = await this.access.assertParty(
         manager,
         userId,
         row.orderId,
+        order,
       );
 
       if (decision.finalizedAt) {
@@ -344,6 +346,9 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.APPEAL_REVIEW;
       await manager.save(issue);
+      await notifyDispute(manager, row, `appeal:${appeal.id}`, {
+        includeAdmins: true,
+      });
       return appeal;
     });
   }
@@ -402,6 +407,9 @@ export class DisputeAdjudicationService {
       decision.finalReason = data.reason;
       decision.finalActorId = adminId;
       await manager.save(decision);
+      await notifyDispute(manager, row, `concluded:${decision.id}`, {
+        email: true,
+      });
 
       await this.applyFinalOutcome(manager, decision, issue, row, now);
       return decision;
@@ -436,10 +444,12 @@ export class DisputeAdjudicationService {
         const appeals = await manager.find(DisputeAppeal, {
           where: { decisionId: decision.id },
         });
-        for (const appeal of appeals) {
-          if (now > appeal.reviewDueAt && !appeal.reviewOverdue) {
-            appeal.reviewOverdue = true;
-            await manager.save(appeal);
+        if (!decision.finalizedAt) {
+          for (const appeal of appeals) {
+            if (now > appeal.reviewDueAt && !appeal.reviewOverdue) {
+              appeal.reviewOverdue = true;
+              await manager.save(appeal);
+            }
           }
         }
         if (
@@ -498,6 +508,9 @@ export class DisputeAdjudicationService {
       .set({ reviewOverdue: true })
       .where('"reviewOverdue" = false')
       .andWhere('"reviewDueAt" < clock_timestamp()')
+      .andWhere(
+        'EXISTS (SELECT 1 FROM dispute_decisions d WHERE d.id = "decisionId" AND d."finalizedAt" IS NULL)',
+      )
       .execute();
 
     const rows = await this.db.manager
@@ -528,9 +541,6 @@ export class DisputeAdjudicationService {
       }
     }
 
-    await this.db.transaction(async (manager) => {
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      await this.returns.expireDue(manager, new Date(now));
-    });
+    await this.returns.expireDue();
   }
 }

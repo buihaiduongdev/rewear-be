@@ -10,6 +10,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import { MediaService } from '@/modules/media/media.service';
+import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
@@ -73,7 +74,6 @@ export class DisputeService {
         (await manager.findOneBy(DisputeIssue, {
           caseId: row.id,
           productId: data.productId,
-          kind: data.kind,
         }));
       if (existing) return existing;
 
@@ -120,7 +120,7 @@ export class DisputeService {
       order.status = ORDER_STATUS.DISPUTE;
       await manager.save(order);
 
-      return manager.save(
+      const issue = await manager.save(
         DisputeIssue,
         manager.create(DisputeIssue, {
           caseId: row.id,
@@ -147,6 +147,10 @@ export class DisputeService {
           createdAt: now,
         }),
       );
+      await notifyDispute(manager, row, `opened:${issue.id}`, {
+        includeAdmins: true,
+      });
+      return issue;
     });
   }
 
@@ -157,16 +161,25 @@ export class DisputeService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      const issue = await manager.findOneByOrFail(DisputeIssue, {
-        id: issueId,
+      const row = await manager
+        .createQueryBuilder(DisputeCase, 'c')
+        .innerJoin(DisputeIssue, 'i', 'i.caseId = c.id AND i.id = :issueId', {
+          issueId,
+        })
+        .getOneOrFail();
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: row.orderId },
+        lock: { mode: 'pessimistic_write' },
       });
-      const row = await manager.findOneByOrFail(DisputeCase, {
-        id: issue.caseId,
+      const issue = await manager.findOneOrFail(DisputeIssue, {
+        where: { id: issueId },
+        lock: { mode: 'pessimistic_write' },
       });
       const { party } = await this.access.assertParty(
         manager,
         userId,
         row.orderId,
+        order,
       );
       if (issue.status !== DISPUTE_ISSUE_STATE.ACTIVE) {
         throw new ConflictException('Issue is not active for replies');
@@ -203,11 +216,17 @@ export class DisputeService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      await manager.findOne(Order, {
+      const order = await manager.findOneOrFail(Order, {
         where: { id: orderId },
         lock: { mode: 'pessimistic_write' },
       });
-      await this.access.assertUploadAllowed(manager, userId, orderId, now);
+      await this.access.assertUploadAllowed(
+        manager,
+        userId,
+        orderId,
+        now,
+        order,
+      );
       const repo = manager.getRepository(DisputeEvidence);
       const existing = await repo.findOneBy({
         orderId,

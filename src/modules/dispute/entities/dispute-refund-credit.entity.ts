@@ -7,11 +7,11 @@ import { DisputeDecision } from './dispute-decision.entity';
 
 @Entity('dispute_refund_credits')
 @Index(['decisionId'], { unique: true })
-@Index(['remedyKey', 'mode'])
+@Index(['orderId', 'mode'])
 @Index(['shopId', 'mode'])
 @Check(
   'CHK_dispute_refund_credit_money',
-  '"amount" >= 0 AND "commissionReversed" >= 0 AND "sellerDebit" >= 0 AND "amount" = "commissionReversed" + "sellerDebit" AND "advanceAmount" >= 0 AND "advanceAmount" <= "amount"',
+  '"amount" >= 0 AND "commissionReversed" >= 0 AND "sellerDebit" >= 0 AND "amount" = "commissionReversed" + "sellerDebit"',
 )
 export class DisputeRefundCredit extends BaseEntity {
   @Column('uuid')
@@ -30,9 +30,6 @@ export class DisputeRefundCredit extends BaseEntity {
   @Column('uuid')
   shopId: string;
 
-  @Column({ type: 'varchar', length: 73 })
-  remedyKey: string;
-
   @Column({ type: 'varchar', length: 16 })
   mode: ReconciliationMode;
 
@@ -44,7 +41,4 @@ export class DisputeRefundCredit extends BaseEntity {
 
   @Column('integer')
   sellerDebit: number;
-
-  @Column('integer')
-  advanceAmount: number;
 }

@@ -22,7 +22,7 @@ describe('dispute evidence shared media', () => {
     };
     const manager = {
       query: jest.fn().mockResolvedValue([{ now: new Date() }]),
-      findOne: jest.fn().mockResolvedValue({ id: 'o1' }),
+      findOneOrFail: jest.fn().mockResolvedValue({ id: 'o1' }),
       getRepository: jest.fn((entity: unknown) =>
         entity === DisputeEvidence ? repo : null,
       ),

@@ -37,9 +37,6 @@ export class DisputeDecision extends BaseEntity {
   @Column({ type: 'integer', nullable: true })
   refundAmount: number | null;
 
-  @Column({ length: 73 })
-  remedyKey: string;
-
   @Column('timestamptz')
   decidedAt: Date;
 

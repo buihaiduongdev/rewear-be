@@ -6,7 +6,7 @@ import type { DisputeIssueState, DisputeKind } from '../schemas/dispute.schema';
 import { DisputeCase } from './dispute-case.entity';
 
 @Entity('dispute_issues')
-@Index(['caseId', 'productId', 'kind'], { unique: true })
+@Index(['caseId', 'productId'], { unique: true })
 @Index(['status', 'reviewDueAt'])
 export class DisputeIssue extends BaseEntity {
   @Column('uuid')

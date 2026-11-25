@@ -8,7 +8,7 @@ import type { ReturnState } from '../../schemas/dispute.schema';
 
 @Entity('dispute_returns')
 @Index(['decisionId'], { unique: true })
-@Index(['remedyKey'], { unique: true })
+@Index(['orderId'])
 export class DisputeReturn extends BaseEntity {
   @Column('uuid')
   decisionId: string;
@@ -16,9 +16,6 @@ export class DisputeReturn extends BaseEntity {
   @ManyToOne(() => DisputeDecision, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'decisionId' })
   decision: DisputeDecision;
-
-  @Column({ type: 'varchar', length: 73 })
-  remedyKey: string;
 
   @Column('uuid')
   orderId: string;

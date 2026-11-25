@@ -162,7 +162,6 @@ export const disputeDecisionViewSchema = z.object({
   reason: z.string(),
   itemPrice: vndAmountSchema,
   refundAmount: vndAmountSchema.nullable(),
-  remedyKey: z.string(),
   decidedAt: dateTimeSchema,
   appealUntil: dateTimeSchema,
   finalizedAt: dateTimeSchema.nullable(),
@@ -187,7 +186,6 @@ export const disputeAppealViewSchema = z.object({
 export const returnViewSchema = z.object({
   id: z.uuid(),
   decisionId: z.uuid(),
-  remedyKey: z.string(),
   orderId: z.uuid(),
   productId: z.uuid(),
   state: returnStateSchema,

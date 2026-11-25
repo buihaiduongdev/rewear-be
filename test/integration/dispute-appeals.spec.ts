@@ -100,6 +100,22 @@ describe('1-time 2-business-day appeal and finalization (PostgreSQL)', () => {
     });
     expect(concluded.finalOutcome).toBe('REJECT_CLAIM');
     expect(concluded.finalActorId).toBe(reviewer.id);
+
+    // Concluded appeals are never retroactively marked reviewOverdue
+    await database.dataSource
+      .getRepository(DisputeAppeal)
+      .update(
+        { decisionId: decision.id },
+        { reviewDueAt: new Date(Date.now() - ms('2h')) },
+      );
+    await service.run();
+    expect(
+      await database.dataSource.getRepository(DisputeAppeal).countBy({
+        decisionId: decision.id,
+        reviewOverdue: true,
+      }),
+    ).toBe(0);
+
     expect(
       (
         await database.dataSource

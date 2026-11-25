@@ -19,6 +19,7 @@ import { OrderAccess } from '@/modules/order/order.access';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
+import { User } from '@/modules/user/entities';
 import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -126,6 +127,123 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       (await f.db.getRepository(DisputeCase).findOneByOrFail({ id: f.row.id }))
         .state,
     ).toBe('CLOSED');
+
+    // Concurrent first-refund WalletAccount creation across two distinct orders for one buyer
+    const freshBuyer = await f.db.getRepository(User).save({
+      email: `${randomUUID()}@test.local`,
+      fullName: 'Concurrent Buyer',
+      provider: f.buyer.provider,
+      status: f.buyer.status,
+      role: f.buyer.role,
+    });
+    const createDeliveredOrder = () =>
+      f.db.getRepository(Order).save({
+        checkoutOrderId: randomUUID(),
+        buyerId: freshBuyer.id,
+        shopId: f.shop.id,
+        shopName: f.shop.name,
+        status: 'delivered',
+        paymentMethod: 'COD',
+        subtotal: 50000,
+        shippingFee: 20000,
+        total: 70000,
+        createdAt: new Date(Date.now() - 86400000),
+        sellerConfirmBy: new Date(),
+        deliveryObservedAt: f.order.deliveryObservedAt,
+        address: {},
+        items: [
+          {
+            productId: randomUUID(),
+            title: 'Shirt snapshot',
+            price: 50000,
+            size: null,
+            condition: 'GOOD',
+            coverUrl: null,
+            shippingPackage: null,
+          },
+        ],
+      });
+    const secondOrder = await createDeliveredOrder();
+    const thirdOrder = await createDeliveredOrder();
+
+    const prepareDecision = async (ord: Order) => {
+      const collectedAt = new Date();
+      await f.db
+        .getRepository(Order)
+        .update(ord.id, { createdAt: new Date(collectedAt.getTime() - 60000) });
+      const ship = await f.db.getRepository(Shipment).save({
+        orderId: ord.id,
+        state: 'BOOKED',
+        orderCode: randomUUID(),
+        payload: {},
+        input: {} as Shipment['input'],
+        quotedParcel: {} as Shipment['quotedParcel'],
+        codAmount: ord.total,
+        providerStatus: 'delivered',
+      });
+      await new CodReconciliationService(f.db).recordCollection(
+        f.admin.id,
+        ord.id,
+        {
+          requestId: randomUUID(),
+          mode: 'EVIDENCE',
+          waybillCode: ship.orderCode!,
+          collectedAmount: ord.total,
+          approvedCarrierFee: 0,
+          collectedAt: collectedAt.toISOString(),
+          reason: 'Verified COD',
+          evidence: 'Signed proof',
+        },
+      );
+      await f.db.getRepository(Order).update(ord.id, { status: 'dispute' });
+      const c = await f.db.getRepository(DisputeCase).save({
+        orderId: ord.id,
+        buyerId: freshBuyer.id,
+        shopId: f.shop.id,
+        state: 'OPEN',
+        previousOrderStatus: 'delivered',
+      });
+      const iss = await f.db.getRepository(DisputeIssue).save({
+        caseId: c.id,
+        productId: ord.items[0].productId,
+        kind: 'WRONG_ITEM',
+        description: 'Wrong item',
+        evidenceIds: [f.evidence.id],
+        status: 'AWAITING_EXECUTION',
+        sellerRespondBy: new Date(Date.now() - 10000),
+        reviewDueAt: new Date(),
+        maxReviewDueAt: new Date(),
+      });
+      return f.db.getRepository(DisputeDecision).save({
+        issueId: iss.id,
+        actorId: f.admin.id,
+        outcome: 'UPHOLD_CLAIM',
+        responsibility: 'SELLER',
+        reason: 'Approved',
+        itemPrice: 50000,
+        refundAmount: 50000,
+        decidedAt: new Date(),
+        appealUntil: new Date(),
+        finalizedAt: new Date(),
+        finalOutcome: 'UPHOLD_CLAIM',
+        finalRefundAmount: 50000,
+        finalReason: 'Approved',
+        finalActorId: null,
+      });
+    };
+
+    const [d1, d2] = await Promise.all([
+      prepareDecision(secondOrder),
+      prepareDecision(thirdOrder),
+    ]);
+    await Promise.all([refunds.execute(d1.id), refunds.execute(d2.id)]);
+    expect(
+      (
+        await f.db
+          .getRepository(WalletAccount)
+          .findOneByOrFail({ userId: freshBuyer.id })
+      ).balance,
+    ).toBe(100000);
   });
 
   it('deducts partial refund seller debit cleanly before releasing remaining escrow to Shop', async () => {

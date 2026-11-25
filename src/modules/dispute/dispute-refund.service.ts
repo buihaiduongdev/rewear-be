@@ -4,8 +4,8 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
+import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
 import { Order } from '@/modules/order/entities';
-import { encumberedOrderSettlement } from '@/modules/shop-finance/payout-sources';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 import { WalletAccount } from '@/modules/wallet/entities';
@@ -55,7 +55,7 @@ export class DisputeRefundService {
         status: UserStatus.ACTIVE,
       });
     } else {
-      await this.access.assertParty(manager, userId, row.orderId);
+      await this.access.assertParty(manager, userId, row.orderId, order);
     }
     const entitlement = decision.finalRefundAmount ?? decision.refundAmount;
     const approved = entitlement
@@ -66,9 +66,7 @@ export class DisputeRefundService {
           order.commissionBasisPoints,
         )
       : null;
-    const returnCase = await manager.findOneBy(DisputeReturn, {
-      remedyKey: decision.remedyKey,
-    });
+    const returnCase = await manager.findOneBy(DisputeReturn, { decisionId });
     const credit = await manager.findOneBy(DisputeRefundCredit, { decisionId });
     return {
       decisionId,
@@ -101,9 +99,10 @@ export class DisputeRefundService {
         'd.issueId = i.id AND d.id = :decisionId',
         { decisionId },
       )
-      .select('c.orderId', 'orderId')
+      .select('c.id', 'caseId')
+      .addSelect('c.orderId', 'orderId')
       .addSelect('i.id', 'issueId')
-      .getRawOne<{ orderId: string; issueId: string }>();
+      .getRawOne<{ caseId: string; orderId: string; issueId: string }>();
     if (!meta) {
       await manager.findOneByOrFail(DisputeDecision, { id: decisionId });
       return null;
@@ -135,9 +134,7 @@ export class DisputeRefundService {
     if (issue.status !== DISPUTE_ISSUE_STATE.AWAITING_EXECUTION) return null;
 
     if (decision.finalOutcome === DISPUTE_DECISION_OUTCOME.REQUIRE_RETURN) {
-      const returnCase = await manager.findOneBy(DisputeReturn, {
-        remedyKey: decision.remedyKey,
-      });
+      const returnCase = await manager.findOneBy(DisputeReturn, { decisionId });
       if (!returnCase) return null;
       if (
         returnCase.state === RETURN_STATE.AWAITING_HANDOVER &&
@@ -160,42 +157,11 @@ export class DisputeRefundService {
     const funding = await refundFunding(manager, order, now);
     if (!funding) return null;
 
-    const previous = await manager.find(DisputeRefundCredit, {
-      where: { remedyKey: decision.remedyKey },
-    });
-    const sourceChanged = previous.some(
-      (prev) =>
-        prev.mode !== funding.mode ||
-        prev.buyerId !== order.buyerId ||
-        prev.orderId !== order.id ||
-        prev.shopId !== order.shopId,
-    );
-    if (sourceChanged) {
-      throw new ConflictException(
-        'Refund source changed; reconciliation required',
-      );
-    }
-
-    const paid = previous.reduce((sum, prev) => sum + prev.amount, 0);
     const allocation = refundAllocation(
       decision.itemPrice,
       decision.finalRefundAmount,
-      paid,
+      0,
       order.commissionBasisPoints,
-    );
-
-    const orderCredits = await manager.find(DisputeRefundCredit, {
-      where: { orderId: order.id, mode: funding.mode },
-    });
-    const cashAlreadyAllocated = orderCredits.reduce(
-      (sum, prev) => sum + prev.amount,
-      0,
-    );
-    const cashAvailable = Math.max(
-      0,
-      funding.itemFundsAvailable -
-        cashAlreadyAllocated -
-        (await encumberedOrderSettlement(manager, order.id, funding.mode)),
     );
 
     const credit = await manager.save(
@@ -205,10 +171,8 @@ export class DisputeRefundService {
         orderId: order.id,
         buyerId: order.buyerId,
         shopId: order.shopId,
-        remedyKey: decision.remedyKey,
         mode: funding.mode,
         ...allocation,
-        advanceAmount: Math.max(0, allocation.amount - cashAvailable),
         createdAt: now,
       }),
     );
@@ -225,6 +189,17 @@ export class DisputeRefundService {
 
     issue.status = DISPUTE_ISSUE_STATE.RESOLVED_REFUND;
     await manager.save(issue);
+    await notifyDispute(
+      manager,
+      {
+        id: meta.caseId,
+        orderId: order.id,
+        buyerId: order.buyerId,
+        shopId: order.shopId,
+      },
+      `refunded:${credit.id}`,
+      { email: true, mode: funding.mode },
+    );
     await restoreDisputeCaseIfClear(manager, issue.caseId);
     return credit;
   }
@@ -235,14 +210,16 @@ export class DisputeRefundService {
     mode: string,
     amount: number,
   ) {
-    let account = await manager.findOne(WalletAccount, {
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(WalletAccount)
+      .values({ userId })
+      .orIgnore()
+      .execute();
+    const account = await manager.findOneOrFail(WalletAccount, {
       where: { userId },
       lock: { mode: 'pessimistic_write' },
-    });
-    account ??= manager.create(WalletAccount, {
-      userId,
-      balance: 0,
-      simulationBalance: 0,
     });
     const field =
       mode === RECONCILIATION_MODE.SIMULATION ? 'simulationBalance' : 'balance';
@@ -262,7 +239,7 @@ export class DisputeRefundService {
     const query = this.db.manager
       .createQueryBuilder(DisputeDecision, 'decision')
       .innerJoin(DisputeIssue, 'issue', 'issue.id = decision.issueId')
-      .leftJoin(DisputeReturn, 'ret', 'ret.remedyKey = decision.remedyKey')
+      .leftJoin(DisputeReturn, 'ret', 'ret.decisionId = decision.id')
       .where('issue.status = :status', {
         status: DISPUTE_ISSUE_STATE.AWAITING_EXECUTION,
       })

@@ -211,7 +211,6 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     const f = await fixture();
     const reward = await f.service.evaluate(f.order.id);
     expect(reward).toMatchObject({ entitlement: 500 });
-    const remedyKey = `${f.order.id}:${f.issue.productId}`;
     const now = new Date();
     const decision = await f.db.getRepository(DisputeDecision).save({
       issueId: f.issue.id,
@@ -221,7 +220,6 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       reason: 'Confirmed item refund',
       itemPrice: f.order.subtotal,
       refundAmount: 40000,
-      remedyKey,
       decidedAt: now,
       appealUntil: now,
       finalizedAt: now,
@@ -235,12 +233,10 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       orderId: f.order.id,
       buyerId: f.buyer.id,
       shopId: f.shop.id,
-      remedyKey,
       mode: 'EVIDENCE',
       amount: 40000,
       commissionReversed: 1200,
       sellerDebit: 38800,
-      advanceAmount: 40000,
     });
     await f.db
       .getRepository(DisputeIssue)

@@ -2,10 +2,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { DataSource, EntityManager, IsNull, LessThan } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { shipmentPayloadSchema } from '@/infrastructure/shipping/schemas/ghn-shipment.schema';
@@ -19,6 +20,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 import {
   DISPUTE_DECISION_OUTCOME,
   DISPUTE_ISSUE_STATE,
+  DISPUTE_POLICY,
 } from '../constants/dispute.constant';
 import { DisputeRefundService } from '../dispute-refund.service';
 import { DisputeAccess, restoreDisputeCaseIfClear } from '../dispute.access';
@@ -120,6 +122,8 @@ export function reverseReturnPayload(
 
 @Injectable()
 export class DisputeReturnService {
+  private readonly logger = new Logger(DisputeReturnService.name);
+
   constructor(
     private readonly db: DataSource,
     private readonly carrier: GhnShipmentClient,
@@ -158,14 +162,13 @@ export class DisputeReturnService {
       throw new ConflictException('Decision does not require item return');
     }
     const existing = await manager.findOneBy(DisputeReturn, {
-      remedyKey: decision.remedyKey,
+      decisionId: decision.id,
     });
     if (existing) return existing;
     return manager.save(
       DisputeReturn,
       manager.create(DisputeReturn, {
         decisionId: decision.id,
-        remedyKey: decision.remedyKey,
         orderId: disputeCase.orderId,
         productId: issue.productId,
         buyerId: disputeCase.buyerId,
@@ -337,7 +340,7 @@ export class DisputeReturnService {
       row.readyAt = now;
       row.state = RETURN_STATE.READY;
       await manager.save(row);
-      await this.executeReadyRemedy(manager, row.remedyKey, now);
+      await this.refunds.executeInTransaction(manager, row.decisionId, now);
       return row;
     });
   }
@@ -367,49 +370,45 @@ export class DisputeReturnService {
       row.readyAt = now;
       row.state = RETURN_STATE.READY;
       await manager.save(row);
-      await this.executeReadyRemedy(manager, row.remedyKey, now);
+      await this.refunds.executeInTransaction(manager, row.decisionId, now);
       return row;
     });
   }
 
-  async expireDue(manager: EntityManager, now: Date) {
-    const overdue = await manager.find(DisputeReturn, {
-      select: { id: true },
-      where: {
-        state: RETURN_STATE.AWAITING_HANDOVER,
-        handoverAt: IsNull(),
-        handoverBy: LessThan(now),
-      },
-      take: 100,
-    });
-    for (const candidate of overdue) {
-      const row = await this.lockOrderAndReturn(manager, candidate.id);
-      if (
-        row.state === RETURN_STATE.AWAITING_HANDOVER &&
-        !row.handoverAt &&
-        row.handoverBy &&
-        now > row.handoverBy
-      ) {
-        await this.markExpired(manager, row);
-      }
-    }
-  }
+  async expireDue() {
+    const overdue = await this.db.manager
+      .createQueryBuilder(DisputeReturn, 'r')
+      .where('r.state = :state', { state: RETURN_STATE.AWAITING_HANDOVER })
+      .andWhere('r.handoverAt IS NULL')
+      .andWhere('r.handoverBy < clock_timestamp()')
+      .select('r.id', 'id')
+      .orderBy('r.id', 'ASC')
+      .limit(DISPUTE_POLICY.BATCH_SIZE)
+      .getRawMany<{ id: string }>();
 
-  private async executeReadyRemedy(
-    manager: EntityManager,
-    remedyKey: string,
-    now: Date,
-  ) {
-    const decisions = await manager.find(DisputeDecision, {
-      where: {
-        remedyKey,
-        finalOutcome: DISPUTE_DECISION_OUTCOME.REQUIRE_RETURN,
-      },
-      order: { finalizedAt: 'ASC', id: 'ASC' },
-    });
-    for (const decision of decisions) {
-      if (decision.finalizedAt) {
-        await this.refunds.executeInTransaction(manager, decision.id, now);
+    for (const candidate of overdue) {
+      try {
+        await this.db.transaction(async (manager) => {
+          const [{ now: clock }] = await manager.query(
+            'SELECT clock_timestamp() AS now',
+          );
+          const now = new Date(clock);
+          const row = await this.lockOrderAndReturn(manager, candidate.id);
+          if (
+            row.state === RETURN_STATE.AWAITING_HANDOVER &&
+            !row.handoverAt &&
+            row.handoverBy &&
+            now > row.handoverBy
+          ) {
+            await this.markExpired(manager, row);
+          }
+        });
+      } catch (error) {
+        this.logger.error({
+          returnId: candidate.id,
+          message:
+            error instanceof Error ? error.message : 'Return expiry failed',
+        });
       }
     }
   }
@@ -417,21 +416,17 @@ export class DisputeReturnService {
   private async markExpired(manager: EntityManager, row: DisputeReturn) {
     row.state = RETURN_STATE.EXPIRED;
     await manager.save(row);
-    const decisions = await manager.find(DisputeDecision, {
-      where: {
-        remedyKey: row.remedyKey,
-        finalOutcome: DISPUTE_DECISION_OUTCOME.REQUIRE_RETURN,
-      },
+    const decision = await manager.findOneByOrFail(DisputeDecision, {
+      id: row.decisionId,
     });
-    for (const decision of decisions) {
-      const issue = await manager.findOneByOrFail(DisputeIssue, {
-        id: decision.issueId,
-      });
-      if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_EXECUTION) {
-        issue.status = DISPUTE_ISSUE_STATE.RESOLVED_NO_REFUND;
-        await manager.save(issue);
-        await restoreDisputeCaseIfClear(manager, issue.caseId);
-      }
+    const issue = await manager.findOneOrFail(DisputeIssue, {
+      where: { id: decision.issueId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_EXECUTION) {
+      issue.status = DISPUTE_ISSUE_STATE.RESOLVED_NO_REFUND;
+      await manager.save(issue);
+      await restoreDisputeCaseIfClear(manager, issue.caseId);
     }
   }
 }

@@ -26,8 +26,14 @@ import { DisputeReturn } from './returns/entities/dispute-return.entity';
 export class DisputeAccess {
   constructor(private readonly access: OrderAccess) {}
 
-  async assertParty(manager: EntityManager, userId: string, orderId: string) {
-    const order = await manager.findOneByOrFail(Order, { id: orderId });
+  async assertParty(
+    manager: EntityManager,
+    userId: string,
+    orderId: string,
+    existingOrder?: Order,
+  ) {
+    const order =
+      existingOrder ?? (await manager.findOneByOrFail(Order, { id: orderId }));
     if (order.buyerId === userId) return { order, party: DISPUTE_PARTY.BUYER };
     await this.access.assertManage(manager, userId, order.shopId);
     return { order, party: DISPUTE_PARTY.SELLER };
@@ -70,8 +76,14 @@ export class DisputeAccess {
     userId: string,
     orderId: string,
     now: Date,
+    existingOrder?: Order,
   ) {
-    const party = await this.assertParty(manager, userId, orderId);
+    const party = await this.assertParty(
+      manager,
+      userId,
+      orderId,
+      existingOrder,
+    );
     const row = await manager.findOneBy(DisputeCase, {
       orderId,
       state: DISPUTE_CASE_STATE.OPEN,
