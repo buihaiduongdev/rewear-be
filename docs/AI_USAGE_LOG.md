@@ -1217,4 +1217,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Tự cấu hình quyền API token và kiểm thử upload/download thực tế trên bucket private của Cloudflare R2; quyết định bỏ cache RAM ở backend để tránh giữ state thừa.
 - **Cách kiểm chứng:** `pnpm check` đạt; 7/7 suite (33/33 unit test) thuộc storage, media, administrative-division và user-address đạt; kiểm thử PUT/GET/CORS thực tế trên R2 private thành công.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `buihaiduongdev/storage-and-division-cleanup`.
+- **Minh chứng:** PR #66; branch `buihaiduongdev/storage-and-division-cleanup`.
