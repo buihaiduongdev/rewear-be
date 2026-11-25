@@ -17,7 +17,7 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
+import { CoinAccount, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
@@ -217,30 +217,27 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     mode: 'EVIDENCE' | 'SIMULATION',
   ) {
     const db = database.dataSource;
-    const grant = await db.getRepository(CoinGrant).save({
-      buyerId,
-      mode,
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 20000,
-      expiresAt: new Date(Date.now() + 1000),
-    });
+    await db
+      .getRepository(CoinAccount)
+      .upsert(
+        mode === 'SIMULATION'
+          ? { userId: buyerId, simulationBalance: 20000 }
+          : { userId: buyerId, balance: 20000 },
+        ['userId'],
+      );
     const checkoutService = new CheckoutService(db, {} as CartService);
     await checkoutService.selectCoins(buyerId, checkoutId, {
       requestId: randomUUID(),
       amount: 20000,
       mode,
     });
-    return grant;
+    return db.getRepository(CoinAccount).findOneByOrFail({ userId: buyerId });
   }
 
-  it('captures wallet remainder and burns held coins even when source expires during the live checkout', async () => {
+  it('captures wallet remainder and burns held coins during the live checkout', async () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id);
-    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
-    await db
-      .getRepository(CoinGrant)
-      .update(grant.id, { expiresAt: new Date(Date.now() - 1000) });
+    await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
       requestId: randomUUID(),
       mode: 'EVIDENCE',
@@ -264,8 +261,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         .findOneByOrFail({ orderId: order.id }),
     ).toMatchObject({ amount: 20000, mode: 'EVIDENCE' });
     expect(
-      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 0, spent: 20000 });
+      await db.getRepository(CoinAccount).findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 0 });
   });
 
   it('charges PayOS only the remainder and freezes coins while provider outcome is unresolved', async () => {
@@ -318,7 +315,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
   it('credits gross cancellation money once while consumed coins remain spent', async () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id);
-    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
       requestId: randomUUID(),
       mode: 'EVIDENCE',
@@ -341,14 +338,14 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         .findOneByOrFail({ userId: buyer.id }),
     ).toMatchObject({ balance: 250000, heldBalance: 0 });
     expect(
-      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 0, spent: 20000 });
+      await db.getRepository(CoinAccount).findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 0 });
   });
 
   it('credits gross wallet cancellation with coins once and leaves consumed coins spent', async () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id);
-    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
       requestId: randomUUID(),
       mode: 'EVIDENCE',
@@ -371,14 +368,14 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         .findOneByOrFail({ userId: buyer.id }),
     ).toMatchObject({ balance: 250000, heldBalance: 0 });
     expect(
-      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ spent: 20000, held: 0 });
+      await db.getRepository(CoinAccount).findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 0 });
   });
 
   it('rejects mixed wallet mode without moving either money or the selected coin hold', async () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id, 'SIMULATION');
-    const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+    await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     await expect(
       wallet.reserve(buyer.id, checkout.id, {
         requestId: randomUUID(),
@@ -392,8 +389,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         .countBy({ checkoutId: checkout.id }),
     ).toBe(0);
     expect(
-      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 20000, spent: 0 });
+      await db.getRepository(CoinAccount).findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 20000 });
     expect(
       await db
         .getRepository(WalletAccount)
@@ -402,12 +399,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
   });
 
   it.each(['cancel', 'expire'] as const)(
-    'releases expired-source held lots on checkout %s without reviving them',
+    'releases held coins on checkout %s back to buyer balance',
     async (action) => {
       const { db, buyer, checkout } = await fixture();
-      const grant = await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
+      await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
       const expiry = new Date(Date.now() - 1000);
-      await db.getRepository(CoinGrant).update(grant.id, { expiresAt: expiry });
       const service = new CheckoutService(db, {} as CartService);
       if (action === 'cancel') await service.cancel(buyer.id, checkout.id);
       else {
@@ -417,8 +413,10 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         await service.expire();
       }
       expect(
-        await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-      ).toMatchObject({ held: 0, spent: 0, expiresAt: expiry });
+        await db
+          .getRepository(CoinAccount)
+          .findOneByOrFail({ userId: buyer.id }),
+      ).toMatchObject({ balance: 20000, heldBalance: 0 });
     },
   );
 
@@ -444,13 +442,9 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await first.db
       .getRepository(Checkout)
       .update(second.checkout.id, { status: 'CANCELLED' });
-    await first.db.getRepository(CoinGrant).save({
-      buyerId: first.buyer.id,
-      mode: 'SIMULATION',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 40000,
-      expiresAt: new Date(Date.now() + 60000),
+    await first.db.getRepository(CoinAccount).save({
+      userId: first.buyer.id,
+      simulationBalance: 40000,
     });
     await new CheckoutService(first.db, {} as CartService).selectCoins(
       first.buyer.id,
@@ -496,13 +490,9 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       items: snapshot.items.map((item) => ({ ...item, price: 2000 })),
     });
     carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
-    await f.db.getRepository(CoinGrant).save({
-      buyerId: f.buyer.id,
-      mode: 'SIMULATION',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 100,
-      expiresAt: new Date(Date.now() + 60000),
+    await f.db.getRepository(CoinAccount).save({
+      userId: f.buyer.id,
+      simulationBalance: 100,
     });
     const service = new CheckoutService(f.db, {} as CartService);
     await service.selectCoins(f.buyer.id, f.checkout.id, {
@@ -552,13 +542,9 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     snapshot.items[0].price = 2000;
     await db.getRepository(CheckoutOrder).save(snapshot);
     carrier.quote.mockResolvedValue({ fee: 0, estimatedDeliveryAt: null });
-    const grant = await db.getRepository(CoinGrant).save({
-      buyerId: buyer.id,
-      mode: 'SIMULATION',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 100,
-      expiresAt: new Date(Date.now() + 60000),
+    await db.getRepository(CoinAccount).save({
+      userId: buyer.id,
+      simulationBalance: 100,
     });
     const selection = new CheckoutService(db, {} as CartService);
     await selection.selectCoins(buyer.id, checkout.id, {
@@ -580,8 +566,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       await db.getRepository(Checkout).findOneByOrFail({ id: checkout.id }),
     ).toMatchObject({ coinDiscount: 100 });
     expect(
-      await db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 100, spent: 0 });
+      await db.getRepository(CoinAccount).findOneByOrFail({ userId: buyer.id }),
+    ).toMatchObject({ simulationBalance: 0, simulationHeldBalance: 100 });
     expect(
       await db
         .getRepository(PaymentAttempt)
@@ -595,13 +581,9 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await first.db
       .getRepository(Checkout)
       .update(second.checkout.id, { buyerId: first.buyer.id });
-    const grant = await first.db.getRepository(CoinGrant).save({
-      buyerId: first.buyer.id,
-      mode: 'EVIDENCE',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 20000,
-      expiresAt: new Date(Date.now() + 60000),
+    await first.db.getRepository(CoinAccount).save({
+      userId: first.buyer.id,
+      balance: 20000,
     });
     const service = new CheckoutService(first.db, {} as CartService);
     const results = await Promise.allSettled(
@@ -616,8 +598,10 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((row) => row.status === 'rejected')).toHaveLength(1);
     expect(
-      await first.db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 20000, spent: 0 });
+      await first.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: first.buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 20000 });
   });
 
   it('reserves full verified balance and captures once without extending inventory TTL', async () => {

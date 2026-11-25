@@ -3,6 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+import { CoinService } from '@/modules/coins/core/coin.service';
+import {
+  CoinAccount,
+  CoinPurchaseReward,
+} from '@/modules/coins/core/entities';
+import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
@@ -246,6 +252,58 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
     ).toBe(100000);
   });
 
+  it('claws back granted purchase reward coins when a dispute refund executes', async () => {
+    const f = await fundedCodFixture();
+    const deliveredAt = new Date(Date.now() - 4 * 86400000);
+    const disputeDeadlineAt = new Date(deliveredAt.getTime() + 72 * 3600000);
+    await f.db.getRepository(Order).update(f.order.id, {
+      createdAt: new Date(deliveredAt.getTime() - 3600000),
+      deliveryObservedAt: deliveredAt,
+      deliveryVerifiedAt: deliveredAt,
+      disputeDeadlineAt,
+    });
+    await f.db.getRepository(OrderDeliveryVerification).save({
+      orderId: f.order.id,
+      deliveredAt,
+      disputeDeadlineAt,
+      mode: 'EVIDENCE',
+      actorId: f.admin.id,
+      reason: 'Verified delivery',
+      evidence: 'Signed handoff',
+    });
+    const prevStatus = f.issue.status;
+    await f.db
+      .getRepository(DisputeIssue)
+      .update(f.issue.id, { status: 'RESOLVED_NO_REFUND' });
+    const rewards = new CoinRewardService(f.db, new CoinService());
+    const reward = await rewards.evaluate(f.order.id);
+    expect(reward?.entitlement).toBe(500);
+    await f.db
+      .getRepository(DisputeIssue)
+      .update(f.issue.id, { status: prevStatus });
+    await adjudication.refreshIssue(f.issue.id);
+    await refunds.execute(f.decision.id);
+    expect(await rewards.evaluate(f.order.id)).toMatchObject({
+      grantedAmount: 500,
+      entitlement: 0,
+      recoveredAmount: 500,
+    });
+    expect(
+      await f.db
+        .getRepository(CoinPurchaseReward)
+        .findOneByOrFail({ orderId: f.order.id }),
+    ).toMatchObject({
+      grantedAmount: 500,
+      entitlement: 0,
+      recoveredAmount: 500,
+    });
+    expect(
+      await f.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 0 });
+  });
+
   it('deducts partial refund seller debit cleanly before releasing remaining escrow to Shop', async () => {
     const f = await fundedCodFixture('EVIDENCE', 40000);
     await adjudication.refreshIssue(f.issue.id);
@@ -350,6 +408,5 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
           .findOneByOrFail({ id: cancelled.issue.id })
       ).status,
     ).toBe('AWAITING_EXECUTION');
-    void OrderDeliveryVerification;
   });
 });

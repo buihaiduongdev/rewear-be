@@ -1,6 +1,7 @@
 import { Check, Column, Entity, Index } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import type { CoinReservationState } from '../schemas/coin.schema';
 
@@ -11,14 +12,22 @@ import type { CoinReservationState } from '../schemas/coin.schema';
 export class CoinReservation extends BaseEntity {
   @Column('uuid')
   checkoutId: string;
+
   @Column('uuid', { nullable: true })
   orderId: string | null;
+
   @Column('uuid')
-  grantId: string;
+  buyerId: string;
+
+  @Column('varchar')
+  mode: ReconciliationMode;
+
   @Column('integer')
   amount: number;
+
   @Column('varchar')
   state: CoinReservationState;
+
   @Column('timestamptz', { nullable: true })
   expiresAt: Date | null;
 }

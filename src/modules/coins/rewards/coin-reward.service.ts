@@ -11,16 +11,21 @@ import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement.policy';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { CoinService } from '../core/coin.service';
-import { adjustPurchaseReward } from './adjust-purchase-reward';
-import { CoinPurchaseReward } from './entities';
-import { purchaseRewardAmount } from './policies/purchase-reward.policy';
+import { COIN_POLICY } from '../core/constants/coin.constant';
+import { CoinPurchaseReward } from '../core/entities';
+import {
+  adjustPurchaseReward,
+  purchaseRewardAmount,
+} from './adjust-purchase-reward';
 
 @Injectable()
 export class CoinRewardService {
   private readonly logger = new Logger(CoinRewardService.name);
-  private cursor?: string;
+  private cursor: string | null = null;
+
   constructor(
     private readonly db: DataSource,
     private readonly coins: CoinService,
@@ -55,24 +60,13 @@ export class CoinRewardService {
         refunds.reduce((sum, row) => sum + row.amount, 0),
       );
       if (!target) return null;
-      const grant = await this.coins.grantPurchaseReward(
+      return this.coins.grantPurchaseReward(
         manager,
         order.buyerId,
         orderId,
         target,
         funding.mode,
         now,
-      );
-      return manager.save(
-        CoinPurchaseReward,
-        manager.create(CoinPurchaseReward, {
-          orderId,
-          buyerId: order.buyerId,
-          mode: funding.mode,
-          grantId: grant.id,
-          entitlement: target,
-          evaluatedAt: now,
-        }),
       );
     });
   }
@@ -90,13 +84,45 @@ export class CoinRewardService {
 
   async evaluateDue() {
     const query = this.db.manager
-      .createQueryBuilder(Order, 'order')
-      .select('order.id', 'id')
-      .where('order."disputeDeadlineAt" <= CURRENT_TIMESTAMP')
-      .orderBy('order.id', 'ASC')
+      .createQueryBuilder(Order, 'o')
+      .innerJoin(
+        OrderDeliveryVerification,
+        'verification',
+        'verification.orderId = o.id',
+      )
+      .leftJoin(CoinPurchaseReward, 'reward', 'reward.orderId = o.id')
+      .select('o.id', 'id')
+      .where('o."disputeDeadlineAt" <= CURRENT_TIMESTAMP')
+      .andWhere('reward.id IS NULL')
+      .andWhere('o.subtotal - COALESCE(o."coinDiscount", 0) >= :minSubtotal', {
+        minSubtotal: COIN_POLICY.PURCHASE_REWARD_DIVISOR,
+      })
+      .andWhere(
+        (qb) =>
+          `NOT EXISTS ${qb
+            .subQuery()
+            .select('1')
+            .from(WalletCredit, 'wc')
+            .where('wc."orderId" = o.id')
+            .getQuery()}`,
+      )
+      .andWhere(
+        (qb) =>
+          `NOT EXISTS ${qb
+            .subQuery()
+            .select('1')
+            .from(DisputeIssue, 'issue')
+            .innerJoin(DisputeCase, 'dispute', 'dispute.id = issue.caseId')
+            .where('dispute."orderId" = o.id')
+            .andWhere('issue.status IN (:...openStates)')
+            .getQuery()}`,
+        { openStates: [...OPEN_DISPUTE_STATES] },
+      )
+      .orderBy('o.id', 'ASC')
       .limit(ORDER_POLICY.SETTLEMENT_BATCH_SIZE);
-    if (this.cursor)
-      query.andWhere('order.id > :cursor', { cursor: this.cursor });
+
+    if (this.cursor) query.andWhere('o.id > :cursor', { cursor: this.cursor });
+
     const rows = await query.getRawMany<{ id: string }>();
     for (const row of rows) {
       this.cursor = row.id;
@@ -106,7 +132,6 @@ export class CoinRewardService {
         this.logger.error(`Purchase reward requires retry for order ${row.id}`);
       }
     }
-    if (rows.length < ORDER_POLICY.SETTLEMENT_BATCH_SIZE)
-      this.cursor = undefined;
+    if (rows.length < ORDER_POLICY.SETTLEMENT_BATCH_SIZE) this.cursor = null;
   }
 }
