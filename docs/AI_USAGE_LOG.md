@@ -1286,4 +1286,4 @@
 - **Mục đích sử dụng:** Tách gọn các thực thể đang gom nhiều bảng trong cùng một tệp về chuẩn một thực thể mỗi tệp kèm tệp export tổng; gộp các khai báo kiểu nhỏ vào nhóm schema tương ứng; loại bỏ khóa cố vấn toàn cục dư thừa và bỏ giao dịch cô lập ở các thao tác chỉ đọc nhưng vẫn giữ nguyên toàn bộ giao dịch ghi, đồng hồ cơ sở dữ liệu và ràng buộc duy nhất.
 - **Người thực hiện kiểm tra và chỉnh sửa:** Kiểm tra và cập nhật lại toàn bộ đường dẫn import ở mã nguồn lẫn các bộ kiểm thử liên quan, chạy định dạng, kiểm tra kiểu, phân tích tĩnh, biên dịch và toàn bộ bài kiểm thử đơn vị.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Chưa phát hiện lỗi ngoài việc cần đồng bộ lại các đường dẫn tham chiếu thực thể và schema sau khi tách gọn cấu trúc thư mục.
-- **Minh chứng:** Pending PR Wave 4; branch `buihaiduongdev/refactor-wave-4`.
+- **Minh chứng:** PR #72; branch `buihaiduongdev/refactor-wave-4`.
