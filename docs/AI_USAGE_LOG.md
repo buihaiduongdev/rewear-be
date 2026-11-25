@@ -1254,3 +1254,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100%; toàn bộ bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện `ChatService.resolveProduct` ban đầu thiếu kiểm tra `ProductModeration.APPROVED`, `ChatMediaService.loadPrivateMediaLink` chưa lọc hội thoại khi media gửi ở nhiều cuộc trò chuyện, và một số `pg_advisory_xact_lock` còn sót lại ở `notifications`/`ratings`/`reports`; đã khắc phục toàn bộ.
 - **Minh chứng:** PR #69; branch `buihaiduongdev/refactor-wave-1`.
+
+### 2026-11-25 — Tinh gọn nhóm module nghiệp vụ Wave 2
+
+- **Mục tiêu công việc:** Rà soát và tinh gọn các module sản phẩm, vận chuyển, cửa hàng (kèm hồ sơ đăng ký mở cửa hàng) và xu thưởng theo hướng đơn giản hóa truy vấn, tách gọn cấu trúc thực thể một bảng một tệp và loại bỏ khóa tuần tự hóa không cần thiết.
+- **Công cụ & Phạm vi sử dụng AI:** Sử dụng AI hỗ trợ rà soát toàn bộ module sản phẩm, lấy hàng, cửa hàng và xu thưởng; tìm các chỗ dùng khóa tư vấn toàn cục hoặc transaction đọc thừa, đề xuất phương án tách entity và dọn thư mục trung gian dư thừa.
+- **Kết quả AI tạo ra (Tóm tắt):**
+  - Loại bỏ transaction mức cô lập cao ở các hàm chỉ đọc và bỏ các lệnh khóa toàn cục dư thừa ở khối sản phẩm, điểm lấy hàng, cửa hàng, hồ sơ đăng ký cửa hàng và xu thưởng (giữ nguyên khóa theo từng cửa hàng khi cần thiết).
+  - Tách các bảng đang gộp chung trong module hồ sơ cửa hàng và xu thưởng ra từng tệp thực thể riêng lẻ; gộp các tệp định nghĩa kiểu nhỏ lẻ về đúng lớp schema, gom logic gửi thông báo và bỏ các thư mục trung gian dư thừa.
+  - Cập nhật đồng bộ đường dẫn tham chiếu trong mã nguồn và các bài kiểm thử liên quan.
+- **Kiểm chứng và chỉnh sửa của nhóm:** Đã rà soát toàn bộ thay đổi và chạy định dạng, kiểm tra kiểu, kiểm thử thanh toán lõi và kiểm thử đơn vị toàn dự án sau chỉnh sửa.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Gộp trùng hai khai báo kiểu khi hợp nhất schema xu thưởng; đã xóa phần trùng trước khi kiểm thử lại.
+- **Minh chứng:** Chưa tạo PR; branch `buihaiduongdev/refactor-wave-2`.
