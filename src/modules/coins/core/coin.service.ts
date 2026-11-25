@@ -1,52 +1,85 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 
-import { EntityManager, In } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { Order } from '@/modules/order/entities';
 
-import { CoinProgramMistake } from '../programs/entities';
-import { allocateLots } from './coin-allocation';
+import { COIN_POLICY, COIN_RESERVATION_STATE } from './constants/coin.constant';
 import {
-  COIN_POLICY,
-  COIN_RELEASE_CAUSE,
-  COIN_RESERVATION_STATE,
-  COIN_SOURCE,
-} from './constants/coin.constant';
-import {
-  CoinGrant,
-  CoinMovement,
+  CoinAccount,
   CoinOrderDebit,
-  CoinRecovery,
+  CoinPurchaseReward,
   CoinReservation,
-  CoinSelection,
 } from './entities';
 import type {
   CoinCheckout,
+  CoinHistoryQueryInput,
   CoinOrder,
-  CoinReleaseCause,
 } from './schemas/coin.schema';
 
 @Injectable()
 export class CoinService {
-  private async lock(manager: EntityManager) {
+  constructor(@Optional() private readonly db?: DataSource) {}
+
+  private assertTransaction(manager: EntityManager) {
     if (!manager.queryRunner?.isTransactionActive)
       throw new Error('Coin mutations require caller transaction');
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   }
 
-  private async movement(
-    manager: EntityManager,
-    grantId: string,
-    kind: string,
-    amount: number,
-    referenceId: string | null,
-  ) {
-    if (amount)
-      await manager.save(
-        CoinMovement,
-        manager.create(CoinMovement, { grantId, kind, amount, referenceId }),
-      );
+  private balanceFields(mode: ReconciliationMode) {
+    return mode === 'SIMULATION'
+      ? ({
+          available: 'simulationBalance',
+          held: 'simulationHeldBalance',
+        } as const)
+      : ({ available: 'balance', held: 'heldBalance' } as const);
+  }
+
+  private async lockAccount(manager: EntityManager, userId: string) {
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(CoinAccount)
+      .values({ userId })
+      .orIgnore()
+      .execute();
+    return manager.findOneOrFail(CoinAccount, {
+      where: { userId },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  async balance(userId: string) {
+    if (!this.db) throw new Error('DataSource is required');
+    const account = await this.db.manager.findOneBy(CoinAccount, { userId });
+    return {
+      balance: account?.balance ?? 0,
+      heldBalance: account?.heldBalance ?? 0,
+      simulationBalance: account?.simulationBalance ?? 0,
+      simulationHeldBalance: account?.simulationHeldBalance ?? 0,
+    };
+  }
+
+  async history(userId: string, query: Partial<CoinHistoryQueryInput> = {}) {
+    if (!this.db) throw new Error('DataSource is required');
+    const take = query.limit ?? 50;
+    const skip = query.offset ?? 0;
+    const [rewards, debits] = await Promise.all([
+      this.db.manager.find(CoinPurchaseReward, {
+        where: { buyerId: userId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take,
+        skip,
+      }),
+      this.db.manager.find(CoinOrderDebit, {
+        where: { buyerId: userId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take,
+        skip,
+      }),
+    ]);
+    return { rewards, debits };
   }
 
   async reserveCheckoutCoins(
@@ -54,25 +87,11 @@ export class CoinService {
     checkout: CoinCheckout,
     amount: number,
     mode: ReconciliationMode,
-    requestId: string,
+    _requestId: string,
     now: Date,
   ) {
-    await this.lock(manager);
+    this.assertTransaction(manager);
     this.validAmount(amount);
-    const prior = await manager.findOneBy(CoinSelection, {
-      checkoutId: checkout.id,
-      requestId,
-    });
-    if (prior) {
-      if (!prior.active)
-        throw new BadRequestException('Stale coin selection request');
-      if (prior.amount !== amount || prior.mode !== mode)
-        throw new BadRequestException('Coin request payload changed');
-      return manager.findBy(CoinReservation, {
-        checkoutId: checkout.id,
-        state: COIN_RESERVATION_STATE.HELD,
-      });
-    }
     if (!checkout.expiresAt || checkout.expiresAt <= now)
       throw new BadRequestException('Checkout expired');
     const orders =
@@ -85,77 +104,48 @@ export class CoinService {
     if (amount > Math.floor(subtotal / COIN_POLICY.SUBTOTAL_LIMIT_DIVISOR))
       throw new BadRequestException('Coins exceed 10% of merchandise subtotal');
     await this.releaseCheckoutCoins(manager, checkout.id, now);
-    const grants = await manager.findBy(CoinGrant, {
-      buyerId: checkout.buyerId,
-      mode,
-    });
-    let allocations: { grantId: string; amount: number }[];
-    try {
-      allocations = allocateLots(grants, amount, now);
-    } catch {
+    if (amount === 0) return [];
+    const account = await this.lockAccount(manager, checkout.buyerId);
+    const fields = this.balanceFields(mode);
+    if (account[fields.available] < amount)
       throw new BadRequestException('Insufficient available coins');
-    }
-    const reservations: CoinReservation[] = [];
-    for (const allocation of allocations) {
-      const grant = grants.find((lot) => lot.id === allocation.grantId)!;
-      grant.held += allocation.amount;
-      await manager.save(grant);
-      reservations.push(
-        await manager.save(
-          CoinReservation,
-          manager.create(CoinReservation, {
-            checkoutId: checkout.id,
-            orderId: null,
-            grantId: grant.id,
-            amount: allocation.amount,
-            state: COIN_RESERVATION_STATE.HELD,
-            expiresAt: checkout.expiresAt,
-          }),
-        ),
-      );
-      await this.movement(
-        manager,
-        grant.id,
-        'RESERVE',
-        allocation.amount,
-        checkout.id,
-      );
-    }
-    await manager.update(
-      CoinSelection,
-      { checkoutId: checkout.id, active: true },
-      { active: false },
-    );
-    await manager.save(
-      CoinSelection,
-      manager.create(CoinSelection, {
+    account[fields.available] -= amount;
+    account[fields.held] += amount;
+    await manager.save(CoinAccount, account);
+    const reservation = await manager.save(
+      CoinReservation,
+      manager.create(CoinReservation, {
         checkoutId: checkout.id,
-        requestId,
-        amount,
+        orderId: null,
+        buyerId: checkout.buyerId,
         mode,
+        amount,
+        state: COIN_RESERVATION_STATE.HELD,
+        expiresAt: checkout.expiresAt,
       }),
     );
-    return reservations;
+    return [reservation];
   }
 
   async releaseCheckoutCoins(
     manager: EntityManager,
     checkoutId: string,
-    now: Date,
+    _now?: Date,
   ) {
-    await this.lock(manager);
-    const rows = await manager.findBy(CoinReservation, {
-      checkoutId,
-      state: COIN_RESERVATION_STATE.HELD,
+    this.assertTransaction(manager);
+    const rows = await manager.find(CoinReservation, {
+      where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
+      lock: { mode: 'pessimistic_write' },
     });
-    for (const row of rows)
-      await this.releaseReservation(
-        manager,
-        row,
-        now,
-        false,
-        COIN_RELEASE_CAUSE.UNKNOWN,
-      );
+    for (const row of rows) {
+      const account = await this.lockAccount(manager, row.buyerId);
+      const fields = this.balanceFields(row.mode);
+      account[fields.held] -= row.amount;
+      account[fields.available] += row.amount;
+      await manager.save(CoinAccount, account);
+      row.state = COIN_RESERVATION_STATE.RELEASED;
+      await manager.save(CoinReservation, row);
+    }
   }
 
   async consumeCheckoutCoins(
@@ -165,10 +155,10 @@ export class CoinService {
     mode: ReconciliationMode,
     now: Date,
   ) {
-    await this.lock(manager);
-    const rows = await manager.findBy(CoinReservation, {
-      checkoutId,
-      state: COIN_RESERVATION_STATE.HELD,
+    this.assertTransaction(manager);
+    const rows = await manager.find(CoinReservation, {
+      where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!rows.length) {
       for (const order of orders) await this.verifyDebit(manager, order, mode);
@@ -176,16 +166,56 @@ export class CoinService {
     }
     if (rows.some((row) => !row.expiresAt || row.expiresAt <= now))
       throw new BadRequestException('Coin checkout reservation expired');
-    await this.splitReservations(
-      manager,
-      checkoutId,
-      orders,
-      rows,
-      mode,
-      COIN_RESERVATION_STATE.HELD,
+    const heldAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+    const expected = orders.reduce(
+      (sum, order) => sum + (order.coinDiscount ?? 0),
+      0,
     );
-    for (const order of orders)
-      await this.consumeOrderCoins(manager, order, mode, now);
+    if (expected !== heldAmount)
+      throw new BadRequestException('Coin allocation does not match checkout');
+    const buyerId = rows[0].buyerId;
+    if (
+      rows.some((row) => row.buyerId !== buyerId || row.mode !== mode) ||
+      orders.some(
+        (order) =>
+          order.buyerId !== buyerId ||
+          (order.coinMode && order.coinMode !== mode),
+      )
+    )
+      throw new BadRequestException('Coin source does not match order');
+
+    const account = await this.lockAccount(manager, buyerId);
+    const fields = this.balanceFields(mode);
+    account[fields.held] -= heldAmount;
+    await manager.save(CoinAccount, account);
+    await manager.remove(CoinReservation, rows);
+
+    for (const order of orders) {
+      const amount = order.coinDiscount ?? 0;
+      this.validAmount(amount);
+      if (!amount) continue;
+      await manager.save(
+        CoinReservation,
+        manager.create(CoinReservation, {
+          checkoutId,
+          orderId: order.id,
+          buyerId,
+          mode,
+          amount,
+          state: COIN_RESERVATION_STATE.CONSUMED,
+          expiresAt: null,
+        }),
+      );
+      await manager.save(
+        CoinOrderDebit,
+        manager.create(CoinOrderDebit, {
+          orderId: order.id,
+          buyerId,
+          mode,
+          amount,
+        }),
+      );
+    }
   }
 
   async commitCodCoins(
@@ -194,12 +224,17 @@ export class CoinService {
     orders: CoinOrder[],
     now: Date,
   ) {
-    await this.lock(manager);
-    const rows = await manager.findBy(CoinReservation, {
-      checkoutId,
-      state: COIN_RESERVATION_STATE.HELD,
+    this.assertTransaction(manager);
+    const rows = await manager.find(CoinReservation, {
+      where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
+      lock: { mode: 'pessimistic_write' },
     });
+    const expected = orders.reduce(
+      (sum, order) => sum + (order.coinDiscount ?? 0),
+      0,
+    );
     if (!rows.length) {
+      if (expected === 0) return;
       const committed = await manager.findBy(CoinReservation, {
         checkoutId,
         orderId: In(orders.map((order) => order.id)),
@@ -207,87 +242,45 @@ export class CoinService {
           COIN_RESERVATION_STATE.COD,
           COIN_RESERVATION_STATE.CONSUMED,
           COIN_RESERVATION_STATE.RELEASED,
-          COIN_RESERVATION_STATE.PENDING_CAUSE,
         ]),
       });
-      if (
-        committed.reduce((sum, row) => sum + row.amount, 0) !==
-        orders.reduce((sum, order) => sum + (order.coinDiscount ?? 0), 0)
-      )
+      if (committed.reduce((sum, row) => sum + row.amount, 0) !== expected)
         throw new BadRequestException('COD coin reservation mismatch');
       return;
     }
     if (rows.some((row) => !row.expiresAt || row.expiresAt <= now))
       throw new BadRequestException('Coin checkout reservation expired');
-    const grant = await manager.findOneByOrFail(CoinGrant, {
-      id: rows[0].grantId,
-    });
-    await this.splitReservations(
-      manager,
-      checkoutId,
-      orders,
-      rows,
-      grant.mode,
-      COIN_RESERVATION_STATE.COD,
-    );
-  }
-
-  private async splitReservations(
-    manager: EntityManager,
-    checkoutId: string,
-    orders: CoinOrder[],
-    rows: CoinReservation[],
-    mode: ReconciliationMode,
-    state: 'COD' | 'HELD',
-  ) {
-    const expected = orders.reduce(
-      (sum, order) => sum + (order.coinDiscount ?? 0),
-      0,
-    );
-    if (expected !== rows.reduce((sum, row) => sum + row.amount, 0))
+    const heldAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+    if (expected !== heldAmount)
       throw new BadRequestException('Coin allocation does not match checkout');
-    const sorted = [...rows].sort(
-      (a, b) =>
-        a.createdAt.getTime() - b.createdAt.getTime() ||
-        a.id.localeCompare(b.id),
-    );
-    let index = 0;
-    let remaining = sorted[0]?.amount ?? 0;
-    for (const order of [...orders].sort((a, b) => a.id.localeCompare(b.id))) {
-      let needed = order.coinDiscount ?? 0;
-      this.validAmount(needed);
-      while (needed > 0) {
-        const original = sorted[index];
-        const grant = await manager.findOneByOrFail(CoinGrant, {
-          id: original.grantId,
-        });
-        if (grant.buyerId !== order.buyerId || grant.mode !== mode)
-          throw new BadRequestException('Coin source does not match order');
-        const amount = Math.min(needed, remaining);
-        await manager.save(
-          CoinReservation,
-          manager.create(CoinReservation, {
-            checkoutId,
-            orderId: order.id,
-            grantId: original.grantId,
-            amount,
-            state,
-            expiresAt:
-              state === COIN_RESERVATION_STATE.COD ? null : original.expiresAt,
-          }),
-        );
-        needed -= amount;
-        remaining -= amount;
-        if (!remaining) {
-          index++;
-          remaining = sorted[index]?.amount ?? 0;
-        }
-      }
-    }
-    // Original rows retain immutable allocation evidence but no longer own held balances.
-    for (const row of rows) {
-      row.state = COIN_RESERVATION_STATE.RELEASED;
-      await manager.save(row);
+    const { buyerId, mode } = rows[0];
+    if (
+      rows.some((row) => row.buyerId !== buyerId || row.mode !== mode) ||
+      orders.some(
+        (order) =>
+          order.buyerId !== buyerId ||
+          (order.coinMode && order.coinMode !== mode),
+      )
+    )
+      throw new BadRequestException('Coin source does not match order');
+
+    await manager.remove(CoinReservation, rows);
+    for (const order of orders) {
+      const amount = order.coinDiscount ?? 0;
+      this.validAmount(amount);
+      if (!amount) continue;
+      await manager.save(
+        CoinReservation,
+        manager.create(CoinReservation, {
+          checkoutId,
+          orderId: order.id,
+          buyerId,
+          mode,
+          amount,
+          state: COIN_RESERVATION_STATE.COD,
+          expiresAt: null,
+        }),
+      );
     }
   }
 
@@ -315,7 +308,7 @@ export class CoinService {
     mode: ReconciliationMode,
     now: Date,
   ) {
-    await this.lock(manager);
+    this.assertTransaction(manager);
     if (order.coinMode && order.coinMode !== mode)
       throw new BadRequestException('Coin order mode mismatch');
     const prior = await manager.findOneBy(CoinOrderDebit, {
@@ -325,9 +318,12 @@ export class CoinService {
       await this.verifyDebit(manager, order, mode);
       return prior;
     }
-    const rows = await manager.findBy(CoinReservation, {
-      orderId: order.id,
-      state: In([COIN_RESERVATION_STATE.COD, COIN_RESERVATION_STATE.HELD]),
+    const rows = await manager.find(CoinReservation, {
+      where: {
+        orderId: order.id,
+        state: In([COIN_RESERVATION_STATE.COD, COIN_RESERVATION_STATE.HELD]),
+      },
+      lock: { mode: 'pessimistic_write' },
     });
     if (
       rows.some(
@@ -338,32 +334,20 @@ export class CoinService {
     )
       throw new BadRequestException('Coin checkout reservation expired');
     const amount = order.coinDiscount ?? 0;
+    this.validAmount(amount);
     if (amount !== rows.reduce((sum, row) => sum + row.amount, 0))
       throw new BadRequestException('Coin order reservation mismatch');
     if (!amount) return null;
-    const allocations: {
-      grantId: string;
-      rootGrantId: string;
-      amount: number;
-    }[] = [];
+    if (rows.some((row) => row.mode !== mode || row.buyerId !== order.buyerId))
+      throw new BadRequestException('Coin debit source mismatch');
+
+    const account = await this.lockAccount(manager, order.buyerId);
+    const fields = this.balanceFields(mode);
+    account[fields.held] -= amount;
+    await manager.save(CoinAccount, account);
     for (const row of rows) {
-      const grant = await manager.findOneByOrFail(CoinGrant, {
-        id: row.grantId,
-      });
-      if (grant.mode !== mode || grant.buyerId !== order.buyerId)
-        throw new BadRequestException('Coin debit source mismatch');
-      grant.held -= row.amount;
-      grant.spent += row.amount;
-      await manager.save(grant);
       row.state = COIN_RESERVATION_STATE.CONSUMED;
-      await manager.save(row);
-      allocations.push({
-        grantId: grant.id,
-        rootGrantId: grant.rootGrantId ?? grant.id,
-        amount: row.amount,
-      });
-      await this.movement(manager, grant.id, 'CONSUME', row.amount, order.id);
-      await this.updateMistakeExpense(manager, grant.rootGrantId ?? grant.id);
+      await manager.save(CoinReservation, row);
     }
     return manager.save(
       CoinOrderDebit,
@@ -372,7 +356,6 @@ export class CoinService {
         buyerId: order.buyerId,
         mode,
         amount,
-        allocations,
       }),
     );
   }
@@ -380,114 +363,23 @@ export class CoinService {
   async releaseOrderCoins(
     manager: EntityManager,
     order: CoinOrder,
-    cause: CoinReleaseCause,
-    now: Date,
+    _cause?: string,
+    _now?: Date,
   ) {
-    await this.lock(manager);
-    const rows = await manager.findBy(CoinReservation, {
-      orderId: order.id,
-      state: In([
-        COIN_RESERVATION_STATE.COD,
-        COIN_RESERVATION_STATE.PENDING_CAUSE,
-      ]),
+    this.assertTransaction(manager);
+    const rows = await manager.find(CoinReservation, {
+      where: { orderId: order.id, state: COIN_RESERVATION_STATE.COD },
+      lock: { mode: 'pessimistic_write' },
     });
-    for (const row of rows)
-      await this.releaseReservation(manager, row, now, true, cause);
-  }
-
-  private async releaseReservation(
-    manager: EntityManager,
-    row: CoinReservation,
-    now: Date,
-    cod: boolean,
-    cause: CoinReleaseCause,
-  ) {
-    const grant = await manager.findOneByOrFail(CoinGrant, { id: row.grantId });
-    const expired = !!grant.expiresAt && grant.expiresAt <= now;
-    if (expired && cod && cause === COIN_RELEASE_CAUSE.UNKNOWN) {
-      row.state = COIN_RESERVATION_STATE.PENDING_CAUSE;
-      await manager.save(row);
-      return;
+    for (const row of rows) {
+      const account = await this.lockAccount(manager, row.buyerId);
+      const fields = this.balanceFields(row.mode);
+      account[fields.held] -= row.amount;
+      account[fields.available] += row.amount;
+      await manager.save(CoinAccount, account);
+      row.state = COIN_RESERVATION_STATE.RELEASED;
+      await manager.save(CoinReservation, row);
     }
-    grant.held -= row.amount;
-    row.state = COIN_RESERVATION_STATE.RELEASED;
-    await manager.save(row);
-    const root = grant.rootGrantId
-      ? await manager.findOneByOrFail(CoinGrant, { id: grant.rootGrantId })
-      : grant;
-    const recovery = await manager.findOneBy(CoinRecovery, {
-      grantId: root.id,
-    });
-    const lineage = await manager.find(CoinGrant, {
-      where: [{ id: root.id }, { rootGrantId: root.id }],
-    });
-    const recoveredTotal = lineage.reduce((sum, lot) => sum + lot.recovered, 0);
-    const recoverable = Math.min(
-      row.amount,
-      recovery
-        ? Math.max(0, recovery.target - recovery.collected)
-        : Math.max(0, root.recoveryTarget - recoveredTotal),
-    );
-    if (recoverable > 0) {
-      grant.recovered += recoverable;
-      if (recovery) {
-        recovery.collected += recoverable;
-        await manager.save(recovery);
-      }
-      await this.movement(
-        manager,
-        grant.id,
-        'RECOVER_RELEASE',
-        recoverable,
-        row.orderId ?? row.checkoutId,
-      );
-    }
-    const remainder = row.amount - recoverable;
-    const restore =
-      expired &&
-      cod &&
-      remainder > 0 &&
-      ((
-        [
-          COIN_RELEASE_CAUSE.SELLER,
-          COIN_RELEASE_CAUSE.CARRIER,
-          COIN_RELEASE_CAUSE.INCONCLUSIVE,
-        ] as readonly CoinReleaseCause[]
-      ).includes(cause) ||
-        (cause === COIN_RELEASE_CAUSE.BUYER_CHANGE && !root.buyerRestored));
-    if (restore) {
-      grant.transferred += remainder; // transfer out of expired parent, never extend its expiry
-      if (cause === COIN_RELEASE_CAUSE.BUYER_CHANGE) root.buyerRestored = true;
-      if (root.id !== grant.id) await manager.save(root);
-      const child = await manager.save(
-        CoinGrant,
-        manager.create(CoinGrant, {
-          buyerId: grant.buyerId,
-          mode: grant.mode,
-          source: COIN_SOURCE.RESTORATION,
-          sourceId: row.id,
-          rootGrantId: root.id,
-          parentGrantId: grant.id,
-          amount: remainder,
-          held: 0,
-          spent: 0,
-          recovered: 0,
-          recoveryTarget: Math.max(0, grant.recoveryTarget - grant.recovered),
-          buyerRestored: false,
-          expiresAt: new Date(now.getTime() + COIN_POLICY.RESTORATION_MS),
-        }),
-      );
-      await this.movement(manager, child.id, 'RESTORE', remainder, row.orderId);
-    }
-    await manager.save(grant);
-    await this.updateMistakeExpense(manager, root.id);
-    await this.movement(
-      manager,
-      grant.id,
-      'RELEASE',
-      row.amount,
-      row.orderId ?? row.checkoutId,
-    );
   }
 
   async grantPurchaseReward(
@@ -496,138 +388,55 @@ export class CoinService {
     orderId: string,
     amount: number,
     mode: ReconciliationMode,
-    _now: Date,
+    now: Date = new Date(),
   ) {
-    await this.lock(manager);
+    this.assertTransaction(manager);
     this.validAmount(amount);
-    const prior = await manager.findOneBy(CoinGrant, {
-      source: COIN_SOURCE.PURCHASE,
-      sourceId: orderId,
-      buyerId,
-    });
+    const prior = await manager.findOneBy(CoinPurchaseReward, { orderId });
     if (prior) {
-      if (prior.amount !== amount || prior.mode !== mode)
+      if (
+        prior.buyerId !== buyerId ||
+        prior.grantedAmount !== amount ||
+        prior.mode !== mode
+      )
         throw new BadRequestException('Purchase grant amount or mode changed');
       return prior;
     }
-    const grant = await manager.save(
-      CoinGrant,
-      manager.create(CoinGrant, {
+    const account = await this.lockAccount(manager, buyerId);
+    const fields = this.balanceFields(mode);
+    account[fields.available] += amount;
+    await manager.save(CoinAccount, account);
+    return manager.save(
+      CoinPurchaseReward,
+      manager.create(CoinPurchaseReward, {
+        orderId,
         buyerId,
         mode,
-        source: COIN_SOURCE.PURCHASE,
-        sourceId: orderId,
-        rootGrantId: null,
-        parentGrantId: null,
-        amount,
-        held: 0,
-        spent: 0,
-        recovered: 0,
-        recoveryTarget: 0,
-        buyerRestored: false,
-        expiresAt: null,
+        grantedAmount: amount,
+        entitlement: amount,
+        recoveredAmount: 0,
+        evaluatedAt: now,
       }),
     );
-    const recoveries = await manager.find(CoinRecovery, {
-      where: { buyerId, mode },
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
-    for (const recovery of recoveries) {
-      const take = Math.min(
-        amount - grant.recovered,
-        recovery.target - recovery.collected,
-      );
-      if (take <= 0) continue;
-      grant.recovered += take;
-      recovery.collected += take;
-      await manager.save(recovery);
-      await this.movement(
-        manager,
-        grant.id,
-        'RECOVER_FUTURE_PURCHASE',
-        take,
-        recovery.id,
-      );
-    }
-    await manager.save(grant);
-    await this.movement(manager, grant.id, 'PURCHASE_GRANT', amount, orderId);
-    return grant;
   }
 
-  async recoverPurchaseReward(
+  async clawbackCoins(
     manager: EntityManager,
-    grantId: string,
-    targetEntitlement: number,
-    now: Date,
+    buyerId: string,
+    amount: number,
+    mode: ReconciliationMode,
   ) {
-    await this.lock(manager);
-    this.validAmount(targetEntitlement);
-    const grant = await manager.findOneByOrFail(CoinGrant, { id: grantId });
-    if (
-      grant.source !== COIN_SOURCE.PURCHASE ||
-      targetEntitlement > grant.amount
-    )
-      throw new BadRequestException('Invalid purchase recovery');
-    let recovery = await manager.findOneBy(CoinRecovery, { grantId });
-    const target = grant.amount - targetEntitlement;
-    if (recovery && target < recovery.target)
-      throw new BadRequestException('Recovery entitlement cannot increase');
-    recovery ??= manager.create(CoinRecovery, {
-      grantId,
-      buyerId: grant.buyerId,
-      mode: grant.mode,
-      target,
-      collected: 0,
-    });
-    recovery.target = target;
-    grant.recoveryTarget = target;
-    await manager.save(grant);
-    const related = await manager.find(CoinGrant, {
-      where: [{ id: grantId }, { rootGrantId: grantId }],
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
-    for (const lot of related) {
-      if (lot.expiresAt && lot.expiresAt <= now) continue;
-      const take = Math.min(
-        recovery.target - recovery.collected,
-        lot.amount -
-          lot.held -
-          lot.spent -
-          lot.recovered -
-          (lot.transferred ?? 0),
-      );
-      lot.recoveryTarget = Math.max(
-        lot.recoveryTarget,
-        lot.recovered + Math.max(0, recovery.target - recovery.collected),
-      );
-      if (take > 0) {
-        lot.recovered += take;
-        recovery.collected += take;
-        await this.movement(manager, lot.id, 'RECOVER_PURCHASE', take, grantId);
-      }
-      await manager.save(lot);
+    this.assertTransaction(manager);
+    this.validAmount(amount);
+    if (!amount) return 0;
+    const account = await this.lockAccount(manager, buyerId);
+    const fields = this.balanceFields(mode);
+    const deducted = Math.min(account[fields.available], amount);
+    if (deducted > 0) {
+      account[fields.available] -= deducted;
+      await manager.save(CoinAccount, account);
     }
-    return manager.save(recovery);
-  }
-
-  private async updateMistakeExpense(
-    manager: EntityManager,
-    rootGrantId: string,
-  ) {
-    const mistake = await manager.findOneBy(CoinProgramMistake, {
-      grantId: rootGrantId,
-    });
-    if (!mistake) return;
-    const lineage = await manager.find(CoinGrant, {
-      where: [{ id: rootGrantId }, { rootGrantId }],
-    });
-    const recovered = lineage.reduce((sum, lot) => sum + lot.recovered, 0);
-    const spent = lineage.reduce((sum, lot) => sum + lot.spent, 0);
-    mistake.platformExpense = Math.min(
-      Math.max(0, mistake.target - recovered),
-      spent,
-    );
-    await manager.save(mistake);
+    return deducted;
   }
 
   private validAmount(amount: number) {
@@ -639,32 +448,3 @@ export class CoinService {
       throw new BadRequestException('Invalid coin amount');
   }
 }
-
-export const grantPurchaseReward = (
-  manager: EntityManager,
-  buyerId: string,
-  orderId: string,
-  amount: number,
-  mode: ReconciliationMode,
-  now: Date,
-) =>
-  new CoinService().grantPurchaseReward(
-    manager,
-    buyerId,
-    orderId,
-    amount,
-    mode,
-    now,
-  );
-export const recoverPurchaseReward = (
-  manager: EntityManager,
-  grantId: string,
-  targetEntitlement: number,
-  now: Date,
-) =>
-  new CoinService().recoverPurchaseReward(
-    manager,
-    grantId,
-    targetEntitlement,
-    now,
-  );

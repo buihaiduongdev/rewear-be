@@ -4,9 +4,12 @@ import ms from 'ms';
 
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
+import {
+  CoinAccount,
+  CoinOrderDebit,
+  CoinPurchaseReward,
+} from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
-import { CoinPurchaseReward } from '@/modules/coins/rewards/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
@@ -27,6 +30,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     database = await createTestDatabase();
   });
   afterAll(async () => database?.destroy());
+
   async function fixture(
     mode: 'EVIDENCE' | 'SIMULATION' = 'EVIDENCE',
     discount = 0,
@@ -121,6 +125,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       service: new CoinRewardService(db, new CoinService()),
     };
   }
+
   it('burns COD coins on collection and funds gross seller value using net cash plus proved subsidy', async () => {
     const f = await fixture('EVIDENCE', 10000);
     expect(await f.service.evaluate(f.order.id)).toMatchObject({
@@ -165,26 +170,33 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       ),
     ).toBeNull();
   });
-  it('rewards once after verified72h without waiting COD remittance, including concurrent workers', async () => {
+
+  it('rewards once after verified 72h without waiting COD remittance, including concurrent workers', async () => {
     const f = await fixture();
     await Promise.all([
       f.service.evaluate(f.order.id),
       f.service.evaluate(f.order.id),
     ]);
-    const grant = await f.db
-      .getRepository(CoinGrant)
-      .findOneByOrFail({ sourceId: f.order.id, source: 'PURCHASE' });
-    expect(grant).toMatchObject({
-      amount: 500,
+    const reward = await f.db
+      .getRepository(CoinPurchaseReward)
+      .findOneByOrFail({ orderId: f.order.id });
+    expect(reward).toMatchObject({
+      grantedAmount: 500,
+      entitlement: 500,
       mode: 'EVIDENCE',
-      expiresAt: null,
     });
+    expect(
+      await f.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 500 });
     expect(
       await f.db
         .getRepository(CoinPurchaseReward)
         .countBy({ orderId: f.order.id }),
     ).toBe(1);
   });
+
   it('keeps simulated grants separate and refuses an altered delivery deadline', async () => {
     const f = await fixture('SIMULATION');
     await f.db
@@ -198,7 +210,13 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       mode: 'SIMULATION',
       entitlement: 500,
     });
+    expect(
+      await f.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 0, simulationBalance: 500 });
   });
+
   it('waits for open disputes to finish', async () => {
     const f = await fixture();
     await f.db
@@ -206,10 +224,13 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       .update(f.issue.id, { status: 'AWAITING_EXECUTION' });
     expect(await f.service.evaluate(f.order.id)).toBeNull();
     expect(
-      await f.db.getRepository(CoinGrant).countBy({ sourceId: f.order.id }),
+      await f.db
+        .getRepository(CoinPurchaseReward)
+        .countBy({ orderId: f.order.id }),
     ).toBe(0);
   });
-  it('corrects an existing reward from confirmed refunds while another dispute remains open and delivery metadata changes', async () => {
+
+  it('claws back an existing reward from confirmed refunds idempotently', async () => {
     const f = await fixture();
     const reward = await f.service.evaluate(f.order.id);
     expect(reward).toMatchObject({ entitlement: 500 });
@@ -271,21 +292,25 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     await f.db
       .getRepository(Order)
       .update(f.order.id, { disputeDeadlineAt: new Date() });
+
     expect(await f.service.evaluate(f.order.id)).toMatchObject({
       entitlement: 300,
+      recoveredAmount: 200,
     });
     expect(
       await f.db
-        .getRepository(CoinGrant)
-        .findOneByOrFail({ id: reward!.grantId }),
-    ).toMatchObject({ recovered: 200 });
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 300 });
+
     expect(await f.service.evaluate(f.order.id)).toMatchObject({
       entitlement: 300,
+      recoveredAmount: 200,
     });
     expect(
       await f.db
-        .getRepository(CoinGrant)
-        .findOneByOrFail({ id: reward!.grantId }),
-    ).toMatchObject({ recovered: 200 });
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 300 });
   });
 });

@@ -13,14 +13,16 @@ import { OrderDeliveryVerification } from '@/modules/order/entities/order-delive
 import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement.policy';
 
 import { CoinService } from '../core/coin.service';
-import { adjustPurchaseReward } from './adjust-purchase-reward';
-import { CoinPurchaseReward } from './entities';
-import { purchaseRewardAmount } from './policies/purchase-reward.policy';
+import { CoinPurchaseReward } from '../core/entities';
+import {
+  adjustPurchaseReward,
+  purchaseRewardAmount,
+} from './adjust-purchase-reward';
 
 @Injectable()
 export class CoinRewardService {
   private readonly logger = new Logger(CoinRewardService.name);
-  private cursor?: string;
+
   constructor(
     private readonly db: DataSource,
     private readonly coins: CoinService,
@@ -55,24 +57,13 @@ export class CoinRewardService {
         refunds.reduce((sum, row) => sum + row.amount, 0),
       );
       if (!target) return null;
-      const grant = await this.coins.grantPurchaseReward(
+      return this.coins.grantPurchaseReward(
         manager,
         order.buyerId,
         orderId,
         target,
         funding.mode,
         now,
-      );
-      return manager.save(
-        CoinPurchaseReward,
-        manager.create(CoinPurchaseReward, {
-          orderId,
-          buyerId: order.buyerId,
-          mode: funding.mode,
-          grantId: grant.id,
-          entitlement: target,
-          evaluatedAt: now,
-        }),
       );
     });
   }
@@ -89,24 +80,27 @@ export class CoinRewardService {
   }
 
   async evaluateDue() {
-    const query = this.db.manager
+    const rows = await this.db.manager
       .createQueryBuilder(Order, 'order')
+      .innerJoin(
+        OrderDeliveryVerification,
+        'verification',
+        'verification.orderId = order.id',
+      )
+      .leftJoin(CoinPurchaseReward, 'reward', 'reward.orderId = order.id')
       .select('order.id', 'id')
       .where('order."disputeDeadlineAt" <= CURRENT_TIMESTAMP')
-      .orderBy('order.id', 'ASC')
-      .limit(ORDER_POLICY.SETTLEMENT_BATCH_SIZE);
-    if (this.cursor)
-      query.andWhere('order.id > :cursor', { cursor: this.cursor });
-    const rows = await query.getRawMany<{ id: string }>();
+      .andWhere('reward.id IS NULL')
+      .orderBy('order."disputeDeadlineAt"', 'DESC')
+      .limit(ORDER_POLICY.SETTLEMENT_BATCH_SIZE)
+      .getRawMany<{ id: string }>();
+
     for (const row of rows) {
-      this.cursor = row.id;
       try {
         await this.evaluate(row.id);
       } catch {
         this.logger.error(`Purchase reward requires retry for order ${row.id}`);
       }
     }
-    if (rows.length < ORDER_POLICY.SETTLEMENT_BATCH_SIZE)
-      this.cursor = undefined;
   }
 }

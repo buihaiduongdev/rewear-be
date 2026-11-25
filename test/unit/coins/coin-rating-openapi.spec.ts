@@ -1,11 +1,14 @@
 import z from 'zod';
 
-import { createCoinProgramSchema } from '@/modules/coins/programs/schemas/coin-program.schema';
-import * as views from '@/modules/ratings/schemas/rating.schema';
+import * as coinSchemas from '@/modules/coins/core/schemas/coin.schema';
+import * as ratingSchemas from '@/modules/ratings/schemas/rating.schema';
 
 describe('Coin and rating OpenAPI schemas', () => {
-  it('represents every response and program request with JSON-compatible dates', () => {
-    for (const schema of [createCoinProgramSchema, ...Object.values(views)]) {
+  it('represents every response and query schema with JSON-compatible types', () => {
+    for (const schema of [
+      ...Object.values(coinSchemas),
+      ...Object.values(ratingSchemas),
+    ]) {
       expect(() => z.toJSONSchema(schema, { io: 'input' })).not.toThrow();
     }
   });

@@ -4,7 +4,6 @@ import type { BaseEntity } from '@/common/entities';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
-import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
@@ -152,19 +151,6 @@ const fulfillment: NotificationSource<FulfillmentNotice> = {
     };
   },
 };
-const coins: NotificationSource<CoinRewardAdjustmentNotice> = {
-  entity: CoinRewardAdjustmentNotice,
-  prefix: 'coin-adjustment:',
-  build: async (_manager, row) => ({
-    kind: NOTIFICATION_KIND.COIN_ADJUSTMENT,
-    targetType: NOTIFICATION_TARGET.COIN_HISTORY,
-    sourceId: row.orderId,
-    title: 'Điều chỉnh xu thưởng',
-    body: 'Xu thưởng của đơn hàng được điều chỉnh theo khoản hoàn tiền đã xác nhận. Mở lịch sử xu để xem căn cứ.',
-    mode: row.mode,
-    recipients: [personalRecipient(row.buyerId)],
-  }),
-};
 const rating: NotificationSource<ShopRatingNotice> = {
   entity: ShopRatingNotice,
   prefix: 'rating-edit:',
@@ -254,7 +240,6 @@ export const notificationSources = [
   dispute,
   fee,
   fulfillment,
-  coins,
   rating,
   order,
   orderEvent,

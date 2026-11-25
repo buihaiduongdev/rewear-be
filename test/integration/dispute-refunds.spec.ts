@@ -5,9 +5,8 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { CoinGrant } from '@/modules/coins/core/entities';
+import { CoinAccount, CoinPurchaseReward } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
-import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
@@ -170,31 +169,25 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
       .getRepository(DisputeIssue)
       .update(f.issue.id, { status: 'AWAITING_EXECUTION' });
     await service.refresh(f.final.id);
-    expect(
-      await f.db
-        .getRepository(CoinRewardAdjustmentNotice)
-        .findBy({ orderId: f.order.id }),
-    ).toEqual([
-      expect.objectContaining({
-        entitlement: 0,
-        previousEntitlement: 500,
-        pendingRecovery: 0,
-        recovered: 500,
-      }),
-    ]);
     expect(await rewards.evaluate(f.order.id)).toMatchObject({
+      grantedAmount: 500,
       entitlement: 0,
+      recoveredAmount: 500,
     });
     expect(
       await f.db
-        .getRepository(CoinRewardAdjustmentNotice)
-        .countBy({ orderId: f.order.id }),
-    ).toBe(1);
+        .getRepository(CoinPurchaseReward)
+        .findOneByOrFail({ orderId: f.order.id }),
+    ).toMatchObject({
+      grantedAmount: 500,
+      entitlement: 0,
+      recoveredAmount: 500,
+    });
     expect(
       await f.db
-        .getRepository(CoinGrant)
-        .findOneByOrFail({ id: reward!.grantId }),
-    ).toMatchObject({ amount: 500, recovered: 500 });
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 0 });
   });
   it('keeps simulated money isolated from spendable evidenced balance', async () => {
     const f = await fixture('SIMULATION');

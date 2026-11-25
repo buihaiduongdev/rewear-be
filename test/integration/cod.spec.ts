@@ -16,7 +16,7 @@ import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service'
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import {
-  CoinGrant,
+  CoinAccount,
   CoinOrderDebit,
   CoinReservation,
 } from '@/modules/coins/core/entities';
@@ -172,13 +172,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
 
   it('commits coins to COD order holds and keeps collection net without spending before collection', async () => {
     const f = await fixture();
-    const grant = await f.db.getRepository(CoinGrant).save({
-      buyerId: f.buyer.id,
-      mode: 'EVIDENCE',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 20000,
-      expiresAt: new Date(Date.now() + 60000),
+    await f.db.getRepository(CoinAccount).save({
+      userId: f.buyer.id,
+      balance: 20000,
     });
     await new CheckoutService(f.db, {} as CartService).selectCoins(
       f.buyer.id,
@@ -208,8 +204,10 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       .update(f.checkout.id, { expiresAt: new Date(Date.now() - 1000) });
     await new CheckoutService(f.db, {} as CartService).expire();
     expect(
-      await f.db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 20000, spent: 0 });
+      await f.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 20000 });
   });
 
   it('rejects reserved stock whose moderation is no longer approved', async () => {
