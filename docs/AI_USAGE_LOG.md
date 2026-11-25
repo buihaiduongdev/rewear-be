@@ -1171,4 +1171,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Người dùng chọn không dùng polymorphic, không giữ dữ liệu dev cũ và yêu cầu chuyển KYC sau khi đồng bộ main.
 - **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test` với `TZ=UTC` đạt 128/128 suite và 838/838 test; `pnpm test:e2e` đạt 19/19 suite và 60/60 test trên database test riêng.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung. Điều chỉnh test thời gian dùng cùng đồng hồ PostgreSQL để tránh sai lệch mili giây.
-- **Minh chứng:** Branch `buihaiduongdev/media-cleanup`.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
