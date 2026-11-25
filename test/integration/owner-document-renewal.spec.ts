@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
 import { Notification } from '@/modules/notifications/entities/notification.entity';
 import {
   ShopApplication,
@@ -15,6 +17,7 @@ import { Shop } from '@/modules/shop/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
+import { createPrivateMedia } from '../support/private-media';
 
 describe('Owner document renewal (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -25,8 +28,12 @@ describe('Owner document renewal (PostgreSQL)', () => {
     const db = database.dataSource;
     const access = new ShopApplicationAccess();
     const read = new ShopApplicationReadService(db, access);
-    renewals = new OwnerIdentityRenewalService(db, access, read);
-    admins = new ShopApplicationAdminService(db, access, read);
+    renewals = new OwnerIdentityRenewalService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
+    admins = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
   afterAll(async () => database?.destroy());
   async function fixture(expiresOn = '2020-01-01') {
@@ -43,12 +50,21 @@ describe('Owner document renewal (PostgreSQL)', () => {
       birthDate: '1980-01-01',
       expiresOn,
     };
+    const logo = await db.getRepository(Media).save({
+      uploadedById: f.owner.id,
+      storageKey: `logos/${randomUUID()}.jpg`,
+      visibility: 'public',
+      mediaType: MediaType.IMAGE,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      isAttached: true,
+    });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {
         onboardingRequired: true,
         approvedAt: new Date(),
-        logoUrl: 'https://public.test/logo.jpg',
+        logoMediaId: logo.id,
         identityExpiresOn: expiresOn,
         identityDocumentVersion: 1,
       },
@@ -77,23 +93,17 @@ describe('Owner document renewal (PostgreSQL)', () => {
       requestId: randomUUID(),
     });
     const ids = [];
-    for (const slot of ['FRONT', 'BACK'] as const)
-      ids.push(
-        (
-          await db.getRepository(ShopApplicationDocument).save({
-            applicationId: cycle.id,
-            uploadedById: f.owner.id,
-            slot,
-            mimeType: 'image/jpeg',
-            sizeBytes: 1024,
-            storageKey: 'private/' + randomUUID(),
-            ready: true,
-            eTag: 'immutable',
-            uploadExpiresAt: new Date(Date.now() + 60000),
-            firstSubmittedRevision: null,
-          })
-        ).id,
-      );
+    for (const slot of ['FRONT', 'BACK'] as const) {
+      const file = await createPrivateMedia(db, f.owner.id);
+      const doc = await db.getRepository(ShopApplicationDocument).save({
+        applicationId: cycle.id,
+        uploadedById: f.owner.id,
+        slot,
+        mediaId: file.id,
+        firstSubmittedRevision: null,
+      });
+      ids.push(doc.id);
+    }
     return {
       ...f,
       cycle,

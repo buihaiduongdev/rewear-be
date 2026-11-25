@@ -14,7 +14,8 @@ describe('ShopService', () => {
     id: 'f844ab9a-6f7a-4495-bc34-064bf3bf32d5',
     name: 'Re.wear Closet',
     description: null,
-    logoUrl: null,
+    logoMediaId: null,
+    logoMedia: null,
     onboardingRequired: false,
     approvedAt: null,
     status: ShopStatus.ACTIVE,
@@ -37,10 +38,18 @@ describe('ShopService', () => {
   const shopRepository: jest.Mocked<
     Pick<
       Repository<Shop>,
-      'find' | 'findOneBy' | 'findOneByOrFail' | 'save' | 'merge'
+      | 'find'
+      | 'findOne'
+      | 'findOneOrFail'
+      | 'findOneBy'
+      | 'findOneByOrFail'
+      | 'save'
+      | 'merge'
     >
   > = {
     find: jest.fn(),
+    findOne: jest.fn(),
+    findOneOrFail: jest.fn(),
     findOneBy: jest.fn(),
     findOneByOrFail: jest.fn(),
     save: jest.fn(),
@@ -76,11 +85,14 @@ describe('ShopService', () => {
   const dataSource = {
     transaction: jest.fn(),
   };
+  const uploads = { verifyMedia: jest.fn() };
   const service = new ShopService(
     shopRepository as unknown as Repository<Shop>,
     memberRepository as unknown as Repository<ShopMember>,
     dataSource as unknown as DataSource,
     { initializeDefaultRoles: jest.fn() } as never,
+    uploads as never,
+    { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
   );
 
   beforeEach(() => {
@@ -107,25 +119,56 @@ describe('ShopService', () => {
     shopRepository.find.mockResolvedValueOnce([shop]);
 
     await expect(service.findAll()).resolves.toEqual([
-      { ...shop, identitySalesPaused: false },
+      { ...shop, logoUrl: null, identitySalesPaused: false },
     ]);
     expect(shopRepository.find).toHaveBeenCalledWith({
       where: { status: ShopStatus.ACTIVE },
       order: { createdAt: 'DESC' },
+      relations: { logoMedia: true },
     });
   });
 
+  it('attaches the uploaded logo in the shop transaction', async () => {
+    const logoMediaId = '0b8b4a7c-5a28-4ee3-90f6-62ba3c8f56c6';
+    const newShop = { ...shop, logoMediaId };
+    uploads.verifyMedia.mockResolvedValueOnce({
+      id: logoMediaId,
+      storageKey: 'logo.jpg',
+      mediaType: 'IMAGE',
+    });
+    entityManager.create
+      .mockReturnValueOnce(newShop)
+      .mockReturnValueOnce(ownerMembership);
+    entityManager.save
+      .mockResolvedValueOnce(newShop)
+      .mockResolvedValueOnce(ownerMembership);
+
+    await service.create(ownerId, { name: shop.name, logoMediaId });
+
+    expect(uploads.verifyMedia).toHaveBeenCalledWith(
+      entityManager,
+      ownerId,
+      logoMediaId,
+      5 * 1024 * 1024,
+    );
+    expect(entityManager.create).toHaveBeenNthCalledWith(
+      1,
+      Shop,
+      expect.objectContaining({ logoMediaId }),
+    );
+  });
+
   it('does not expose an inactive shop through the public lookup', async () => {
-    shopRepository.findOneByOrFail.mockRejectedValueOnce(
+    shopRepository.findOneOrFail.mockRejectedValueOnce(
       new EntityNotFoundError(Shop, { id: shop.id }),
     );
 
     await expect(service.findOne(shop.id)).rejects.toBeInstanceOf(
       EntityNotFoundError,
     );
-    expect(shopRepository.findOneByOrFail).toHaveBeenCalledWith({
-      id: shop.id,
-      status: ShopStatus.ACTIVE,
+    expect(shopRepository.findOneOrFail).toHaveBeenCalledWith({
+      where: { id: shop.id, status: ShopStatus.ACTIVE },
+      relations: { logoMedia: true },
     });
   });
 
@@ -147,11 +190,11 @@ describe('ShopService', () => {
       service.create(ownerId, {
         name: 'Re.wear Closet',
       }),
-    ).resolves.toBe(newShop);
+    ).resolves.toEqual({ ...newShop, logoMedia: null, logoUrl: null });
     expect(entityManager.create).toHaveBeenNthCalledWith(1, Shop, {
       name: 'Re.wear Closet',
       description: null,
-      logoUrl: null,
+      logoMediaId: null,
       status: ShopStatus.PENDING,
       onboardingRequired: true,
       approvedAt: null,

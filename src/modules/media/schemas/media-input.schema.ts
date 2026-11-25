@@ -5,6 +5,7 @@ import { MAX_PRODUCT_MEDIA } from '../constants';
 export const createMediaUploadTicketSchema = z.strictObject({
   mimeType: z.string().max(100),
   sizeBytes: z.number().int().min(1),
+  visibility: z.enum(['public', 'private']).default('public'),
 });
 
 export const mediaAngleSchema = z.enum([
@@ -19,8 +20,8 @@ export const updateMediaMetadataSchema = z.strictObject({
   angle: mediaAngleSchema.nullable(),
 });
 
-export const confirmMediaUploadSchema = createMediaUploadTicketSchema.extend({
-  storageKey: z.string().max(512),
+export const confirmMediaUploadSchema = z.strictObject({
+  mediaId: z.uuid(),
   angle: mediaAngleSchema.nullish(),
 });
 

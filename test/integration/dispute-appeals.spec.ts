@@ -30,6 +30,7 @@ import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';
+import { createPrivateMedia } from '../support/private-media';
 
 describe('Two-party dispute appeal and final conclusion (PostgreSQL)', () => {
   let database: TestDatabase;
@@ -279,17 +280,13 @@ describe('Two-party dispute appeal and final conclusion (PostgreSQL)', () => {
         evidenceIds: [other.evidence.id],
       }),
     ).rejects.toThrow('uploader and order');
+    const media = await createPrivateMedia(f.db, f.buyer.id);
     const file = await f.db.getRepository(DisputeEvidence).save({
       orderId: f.order.id,
       uploadedById: f.buyer.id,
-      storageKey: `private/${randomUUID()}`,
-      mimeType: 'image/jpeg',
-      sizeBytes: 1000,
+      mediaId: media.id,
+      media,
       tags: ['ISSUE'],
-      status: 'READY',
-      uploadExpiresAt: new Date(),
-      eTag: 'new-file',
-      readyAt: new Date(),
     });
     const appeal = await service.submit(f.buyer.id, f.decision.id, {
       ...request(),

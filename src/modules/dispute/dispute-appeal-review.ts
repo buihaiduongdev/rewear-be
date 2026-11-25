@@ -2,7 +2,6 @@ import { ConflictException } from '@nestjs/common';
 
 import { EntityManager, In } from 'typeorm';
 
-import { DISPUTE_EVIDENCE_STATE } from './constants/dispute.constant';
 import {
   decisionFingerprint,
   loadDecisionReview,
@@ -35,7 +34,6 @@ export async function loadAppealReview(
         where: {
           id: In(ids),
           orderId: original.order.id,
-          status: DISPUTE_EVIDENCE_STATE.READY,
         },
         order: { id: 'ASC' },
       })
@@ -69,9 +67,8 @@ export async function loadAppealReview(
     })),
     evidence: evidence.map((file) => ({
       id: file.id,
-      eTag: file.eTag,
+      mediaId: file.mediaId,
       tags: file.tags,
-      readyAt: file.readyAt,
     })),
     reviewStartAt: review?.reviewStartAt,
     reviewDueAt: review?.reviewDueAt,

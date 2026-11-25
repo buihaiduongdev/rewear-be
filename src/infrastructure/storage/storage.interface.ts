@@ -1,29 +1,33 @@
 export const STORAGE_PROVIDER = Symbol('STORAGE_PROVIDER');
+export type StorageVisibility = 'public' | 'private';
 
 export interface CreateUploadTicketInput {
-  key: string;
+  keyPrefix: string;
+  extension: string;
   contentType: string;
   sizeBytes: number;
 }
 
 export interface UploadTicket {
-  storageKey: string;
+  key: string;
   uploadUrl: string;
-  publicUrl: string;
   method: 'PUT';
   headers: Record<string, string>;
   expiresAt: Date;
 }
 
-export interface StoredObjectMetadata {
-  eTag?: string;
-  contentType?: string;
-  sizeBytes?: number;
+export interface SignedDownload {
+  url: string;
+  headers: Record<string, string>;
+  expiresAt: Date;
 }
 
 export interface IStorageProvider {
-  createUploadTicket(input: CreateUploadTicketInput): Promise<UploadTicket>;
-  getObjectMetadata(key: string): Promise<StoredObjectMetadata>;
+  createUploadTicket(
+    input: CreateUploadTicketInput,
+    visibility: StorageVisibility,
+  ): Promise<UploadTicket>;
+  createDownloadUrl(key: string): Promise<SignedDownload>;
   getPublicUrl(key: string): string;
-  delete(key: string): Promise<void>;
+  delete(key: string, visibility: StorageVisibility): Promise<void>;
 }

@@ -11,11 +11,9 @@ export class MediaFactory extends BaseFactory<Media> {
     return {
       uploadedById: faker.string.uuid(),
       storageKey: `seed/${faker.string.uuid()}.jpg`,
-      url: faker.image.url(),
       mediaType: MediaType.IMAGE,
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
-      eTag: null,
       retiredAt: null,
     };
   }

@@ -27,15 +27,10 @@ export const disputeReplySchema = z.strictObject({
   text: trimmedTextSchema.min(1).max(2000),
   evidenceIds: evidenceIdsSchema.default([]),
 });
-export const disputeUploadSchema = z
+export const disputeFileSchema = z
   .strictObject({
     mimeType: z.enum(DISPUTE_EVIDENCE_MIME_TYPES),
     sizeBytes: z.number().int().positive(),
-    tags: z
-      .array(z.enum(DISPUTE_EVIDENCE_TAG))
-      .min(1)
-      .max(7)
-      .refine((tags) => new Set(tags).size === tags.length),
   })
   .refine(
     (data) =>
@@ -45,6 +40,14 @@ export const disputeUploadSchema = z
         : DISPUTE_POLICY.MAX_IMAGE_BYTES),
     'Evidence exceeds size limit',
   );
+export const disputeUploadSchema = z.strictObject({
+  mediaId: z.uuid(),
+  tags: z
+    .array(z.enum(DISPUTE_EVIDENCE_TAG))
+    .min(1)
+    .max(7)
+    .refine((tags) => new Set(tags).size === tags.length),
+});
 export const disputeExtensionSchema = z.strictObject({
   reason: trimmedTextSchema.min(1).max(1000),
 });

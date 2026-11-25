@@ -106,8 +106,9 @@ describe('Admin issue adjudication HTTP', () => {
     expect(review.body.data.reviewToken).toMatch(/^[a-f0-9]{64}$/);
     expect(review.body.data.order.itemPrice).toBe(100001);
     expect(review.body.data.evidence).toHaveLength(1);
-    expect(JSON.stringify(review.body)).not.toContain(f.evidence.storageKey);
-    expect(JSON.stringify(review.body)).not.toContain(f.evidence.eTag);
+    expect(JSON.stringify(review.body)).not.toContain(
+      f.evidence.media.storageKey,
+    );
   });
   it('records initial decision and publishes reason/deadline without private fingerprints or basis', async () => {
     const review = await request(app.getHttpServer())
@@ -139,7 +140,9 @@ describe('Admin issue adjudication HTTP', () => {
       .expect(200);
     expect(detail.body.data.decisions[0].reason).toBe(input.reason);
     expect(detail.body.data.issues[0].status).toBe('AWAITING_APPEAL');
-    expect(JSON.stringify(detail.body)).not.toContain(f.evidence.storageKey);
+    expect(JSON.stringify(detail.body)).not.toContain(
+      f.evidence.media.storageKey,
+    );
     expect(detail.body.data.decisions[0]).not.toHaveProperty('reviewToken');
   });
 });

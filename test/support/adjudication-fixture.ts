@@ -18,6 +18,8 @@ import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
+import { createPrivateMedia } from './private-media';
+
 export async function adjudicationFixture(db: DataSource) {
   const [buyer, owner, admin] = await db.getRepository(User).save(
     [UserRole.USER, UserRole.USER, UserRole.ADMIN].map((role) => ({
@@ -92,17 +94,13 @@ export async function adjudicationFixture(db: DataSource) {
     reviewDueAt: businessDeadline(validAt, 3, []),
     maxReviewDueAt: businessDeadline(validAt, 5, []),
   });
+  const media = await createPrivateMedia(db, buyer.id);
   const evidence = await db.getRepository(DisputeEvidence).save({
     orderId: order.id,
     uploadedById: buyer.id,
-    storageKey: `private/${randomUUID()}`,
-    mimeType: 'image/jpeg',
-    sizeBytes: 1000,
+    mediaId: media.id,
+    media,
     tags: ['ISSUE'],
-    status: 'READY',
-    uploadExpiresAt: new Date(),
-    eTag: 'private-etag',
-    readyAt: validAt,
   });
   await db
     .getRepository(DisputeAttachment)

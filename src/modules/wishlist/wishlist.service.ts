@@ -2,8 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
+import { StorageService } from '@/infrastructure/storage';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition } from '@/modules/product/enums';
 import { evaluateProductAvailability } from '@/modules/product/machines/product-availability.machine';
@@ -13,12 +14,15 @@ import type { WishlistView } from './schemas/wishlist.schema';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly storage: StorageService,
+  ) {}
 
   async findMine(userId: string): Promise<WishlistView> {
     const items = await this.dataSource.getRepository(WishlistItem).find({
       where: { userId },
-      relations: { product: { shop: true, category: true } },
+      relations: { product: { shop: { logoMedia: true }, category: true } },
       order: { createdAt: 'DESC' },
     });
 
@@ -26,15 +30,19 @@ export class WishlistService {
       return { items: [], totalCount: 0 };
     }
 
-    const covers = await this.dataSource.getRepository(MediaLink).find({
+    const covers = await this.dataSource.getRepository(ProductMedia).find({
       where: {
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: In(items.map((i) => i.productId)),
+        productId: In(items.map((i) => i.productId)),
         role: MediaRole.COVER,
       },
       relations: { media: true },
     });
-    const coverUrls = new Map(covers.map((c) => [c.ownerId, c.media.url]));
+    const coverUrls = new Map(
+      covers.map((c) => [
+        c.productId,
+        this.storage.getPublicUrl(c.media.storageKey),
+      ]),
+    );
 
     const mappedItems = items.map((item) => {
       const p = item.product;
@@ -58,7 +66,9 @@ export class WishlistService {
                 ? {
                     id: p.shop.id,
                     name: p.shop.name,
-                    logoUrl: p.shop.logoUrl ?? null,
+                    logoUrl: p.shop.logoMedia
+                      ? this.storage.getPublicUrl(p.shop.logoMedia.storageKey)
+                      : null,
                   }
                 : null,
             }

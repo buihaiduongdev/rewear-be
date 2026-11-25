@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageModule } from '@/infrastructure/storage';
+import { MediaModule } from '@/modules/media/media.module';
 
 import {
   ReportAudit,
@@ -18,6 +19,8 @@ import { ViolationReportService } from './violation-report.service';
 
 @Module({
   imports: [
+    StorageModule,
+    MediaModule,
     TypeOrmModule.forFeature([
       ViolationReport,
       ReportEvidence,
@@ -32,7 +35,6 @@ import { ViolationReportService } from './violation-report.service';
     ReportReadService,
     ViolationReportService,
     ReportMediaService,
-    PrivateEvidenceStorage,
   ],
 })
 export class ReportModule {}

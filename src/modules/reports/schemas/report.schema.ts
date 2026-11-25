@@ -83,14 +83,12 @@ export const reportUploadSchema = z.strictObject({
   targetType: z.enum(REPORT_TARGET),
   targetId: z.uuid(),
   reportId: z.uuid().optional(),
-  mimeType: z.enum(REPORT_MIME_TYPES),
-  sizeBytes: z.number().int().positive().max(REPORT_POLICY.IMAGE_BYTES),
+  mediaId: z.uuid(),
 });
 export const reportEvidenceViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.enum(REPORT_MIME_TYPES),
   sizeBytes: z.number().int(),
-  ready: z.boolean(),
 });
 const reportTargetSchema = z.object({
   type: z.enum(REPORT_TARGET),
@@ -163,13 +161,6 @@ export const adminReportPageSchema = z.object({
   totalCount: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
-});
-export const reportUploadTicketSchema = z.object({
-  id: z.uuid(),
-  uploadUrl: z.url(),
-  method: z.literal('PUT'),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
 });
 export const reportDownloadSchema = z.object({
   url: z.url(),

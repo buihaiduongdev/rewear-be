@@ -7,7 +7,6 @@ import { EntityManager, In } from 'typeorm';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { Order } from '@/modules/order/entities/order.entity';
 
-import { DISPUTE_EVIDENCE_STATE } from './constants/dispute.constant';
 import {
   DisputeAttachment,
   DisputeCase,
@@ -42,7 +41,6 @@ export async function loadDecisionReview(
         where: {
           id: In(ids),
           orderId: order.id,
-          status: DISPUTE_EVIDENCE_STATE.READY,
         },
         order: { id: 'ASC' },
       })
@@ -76,8 +74,7 @@ export async function loadDecisionReview(
       id: file.id,
       owner: file.uploadedById,
       tags: file.tags,
-      eTag: file.eTag,
-      readyAt: file.readyAt,
+      mediaId: file.mediaId,
     })),
     messages: messages.map((message) => ({
       id: message.id,

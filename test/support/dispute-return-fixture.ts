@@ -15,6 +15,7 @@ import { Order } from '@/modules/order/entities/order.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { adjudicationFixture } from './adjudication-fixture';
+import { createPrivateMedia } from './private-media';
 
 export async function disputeReturnFixture(
   db: DataSource,
@@ -87,17 +88,13 @@ export async function evidenceForReturn(
   actorId = f.buyer.id,
   tags: string[] = ['RETURN_ITEM', 'RETURN_PACKED_LABEL', 'RETURN_ACCESSORIES'],
 ) {
+  const media = await createPrivateMedia(f.db, actorId);
   return f.db.getRepository(DisputeEvidence).save({
     orderId: f.order.id,
     uploadedById: actorId,
-    storageKey: `private/return/${randomUUID()}`,
-    mimeType: 'image/jpeg',
-    sizeBytes: 1000,
+    mediaId: media.id,
+    media,
     tags,
-    status: 'READY',
-    uploadExpiresAt: new Date(),
-    eTag: randomUUID(),
-    readyAt: new Date(),
   });
 }
 export async function labelForReturn(

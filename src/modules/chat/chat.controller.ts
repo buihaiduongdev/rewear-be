@@ -12,7 +12,6 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import z from 'zod';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
-import { dateTimeSchema } from '@/common/schemas/date-time.schema';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { DISPUTE_EVIDENCE_TAG } from '@/modules/dispute/constants/dispute.constant';
@@ -26,13 +25,10 @@ import {
   chatConversationViewSchema,
   chatDownloadSchema,
   chatListSchema,
-  chatMediaViewSchema,
   chatMessagePageSchema,
   chatMessageViewSchema,
   chatPageSchema,
   chatReadSchema,
-  chatUploadSchema,
-  chatUploadTicketSchema,
   openChatSchema,
   sendChatSchema,
 } from './schemas/chat.schema';
@@ -54,8 +50,6 @@ const importedEvidenceViewSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int(),
   tags: z.array(z.string()),
-  status: z.string(),
-  readyAt: dateTimeSchema.nullable(),
 });
 
 @ApiTags('Buyer–Shop chat')
@@ -121,26 +115,6 @@ export class ChatController {
     @Body({ schema: chatReadSchema }) input: { throughSequence: number },
   ) {
     return this.service.read(user.id, id, input.throughSequence);
-  }
-  @Post('conversations/:id/uploads')
-  @HttpCode(200)
-  @Serialize(chatUploadTicketSchema)
-  upload(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: chatUploadSchema })
-    input: { mimeType: string; sizeBytes: number },
-  ) {
-    return this.media.createUpload(user.id, id, input);
-  }
-  @Post('media/:id/complete')
-  @HttpCode(200)
-  @Serialize(chatMediaViewSchema)
-  complete(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.media.complete(user.id, id);
   }
   @Get('media/:id/download')
   @Serialize(chatDownloadSchema)

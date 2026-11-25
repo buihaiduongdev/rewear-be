@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { StorageService } from '@/infrastructure/storage';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -17,7 +18,10 @@ import type { ShopFollowQuery } from './types/shop-follow.type';
 
 @Injectable()
 export class ShopFollowFeedService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly storage: StorageService,
+  ) {}
   products(userId: string, input: ShopFollowQuery) {
     return this.db.transaction('REPEATABLE READ', async (manager) => {
       await assertFollowUser(manager, userId);
@@ -51,10 +55,9 @@ export class ShopFollowFeedService {
         .skip(input.offset)
         .getManyAndCount();
       const links = products.length
-        ? await manager.find(MediaLink, {
+        ? await manager.find(ProductMedia, {
             where: {
-              ownerType: MediaOwnerType.PRODUCT,
-              ownerId: In(products.map((product) => product.id)),
+              productId: In(products.map((product) => product.id)),
               role: MediaRole.COVER,
             },
             relations: { media: true },
@@ -64,7 +67,7 @@ export class ShopFollowFeedService {
         items: products.map((product) => {
           const cover = links.find(
             (link) =>
-              link.ownerId === product.id &&
+              link.productId === product.id &&
               link.media.retiredAt === null &&
               link.media.mediaType === MediaType.IMAGE,
           );
@@ -74,7 +77,9 @@ export class ShopFollowFeedService {
             price: product.price!,
             condition: product.condition,
             size: product.size,
-            coverUrl: cover?.media.url ?? null,
+            coverUrl: cover
+              ? this.storage.getPublicUrl(cover.media.storageKey)
+              : null,
             publishedAt: product.publishedAt!,
             shop: { id: product.shop.id, name: product.shop.name },
           };

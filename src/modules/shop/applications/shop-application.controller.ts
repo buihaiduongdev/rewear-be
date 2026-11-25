@@ -33,7 +33,6 @@ import {
   applicationQuerySchema,
   applicationSubmitSchema,
   applicationUploadSchema,
-  applicationUploadViewSchema,
   applicationViewSchema,
 } from './schemas/shop-application.schema';
 import { ShopApplicationAdminService } from './shop-application-admin.service';
@@ -144,25 +143,16 @@ export class ShopApplicationController {
   ) {
     return this.applications.submit(user.id, id, input);
   }
-  @Post('shop-applications/:id/uploads')
+  @Post('shop-applications/:id/documents')
   @HttpCode(200)
-  @Serialize(applicationUploadViewSchema)
+  @Serialize(applicationDocumentViewSchema)
   upload(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: applicationUploadSchema })
     input: z.input<typeof applicationUploadSchema>,
   ) {
-    return this.media.createUpload(user.id, id, input);
-  }
-  @Post('shop-application-documents/:id/complete')
-  @HttpCode(200)
-  @Serialize(applicationDocumentViewSchema)
-  complete(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.media.complete(user.id, id);
+    return this.media.attach(user.id, id, input);
   }
   @Get('shop-application-documents/:id/download')
   @Serialize(applicationDownloadViewSchema)

@@ -13,10 +13,7 @@ import { OrderAccess } from '@/modules/order/order.access';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import {
-  DISPUTE_ACTION,
-  DISPUTE_EVIDENCE_STATE,
-} from '../constants/dispute.constant';
+import { DISPUTE_ACTION } from '../constants/dispute.constant';
 import { decisionFingerprint } from '../dispute-decision-review';
 import { DisputeAccess } from '../dispute.access';
 import { notifyDispute } from '../dispute.lifecycle';
@@ -73,10 +70,8 @@ export async function remedyReviewToken(
     safety,
     files: files.map((f) => ({
       id: f.id,
-      status: f.status,
-      eTag: f.eTag,
+      mediaId: f.mediaId,
       tags: f.tags,
-      readyAt: f.readyAt,
     })),
   });
 }
@@ -91,7 +86,6 @@ export async function linkRemedyEvidence(
     where: {
       id: In(ids),
       orderId,
-      status: DISPUTE_EVIDENCE_STATE.READY,
       ...(uploaderId ? { uploadedById: uploaderId } : {}),
     },
   });

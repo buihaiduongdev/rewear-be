@@ -3,7 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageModule } from '@/infrastructure/storage';
+import { MediaModule } from '@/modules/media/media.module';
 import { OrderModule } from '@/modules/order/order.module';
 
 import { DisputeAdjudicationController } from './dispute-adjudication.controller';
@@ -70,6 +71,8 @@ import { DisputeReturnService } from './returns/return.service';
 
 @Module({
   imports: [
+    StorageModule,
+    MediaModule,
     OrderModule,
     TypeOrmModule.forFeature([
       DisputeCase,
@@ -130,7 +133,6 @@ import { DisputeReturnService } from './returns/return.service';
     ReturnExceptionReadService,
     GhnShipmentClient,
     GhnSandboxAdapter,
-    PrivateEvidenceStorage,
   ],
 })
 export class DisputeModule {}

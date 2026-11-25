@@ -1,7 +1,6 @@
 import z from 'zod';
 
 import {
-  RATING_MIME_TYPES,
   RATING_MODERATION_BASES,
   RATING_MODES,
   RATING_POLICY,
@@ -57,18 +56,7 @@ export const ratingModerationSchema = z
         message: 'Explicit verified moderation basis required',
       });
   });
-export const ratingUploadSchema = z
-  .strictObject({
-    orderId: z.uuid(),
-    mimeType: z.enum(RATING_MIME_TYPES),
-    sizeBytes: z.number().int().positive(),
-  })
-  .superRefine((input, ctx) => {
-    if (
-      input.sizeBytes >
-      (input.mimeType.startsWith('image/')
-        ? RATING_POLICY.IMAGE_BYTES
-        : RATING_POLICY.VIDEO_BYTES)
-    )
-      ctx.addIssue({ code: 'custom', message: 'Media exceeds upload limit' });
-  });
+export const ratingUploadSchema = z.strictObject({
+  orderId: z.uuid(),
+  mediaId: z.uuid(),
+});

@@ -21,6 +21,7 @@ describe('Product lifecycle boundaries', () => {
     {} as Repository<ShopMember>,
     {} as DataSource,
     {} as never,
+    { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
   );
 
   it.each([

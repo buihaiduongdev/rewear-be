@@ -31,7 +31,6 @@ import {
   reportQuerySchema,
   reportSupplementSchema,
   reportUploadSchema,
-  reportUploadTicketSchema,
   reportViewSchema,
   resolveReportSchema,
 } from './schemas/report.schema';
@@ -72,24 +71,15 @@ export class ReportController {
   ) {
     return this.read.list(user.id, input);
   }
-  @Post('uploads')
+  @Post('evidence')
   @HttpCode(200)
-  @Serialize(reportUploadTicketSchema)
+  @Serialize(reportEvidenceViewSchema)
   upload(
     @CurrentUser() user: User,
     @Body({ schema: reportUploadSchema })
     input: z.input<typeof reportUploadSchema>,
   ) {
-    return this.media.createUpload(user.id, input);
-  }
-  @Post('evidence/:id/complete')
-  @HttpCode(200)
-  @Serialize(reportEvidenceViewSchema)
-  complete(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-  ) {
-    return this.media.complete(user.id, id);
+    return this.media.attach(user.id, input);
   }
   @Get('evidence/:id/download')
   @Serialize(reportDownloadSchema)

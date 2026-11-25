@@ -32,13 +32,11 @@ export async function reportSubmissionTarget(
         item.uploadedById === userId &&
         item.targetType === input.targetType &&
         item.targetId === input.targetId &&
-        item.ready &&
-        item.eTag &&
         item.reportId === null,
     );
   if (!valid)
     throw new BadRequestException(
-      'Report evidence must be owned ready uploads of the same target',
+      'Report evidence must belong to the reporter and match the target',
     );
   return evidence[0].target;
 }
@@ -58,13 +56,11 @@ export async function attachReportEvidence(
         item.uploadedById !== row.reporterId ||
         item.targetType !== row.targetType ||
         item.targetId !== row.targetId ||
-        !item.ready ||
-        !item.eTag ||
         (item.reportId !== null && item.reportId !== row.id),
     );
   if (invalidEvidence)
     throw new BadRequestException(
-      'Report evidence must be owned ready uploads of the same target',
+      'Report evidence must belong to the reporter and match the target',
     );
   const newEvidence = evidence.filter((item) => item.reportId === null);
   const count = await manager.countBy(ReportEvidence, { reportId: row.id });

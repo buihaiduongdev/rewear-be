@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { NotificationService } from '@/modules/notifications/notification.service';
@@ -35,6 +35,7 @@ describe('Buyer–Shop chat HTTP', () => {
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
+      key: `uploads/${randomUUID()}.jpg`,
       uploadUrl: 'https://private.test/upload',
       method: 'PUT',
       headers: { 'If-None-Match': '*' },
@@ -64,9 +65,7 @@ describe('Buyer–Shop chat HTTP', () => {
       CoinRewardWorker,
     ])
       builder = builder.overrideProvider(worker).useValue({});
-    builder = builder
-      .overrideProvider(PrivateEvidenceStorage)
-      .useValue(storage);
+    builder = builder.overrideProvider(StorageService).useValue(storage);
     const module = await builder.compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
@@ -129,20 +128,15 @@ describe('Buyer–Shop chat HTTP', () => {
       1,
     );
   });
-  it('supports media completion, authorized signing and evidence import without leaking keys', async () => {
+  it('supports media uploads, authorized signing and evidence import without leaking keys', async () => {
     const server = app.getHttpServer();
     const base = `/api/chat/conversations/${conversationId}`;
     const upload = await request(server)
-      .post(`${base}/uploads`)
+      .post('/api/media/upload-ticket')
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ mimeType: 'video/mp4', sizeBytes: 1024 })
-      .expect(200);
+      .send({ mimeType: 'video/mp4', sizeBytes: 1024, visibility: 'private' })
+      .expect(201);
     mediaId = upload.body.data.id;
-    await request(server)
-      .post(`/api/chat/media/${mediaId}/complete`)
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send({})
-      .expect(200);
     await request(server)
       .get(`/api/chat/media/${mediaId}/download`)
       .auth(token(f.buyer), { type: 'bearer' })
@@ -170,7 +164,7 @@ describe('Buyer–Shop chat HTTP', () => {
       .auth(token(f.buyer), { type: 'bearer' })
       .send({ orderId: f.order.id, tags: ['UNBOX'] })
       .expect(200);
-    expect(imported.body.data.status).toBe('READY');
+    expect(imported.body.data.mimeType).toBe('video/mp4');
     expect(imported.body.data).not.toHaveProperty('storageKey');
   });
   it('bounds read cursors, lists only own conversations and generates OpenAPI', async () => {

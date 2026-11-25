@@ -1,9 +1,6 @@
 export enum MediaType {
   IMAGE = 'IMAGE',
-}
-
-export enum MediaOwnerType {
-  PRODUCT = 'PRODUCT',
+  VIDEO = 'VIDEO',
 }
 
 export enum MediaRole {

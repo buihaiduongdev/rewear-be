@@ -10,7 +10,6 @@ import {
   DISPUTE_ACTION,
   DISPUTE_APPEAL_ELIGIBILITY,
   DISPUTE_CASE_STATE,
-  DISPUTE_EVIDENCE_STATE,
   DISPUTE_FINAL_SOURCE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_PARTY,
@@ -188,7 +187,6 @@ export class DisputeAppealService {
             id: In(data.evidenceIds),
             orderId,
             uploadedById: userId,
-            status: DISPUTE_EVIDENCE_STATE.READY,
           },
         })
       : [];

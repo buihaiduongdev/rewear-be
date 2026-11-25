@@ -65,9 +65,8 @@ export class ShopApplicationReadService {
       documents: documents.map((d) => ({
         id: d.id,
         slot: d.slot,
-        mimeType: d.mimeType,
-        sizeBytes: d.sizeBytes,
-        ready: d.ready,
+        mimeType: d.media.mimeType,
+        sizeBytes: d.media.sizeBytes,
       })),
       history,
     };

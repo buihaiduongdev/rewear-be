@@ -9,9 +9,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, MoreThan, Repository } from 'typeorm';
 
 import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
+import { StorageService } from '@/infrastructure/storage';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
+import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
+import { MediaService } from '@/modules/media/media.service';
 import { User } from '@/modules/user/entities';
 
 import { publicIdentitySaleState } from './applications/renewal/identity-sale.policy';
@@ -34,32 +38,57 @@ export class ShopService {
     private readonly shopMemberRepository: Repository<ShopMember>,
     private readonly dataSource: DataSource,
     private readonly shopRoleService: ShopRoleService,
+    private readonly uploads: MediaService,
+    private readonly storage: StorageService,
   ) {}
 
-  async findAll(): Promise<Shop[]> {
+  private toView(shop: Shop) {
+    return {
+      ...shop,
+      logoUrl: shop.logoMedia
+        ? this.storage.getPublicUrl(shop.logoMedia.storageKey)
+        : null,
+    };
+  }
+
+  async findAll() {
     const rows = await this.shopRepository.find({
       where: { status: ShopStatus.ACTIVE },
       order: { createdAt: 'DESC' },
+      relations: { logoMedia: true },
     });
-    return rows.map((row) => ({ ...row, ...publicIdentitySaleState(row) }));
+    return rows.map((row) => ({
+      ...this.toView(row),
+      ...publicIdentitySaleState(row),
+    }));
   }
 
-  async findOne(id: string): Promise<Shop> {
-    const row = await this.shopRepository.findOneByOrFail({
-      id,
-      status: ShopStatus.ACTIVE,
+  async findOne(id: string) {
+    const row = await this.shopRepository.findOneOrFail({
+      where: { id, status: ShopStatus.ACTIVE },
+      relations: { logoMedia: true },
     });
-    return { ...row, ...publicIdentitySaleState(row) };
+    return { ...this.toView(row), ...publicIdentitySaleState(row) };
   }
 
-  create(userId: string, input: CreateShopInput): Promise<Shop> {
+  create(userId: string, input: CreateShopInput) {
     return this.dataSource.transaction(async (manager) => {
+      const logo = input.logoMediaId
+        ? await this.uploads.verifyMedia(
+            manager,
+            userId,
+            input.logoMediaId,
+            5 * 1024 * 1024,
+          )
+        : null;
+      if (logo && logo.mediaType !== MediaType.IMAGE)
+        throw new BadRequestException('Shop logo must be an image');
       const shop = await manager.save(
         Shop,
         manager.create(Shop, {
           name: input.name,
           description: input.description || null,
-          logoUrl: input.logoUrl || null,
+          logoMediaId: logo?.id ?? null,
           status: ShopStatus.PENDING,
           onboardingRequired: true,
           approvedAt: null,
@@ -80,15 +109,11 @@ export class ShopService {
         });
       }
       await this.shopRoleService.initializeDefaultRoles(shop.id, manager);
-      return shop;
+      return this.toView({ ...shop, logoMedia: logo });
     });
   }
 
-  async update(
-    shopId: string,
-    currentUserId: string,
-    input: UpdateShopInput,
-  ): Promise<Shop> {
+  async update(shopId: string, currentUserId: string, input: UpdateShopInput) {
     return this.dataSource.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const repository = manager.getRepository(Shop);
@@ -101,28 +126,48 @@ export class ShopService {
         throw new ForbiddenException(
           'Shop application approval is required before changing availability',
         );
+      const logo =
+        input.logoMediaId && input.logoMediaId === shop.logoMediaId
+          ? await manager.findOneByOrFail(Media, { id: input.logoMediaId })
+          : input.logoMediaId
+            ? await this.uploads.verifyMedia(
+                manager,
+                currentUserId,
+                input.logoMediaId,
+                5 * 1024 * 1024,
+              )
+            : null;
+      if (logo && logo.mediaType !== MediaType.IMAGE)
+        throw new BadRequestException('Shop logo must be an image');
+      const { logoMediaId, ...shopInput } = input;
       repository.merge(shop, {
-        ...input,
+        ...shopInput,
         description:
           input.description !== undefined
             ? input.description || null
             : undefined,
-        logoUrl:
-          input.logoUrl !== undefined ? input.logoUrl || null : undefined,
+        logoMediaId: logoMediaId !== undefined ? (logo?.id ?? null) : undefined,
       });
-      return repository.save(shop);
+      const saved = await repository.save(shop);
+      const logoMedia =
+        logoMediaId !== undefined
+          ? logo
+          : saved.logoMediaId
+            ? await manager.findOneBy(Media, { id: saved.logoMediaId })
+            : null;
+      return this.toView({ ...saved, logoMedia });
     });
   }
 
   async findMyMemberships(userId: string) {
     const members = await this.shopMemberRepository.find({
       where: { userId },
-      relations: { shop: true },
+      relations: { shop: { logoMedia: true } },
       order: { joinedAt: 'DESC' },
     });
     return members.map((m) => ({
       ...m,
-      shop: { ...m.shop, ...publicIdentitySaleState(m.shop) },
+      shop: { ...this.toView(m.shop), ...publicIdentitySaleState(m.shop) },
       status: 'ACTIVE',
     }));
   }

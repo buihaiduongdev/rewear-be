@@ -2,10 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import type { EntityManager } from 'typeorm';
 
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Category } from '@/modules/category/entities';
+import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
+import { MediaService } from '@/modules/media/media.service';
 import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -35,9 +38,11 @@ describe('Shop Owner application (PostgreSQL)', () => {
   let service: ShopApplicationService;
   let admin: ShopApplicationAdminService;
   let media: ShopApplicationMediaService;
+  let uploads: MediaService;
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
+      key: `uploads/${randomUUID()}.jpg`,
       uploadUrl: 'https://private.test/put',
       method: 'PUT',
       headers: { 'If-None-Match': '*' },
@@ -59,24 +64,48 @@ describe('Shop Owner application (PostgreSQL)', () => {
     const db = database.dataSource;
     const access = new ShopApplicationAccess();
     const read = new ShopApplicationReadService(db, access);
-    service = new ShopApplicationService(db, access, read);
-    admin = new ShopApplicationAdminService(db, access, read);
+    service = new ShopApplicationService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
+    admin = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
+    uploads = new MediaService(
+      db.getRepository(Media),
+      storage as unknown as StorageService,
+      {
+        storage: {
+          allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+          maxSizeBytes: 10 * 1024 * 1024,
+        },
+      } as never,
+    );
     media = new ShopApplicationMediaService(
       db,
       access,
-      storage as unknown as PrivateEvidenceStorage,
+      storage as unknown as StorageService,
+      uploads,
     );
   });
   afterAll(async () => database?.destroy());
   async function fixture() {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
+    const logo = await db.getRepository(Media).save({
+      uploadedById: f.owner.id,
+      storageKey: `logos/${randomUUID()}.jpg`,
+      visibility: 'public',
+      mediaType: MediaType.IMAGE,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+      isAttached: true,
+    });
     await db.getRepository(Shop).update(
       { id: f.shop.id },
       {
         status: ShopStatus.PENDING,
         onboardingRequired: true,
-        logoUrl: 'https://public.test/logo.jpg',
+        logoMediaId: logo.id,
       },
     );
     await db.getRepository(PickupLocation).save({
@@ -105,12 +134,15 @@ describe('Shop Owner application (PostgreSQL)', () => {
     });
     const docs = [];
     for (const slot of ['FRONT', 'BACK'] as const) {
-      const upload = await media.createUpload(f.owner.id, app.id, {
-        slot,
+      const ticket = await uploads.createUploadTicket(f.owner.id, {
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
+        visibility: 'private',
       });
-      await media.complete(f.owner.id, upload.id);
+      const upload = await media.attach(f.owner.id, app.id, {
+        slot,
+        mediaId: ticket.mediaId,
+      });
       docs.push(upload.id);
     }
     const input = {
@@ -208,6 +240,8 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
       new ShopRoleService(db),
+      uploads,
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     const pending = await shops.create(f.buyer.id, {
       name: 'New applicant Shop',
@@ -228,6 +262,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     await expect(
       products.create(f.buyer.id, { shopId: pending.id }),
@@ -253,12 +288,15 @@ describe('Shop Owner application (PostgreSQL)', () => {
         documentIds: [f.input.documentIds[0]],
       }),
     ).rejects.toThrow('documents are missing');
-    const upload = await media.createUpload(f.owner.id, f.app.id, {
-      slot: 'PASSPORT',
+    const ticket = await uploads.createUploadTicket(f.owner.id, {
       mimeType: 'image/jpeg',
       sizeBytes: 1024,
+      visibility: 'private',
     });
-    await media.complete(f.owner.id, upload.id);
+    const upload = await media.attach(f.owner.id, f.app.id, {
+      slot: 'PASSPORT',
+      mediaId: ticket.mediaId,
+    });
     const submitted = await service.submit(f.owner.id, f.app.id, {
       ...f.input,
       identity: {
@@ -357,14 +395,6 @@ describe('Shop Owner application (PostgreSQL)', () => {
         documentIds: other.input.documentIds,
       }),
     ).rejects.toThrow('documents are missing');
-    storage.getObjectMetadata.mockResolvedValueOnce({
-      eTag: 'changed',
-      contentType: 'image/jpeg',
-      sizeBytes: 1024,
-    });
-    await expect(
-      media.complete(f.owner.id, f.input.documentIds[0]),
-    ).rejects.toThrow('immutable');
     expect(
       (
         await db
@@ -408,7 +438,9 @@ describe('Shop Owner application (PostgreSQL)', () => {
     }
     const access = new GatedAccess();
     const read = new ShopApplicationReadService(db, access);
-    const review = new ShopApplicationAdminService(db, access, read);
+    const review = new ShopApplicationAdminService(db, access, read, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     const pending = review.decide(f.admin.id, f.app.id, {
       requestId: randomUUID(),
       expectedVersion: submitted.version,

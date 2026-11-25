@@ -4,8 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 
-import { DataSource } from 'typeorm';
-import { In } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 
 import { REFUND_STATE } from '../constants/refund-execution.constant';
 import { DISPUTE_REFUND_CONDITION } from '../constants/refund.constant';
@@ -126,7 +125,7 @@ export class ReturnSafetyService {
         const proof = await manager.find(DisputeEvidence, {
           where: { id: In(data.evidenceIds) },
         });
-        if (proof.some((file) => !file.readyAt || file.readyAt < row.createdAt))
+        if (proof.some((file) => file.recordedAt < row.createdAt))
           throw new ConflictException(
             'Execution evidence must follow the recorded safety instructions',
           );

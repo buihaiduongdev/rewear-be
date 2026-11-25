@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { Category } from '@/modules/category/entities';
-import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { Media, ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -26,7 +26,9 @@ describe('Follow Shop PostgreSQL', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new ShopFollowService(database.dataSource);
-    feed = new ShopFollowFeedService(database.dataSource);
+    feed = new ShopFollowFeedService(database.dataSource, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
   afterAll(async () => database?.destroy());
   it('cleans follows when a Shop is deleted and safely handles missing targets', async () => {
@@ -97,8 +99,7 @@ describe('Follow Shop PostgreSQL', () => {
       Media,
       db.manager.create(Media, {
         uploadedById: f.owner.id,
-        storageKey: randomUUID(),
-        url: 'https://public.test/cover.jpg',
+        storageKey: 'cover.jpg',
         mediaType: MediaType.IMAGE,
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
@@ -106,11 +107,10 @@ describe('Follow Shop PostgreSQL', () => {
       }),
     );
     await db.manager.save(
-      MediaLink,
-      db.manager.create(MediaLink, {
+      ProductMedia,
+      db.manager.create(ProductMedia, {
         mediaId: cover.id,
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: products[0].id,
+        productId: products[0].id,
         role: MediaRole.COVER,
         sortOrder: 0,
       }),

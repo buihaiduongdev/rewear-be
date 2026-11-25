@@ -10,7 +10,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
@@ -44,7 +44,7 @@ describe('Return HTTP ownership and submitted-proof privacy', () => {
       .useValue({})
       .overrideProvider(DisputeWorker)
       .useValue({})
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue({
         createDownloadUrl: async () => ({
           url: 'https://private.test/signed-return-proof',

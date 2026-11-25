@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageModule } from '@/infrastructure/storage';
+import { MediaModule } from '@/modules/media/media.module';
 
 import {
   OwnerIdentity,
@@ -23,6 +24,8 @@ import { ShopApplicationService } from './shop-application.service';
 
 @Module({
   imports: [
+    StorageModule,
+    MediaModule,
     TypeOrmModule.forFeature([
       ShopApplication,
       ShopApplicationAudit,
@@ -41,7 +44,6 @@ import { ShopApplicationService } from './shop-application.service';
     ShopApplicationService,
     ShopApplicationAdminService,
     ShopApplicationMediaService,
-    PrivateEvidenceStorage,
   ],
   controllers: [ShopApplicationController],
 })

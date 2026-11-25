@@ -1,20 +1,16 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import type { StorageService, UploadTicket } from '@/infrastructure/storage';
-import type { ConfigService } from '@/modules/config';
 import { MAX_PRODUCT_MEDIA } from '@/modules/media/constants';
-import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { Media, ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
+import { ProductMediaService } from '@/modules/media/product-media.service';
 import type { ProductService } from '@/modules/product';
 
-describe('MediaService', () => {
+describe('ProductMediaService', () => {
   const productId = '598745cf-8764-499a-ad43-e6223713ee90';
   const userId = 'eb9ab2f0-97dd-456c-809f-75831b227895';
   const mediaId = 'f844ab9a-6f7a-4495-bc34-064bf3bf32d5';
@@ -23,9 +19,8 @@ describe('MediaService', () => {
   const storageKey = `products/${productId}/${uploadId}.jpg`;
   const now = new Date('2026-10-19T00:00:00.000Z');
   const ticket: UploadTicket = {
-    storageKey,
+    key: storageKey,
     uploadUrl: 'https://upload.example.com/signed',
-    publicUrl: `https://media.example.com/${storageKey}`,
     method: 'PUT',
     headers: { 'Content-Type': 'image/jpeg' },
     expiresAt: new Date('2026-10-19T00:15:00.000Z'),
@@ -36,9 +31,9 @@ describe('MediaService', () => {
       id,
       uploadedById: userId,
       storageKey: key,
-      url: `https://media.example.com/${key}`,
       mediaType: MediaType.IMAGE,
       mimeType: 'image/jpeg',
+      visibility: 'public',
       sizeBytes: 1024,
       createdAt: now,
       updatedAt: now,
@@ -48,21 +43,20 @@ describe('MediaService', () => {
     id: string,
     role: MediaRole,
     sortOrder: number,
-  ): MediaLink =>
+  ): ProductMedia =>
     ({
       id: `link-${id}`,
       mediaId: id,
       media: makeMedia(id),
-      ownerType: MediaOwnerType.PRODUCT,
-      ownerId: productId,
+      productId,
       role,
       sortOrder,
       createdAt: now,
       updatedAt: now,
-    }) as MediaLink;
+    }) as ProductMedia;
 
   const mediaLinkRepository: jest.Mocked<
-    Pick<Repository<MediaLink>, 'count' | 'find'>
+    Pick<Repository<ProductMedia>, 'count' | 'find'>
   > = {
     count: jest.fn(),
     find: jest.fn(),
@@ -96,25 +90,39 @@ describe('MediaService', () => {
     getObjectMetadata: jest.fn(),
     getPublicUrl: jest.fn(),
   };
-  const configService = {
-    storage: {
-      allowedTypes: ['image/jpeg', 'image/png'],
-      maxSizeBytes: 10 * 1024 * 1024,
-    },
+  const mediaRepository = {
+    create: jest.fn((value: object) => value),
+    save: jest.fn(async (value: object) => value),
   };
-  const service = new MediaService(
-    mediaLinkRepository as unknown as Repository<MediaLink>,
+  const uploads = new MediaService(
+    mediaRepository as unknown as Repository<Media>,
+    storageService as unknown as StorageService,
+    {
+      storage: {
+        allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+        maxSizeBytes: 10 * 1024 * 1024,
+      },
+    } as never,
+  );
+  const service = new ProductMediaService(
+    mediaLinkRepository as unknown as Repository<ProductMedia>,
     dataSource as unknown as DataSource,
     productService as unknown as ProductService,
     storageService as unknown as StorageService,
-    configService as unknown as ConfigService,
+    uploads,
   );
 
   beforeEach(() => {
     jest.resetAllMocks();
     mediaLinkRepository.count.mockResolvedValue(0);
     manager.create.mockImplementation((_entity, input: object) => input);
-    manager.findOne.mockResolvedValue(null);
+    manager.findOne.mockResolvedValue({
+      ...makeMedia(mediaId, storageKey),
+      isAttached: false,
+      retiredAt: null,
+    });
+    mediaRepository.create.mockImplementation((value: object) => value);
+    mediaRepository.save.mockImplementation(async (value: object) => value);
     manager.getRepository.mockReturnValue(mediaLinkRepository);
     dataSource.transaction.mockImplementation((work) =>
       work(manager as unknown as EntityManager),
@@ -124,7 +132,26 @@ describe('MediaService', () => {
       contentType: 'image/jpeg',
       sizeBytes: 1024,
     });
-    storageService.getPublicUrl.mockReturnValue(ticket.publicUrl);
+    storageService.getPublicUrl.mockReturnValue(
+      `https://media.example.com/${storageKey}`,
+    );
+  });
+
+  it('rejects videos when attaching product media', async () => {
+    manager.count.mockResolvedValueOnce(0);
+    manager.save.mockResolvedValueOnce({
+      ...makeMedia(mediaId),
+      mediaType: MediaType.VIDEO,
+    });
+    manager.findOne.mockResolvedValueOnce({
+      ...makeMedia(mediaId),
+      mediaType: MediaType.VIDEO,
+      isAttached: false,
+      retiredAt: null,
+    });
+    await expect(
+      service.confirmUpload(productId, userId, { mediaId }),
+    ).rejects.toThrow('Product media must be an image');
   });
 
   it('returns ordered media only after the public product lookup succeeds', async () => {
@@ -135,37 +162,6 @@ describe('MediaService', () => {
       expect.objectContaining({ id: mediaId, role: MediaRole.COVER }),
     ]);
     expect(productService.findOne).toHaveBeenCalledWith(productId);
-  });
-
-  it('creates a short-lived upload ticket for valid image metadata', async () => {
-    await expect(
-      service.createUploadTicket(productId, userId, {
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-      }),
-    ).resolves.toEqual(ticket);
-
-    expect(productService.findManagedProduct).toHaveBeenCalledWith(
-      productId,
-      undefined,
-    );
-    expect(storageService.createUploadTicket).toHaveBeenCalledWith({
-      contentType: 'image/jpeg',
-      key: expect.stringMatching(
-        new RegExp(`^products/${productId}/.+\\.jpg$`),
-      ),
-      sizeBytes: 1024,
-    });
-  });
-
-  it('rejects unsupported content before creating an upload ticket', async () => {
-    await expect(
-      service.createUploadTicket(productId, userId, {
-        mimeType: 'text/plain',
-        sizeBytes: 4,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(storageService.createUploadTicket).not.toHaveBeenCalled();
   });
 
   it('confirms the first uploaded object and assigns it as the cover', async () => {
@@ -186,9 +182,7 @@ describe('MediaService', () => {
 
     await expect(
       service.confirmUpload(productId, userId, {
-        storageKey,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
+        mediaId,
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -197,28 +191,11 @@ describe('MediaService', () => {
         sortOrder: 0,
       }),
     );
-    expect(storageService.getObjectMetadata).toHaveBeenCalledWith(storageKey);
+    expect(storageService.getObjectMetadata).not.toHaveBeenCalled();
     expect(manager.create).toHaveBeenLastCalledWith(
-      MediaLink,
+      ProductMedia,
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),
     );
-  });
-
-  it('rejects mismatched metadata without deleting an object another confirm may use', async () => {
-    storageService.getObjectMetadata.mockResolvedValueOnce({
-      contentType: 'image/png',
-      sizeBytes: 1024,
-    });
-
-    await expect(
-      service.confirmUpload(productId, userId, {
-        storageKey,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(storageService.delete).not.toHaveBeenCalled();
-    expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
   it('retains an uploaded object for retry when the product reaches its media limit', async () => {
@@ -226,44 +203,24 @@ describe('MediaService', () => {
 
     await expect(
       service.confirmUpload(productId, userId, {
-        storageKey,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
+        mediaId,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(storageService.delete).not.toHaveBeenCalled();
   });
 
-  it('rejects confirming a storage key that does not belong to the product', async () => {
-    await expect(
-      service.confirmUpload(productId, userId, {
-        storageKey: 'products/another-product-id/image.jpg',
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('rejects confirming a storage key with an invalid or mismatched extension', async () => {
-    await expect(
-      service.confirmUpload(productId, userId, {
-        storageKey: `products/${productId}/image.png`,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('does not delete an object when the same upload is confirmed twice', async () => {
-    manager.findOne.mockResolvedValueOnce({ id: mediaId });
+  it('does not attach or delete retired media', async () => {
+    manager.findOne.mockResolvedValueOnce({
+      ...makeMedia(mediaId, storageKey),
+      isAttached: true,
+      retiredAt: new Date(),
+    });
 
     await expect(
       service.confirmUpload(productId, userId, {
-        storageKey,
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
+        mediaId,
       }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(storageService.delete).not.toHaveBeenCalled();
   });
 
@@ -296,7 +253,7 @@ describe('MediaService', () => {
 
     expect(manager.query).toHaveBeenCalledWith(
       expect.stringContaining('WITH product_media_count AS'),
-      [[secondMediaId, mediaId], MediaOwnerType.PRODUCT, productId],
+      [[secondMediaId, mediaId], productId],
     );
     expect(result).toEqual([
       expect.objectContaining({ id: secondMediaId, sortOrder: 0 }),
@@ -321,7 +278,7 @@ describe('MediaService', () => {
     expect(manager.remove).toHaveBeenNthCalledWith(1, cover);
     expect(manager.query).toHaveBeenCalledWith(
       expect.stringContaining('WITH new_positions AS'),
-      [[secondMediaId], MediaOwnerType.PRODUCT, productId, true],
+      [[secondMediaId], productId, true],
     );
     expect(gallery).toEqual(
       expect.objectContaining({ role: MediaRole.COVER, sortOrder: 0 }),

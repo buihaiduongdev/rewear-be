@@ -1160,3 +1160,49 @@
 - **Kiểm chứng:** PostgreSQL rewear_test chạy tuần tự: 17 test cho onboarding, renewal, checkout; unit schema/gate 5 test; Node payment/pricing/worker kiểm tra capture và refund. Oxlint sạch. Full build/typecheck/regression tiếp tục trên CI vì dependency xstate chưa có trong node_modules local; không gọi provider/SMTP thật.
 - **Điểm đã rà soát và sửa:** Review độc lập phát hiện thiếu fingerprint trả về và một số gate ở ví/MoMo/public Shop; đã nối đầy đủ và thêm kiểm tra checkout/capture. Không đặt lại deadline bổ sung hoặc gia hạn TTL checkout.
 - **Giới hạn:** Chưa triển khai xử lý gian lận định danh và khiếu nại định danh; frontend và kiểm chứng tài khoản nhà cung cấp thật là phần riêng.
+
+### 2026-11-24 — Thống nhất lưu trữ media và giấy tờ KYC
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Thống nhất quản lý file public và private cho sản phẩm, shop, chat, đánh giá, báo cáo, khiếu nại và giấy tờ xác minh chủ shop.
+- **Prompt chính:** Refactor media về một nguồn dữ liệu chung, dùng quan hệ riêng theo nghiệp vụ, đơn giản hóa upload và chuyển KYC sang cùng cơ chế; giữ phân quyền khi truy cập file private.
+- **Đầu ra AI được sử dụng:** Media và storage chung, các quan hệ và API nghiệp vụ liên quan, kiểm thử và tài liệu tương ứng.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng chọn không dùng polymorphic, không giữ dữ liệu dev cũ và yêu cầu chuyển KYC sau khi đồng bộ main.
+- **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test` với `TZ=UTC` đạt 128/128 suite và 838/838 test; `pnpm test:e2e` đạt 19/19 suite và 60/60 test trên database test riêng.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung. Điều chỉnh test thời gian dùng cùng đồng hồ PostgreSQL để tránh sai lệch mili giây.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Thống nhất upload public và private
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Đơn giản hóa upload storage để public và private dùng cùng cách ký, chỉ khác bucket.
+- **Prompt chính:** Thống nhất cách cấp URL, header và kiểm tra file cho hai bucket; chuyển quy tắc file về media và nghiệp vụ.
+- **Đầu ra AI được sử dụng:** Đơn giản hóa storage và media, bỏ kiểm tra metadata không còn sử dụng, cập nhật kiểm thử sản phẩm và logo.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu không phân biệt xử lý file theo public/private và giữ các quy tắc thực sự thuộc nghiệp vụ ở module tương ứng.
+- **Cách kiểm chứng:** `pnpm check` đạt; `TZ=UTC pnpm test` đạt 128/128 suite và 836/836 test; `TZ=UTC pnpm test:e2e` đạt 19/19 suite và 60/60 test. PUT và CORS preflight public trên R2 đạt; object thử nghiệm đã được xóa.
+- **Giới hạn:** Bucket private chưa được cấu hình nên chưa kiểm thử PUT/CORS thực tế trên bucket private.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Đồng bộ key media và ảnh seed
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Theo luồng demo2, storage tạo key; media chỉ lưu key và các API tạo URL public khi đọc.
+- **Prompt chính:** Upload ảnh seed lên bucket rồi dùng ảnh đó; tiếp tục refactor storage và media theo demo2.
+- **Đầu ra AI được sử dụng:** Chuyển ảnh seed sang bucket public, bổ sung lệnh `pnpm seed:images` để chuẩn bị ảnh cho bucket khác và cập nhật các API dùng media.
+- **Cách kiểm chứng:** TypeScript và lint đạt; 42/42 URL ảnh seed public trả HTTP thành công. Không chạy test theo yêu cầu của người dùng.
+- **Giới hạn:** Bucket private chưa cấu hình để kiểm thử upload thực tế; database dev cần seed lại để dùng key ảnh mới.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Liên kết logo shop với media
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Bỏ URL logo lưu trực tiếp ở shop, dùng khóa ngoại `logoMediaId` tới media.
+- **Prompt chính:** Bỏ URL hard và thay bằng media; không thêm bảng liên kết riêng.
+- **Đầu ra AI được sử dụng:** Cập nhật API shop, sản phẩm, giỏ hàng, wishlist và hồ sơ KYC; giữ `logoUrl` trong response và snapshot hồ sơ.
+- **Cách kiểm chứng:** TypeScript và lint đạt; không chạy test local theo yêu cầu, CI kiểm tra PR.
+- **Giới hạn:** Logo cũ được giữ lại để không làm hỏng ảnh trong snapshot KYC; FE cần gửi `logoMediaId` thay cho `logoUrl` khi tạo hoặc sửa shop.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.

@@ -1,6 +1,7 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Media } from '@/modules/media/entities';
 import { User } from '@/modules/user/entities';
 
 import { Shop } from '../../entities';
@@ -73,7 +74,6 @@ export class ShopApplication extends BaseEntity {
 @Entity('shop_application_documents')
 @Index(['applicationId'])
 @Index(['uploadedById', 'createdAt'])
-@Check('CHK_identity_document_size', '"sizeBytes" > 0')
 export class ShopApplicationDocument extends BaseEntity {
   @Column('uuid')
   applicationId: string;
@@ -84,20 +84,13 @@ export class ShopApplicationDocument extends BaseEntity {
   uploadedById: string;
   @Column('varchar', { length: 16 })
   slot: IdentityDocumentSlot;
-  @Column('varchar', { length: 512 })
-  storageKey: string;
-  @Column('varchar', { length: 100 })
-  mimeType: string;
-  @Column('integer')
-  sizeBytes: number;
-  @Column('boolean', { default: false })
-  ready: boolean;
-  @Column('varchar', { length: 255, nullable: true })
-  eTag: string | null;
+  @Column('uuid', { unique: true })
+  mediaId: string;
+  @ManyToOne(() => Media, { onDelete: 'RESTRICT', eager: true })
+  @JoinColumn({ name: 'mediaId' })
+  media: Media;
   @Column('integer', { nullable: true })
   firstSubmittedRevision: number | null;
-  @Column('timestamptz')
-  uploadExpiresAt: Date;
 }
 @Entity('shop_application_revisions')
 @Index(['applicationId', 'revision'], { unique: true })

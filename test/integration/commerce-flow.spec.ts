@@ -10,8 +10,8 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
-import { Media, MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole, MediaType } from '@/modules/media/enums';
+import { Media, ProductMedia } from '@/modules/media/entities';
+import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { ProductService } from '@/modules/product/product.service';
@@ -84,6 +84,7 @@ describe('commerce behavior with PostgreSQL', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     const product = await products.create(seller.id, {
       shopId: shop.id,
@@ -99,17 +100,14 @@ describe('commerce behavior with PostgreSQL', () => {
       const media = await db.getRepository(Media).save({
         uploadedById: seller.id,
         storageKey: `products/${product.id}/${randomUUID()}.jpg`,
-        url: `https://media.example.test/${randomUUID()}.jpg`,
         mediaType: MediaType.IMAGE,
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
-        eTag: null,
         retiredAt: null,
       });
-      await db.getRepository(MediaLink).save({
+      await db.getRepository(ProductMedia).save({
         mediaId: media.id,
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: product.id,
+        productId: product.id,
         role: sortOrder === 0 ? MediaRole.COVER : MediaRole.GALLERY,
         angle,
         sortOrder,
@@ -162,7 +160,9 @@ describe('commerce behavior with PostgreSQL', () => {
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
 
-    const cart = new CartService(db);
+    const cart = new CartService(db, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     const cartView = await cart.add(buyer.id, product.id);
     expect(cartView.summary).toMatchObject({
       itemCount: 1,

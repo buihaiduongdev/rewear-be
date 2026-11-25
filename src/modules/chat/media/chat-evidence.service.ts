@@ -4,22 +4,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { DataSource, type EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
-import type { StoredObjectMetadata } from '@/infrastructure/storage/storage.interface';
-import {
-  DISPUTE_EVIDENCE_STATE,
-  DISPUTE_POLICY,
-} from '@/modules/dispute/constants/dispute.constant';
+import { DISPUTE_POLICY } from '@/modules/dispute/constants/dispute.constant';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
-import { disputeUploadSchema } from '@/modules/dispute/schemas/dispute.schema';
+import {
+  disputeFileSchema,
+  disputeUploadSchema,
+} from '@/modules/dispute/schemas/dispute.schema';
 import { Order } from '@/modules/order/entities/order.entity';
 
 import { ChatAccess } from '../chat.access';
-import { ChatEvidenceLink } from '../entities/chat-evidence.entity';
-import { ChatMedia, ChatMessage } from '../entities/chat.entity';
+import { ChatMessageMedia } from '../entities/chat-message-media.entity';
+import { ChatMessage } from '../entities/chat.entity';
 
 @Injectable()
 export class ChatEvidenceService {
@@ -27,42 +25,13 @@ export class ChatEvidenceService {
     private readonly db: DataSource,
     private readonly access: ChatAccess,
     private readonly dispute: DisputeAccess,
-    private readonly storage: PrivateEvidenceStorage,
   ) {}
-  private async immutableSource(
-    manager: EntityManager,
-    mediaId: string,
-    conversationId: string,
-    metadata: StoredObjectMetadata,
-  ) {
-    const media = await manager.findOneByOrFail(ChatMedia, { id: mediaId });
-    const message = media.messageId
-      ? await manager.findOneBy(ChatMessage, {
-          id: media.messageId,
-          conversationId,
-        })
-      : null;
-    const validSource =
-      media.ready &&
-      media.eTag &&
-      message?.mediaIds.includes(mediaId) &&
-      metadata.eTag === media.eTag &&
-      metadata.contentType === media.mimeType &&
-      metadata.sizeBytes === media.sizeBytes;
-    if (!validSource)
-      throw new BadRequestException(
-        'Chat evidence requires an attached immutable object',
-      );
-    return media;
-  }
   private view(evidence: DisputeEvidence) {
     return {
       id: evidence.id,
       mimeType: evidence.mimeType,
       sizeBytes: evidence.sizeBytes,
       tags: evidence.tags,
-      status: evidence.status,
-      readyAt: evidence.readyAt,
     };
   }
   async import(
@@ -71,18 +40,22 @@ export class ChatEvidenceService {
     orderId: string,
     tags: string[],
   ) {
-    const original = await this.db.manager.findOneBy(ChatMedia, {
-      id: mediaId,
+    const link = await this.db.manager.findOne(ChatMessageMedia, {
+      where: { mediaId },
+      relations: { media: true },
     });
-    if (!original) throw new NotFoundException('Chat media not found');
-    await this.access.load(this.db.manager, userId, original.conversationId);
-    const metadata = await this.storage.getObjectMetadata(original.storageKey);
+    if (!link || link.media.visibility !== 'private' || link.media.retiredAt)
+      throw new NotFoundException('Chat media not found');
+    const message = await this.db.manager.findOneByOrFail(ChatMessage, {
+      id: link.messageId,
+    });
+    await this.access.load(this.db.manager, userId, message.conversationId);
     return this.db.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const { row: conversation } = await this.access.load(
         manager,
         userId,
-        original.conversationId,
+        message.conversationId,
       );
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
@@ -98,32 +71,27 @@ export class ChatEvidenceService {
           'Chat evidence order must belong to this buyer and Shop',
         );
       await this.dispute.assertParty(manager, userId, orderId);
-      const media = await this.immutableSource(
-        manager,
-        mediaId,
-        conversation.id,
-        metadata,
-      );
-      const input = disputeUploadSchema.parse({
-        mimeType: media.mimeType,
-        sizeBytes: media.sizeBytes,
-        tags,
-      });
-      const existing = await manager.findOneBy(ChatEvidenceLink, {
+      const media = link.media;
+      const input = disputeUploadSchema.parse({ mediaId, tags });
+      if (
+        !disputeFileSchema.safeParse({
+          mimeType: media.mimeType,
+          sizeBytes: media.sizeBytes,
+        }).success
+      )
+        throw new BadRequestException('Invalid evidence file');
+      const existing = await manager.findOneBy(DisputeEvidence, {
         mediaId,
         orderId,
-        importedById: userId,
+        uploadedById: userId,
       });
       if (existing) {
-        const evidence = await manager.findOneByOrFail(DisputeEvidence, {
-          id: existing.evidenceId,
-        });
         const tagsChanged =
-          JSON.stringify([...evidence.tags].sort()) !==
+          JSON.stringify([...existing.tags].sort()) !==
           JSON.stringify([...input.tags].sort());
         if (tagsChanged)
           throw new BadRequestException('Chat evidence import tags changed');
-        return this.view(evidence);
+        return this.view(existing);
       }
       await this.dispute.assertUploadAllowed(manager, userId, orderId, now);
       if (
@@ -138,23 +106,9 @@ export class ChatEvidenceService {
         manager.create(DisputeEvidence, {
           orderId,
           uploadedById: userId,
-          storageKey: media.storageKey,
-          mimeType: media.mimeType,
-          sizeBytes: media.sizeBytes,
-          tags: input.tags,
-          status: DISPUTE_EVIDENCE_STATE.READY,
-          uploadExpiresAt: media.uploadExpiresAt,
-          eTag: media.eTag,
-          readyAt: now,
-        }),
-      );
-      await manager.save(
-        ChatEvidenceLink,
-        manager.create(ChatEvidenceLink, {
           mediaId,
-          orderId,
-          importedById: userId,
-          evidenceId: evidence.id,
+          media,
+          tags: input.tags,
         }),
       );
       return this.view(evidence);

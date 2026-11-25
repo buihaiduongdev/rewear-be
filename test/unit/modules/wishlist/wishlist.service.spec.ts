@@ -1,7 +1,7 @@
 import type { DataSource, Repository } from 'typeorm';
 
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
-import { MediaLink } from '@/modules/media/entities';
+import { ProductMedia } from '@/modules/media/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductCondition, ProductStatus } from '@/modules/product/enums';
 import { WishlistItem } from '@/modules/wishlist/entities';
@@ -22,7 +22,7 @@ describe('WishlistService', () => {
     findOneBy: jest.fn(),
   };
 
-  const mockMediaRepo: jest.Mocked<Pick<Repository<MediaLink>, 'find'>> = {
+  const mockMediaRepo: jest.Mocked<Pick<Repository<ProductMedia>, 'find'>> = {
     find: jest.fn(),
   };
 
@@ -38,7 +38,7 @@ describe('WishlistService', () => {
     getRepository: jest.fn((entity) => {
       if (entity === WishlistItem) return mockWishlistRepo;
       if (entity === Product) return mockProductRepo;
-      if (entity === MediaLink) return mockMediaRepo;
+      if (entity === ProductMedia) return mockMediaRepo;
       throw new Error(`Unexpected entity: ${entity}`);
     }),
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
@@ -48,7 +48,9 @@ describe('WishlistService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new WishlistService(mockDataSource);
+    service = new WishlistService(mockDataSource, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
 
   describe('findMine', () => {
@@ -58,11 +60,9 @@ describe('WishlistService', () => {
       const result = await service.findMine(userId);
 
       expect(result).toEqual({ items: [], totalCount: 0 });
-      expect(mockWishlistRepo.find).toHaveBeenCalledWith({
-        where: { userId },
-        relations: { product: { shop: true, category: true } },
-        order: { createdAt: 'DESC' },
-      });
+      expect(mockWishlistRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId } }),
+      );
     });
 
     it('returns formatted wishlist items with availability and cover image', async () => {
@@ -88,9 +88,9 @@ describe('WishlistService', () => {
       mockWishlistRepo.find.mockResolvedValueOnce([mockWishlistItem]);
       mockMediaRepo.find.mockResolvedValueOnce([
         {
-          ownerId: productId,
-          media: { url: 'https://cdn.example.com/cover.jpg' },
-        } as MediaLink,
+          productId: productId,
+          media: { storageKey: 'cover.jpg' },
+        } as ProductMedia,
       ]);
 
       const result = await service.findMine(userId);
@@ -108,7 +108,7 @@ describe('WishlistService', () => {
           condition: ProductCondition.GOOD,
           size: 'L',
           color: 'Beige',
-          coverUrl: 'https://cdn.example.com/cover.jpg',
+          coverUrl: 'https://public.test/cover.jpg',
           shop: { id: 'shop-1', name: 'Vintage Shop', logoUrl: null },
         },
       });

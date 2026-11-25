@@ -1,10 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { STORAGE_PROVIDER } from './storage.interface';
 import type {
   CreateUploadTicketInput,
   IStorageProvider,
-  StoredObjectMetadata,
+  SignedDownload,
+  StorageVisibility,
   UploadTicket,
 } from './storage.interface';
 
@@ -15,19 +16,27 @@ export class StorageService {
     private readonly provider: IStorageProvider,
   ) {}
 
-  createUploadTicket(input: CreateUploadTicketInput): Promise<UploadTicket> {
-    return this.provider.createUploadTicket(input);
+  createUploadTicket(
+    input: CreateUploadTicketInput,
+    visibility: StorageVisibility = 'public',
+  ): Promise<UploadTicket> {
+    if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0)
+      throw new BadRequestException('Invalid file size');
+    return this.provider.createUploadTicket(
+      { ...input, contentType: input.contentType.toLowerCase() },
+      visibility,
+    );
   }
 
-  getObjectMetadata(key: string): Promise<StoredObjectMetadata> {
-    return this.provider.getObjectMetadata(key);
+  createDownloadUrl(key: string): Promise<SignedDownload> {
+    return this.provider.createDownloadUrl(key);
   }
 
   getPublicUrl(key: string): string {
     return this.provider.getPublicUrl(key);
   }
 
-  delete(key: string): Promise<void> {
-    return this.provider.delete(key);
+  delete(key: string, visibility: StorageVisibility = 'public'): Promise<void> {
+    return this.provider.delete(key, visibility);
   }
 }

@@ -5,7 +5,6 @@ import { dateTimeSchema } from '@/common/schemas';
 import {
   DISPUTE_ACTION,
   DISPUTE_CASE_STATE,
-  DISPUTE_EVIDENCE_STATE,
   DISPUTE_ISSUE_STATE,
   DISPUTE_KIND,
   DISPUTE_PARTY,
@@ -44,8 +43,6 @@ export const disputeEvidenceViewSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int().positive(),
   tags: z.array(z.string()),
-  status: z.enum(DISPUTE_EVIDENCE_STATE),
-  readyAt: dateTimeSchema.nullable(),
 });
 export const disputeMessageViewSchema = z.object({
   id: z.uuid(),
@@ -86,13 +83,6 @@ export const disputeCaseDetailSchema = disputeCaseViewSchema.extend({
       createdAt: dateTimeSchema,
     }),
   ),
-});
-export const disputeUploadTicketSchema = z.object({
-  id: z.uuid(),
-  uploadUrl: z.url(),
-  method: z.literal('PUT'),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
 });
 export const disputeDownloadSchema = z.object({
   url: z.url(),

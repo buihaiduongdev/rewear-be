@@ -28,7 +28,6 @@ import {
   ratingDownloadSchema,
   ratingMediaViewSchema,
   ratingNoticeSchema,
-  ratingUploadTicketSchema,
   ratingVersionSchema,
   shopReplyRatingSchema,
 } from './schemas/rating-view.schema';
@@ -137,24 +136,14 @@ export class RatingsController {
   ) {
     return this.ratings.moderate(user.id, id, input);
   }
-  @Post('uploads')
+  @Post('media')
   @HttpCode(200)
-  @Serialize(ratingUploadTicketSchema)
+  @Serialize(ratingMediaViewSchema)
   upload(
     @CurrentUser() user: User,
     @Body({ schema: ratingUploadSchema }) input: RatingUploadInput,
   ) {
-    return this.media.createUpload(user.id, input);
-  }
-  @Post('media/:id/complete')
-  @HttpCode(200)
-  @Serialize(ratingMediaViewSchema)
-  complete(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: z.strictObject({}) }) _input: Record<string, never>,
-  ) {
-    return this.media.complete(user.id, id);
+    return this.media.attach(user.id, input);
   }
   @Get('media/:id/download')
   @PublicAccess()

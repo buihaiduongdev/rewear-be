@@ -54,9 +54,17 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
     .mockResolvedValue({ fee: 25000, estimatedDeliveryAt: null });
 
   const storage: IStorageProvider = {
-    async createUploadTicket({ key, contentType, sizeBytes }) {
+    async createDownloadUrl() {
       return {
-        storageKey: key,
+        url: 'https://storage.example.test/private',
+        headers: {},
+        expiresAt: new Date(Date.now() + 60000),
+      };
+    },
+    async createUploadTicket({ keyPrefix, extension, contentType, sizeBytes }) {
+      const key = `${keyPrefix}/${randomUUID()}.${extension}`;
+      return {
+        key,
         uploadUrl: `https://storage.example.test/${key}`,
         publicUrl: `https://storage.example.test/${key}`,
         method: 'PUT',
@@ -66,9 +74,6 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         },
         expiresAt: new Date(Date.now() + 60_000),
       };
-    },
-    async getObjectMetadata() {
-      return { contentType: 'image/jpeg', sizeBytes: 1024 };
     },
     getPublicUrl(key) {
       return `https://storage.example.test/${key}`;
@@ -463,7 +468,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
 
     for (const angle of ['FRONT', 'BACK', 'LABEL']) {
       const ticket = await request(server)
-        .post(`/api/products/${productId}/media/upload-ticket`)
+        .post('/api/media/upload-ticket')
         .set('x-test-user', seller.id)
         .set('x-shop-id', shop.id)
         .send({ mimeType: 'image/jpeg', sizeBytes: 1024 })
@@ -473,9 +478,7 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         .set('x-test-user', seller.id)
         .set('x-shop-id', shop.id)
         .send({
-          mimeType: 'image/jpeg',
-          sizeBytes: 1024,
-          storageKey: ticket.body.data.storageKey,
+          mediaId: ticket.body.data.id,
           angle,
         })
         .expect(201);

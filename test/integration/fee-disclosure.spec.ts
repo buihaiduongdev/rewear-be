@@ -154,7 +154,9 @@ describe('Versioned fee disclosure (PostgreSQL)', () => {
       version: 1,
       reason: null,
     });
-    const cartService = new CartService(db);
+    const cartService = new CartService(db, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     await cartService.add(outsider.id, product.id);
     const checkoutService = new CheckoutService(db, cartService);
     const checkoutInput = {

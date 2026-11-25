@@ -3,6 +3,9 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { DataSource, Not } from 'typeorm';
 import z from 'zod';
 
+import { StorageService } from '@/infrastructure/storage';
+import { Media } from '@/modules/media/entities';
+
 import { Shop } from '../../entities';
 import {
   SHOP_APPLICATION_ACTION,
@@ -40,6 +43,7 @@ export class OwnerIdentityRenewalService {
     private readonly db: DataSource,
     private readonly access: ShopApplicationAccess,
     private readonly read: ShopApplicationReadService,
+    private readonly storage: StorageService,
   ) {}
   create(
     actorId: string,
@@ -166,13 +170,16 @@ export class OwnerIdentityRenewalService {
         now < identityGraceDeadline(shop.identityExpiresOn) ||
         (row.correctionDueAt !== null && now < row.correctionDueAt);
       row.timelySubmission = onTime && !shop.identityManualRestriction;
+      const logo = shop.logoMediaId
+        ? await manager.findOneBy(Media, { id: shop.logoMediaId })
+        : null;
       row.snapshot = {
         identity: data.identity,
         shop: {
           id: shop.id,
           name: shop.name,
           description: shop.description,
-          logoUrl: shop.logoUrl ?? '',
+          logoUrl: logo ? this.storage.getPublicUrl(logo.storageKey) : '',
         },
         pickup: null,
         bank: null,

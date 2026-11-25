@@ -1,13 +1,13 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Media } from '@/modules/media/entities';
 import { Order } from '@/modules/order/entities/order.entity';
 import type { OrderState } from '@/modules/order/types/order.type';
 
 import type {
   DisputeAction,
   DisputeCaseState,
-  DisputeEvidenceState,
   DisputeIssueState,
   DisputeKind,
   DisputeNoticeAudience,
@@ -102,8 +102,8 @@ export class DisputeIssue extends BaseEntity {
 }
 
 @Entity('dispute_evidence')
-@Index(['storageKey'], { unique: true })
 @Index(['orderId', 'uploadedById'])
+@Index(['mediaId', 'orderId', 'uploadedById'], { unique: true })
 export class DisputeEvidence extends BaseEntity {
   @Column('uuid')
   orderId: string;
@@ -115,29 +115,25 @@ export class DisputeEvidence extends BaseEntity {
   @Column('uuid')
   uploadedById: string;
 
-  @Column({ length: 512 })
-  storageKey: string;
+  @Column('uuid')
+  mediaId: string;
 
-  @Column({ length: 100 })
-  mimeType: string;
-
-  @Column('integer')
-  sizeBytes: number;
+  @ManyToOne(() => Media, { onDelete: 'RESTRICT', eager: true })
+  @JoinColumn({ name: 'mediaId' })
+  media: Media;
 
   @Column('jsonb')
   tags: string[];
 
-  @Column({ type: 'varchar', length: 16 })
-  status: DisputeEvidenceState;
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  recordedAt: Date;
 
-  @Column('timestamptz')
-  uploadExpiresAt: Date;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  eTag: string | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  readyAt: Date | null;
+  get mimeType() {
+    return this.media.mimeType;
+  }
+  get sizeBytes() {
+    return this.media.sizeBytes;
+  }
 }
 
 @Entity('dispute_attachments')

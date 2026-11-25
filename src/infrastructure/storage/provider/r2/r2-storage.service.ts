@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import {
   DeleteObjectCommand,
-  HeadObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -13,7 +15,7 @@ import { ConfigService } from '@/modules/config';
 import type {
   CreateUploadTicketInput,
   IStorageProvider,
-  StoredObjectMetadata,
+  StorageVisibility,
   UploadTicket,
 } from '../../storage.interface';
 
@@ -31,47 +33,58 @@ export class R2StorageService implements IStorageProvider {
     });
   }
 
-  async createUploadTicket({
-    contentType,
-    key,
-  }: CreateUploadTicketInput): Promise<UploadTicket> {
-    const { bucket, publicBaseUrl, uploadExpiresInSeconds } =
-      this.configService.storage;
+  private bucket(visibility: StorageVisibility): string {
+    const { bucket, privateBucket } = this.configService.storage;
+    if (visibility === 'public') return bucket;
+    if (!privateBucket || privateBucket === bucket)
+      throw new ServiceUnavailableException(
+        'Private evidence storage is not configured',
+      );
+    return privateBucket;
+  }
+
+  async createUploadTicket(
+    { contentType, keyPrefix, extension }: CreateUploadTicketInput,
+    visibility: StorageVisibility = 'public',
+  ): Promise<UploadTicket> {
+    const expiresIn = this.configService.storage.uploadExpiresInSeconds;
+    const key = `${keyPrefix.replace(/^\/+|\/+$/g, '')}/${randomUUID()}.${extension}`;
     const uploadUrl = await getSignedUrl(
       this.client,
       new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket(visibility),
         Key: key,
         ContentType: contentType,
         IfNoneMatch: '*',
       }),
       {
-        expiresIn: uploadExpiresInSeconds,
-        signableHeaders: new Set(['if-none-match']),
+        expiresIn,
+        signableHeaders: new Set(['if-none-match', 'content-type']),
       },
     );
-
     return {
-      storageKey: key,
+      key,
       uploadUrl,
-      publicUrl: `${publicBaseUrl}/${key}`,
       method: 'PUT',
       headers: { 'Content-Type': contentType, 'If-None-Match': '*' },
-      expiresAt: new Date(Date.now() + uploadExpiresInSeconds * 1000),
+      expiresAt: new Date(Date.now() + expiresIn * 1000),
     };
   }
 
-  async getObjectMetadata(key: string): Promise<StoredObjectMetadata> {
-    const response = await this.client.send(
-      new HeadObjectCommand({
-        Bucket: this.configService.storage.bucket,
+  async createDownloadUrl(key: string) {
+    const expiresIn = this.configService.storage.uploadExpiresInSeconds;
+    const url = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.bucket('private'),
         Key: key,
       }),
+      { expiresIn },
     );
     return {
-      contentType: response.ContentType,
-      eTag: response.ETag,
-      sizeBytes: response.ContentLength,
+      url,
+      headers: {},
+      expiresAt: new Date(Date.now() + expiresIn * 1000),
     };
   }
 
@@ -79,10 +92,13 @@ export class R2StorageService implements IStorageProvider {
     return `${this.configService.storage.publicBaseUrl}/${key}`;
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(
+    key: string,
+    visibility: StorageVisibility = 'public',
+  ): Promise<void> {
     await this.client.send(
       new DeleteObjectCommand({
-        Bucket: this.configService.storage.bucket,
+        Bucket: this.bucket(visibility),
         Key: key,
       }),
     );

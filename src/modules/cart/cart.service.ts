@@ -6,9 +6,10 @@ import {
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { Category } from '@/modules/category/entities';
-import { MediaLink } from '@/modules/media/entities';
-import { MediaOwnerType, MediaRole } from '@/modules/media/enums';
+import { ProductMedia } from '@/modules/media/entities';
+import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import {
@@ -24,7 +25,10 @@ import type { CartView } from './schemas/cart.schema';
 
 @Injectable()
 export class CartService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly storage: StorageService,
+  ) {}
 
   // A consistent read keeps current content, shop eligibility, images and totals
   // in the same DB snapshot. It does not reserve any product.
@@ -102,7 +106,7 @@ export class CartService {
     result: CartView,
     items: CartItem[],
     ownedShops: Set<string>,
-    coverUrls: Map<string, string>,
+    coverUrls: Map<string, string | null>,
   ) {
     const groups = new Map<string, CartView['groups'][number]>();
 
@@ -118,7 +122,9 @@ export class CartService {
         ? {
             id: product.shopId,
             name: product.shop.name,
-            logoUrl: product.shop.logoUrl ?? null,
+            logoUrl: product.shop.logoMedia
+              ? this.storage.getPublicUrl(product.shop.logoMedia.storageKey)
+              : null,
           }
         : null;
       const key = shop?.id ?? 'UNAVAILABLE';
@@ -167,7 +173,7 @@ export class CartService {
     if (!cart) return result;
     const items = await manager.find(CartItem, {
       where: { cartId: cart.id },
-      relations: { product: { category: true, shop: true } },
+      relations: { product: { category: true, shop: { logoMedia: true } } },
       order: { createdAt: 'DESC', id: 'ASC' },
     });
     if (!items.length) return result;
@@ -179,16 +185,18 @@ export class CartService {
       select: { shopId: true },
     });
     const ownedShops = new Set(memberships.map((member) => member.shopId));
-    const covers = await manager.find(MediaLink, {
+    const covers = await manager.find(ProductMedia, {
       where: {
-        ownerType: MediaOwnerType.PRODUCT,
-        ownerId: In(items.map(({ product }) => product.id)),
+        productId: In(items.map(({ product }) => product.id)),
         role: MediaRole.COVER,
       },
       relations: { media: true },
     });
     const coverUrls = new Map(
-      covers.map((link) => [link.ownerId, link.media.url]),
+      covers.map((link) => [
+        link.productId,
+        this.storage.getPublicUrl(link.media.storageKey),
+      ]),
     );
     this.populateCartView(result, items, ownedShops, coverUrls);
     return result;

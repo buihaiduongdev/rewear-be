@@ -62,9 +62,8 @@ export class ReportReadService {
       ...this.summary(row),
       evidence: evidence.map((item) => ({
         id: item.id,
-        mimeType: item.mimeType,
-        sizeBytes: item.sizeBytes,
-        ready: item.ready,
+        mimeType: item.media.mimeType,
+        sizeBytes: item.media.sizeBytes,
       })),
       history,
     };

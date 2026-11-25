@@ -113,12 +113,13 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       reason: 'Matched collection',
       evidence: 'Carrier collection statement',
     });
+    const [{ now }] = await f.db.query('SELECT clock_timestamp() AS now');
     await reconciliation.recordRemittance(adminId, {
       requestId: randomUUID(),
       reference: randomUUID(),
       mode,
       netAmount: cashAmount,
-      receivedAt: new Date().toISOString(),
+      receivedAt: new Date(new Date(now).getTime() - 1000).toISOString(),
       reason: 'Matched receipt',
       evidence: 'Bank proof',
       allocations: [{ orderId: f.order.id, cashAmount, feeDeducted: 0 }],

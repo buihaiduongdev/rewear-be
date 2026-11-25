@@ -2,6 +2,8 @@ import { ConflictException } from '@nestjs/common';
 
 import type { EntityManager } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
+
 import { Shop } from '../../entities';
 import { ShopStatus } from '../../enums';
 import { ShopApplication } from '../entities/shop-application.entity';
@@ -18,6 +20,7 @@ export async function approveShopApplication(
   row: ShopApplication,
   shop: Shop,
   now: Date,
+  storage: StorageService,
 ) {
   if (!row.snapshot)
     throw new ConflictException('Submitted identity snapshot is required');
@@ -30,6 +33,7 @@ export async function approveShopApplication(
     row.snapshot.identity,
     row.snapshot.bank.id,
     row.snapshot.documents.map((d) => d.id),
+    storage,
   );
   const snapshotChanged =
     applicationFingerprint(current) !== row.snapshotFingerprint;

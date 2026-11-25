@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
-import { PrivateEvidenceStorage } from '@/infrastructure/storage/private-evidence.storage';
+import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
@@ -27,6 +27,7 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
+import { createPrivateMedia } from '../support/private-media';
 
 describe('Appeal HTTP ownership, private evidence and final review', () => {
   let app: INestApplication;
@@ -49,7 +50,7 @@ describe('Appeal HTTP ownership, private evidence and final review', () => {
       .useValue({})
       .overrideProvider(DisputeWorker)
       .useValue({})
-      .overrideProvider(PrivateEvidenceStorage)
+      .overrideProvider(StorageService)
       .useValue({
         createDownloadUrl: async () => ({
           url: 'https://private.test/signed-read',
@@ -88,17 +89,13 @@ describe('Appeal HTTP ownership, private evidence and final review', () => {
       reason: 'Initial finding',
       evidenceAssessment: 'Initial submitted evidence reviewed',
     });
+    const media = await createPrivateMedia(db, f.buyer.id);
     newFile = await db.getRepository(DisputeEvidence).save({
       orderId: f.order.id,
       uploadedById: f.buyer.id,
-      storageKey: `private/${randomUUID()}`,
-      mimeType: 'image/jpeg',
-      sizeBytes: 1000,
+      mediaId: media.id,
+      media,
       tags: ['ISSUE'],
-      status: 'READY',
-      uploadExpiresAt: new Date(),
-      eTag: 'new-etag',
-      readyAt: new Date(),
     });
   });
   afterAll(async () => app?.close());
@@ -150,8 +147,7 @@ describe('Appeal HTTP ownership, private evidence and final review', () => {
       .auth(token(f.owner), { type: 'bearer' })
       .expect(200);
     expect(detail.body.data.appeals).toHaveLength(1);
-    expect(JSON.stringify(detail.body)).not.toContain(newFile.storageKey);
-    expect(JSON.stringify(detail.body)).not.toContain(newFile.eTag);
+    expect(JSON.stringify(detail.body)).not.toContain(newFile.media.storageKey);
   });
   it('denies parties Admin appeal review/conclusion and cannot finalize before the common window', async () => {
     await request(app.getHttpServer())
