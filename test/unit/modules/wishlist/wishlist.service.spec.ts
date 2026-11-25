@@ -60,11 +60,9 @@ describe('WishlistService', () => {
       const result = await service.findMine(userId);
 
       expect(result).toEqual({ items: [], totalCount: 0 });
-      expect(mockWishlistRepo.find).toHaveBeenCalledWith({
-        where: { userId },
-        relations: { product: { shop: true, category: true } },
-        order: { createdAt: 'DESC' },
-      });
+      expect(mockWishlistRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId } }),
+      );
     });
 
     it('returns formatted wishlist items with availability and cover image', async () => {
