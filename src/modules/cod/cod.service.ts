@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
@@ -6,17 +6,15 @@ import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { assertFeeCodEligibility } from '@/modules/fees/settlement/fee-cod-gate';
-import { settleShopFees } from '@/modules/fees/settlement/fee-offset';
-import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
+  ORDER_POLICY,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
 import { Order, OrderEvent } from '@/modules/order/entities';
+import { OrderService } from '@/modules/order/order.service';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
@@ -25,17 +23,23 @@ import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
+import { User } from '@/modules/user/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 
+import { COD_FAULT_PARTY } from './constants/cod.constant';
 import { CodPolicy } from './policies/cod.policy';
 import {
   codOrderTotalSchema,
   type PlaceCodInput,
   placeCodSchema,
+  type ResolveCodReturnInput,
+  resolveCodReturnSchema,
 } from './schemas/cod.schema';
 
 @Injectable()
@@ -44,6 +48,8 @@ export class CodService {
     private readonly db: DataSource,
     private readonly pricing: PaymentPricing,
     private readonly policy: CodPolicy,
+    @Optional() private readonly orderService?: OrderService,
+    @Optional() private readonly shopFinanceService?: ShopFinanceService,
   ) {}
 
   async place(
@@ -63,8 +69,6 @@ export class CodService {
     try {
       quote = await this.pricing.quote(buyerId, checkoutId);
     } catch (error) {
-      // Another identical request can commit COD_PLACED while GHN quoting is
-      // still running. Return its durable result instead of rejecting replay.
       const replay = await this.db.getRepository(Order).find({
         where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
         order: { id: 'ASC' },
@@ -76,10 +80,13 @@ export class CodService {
       throw error;
     }
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      const checkout = await manager.findOneByOrFail(Checkout, {
-        id: checkoutId,
-        buyerId,
+      await manager.findOne(User, {
+        where: { id: buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id: checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
       });
       const replay = await manager.find(Order, {
         where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
@@ -129,11 +136,6 @@ export class CodService {
         snapshots,
       );
       await this.policy.assertCanPlace(manager, buyerId, ids.length, now);
-      const feeShopIds = [...new Set(snapshots.map((row) => row.shopId))];
-      for (const shopId of feeShopIds)
-        for (const mode of Object.values(RECONCILIATION_MODE))
-          await settleShopFees(manager, shopId, mode, now);
-      await assertFeeCodEligibility(manager, buyerId, feeShopIds, now);
       const orders = await this.createOrders(
         manager,
         buyerId,
@@ -148,6 +150,50 @@ export class CodService {
       if (cart)
         await manager.delete(CartItem, { cartId: cart.id, productId: In(ids) });
       return orders;
+    });
+  }
+
+  async resolveReturnedOrder(
+    adminId: string,
+    orderId: string,
+    input: ResolveCodReturnInput,
+  ) {
+    const data = resolveCodReturnSchema.parse(input);
+    if (!this.orderService || !this.shopFinanceService)
+      throw new ConflictException('COD return dependencies unavailable');
+    return this.db.transaction(async (manager) => {
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: orderId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const shipment = await manager.findOneOrFail(Shipment, {
+        where: { orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      await this.orderService!.releaseCodReturnedVerified(
+        manager,
+        order,
+        now,
+        data.sellable,
+      );
+      order.cancellationNote = data.reason;
+      await manager.save(order);
+      if (data.fault === COD_FAULT_PARTY.SELLER) {
+        await this.shopFinanceService!.recordCodShippingDebit(
+          manager,
+          order,
+          shipment.carrierFee ?? order.shippingFee,
+          data.mode,
+          adminId,
+        );
+      } else {
+        await this.policy.recordFailedDelivery(manager, order, now);
+      }
+      return order;
     });
   }
 

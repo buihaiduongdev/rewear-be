@@ -6,7 +6,6 @@ import type {
   CheckoutItem,
 } from '@/modules/checkout/schemas/checkout.schema';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { WalletDebit } from '@/modules/wallet/checkout/entities';
 
@@ -38,15 +37,17 @@ export class Order extends BaseEntity {
 
   @Column({ type: 'integer', default: 0 })
   coinDiscount: number;
+
   @Column({ type: 'varchar', length: 20, nullable: true })
   coinMode: ReconciliationMode | null;
-  @Column({ type: 'jsonb', nullable: true })
-  feeDisclosure: FeeDisclosure | null;
+
   @Column({ type: 'uuid', nullable: true })
   walletDebitId: string | null;
+
   @ManyToOne(() => WalletDebit, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'walletDebitId' })
   walletDebit: WalletDebit | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   receiptConfirmedAt: Date | null;
 
@@ -92,16 +93,7 @@ export class Order extends BaseEntity {
   cancelRequestedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  cancelRespondBy: Date | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
   cancelReviewUntil: Date | null;
-
-  @Column({ type: 'text', nullable: true })
-  cancelDecisionReason: string | null;
-
-  @Column({ type: 'text', nullable: true })
-  cancelDecisionEvidence: string | null;
 
   @Column('uuid')
   buyerId: string;

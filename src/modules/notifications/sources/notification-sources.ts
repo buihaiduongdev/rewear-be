@@ -9,15 +9,12 @@ import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.con
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
-import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
-import { FeeAssessment, FeeNotice } from '@/modules/fees/entities';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
 } from '@/modules/order/constants/order.constant';
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { ShopRating, ShopRatingNotice } from '@/modules/ratings/entities';
-import { FulfillmentNotice } from '@/modules/shipment/entities';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
 import { WalletDebit } from '@/modules/wallet/checkout/entities';
 
@@ -100,58 +97,7 @@ const dispute: NotificationSource<DisputeNotice> = {
     };
   },
 };
-const fee: NotificationSource<FeeNotice> = {
-  entity: FeeNotice,
-  prefix: 'fee:',
-  build: async (manager, row) => {
-    const fee = await manager.findOneByOrFail(FeeAssessment, { id: row.feeId });
-    const recipients =
-      fee.party === FEE_PARTY.SHOP
-        ? (
-            await shopRecipients(
-              manager,
-              fee.shopId,
-              SHOP_PERMISSIONS.SHOP_OWNER,
-            )
-          ).filter((recipient) => recipient.userId === row.recipientId)
-        : [personalRecipient(row.recipientId)];
-    return {
-      kind: NOTIFICATION_KIND.FEE,
-      targetType: NOTIFICATION_TARGET.FEE,
-      sourceId: row.feeId,
-      title: 'Cập nhật khoản phí',
-      body: 'Có cập nhật khoản phí cần xem xét. Mở chi tiết để kiểm tra số tiền, căn cứ và thời hạn.',
-      mode: fee.mode,
-      recipients,
-    };
-  },
-};
-const fulfillment: NotificationSource<FulfillmentNotice> = {
-  entity: FulfillmentNotice,
-  prefix: 'fulfillment:',
-  build: async (manager, row) => {
-    const order = await manager.findOneByOrFail(Order, { id: row.orderId });
-    const recipients =
-      row.recipientId === order.buyerId
-        ? [personalRecipient(row.recipientId)]
-        : (
-            await shopRecipients(
-              manager,
-              order.shopId,
-              SHOP_PERMISSIONS.ORDER_VIEW,
-            )
-          ).filter((recipient) => recipient.userId === row.recipientId);
-    return {
-      kind: NOTIFICATION_KIND.FULFILLMENT,
-      targetType: NOTIFICATION_TARGET.ORDER,
-      sourceId: order.id,
-      title: 'Cập nhật giao hàng',
-      body: 'Đơn hàng có cập nhật vận chuyển. Mở đơn để xem tình trạng và việc cần xử lý.',
-      mode: await orderNotificationMode(manager, order),
-      recipients,
-    };
-  },
-};
+
 const coins: NotificationSource<CoinRewardAdjustmentNotice> = {
   entity: CoinRewardAdjustmentNotice,
   prefix: 'coin-adjustment:',
@@ -165,6 +111,7 @@ const coins: NotificationSource<CoinRewardAdjustmentNotice> = {
     recipients: [personalRecipient(row.buyerId)],
   }),
 };
+
 const rating: NotificationSource<ShopRatingNotice> = {
   entity: ShopRatingNotice,
   prefix: 'rating-edit:',
@@ -183,27 +130,27 @@ const rating: NotificationSource<ShopRatingNotice> = {
     ),
   }),
 };
+
 const order: NotificationSource<Order> = {
   entity: Order,
   prefix: 'order-created:',
   importantEmail: true,
-  build: async (manager, row) => {
-    return {
-      kind: NOTIFICATION_KIND.ORDER_CREATED,
-      targetType: NOTIFICATION_TARGET.ORDER,
-      sourceId: row.id,
-      title: 'Đơn hàng mới',
-      body: 'Đơn hàng đã được tạo. Mở đơn hàng để xem thông tin và thời hạn xác nhận.',
-      mode: await orderNotificationMode(manager, row),
-      recipients: [
-        personalRecipient(row.buyerId),
-        ...(
-          await shopRecipients(manager, row.shopId, SHOP_PERMISSIONS.ORDER_VIEW)
-        ).filter((recipient) => recipient.userId !== row.buyerId),
-      ],
-    };
-  },
+  build: async (manager, row) => ({
+    kind: NOTIFICATION_KIND.ORDER_CREATED,
+    targetType: NOTIFICATION_TARGET.ORDER,
+    sourceId: row.id,
+    title: 'Đơn hàng mới',
+    body: 'Đơn hàng đã được tạo. Mở đơn hàng để xem thông tin và thời hạn xác nhận.',
+    mode: await orderNotificationMode(manager, row),
+    recipients: [
+      personalRecipient(row.buyerId),
+      ...(
+        await shopRecipients(manager, row.shopId, SHOP_PERMISSIONS.ORDER_VIEW)
+      ).filter((recipient) => recipient.userId !== row.buyerId),
+    ],
+  }),
 };
+
 const invitation: NotificationSource<ShopInvitation> = {
   entity: ShopInvitation,
   prefix: 'shop-invitation:',
@@ -252,8 +199,6 @@ const orderEvent: NotificationSource<OrderEvent> = {
 
 export const notificationSources = [
   dispute,
-  fee,
-  fulfillment,
   coins,
   rating,
   order,

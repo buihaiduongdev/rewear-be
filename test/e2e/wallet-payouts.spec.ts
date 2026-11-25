@@ -68,7 +68,6 @@ describe('Wallet and payout HTTP access and API contracts', () => {
       checkoutId: checkout.id,
       buyerId: f.buyer.id,
       requestId: randomUUID(),
-      fingerprint: 'private',
       mode: 'EVIDENCE',
       state: 'RELEASED',
       amount: 100,

@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { EntityManager } from 'typeorm';
+import { EntityManager, Not } from 'typeorm';
 
 import {
   COD_RECONCILIATION_STATUS,
@@ -13,6 +13,7 @@ import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/o
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout-source.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
 import { WalletCredit } from '@/modules/wallet/entities';
@@ -23,6 +24,12 @@ import { Order } from './entities';
 @Injectable()
 export class OrderFundingService {
   async heldCredit(manager: EntityManager, order: Order, shipment: Shipment) {
+    if (manager.queryRunner?.isTransactionActive && manager.findOne) {
+      await manager.findOne(Order, {
+        where: { id: order.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+    }
     const refunded = await manager.existsBy(WalletCredit, {
       orderId: order.id,
     });
@@ -54,6 +61,7 @@ export class OrderFundingService {
       return null;
     let credit = await manager.findOneBy(ShopLedgerEntry, {
       orderId: order.id,
+      type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
     });
     if (!credit)
       credit = await manager.save(
@@ -110,6 +118,7 @@ export class OrderFundingService {
     if (!fundingVerified) return null;
     const credit = await manager.findOneBy(ShopLedgerEntry, {
       orderId: order.id,
+      type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
     });
     const creditMatches =
       credit &&
@@ -144,6 +153,7 @@ export class OrderFundingService {
       return null;
     let credit = await manager.findOneBy(ShopLedgerEntry, {
       orderId: order.id,
+      type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
     });
     if (!credit) {
       // PayOS sandbox/testing simulation ledger entry.

@@ -20,14 +20,12 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { Category } from '@/modules/category/entities';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { Order } from '@/modules/order/entities';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
-import { LateHandoverService } from '@/modules/shipment/late-handover.service';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
@@ -42,7 +40,6 @@ describe('COD to carrier and cancellation HTTP flow', () => {
   let db: DataSource;
   let buyer: User;
   let owner: User;
-  let admin: User;
   let stranger: User;
   let shop: Shop;
   let checkout: Checkout;
@@ -108,7 +105,7 @@ describe('COD to carrier and cancellation HTTP flow', () => {
         .get(JwtService)
         .sign({ sub: user.id }, { secret: process.env.JWT_ACCESS_SECRET });
 
-    [admin, buyer, owner, stranger] = await db.getRepository(User).save(
+    [, buyer, owner, stranger] = await db.getRepository(User).save(
       [0, 1, 2, 3].map((i) =>
         new UserFactory().build({
           role: i === 0 ? UserRole.ADMIN : UserRole.USER,
@@ -206,7 +203,7 @@ describe('COD to carrier and cancellation HTTP flow', () => {
   });
   afterAll(async () => app?.close());
 
-  it('validates confirmed totals, isolates Shop permissions, exposes no carrier payload, and safely adjudicates cancellation', async () => {
+  it('validates confirmed totals, isolates Shop permissions, exposes no carrier payload, and cancels booked COD safely via GHN', async () => {
     const server = app.getHttpServer();
     const codPath = `/api/checkouts/${checkout.id}/orders/cod`;
     await request(server)
@@ -257,10 +254,10 @@ describe('COD to carrier and cancellation HTTP flow', () => {
     expect(booked.body.data.payload).toBeUndefined();
     expect(booked.body.data.input).toBeUndefined();
     await request(server)
-      .post(`/api/orders/${order.id}/cod/cancellation-request`)
+      .post(`/api/orders/${order.id}/cod/cancel`)
       .auth(token(buyer), { type: 'bearer' })
       .set('x-shop-id', shop.id)
-      .send({})
+      .send({ reason: 'CHANGE_OF_MIND' })
       .expect(200);
     await request(server)
       .post(`${shopOrder}/shipment/label`)
@@ -268,40 +265,6 @@ describe('COD to carrier and cancellation HTTP flow', () => {
       .set('x-shop-id', shop.id)
       .send({})
       .expect(409);
-    await request(server)
-      .post(`${shopOrder}/cod/cancellation-response`)
-      .auth(token(owner), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send({
-        approve: false,
-        reason: 'Other documented grounds',
-        evidence: 'Supporting record',
-      })
-      .expect(200);
-    await request(server)
-      .post(`/api/orders/${order.id}/cod/cancellation-review`)
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send({ reason: 'Please review seller grounds' })
-      .expect(200);
-    const decisionPath = `/api/admin/orders/${order.id}/cod/cancellation-decision`;
-    const decision = {
-      approve: true,
-      reason: 'Cancellation justified',
-      evidence: 'Case evidence',
-    };
-    await request(server)
-      .post(decisionPath)
-      .auth(token(owner), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(decision)
-      .expect(403);
-    await request(server)
-      .post(decisionPath)
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(decision)
-      .expect(200);
     await app.get(ShipmentService).reconcile(booked.body.data.id);
     const detail = await request(server)
       .get(`/api/orders/${order.id}`)
@@ -310,136 +273,5 @@ describe('COD to carrier and cancellation HTTP flow', () => {
       .expect(200);
     expect(detail.body.data.status).toBe('cancelled');
     expect(detail.body.data.walletRefund).toBeNull();
-    expect(
-      detail.body.data.events.find(
-        (event: { action: string }) => event.action === 'CANCEL_REVIEW_DECIDED',
-      ).actorId,
-    ).toBe(admin.id);
-    await request(server)
-      .get('/api/admin/fulfillment/incidents')
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(403);
-    await request(server)
-      .get('/api/admin/fulfillment/incidents')
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(200);
-  });
-
-  it('enforces admin and buyer access to late-handover consent and durable notices', async () => {
-    const server = app.getHttpServer();
-    const calendar = {
-      year: new Date(Date.now() + 7 * 3600000).getUTCFullYear(),
-      closedDates: [],
-      source: 'Explicit test holiday calendar',
-    };
-    await request(server)
-      .post('/api/admin/fulfillment/calendar')
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(calendar)
-      .expect(403);
-    await request(server)
-      .post('/api/admin/fulfillment/calendar')
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(calendar)
-      .expect(200);
-    const order = await db.getRepository(Order).save({
-      checkoutOrderId: randomUUID(),
-      buyerId: buyer.id,
-      shopId: shop.id,
-      shopName: shop.name,
-      paymentMethod: 'COD',
-      status: 'preparing',
-      subtotal: 0,
-      shippingFee: 0,
-      total: 0,
-      address: {},
-      items: [],
-      sellerConfirmBy: new Date(),
-      acceptedAt: new Date(Date.now() - 49 * 3600000),
-      handoverBy: new Date(Date.now() - 3600000),
-    });
-    await app.get(LateHandoverService).run();
-    await request(server)
-      .get('/api/admin/fulfillment/handovers')
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(403);
-    await request(server)
-      .get(`/api/orders/${order.id}/handover`)
-      .auth(token(stranger), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(404);
-    const proposal = {
-      deadline: new Date(Date.now() + 20 * 3600000).toISOString(),
-      reason: 'Pickup rescheduled by carrier',
-    };
-    const proposalPath = `/api/admin/orders/${order.id}/handover/proposal`;
-    await request(server)
-      .post(proposalPath)
-      .auth(token(owner), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(proposal)
-      .expect(403);
-    await request(server)
-      .post(proposalPath)
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send({ ...proposal, approve: true })
-      .expect(400);
-    const offered = await request(server)
-      .post(proposalPath)
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send(proposal)
-      .expect(200);
-    expect(offered.body.data.state).toBe('OFFERED');
-    const responsePath = `/api/orders/${order.id}/handover/response`;
-    await request(server)
-      .post(responsePath)
-      .auth(token(stranger), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send({ accept: true })
-      .expect(404);
-    const consent = await request(server)
-      .post(responsePath)
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .send({ accept: true })
-      .expect(200);
-    expect(consent.body.data.state).toBe('CONSENTED');
-    expect(consent.body.data.proposedDeadline).toBe(
-      offered.body.data.proposedDeadline,
-    );
-    const notices = await request(server)
-      .get('/api/fulfillment/notices')
-      .auth(token(buyer), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(200);
-    expect(
-      notices.body.data.some(
-        (notice: { orderId: string; action: string }) =>
-          notice.orderId === order.id && notice.action === 'PROPOSED',
-      ),
-    ).toBe(true);
-    const ownNotices = await request(server)
-      .get('/api/fulfillment/notices')
-      .auth(token(stranger), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(200);
-    expect(ownNotices.body.data).toEqual([]);
-    await request(server)
-      .get('/api/admin/fulfillment/carrier-incidents')
-      .auth(token(owner), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(403);
-    await request(server)
-      .get('/api/admin/fulfillment/carrier-incidents')
-      .auth(token(admin), { type: 'bearer' })
-      .set('x-shop-id', shop.id)
-      .expect(200);
   });
 });

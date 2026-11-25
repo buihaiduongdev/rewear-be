@@ -2,15 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import { AuthProvider } from '@/modules/auth/enums';
 import { Order } from '@/modules/order/entities';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
 import {
   ShopPayout,
   ShopPayoutAllocation,
-  ShopPayoutEvent,
 } from '@/modules/shop-finance/payouts/entities';
 import { payoutOwnerViewSchema } from '@/modules/shop-finance/payouts/schemas/payout.schema';
 import { ShopPayoutService } from '@/modules/shop-finance/payouts/shop-payout.service';
@@ -38,6 +36,7 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
     });
   });
   afterAll(async () => database?.destroy());
+
   async function fixture() {
     const db = database.dataSource;
     const owner = await db.getRepository(User).save({
@@ -98,6 +97,7 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
     };
     return { db, owner, shop, bank, input };
   }
+
   function proof(payout: ShopPayout, reference = randomUUID()) {
     return {
       ...payout.recipientSnapshot,
@@ -107,6 +107,7 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
       evidence: 'bank receipt confirms successful transfer',
     };
   }
+
   it('atomically permits one active request across modes, reserves exact sources and snapshots recipient', async () => {
     const f = await fixture();
     const results = await Promise.allSettled([
@@ -150,49 +151,24 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
     expect(funds.available).toBe(1000);
     expect(funds.payoutLocked).toBe(0);
   });
-  it('keeps unknown funds locked, releases only verified failure and never retries nonreceipt', async () => {
+
+  it('enforces admin review, releases verified failure, and records exact bank transfer proof', async () => {
     const f = await fixture();
-    await service.setShopRisk(admin, f.shop.id, {
-      evidence: 'Owner identity incident',
-      riskReason: 'Impersonation investigation',
-    });
-    await expect(
-      service.request(f.owner.id, f.shop.id, f.input),
-    ).rejects.toThrow('risk review');
-    await service.setShopRisk(admin, f.shop.id, {
-      evidence: 'Authorized recipient identity independently checked',
-      riskReason: null,
-    });
     const payout = await service.request(f.owner.id, f.shop.id, f.input);
-    await expect(
-      service.start(f.owner.id, payout.id, 'Unauthorized'),
-    ).rejects.toThrow('Active Admin required');
-    await service.start(
-      admin,
-      payout.id,
-      'Recipient manually checked against snapshot',
+    await expect(service.start(f.owner.id, payout.id)).rejects.toThrow(
+      'Active Admin required',
     );
+    await service.start(admin, payout.id);
     await expect(
       service.cancel(f.owner.id, f.shop.id, payout.id),
     ).rejects.toThrow('Only pending payouts');
-    await service.unknown(admin, payout.id, 'Bank timeout');
     expect(
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE'))
         .payoutLocked,
     ).toBe(600);
-    await expect(
-      service.fail(admin, payout.id, {
-        reason: 'timeout',
-        evidence: 'timeout',
-        noDebit: false,
-        noInflight: true,
-      } as never),
-    ).rejects.toThrow('Invalid input');
     await service.fail(admin, payout.id, {
       reason: 'Bank verified rejection',
-      evidence: 'Bank trace confirms no debit and no inflight',
-      noDebit: true,
-      noInflight: true,
+      evidence: 'Bank trace confirms transfer failed',
     });
     expect(
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE')).available,
@@ -201,7 +177,7 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
       ...f.input,
       requestId: randomUUID(),
     });
-    await service.start(admin, next.id, 'Recipient confirmed');
+    await service.start(admin, next.id);
     await expect(
       service.succeed(admin, next.id, { ...proof(next), amount: 599 }),
     ).rejects.toThrow('Bank evidence');
@@ -217,107 +193,33 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
     expect(
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE')).paidOut,
     ).toBe(600);
-    expect(
-      await service.nonreceipt(
-        f.owner.id,
-        f.shop.id,
-        next.id,
-        'Owner reports no receipt',
-      ),
-    ).toEqual({ incidentRecorded: true, additionalTransfer: false });
-    await service.operationalUpdate(
-      admin,
-      next.id,
-      'Bank tracing nonreceipt',
-      'Private bank trace supporting investigation',
-    );
     const ownerView = payoutOwnerViewSchema.parse(
       await service.ownerView(f.owner.id, f.shop.id),
     );
-    expect(
-      ownerView.events.some((event) => event.type === 'OPERATIONS_UPDATE'),
-    ).toBe(true);
-    expect(
-      ownerView.events.some((event) => event.type === 'OPERATIONS_EVIDENCE'),
-    ).toBe(false);
-    expect(JSON.stringify(ownerView)).not.toContain('Private bank trace');
-    expect(
-      await f.db
-        .getRepository(ShopPayoutEvent)
-        .countBy({ payoutId: next.id, type: 'SUCCEEDED' }),
-    ).toBe(1);
-  });
-  it('blocks risk and source corrections before start but records proven actual bank success with incident', async () => {
-    const f = await fixture();
-    const payout = await service.request(f.owner.id, f.shop.id, f.input);
-    await service.reviewBank(admin, f.bank.id, {
-      evidence: 'Risk review',
-      riskReason: 'Recipient is disputed',
-    });
-    await expect(
-      service.start(admin, payout.id, 'manual check'),
-    ).rejects.toThrow('risk review');
-    await service.reviewBank(admin, f.bank.id, {
-      evidence: 'Verified valid recipient',
-      riskReason: null,
-    });
-    await service.start(admin, payout.id, 'Recipient checked');
-    await service.reviewBank(admin, f.bank.id, {
-      evidence: 'New adverse evidence',
-      riskReason: 'Recipient risky',
-    });
-    await f.db
-      .getRepository(ShopSettlement)
-      .update({ shopId: f.shop.id, mode: 'EVIDENCE' }, { amount: 0 });
-    await service.succeed(admin, payout.id, proof(payout));
-    expect(
-      await f.db
-        .getRepository(ShopPayoutEvent)
-        .countBy({ payoutId: payout.id, type: 'RECONCILIATION_INCIDENT' }),
-    ).toBe(1);
-    expect(
-      (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE'))
-        .paidOutDebt,
-    ).toBe(600);
-    await expect(service.ownerView(randomUUID(), f.shop.id)).rejects.toThrow(
-      'Current active Shop Owner',
+    expect(JSON.stringify(ownerView)).not.toContain(
+      'bank receipt confirms successful transfer',
     );
   });
-  it('recovers missing calendar from original creation and flags overdue without unlocking unknown money', async () => {
+
+  it('computes weekend-skipping SLA dueAt and flags overdue without unlocking processing funds', async () => {
     const f = await fixture();
-    await f.db.getRepository(FulfillmentCalendar).clear();
     const payout = await service.request(f.owner.id, f.shop.id, f.input);
-    expect(payout.dueAt).toBeNull();
-    await service.start(admin, payout.id, 'Recipient checked');
-    await service.unknown(admin, payout.id, 'Pending bank trace');
+    expect(payout.dueAt).toBeInstanceOf(Date);
+    await service.start(admin, payout.id);
     const original = new Date(Date.now() - 14 * 86400000);
-    await f.db
-      .getRepository(ShopPayout)
-      .update({ id: payout.id }, { createdAt: original });
-    const year = original.getUTCFullYear();
-    for (const approvedYear of [year, year + 1])
-      await f.db.getRepository(FulfillmentCalendar).save({
-        year: approvedYear,
-        closedDates: [],
-        source: 'Approved calendar',
-        approvedBy: admin,
-      });
-    await service.run();
+    await f.db.getRepository(ShopPayout).update(
+      { id: payout.id },
+      {
+        createdAt: original,
+        dueAt: businessDeadline(original, 2),
+      },
+    );
     await service.run();
     const saved = await f.db
       .getRepository(ShopPayout)
       .findOneByOrFail({ id: payout.id });
-    expect(saved.dueAt).toEqual(
-      await fulfillmentDeadline(f.db.manager, original, 2),
-    );
     expect(saved.overdueAt).not.toBeNull();
-    expect(saved.followUpDueAt).not.toBeNull();
-    expect(saved.status).toBe('UNKNOWN');
-    expect(
-      await f.db
-        .getRepository(ShopPayoutEvent)
-        .countBy({ payoutId: payout.id, type: 'OVERDUE_OWNER_NOTICE' }),
-    ).toBe(1);
+    expect(saved.status).toBe('PROCESSING');
     expect(
       (await readPayoutSources(f.db.manager, f.shop.id, 'EVIDENCE'))
         .payoutLocked,

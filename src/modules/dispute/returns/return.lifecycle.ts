@@ -3,7 +3,7 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 
 import { DISPUTE_ACTION } from '../constants/dispute.constant';
 import { notifyDispute } from '../dispute.lifecycle';
@@ -195,8 +195,7 @@ export async function reconcileReturnClock(
     );
   }
   if (row.state === RETURN_STATE.INSPECTION && row.deliveredAt) {
-    row.inspectionDueAt ??= await fulfillmentDeadline(
-      manager,
+    row.inspectionDueAt ??= businessDeadline(
       row.deliveredAt,
       RETURN_POLICY.INSPECTION_BUSINESS_DAYS,
     );
@@ -208,8 +207,7 @@ export async function reconcileReturnClock(
     }
   }
   if (row.state === RETURN_STATE.OBJECTION && row.objectionAt) {
-    row.objectionDueAt ??= await fulfillmentDeadline(
-      manager,
+    row.objectionDueAt ??= businessDeadline(
       row.objectionAt,
       row.extendedAt
         ? RETURN_POLICY.MAX_OBJECTION_BUSINESS_DAYS

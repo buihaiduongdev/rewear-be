@@ -1,25 +1,41 @@
+import { ConflictException } from '@nestjs/common';
+
 import { EntityManager } from 'typeorm';
 
+import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
-import {
-  FEE_COLLECTION_METHOD,
-  FEE_PARTY,
-  FEE_REFUND_STATE,
-} from '@/modules/fees/constants/fee.constant';
-import { FeeWalletDebit } from '@/modules/fees/settlement/entities';
 
 import { WalletDebit } from './checkout/entities';
 import { WalletAccount, WalletCredit } from './entities';
-import {
-  EXCESS_METHOD,
-  EXCESS_PAYMENT_STATE,
-} from './excess/constants/excess.constant';
-import { ExcessCollection, ExcessReturn } from './excess/entities';
-import { walletProvenance } from './policies/wallet-provenance.policy';
 
-/** Caller holds commerce lock for writes; display may use a repeatable-read snapshot. */
+export function walletProvenance(
+  available: number,
+  held: number,
+  credits: number,
+  debits: number,
+) {
+  const validAmounts = [
+    available,
+    held,
+    credits,
+    debits,
+    available + held,
+  ].every((amount) => safeBalanceSchema.safeParse(amount).success);
+  if (!validAmounts || debits > credits)
+    throw new ConflictException('Wallet provenance requires reconciliation');
+  const backing = credits - debits;
+  const spendable = Math.min(available, Math.max(0, backing - held));
+  return {
+    available,
+    held,
+    backing,
+    spendable,
+    quarantined: available - spendable,
+  };
+}
+
 export async function verifiedWalletFunds(
   manager: EntityManager,
   userId: string,
@@ -38,45 +54,11 @@ export async function verifiedWalletFunds(
     buyerId: userId,
     mode,
   });
-  const feeDebits = await manager.sum(FeeWalletDebit, 'amount', {
-    buyerId: userId,
-    mode,
-  });
-  const [feeCredits] = await manager.query(
-    `SELECT COALESCE(SUM(r.amount),0) AS amount
-    FROM fee_refunds r JOIN fee_assessments f ON f.id=r."feeId"
-    WHERE f."buyerId"=$1 AND f.party=$2 AND f.mode=$3 AND r.mode=$3 AND r.method=$4 AND r.state=$5`,
-    [
-      userId,
-      FEE_PARTY.BUYER,
-      mode,
-      FEE_COLLECTION_METHOD.WALLET,
-      FEE_REFUND_STATE.SUCCEEDED,
-    ],
-  );
   const simulation = mode === RECONCILIATION_MODE.SIMULATION;
-  const recoveryDebits = Number(
-    (await manager.sum(ExcessCollection, 'amount', {
-      buyerId: userId,
-      mode,
-      method: EXCESS_METHOD.WALLET,
-    })) ?? 0,
-  );
-  const recoveryReturns = Number(
-    (await manager.sum(ExcessReturn, 'amount', {
-      buyerId: userId,
-      mode,
-      method: EXCESS_METHOD.WALLET,
-      state: EXCESS_PAYMENT_STATE.SUCCEEDED,
-    })) ?? 0,
-  );
   return walletProvenance(
     (simulation ? account?.simulationBalance : account?.balance) ?? 0,
     (simulation ? account?.simulationHeldBalance : account?.heldBalance) ?? 0,
-    Number(disputeCredits ?? 0) +
-      Number(cancellations ?? 0) +
-      Number(feeCredits.amount) +
-      recoveryReturns,
-    Number(debits ?? 0) + Number(feeDebits ?? 0) + recoveryDebits,
+    Number(disputeCredits ?? 0) + Number(cancellations ?? 0),
+    Number(debits ?? 0),
   );
 }

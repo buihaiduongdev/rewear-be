@@ -1,4 +1,4 @@
-import { walletProvenance } from '@/modules/wallet/policies/wallet-provenance.policy';
+import { walletProvenance } from '@/modules/wallet/verified-wallet-funds';
 
 describe('Certified wallet provenance', () => {
   it('quarantines legacy money rather than converting it into evidenced funds', () => {

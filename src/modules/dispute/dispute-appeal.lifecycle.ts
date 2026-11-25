@@ -1,6 +1,6 @@
 import { EntityManager } from 'typeorm';
 
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 
 import {
   DISPUTE_ACTION,
@@ -31,14 +31,12 @@ async function updateReviewClock(
 ) {
   review.reviewStartAt ??= appealUntil;
   if (review.reviewStartAt && !review.reviewDueAt)
-    review.reviewDueAt = await fulfillmentDeadline(
-      manager,
+    review.reviewDueAt = businessDeadline(
       review.reviewStartAt,
       DISPUTE_POLICY.APPEAL_REVIEW_BUSINESS_DAYS,
     );
   if (review.reviewDueAt && !review.escalationDueAt)
-    review.escalationDueAt = await fulfillmentDeadline(
-      manager,
+    review.escalationDueAt = businessDeadline(
       review.reviewDueAt,
       DISPUTE_POLICY.ESCALATION_BUSINESS_DAYS,
     );

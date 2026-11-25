@@ -14,7 +14,6 @@ import { NotificationProjector } from '@/modules/notifications/notification-proj
 import { NotificationService } from '@/modules/notifications/notification.service';
 import { publishNotification } from '@/modules/notifications/publish-notification';
 import { Order } from '@/modules/order/entities';
-import { FulfillmentNotice } from '@/modules/shipment/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
 import { ShopInvitationStatus } from '@/modules/shop/enums/shop-invitation-status.enum';
@@ -132,15 +131,6 @@ describe('Central notifications PostgreSQL', () => {
         }),
       ),
     );
-    const fulfillment = await db.manager.save(
-      FulfillmentNotice,
-      db.manager.create(FulfillmentNotice, {
-        orderId: f.order.id,
-        recipientId: f.buyer.id,
-        action: 'OVERDUE',
-        reason: 'SECRET PRIVATE EVIDENCE',
-      }),
-    );
     await new NotificationProjector(db).run();
     const buyerNotice = await db.manager.findOneByOrFail(Notification, {
       eventKey: 'dispute:' + notices[0].id,
@@ -160,15 +150,6 @@ describe('Central notifications PostgreSQL', () => {
       targetType: 'DISPUTE_CASE',
     });
     expect(buyerNotice.body).not.toContain('SECRET');
-    expect(
-      await db.manager.findOneByOrFail(Notification, {
-        eventKey: 'fulfillment:' + fulfillment.id,
-      }),
-    ).toMatchObject({
-      mode: 'SIMULATION',
-      sourceId: f.order.id,
-      targetType: 'ORDER',
-    });
   });
   it('persists once, rolls back with the domain transaction, and isolates recipient unread/read operations', async () => {
     const db = database.dataSource;

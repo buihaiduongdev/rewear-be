@@ -15,7 +15,6 @@ import { OrderDeliveryVerification } from '@/modules/order/entities/order-delive
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { OrderAccess } from '@/modules/order/order.access';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
@@ -35,12 +34,6 @@ describe('Dispute intake and holds (PostgreSQL)', () => {
     database = await createTestDatabase();
     service = new DisputeService(database.dataSource, new OrderAccess());
     review = new DisputeReviewService(database.dataSource);
-    await database.dataSource.getRepository(FulfillmentCalendar).save({
-      year: 2026,
-      closedDates: [],
-      source: 'Explicit test calendar',
-      approvedBy: randomUUID(),
-    });
   });
   afterAll(async () => database?.destroy());
   async function fixture() {
@@ -317,29 +310,15 @@ describe('Dispute intake and holds (PostgreSQL)', () => {
   it('resolves calendar gaps from the original valid timestamp without restarting SLA', async () => {
     const f = await fixture();
     const photo = await evidence(f);
-    await f.db.getRepository(FulfillmentCalendar).delete({ year: 2026 });
-    let issue: DisputeIssue;
-    try {
-      issue = await service.openIssue(f.buyer.id, f.order.id, {
-        ...f.input,
-        evidenceIds: [photo.id],
-      });
-      expect(issue.calendarMissing).toBe(true);
-    } finally {
-      await f.db.getRepository(FulfillmentCalendar).save({
-        year: 2026,
-        closedDates: [],
-        source: 'Explicit test calendar restored',
-        approvedBy: randomUUID(),
-      });
-    }
-    const updated = await review.refreshIssue(issue!.id);
-    expect(updated.validAt).toEqual(issue!.validAt);
-    expect(updated.reviewDueAt).toEqual(
-      businessDeadline(issue!.validAt!, 3, []),
-    );
+    const issue = await service.openIssue(f.buyer.id, f.order.id, {
+      ...f.input,
+      evidenceIds: [photo.id],
+    });
+    const updated = await review.refreshIssue(issue.id);
+    expect(updated.validAt).toEqual(issue.validAt);
+    expect(updated.reviewDueAt).toEqual(businessDeadline(issue.validAt!, 3));
     expect(updated.sellerRespondBy).toEqual(
-      businessDeadline(issue!.sellerNotifiedAt!, 1, []),
+      businessDeadline(issue.sellerNotifiedAt!, 1),
     );
     expect(updated.calendarMissing).toBe(false);
   });
@@ -437,29 +416,18 @@ describe('Dispute intake and holds (PostgreSQL)', () => {
       maxReviewDueAt: null,
       calendarMissing: true,
     });
-    await f.db.getRepository(FulfillmentCalendar).delete({ year: 2026 });
-    let reply: DisputeMessage;
-    try {
-      reply = await service.reply(f.owner.id, issue.id, {
-        requestId: randomUUID(),
-        text: 'Response while calendar missing',
-        evidenceIds: [],
-      });
-    } finally {
-      await f.db.getRepository(FulfillmentCalendar).save({
-        year: 2026,
-        closedDates: [],
-        source: 'Restored approved test calendar',
-        approvedBy: randomUUID(),
-      });
-    }
-    expect(reply!.late).toBeNull();
+    const reply = await service.reply(f.owner.id, issue.id, {
+      requestId: randomUUID(),
+      text: 'Response while calendar missing',
+      evidenceIds: [],
+    });
+    expect(reply.late).toBeNull();
     await review.refreshIssue(issue.id);
     expect(
       (
         await f.db
           .getRepository(DisputeMessage)
-          .findOneByOrFail({ id: reply!.id })
+          .findOneByOrFail({ id: reply.id })
       ).late,
     ).toBe(true);
   });

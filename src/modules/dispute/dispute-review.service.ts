@@ -9,7 +9,7 @@ import {
   MoreThan,
 } from 'typeorm';
 
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 
 import {
   DISPUTE_ACTION,
@@ -141,8 +141,7 @@ export class DisputeReviewService {
       );
     }
     if (issue.escalatedAt && issue.maxReviewDueAt)
-      issue.escalationDueAt ??= await fulfillmentDeadline(
-        manager,
+      issue.escalationDueAt ??= businessDeadline(
         issue.maxReviewDueAt,
         DISPUTE_POLICY.ESCALATION_BUSINESS_DAYS,
       );

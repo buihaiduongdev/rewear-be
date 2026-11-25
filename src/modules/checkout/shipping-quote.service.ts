@@ -35,11 +35,10 @@ export class ShippingQuoteService {
     checkoutId: string,
   ): Promise<ShippingQuoteResult> {
     await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      const row = await manager.findOneByOrFail(Checkout, {
-        id: checkoutId,
-        buyerId,
+      const row = await manager.findOneOrFail(Checkout, {
+        where: { id: checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
       });
       await pruneIdentityCheckout(manager, row, new Date(now));
     });
@@ -107,11 +106,10 @@ export class ShippingQuoteService {
   ) {
     const quote = await this.refresh(buyerId, checkoutId);
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      const checkout = await manager.findOneByOrFail(Checkout, {
-        id: checkoutId,
-        buyerId,
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id: checkoutId, buyerId },
+        lock: { mode: 'pessimistic_write' },
       });
       const orders = await manager.find(CheckoutOrder, {
         where: { checkoutId },

@@ -20,8 +20,13 @@ import {
   cancelCodSchema,
   codRestrictionsSchema,
   placeCodSchema,
+  resolveCodReturnSchema,
 } from './schemas/cod.schema';
-import type { CancelCodInput, PlaceCodInput } from './schemas/cod.schema';
+import type {
+  CancelCodInput,
+  PlaceCodInput,
+  ResolveCodReturnInput,
+} from './schemas/cod.schema';
 
 @ApiTags('COD')
 @ApiBearerAuth()
@@ -55,6 +60,19 @@ export class CodController {
     @Body({ schema: cancelCodSchema }) _input: CancelCodInput,
   ) {
     return this.orderService.cancelCodPending(user.id, id);
+  }
+
+  @AuthenticatedAccess()
+  @Post('admin/orders/:id/cod/return-resolution')
+  @HttpCode(200)
+  @Roles(UserRole.ADMIN)
+  @Serialize(orderSchema)
+  resolveReturned(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+    @Body({ schema: resolveCodReturnSchema }) input: ResolveCodReturnInput,
+  ) {
+    return this.codService.resolveReturnedOrder(user.id, id, input);
   }
 
   @AuthenticatedAccess()

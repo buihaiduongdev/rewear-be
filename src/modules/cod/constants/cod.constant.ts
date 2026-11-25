@@ -2,10 +2,18 @@ import ms from 'ms';
 
 export const COD_RESTRICTION_CAUSE = {
   REPEATED_CANCELLATION: 'REPEATED_CANCELLATION',
+  FAILED_DELIVERY: 'FAILED_DELIVERY',
 } as const;
+
+export const COD_FAULT_PARTY = {
+  BUYER: 'BUYER',
+  SELLER: 'SELLER',
+} as const;
+
 export const COD_CANCELLATION_REASON = {
   CHANGE_OF_MIND: 'CHANGE_OF_MIND',
 } as const;
+
 export const COD_MAX_ORDER_TOTAL = 50000000;
 export const COD_MAX_PENDING_CHECKOUTS = 3;
 export const COD_MAX_ACTIVE_CHECKOUTS = 5;

@@ -7,7 +7,7 @@ import {
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { OrderAccess } from '@/modules/order/order.access';
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -481,8 +481,7 @@ export class DisputeReturnService {
         throw new ConflictException('Return objection already extended');
       row.extendedAt = now;
       row.extensionReason = data.reason;
-      row.objectionDueAt = await fulfillmentDeadline(
-        manager,
+      row.objectionDueAt = businessDeadline(
         row.objectionAt!,
         RETURN_POLICY.MAX_OBJECTION_BUSINESS_DAYS,
       );

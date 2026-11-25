@@ -20,8 +20,6 @@ class PaymentRefund {}
 class Order {}
 class OrderEvent {}
 class WalletCheckoutHold {}
-class FeePaymentCapture {}
-class ExcessCapture {}
 class CoinService {
   async consumeCheckoutCoins(_manager, _checkoutId, orders) {
     assert.equal(
@@ -67,8 +65,6 @@ const deps = {
   Order,
   OrderEvent,
   WalletCheckoutHold,
-  FeePaymentCapture,
-  ExcessCapture,
   CoinService,
   RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
@@ -231,19 +227,6 @@ test('identity restriction prevents new PayOS requests and refunds an inflight c
     assert.equal(f.rows(PaymentRefund).length, 1);
     assert.equal(f.rows(Product)[0].status, 'HELD');
   }
-});
-
-test('a recovery capture cannot fund a checkout payment', async () => {
-  const f = setup();
-  await f.service.create('buyer', 'checkout', { requestId: 'request' });
-  const attempt = f.rows(PaymentAttempt)[0];
-  f.rows(ExcessCapture).push({ providerTransId: 'FT24001' });
-  await assert.rejects(
-    f.service.applyResult(attempt.id, paid(attempt)),
-    /belongs to wallet recovery/,
-  );
-  assert.equal(f.rows(Order).length, 0);
-  assert.equal(f.checkout.status, 'HELD');
 });
 
 test('same client request, including concurrent calls, creates only one provider request', async () => {

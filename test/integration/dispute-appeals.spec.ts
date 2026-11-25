@@ -18,7 +18,6 @@ import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import type { DisputeAppealInput } from '@/modules/dispute/schemas/dispute-appeal.schema';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
@@ -383,18 +382,8 @@ describe('Two-party dispute appeal and final conclusion (PostgreSQL)', () => {
     await f.db
       .getRepository(DisputeDecision)
       .update(f.decision.id, { appealUntil: null, calendarMissing: true });
-    await f.db.getRepository(FulfillmentCalendar).clear();
     const appeal = await service.submit(f.buyer.id, f.decision.id, request());
     expect(appeal.eligibility).toBe('PENDING_CALENDAR');
-    const year = new Date().getUTCFullYear();
-    await f.db.getRepository(FulfillmentCalendar).save(
-      [year, year + 1].map((year) => ({
-        year,
-        closedDates: [],
-        source: 'Recovered explicit calendar',
-        approvedBy: f.admin.id,
-      })),
-    );
     await new DisputeReviewService(f.db).refreshIssue(f.issue.id);
     const recovered = await f.db
       .getRepository(DisputeAppeal)

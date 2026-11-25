@@ -1,4 +1,4 @@
-import { orderRefundSchema } from '@/modules/wallet/schemas/wallet-refund.schema';
+import { orderRefundSchema } from '@/modules/wallet/schemas/wallet.schema';
 
 describe('order cancellation refund validation', () => {
   it.each([

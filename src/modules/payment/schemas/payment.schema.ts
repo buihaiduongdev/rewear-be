@@ -7,7 +7,6 @@ import type {
   CheckoutItem,
 } from '@/modules/checkout/schemas/checkout.schema';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   PAYMENT_ATTEMPT_STATE,
@@ -31,7 +30,6 @@ export type CaptureDisposition =
 export interface PaymentOrderSnapshot {
   coinDiscount?: number;
   coinMode?: ReconciliationMode | null;
-  feeDisclosure?: FeeDisclosure | null;
   checkoutOrderId: string;
   shopId: string;
   shopName: string;
@@ -74,5 +72,5 @@ export const payosWebhookSchema = z.object({
   signature: z.string().min(1),
 });
 
-export type CreatePaymentInput = z.output<typeof createPaymentSchema>;
-export type PayosWebhookBody = z.output<typeof payosWebhookSchema>;
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type PayosWebhookBody = z.infer<typeof payosWebhookSchema>;

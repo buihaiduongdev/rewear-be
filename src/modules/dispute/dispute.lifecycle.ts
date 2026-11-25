@@ -1,6 +1,6 @@
 import { EntityManager } from 'typeorm';
 
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 
 import {
   DISPUTE_ACTION,
@@ -60,17 +60,15 @@ export async function notifyDispute(
 }
 
 export async function populateDisputeDeadlines(
-  manager: EntityManager,
+  _manager: EntityManager,
   issue: DisputeIssue,
 ) {
   if (!issue.validAt) return;
-  issue.maxReviewDueAt ??= await fulfillmentDeadline(
-    manager,
+  issue.maxReviewDueAt ??= businessDeadline(
     issue.validAt,
     DISPUTE_POLICY.MAX_REVIEW_BUSINESS_DAYS,
   );
-  issue.reviewDueAt ??= await fulfillmentDeadline(
-    manager,
+  issue.reviewDueAt ??= businessDeadline(
     issue.validAt,
     issue.extendedAt
       ? DISPUTE_POLICY.MAX_REVIEW_BUSINESS_DAYS
@@ -79,8 +77,7 @@ export async function populateDisputeDeadlines(
   if (issue.extendedAt && issue.maxReviewDueAt)
     issue.reviewDueAt = issue.maxReviewDueAt;
   if (issue.sellerNotifiedAt)
-    issue.sellerRespondBy ??= await fulfillmentDeadline(
-      manager,
+    issue.sellerRespondBy ??= businessDeadline(
       issue.sellerNotifiedAt,
       DISPUTE_POLICY.SELLER_RESPONSE_BUSINESS_DAYS,
     );

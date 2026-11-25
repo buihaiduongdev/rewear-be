@@ -6,14 +6,9 @@ import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { PAYOUT_SOURCE_KIND } from '../../constants/payout-source.constant';
-import { BANK_VERIFICATION, PAYOUT_STATUS } from '../constants/payout.constant';
+import { PAYOUT_STATUS } from '../constants/payout.constant';
 
 export type PayoutStatus = (typeof PAYOUT_STATUS)[keyof typeof PAYOUT_STATUS];
-export type RecipientSnapshot = {
-  bankCode: string;
-  accountNumber: string;
-  accountName: string;
-};
 export type PayoutSource = {
   kind: (typeof PAYOUT_SOURCE_KIND)[keyof typeof PAYOUT_SOURCE_KIND];
   sourceId: string;
@@ -23,6 +18,7 @@ export type PayoutSource = {
 };
 
 const text = z.string().trim().min(1).max(2000);
+
 export const recipientSchema = z
   .object({
     bankCode: z
@@ -33,15 +29,16 @@ export const recipientSchema = z
     accountName: z.string().trim().min(2).max(150),
   })
   .strict();
+export type RecipientSnapshot = z.infer<typeof recipientSchema>;
+
 export const bankAccountInputSchema = recipientSchema
   .extend({
     ownerConfirmed: z.literal(true),
     isDefault: z.boolean().default(false),
   })
   .strict();
-export const bankReviewSchema = z
-  .object({ evidence: text, riskReason: text.nullable().default(null) })
-  .strict();
+export type BankAccountInput = z.infer<typeof bankAccountInputSchema>;
+
 export const payoutRequestSchema = z
   .object({
     requestId: z.string().trim().min(1).max(100),
@@ -50,10 +47,10 @@ export const payoutRequestSchema = z
     bankAccountId: z.uuid(),
   })
   .strict();
+export type PayoutRequestInput = z.infer<typeof payoutRequestSchema>;
+
 export const payoutReasonSchema = z.object({ reason: text }).strict();
-export const payoutStartSchema = z
-  .object({ recipientCheckEvidence: text })
-  .strict();
+
 export const payoutSuccessSchema = recipientSchema
   .extend({
     amount: vndAmountSchema.positive(),
@@ -62,32 +59,27 @@ export const payoutSuccessSchema = recipientSchema
     evidence: text,
   })
   .strict();
+export type PayoutSuccessInput = z.infer<typeof payoutSuccessSchema>;
+
 export const payoutFailureSchema = z
   .object({
     reason: text,
     evidence: text,
-    noDebit: z.literal(true),
-    noInflight: z.literal(true),
   })
   .strict();
-export type BankAccountInput = z.infer<typeof bankAccountInputSchema>;
-export type PayoutRequestInput = z.infer<typeof payoutRequestSchema>;
-export type PayoutSuccessInput = z.infer<typeof payoutSuccessSchema>;
-export const payoutUpdateSchema = z
-  .object({ reason: text, evidence: text })
-  .strict();
+export type PayoutFailureInput = z.infer<typeof payoutFailureSchema>;
+
 export const bankAccountViewSchema = recipientSchema.extend({
   id: z.uuid(),
   shopId: z.uuid(),
   confirmedBy: z.uuid(),
   confirmedAt: dateTimeSchema,
   isDefault: z.boolean(),
-  verificationStatus: z.enum(BANK_VERIFICATION),
-  riskReason: z.string().nullable().default(null),
   deletedAt: dateTimeSchema.nullable().default(null),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
+
 export const payoutViewSchema = z.object({
   id: z.uuid(),
   shopId: z.uuid(),
@@ -101,38 +93,23 @@ export const payoutViewSchema = z.object({
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
   dueAt: dateTimeSchema.nullable().default(null),
-  followUpDueAt: dateTimeSchema.nullable().default(null),
   overdueAt: dateTimeSchema.nullable().default(null),
-  followUpOverdueAt: dateTimeSchema.nullable().default(null),
-  operationalUpdateAt: dateTimeSchema.nullable().default(null),
   processedAt: dateTimeSchema.nullable().default(null),
   completedAt: dateTimeSchema.nullable().default(null),
   bankReference: z.string().nullable().default(null),
   bankTransferredAt: dateTimeSchema.nullable().default(null),
   reason: z.string().nullable().default(null),
-  calendarMissing: z.boolean(),
-  followUpOverdue: z.boolean(),
 });
-export const payoutEventViewSchema = z.object({
-  id: z.uuid(),
-  payoutId: z.uuid(),
-  shopId: z.uuid(),
-  type: z.string(),
-  message: z.string(),
-  createdAt: dateTimeSchema,
-});
+
 export const payoutOwnerViewSchema = z.object({
   accounts: z.array(bankAccountViewSchema),
   payouts: z.array(payoutViewSchema),
-  events: z.array(payoutEventViewSchema),
 });
+
 export const payoutAdminItemViewSchema = payoutViewSchema.extend({
   transferEvidence: z.string().nullable().default(null),
-  recipientCheckEvidence: z.string().nullable().default(null),
 });
+
 export const payoutAdminViewSchema = z.object({
   payouts: z.array(payoutAdminItemViewSchema),
-  events: z.array(
-    payoutEventViewSchema.extend({ actorId: z.uuid().nullable() }),
-  ),
 });

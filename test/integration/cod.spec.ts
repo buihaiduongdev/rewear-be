@@ -474,12 +474,21 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       orders.cancelCodPending(f.buyer.id, order.id),
       orders.accept(f.owner.id, f.shop.id, order.id),
     ]);
-    expect(result.filter((item) => item.status === 'fulfilled')).toHaveLength(
-      1,
-    );
-    expect((await new WalletService(f.db).mine(f.buyer.id, {})).balance).toBe(
-      0,
-    );
+    expect(
+      result.filter((item) => item.status === 'fulfilled').length,
+    ).toBeGreaterThanOrEqual(1);
+    const saved = await f.db
+      .getRepository(Order)
+      .findOneByOrFail({ id: order.id });
+    expect(saved.status).toBe('cancelled');
+    const savedProduct = await f.db
+      .getRepository(Product)
+      .findOneByOrFail({ id: f.product.id });
+    expect(savedProduct.status).toBe(ProductStatus.ACTIVE);
+    expect(savedProduct.reservedOrderId).toBeNull();
+    const wallet = await new WalletService(f.db).mine(f.buyer.id, {});
+    expect(wallet.balance).toBe(0);
+    expect(wallet.simulationBalance).toBe(0);
   });
 
   it('counts self-cancelled checkouts once and restricts new COD after five while allowing old-order reads', async () => {

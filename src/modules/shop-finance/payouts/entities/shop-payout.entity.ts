@@ -8,7 +8,7 @@ import type { PayoutStatus, RecipientSnapshot } from '../schemas/payout.schema';
 @Entity('shop_payouts')
 @Index('UQ_shop_payout_active', ['shopId'], {
   unique: true,
-  where: "status IN ('PENDING','PROCESSING','UNKNOWN')",
+  where: "status IN ('PENDING','PROCESSING')",
 })
 @Index('UQ_shop_payout_reference', ['mode', 'bankReference'], {
   unique: true,
@@ -45,16 +45,7 @@ export class ShopPayout extends BaseEntity {
   dueAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  followUpDueAt: Date | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
   overdueAt: Date | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  operationalUpdateAt: Date | null;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  followUpOverdueAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   processedAt: Date | null;
@@ -70,9 +61,6 @@ export class ShopPayout extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   transferEvidence: string | null;
-
-  @Column({ type: 'text', nullable: true })
-  recipientCheckEvidence: string | null;
 
   @Column({ type: 'text', nullable: true })
   reason: string | null;

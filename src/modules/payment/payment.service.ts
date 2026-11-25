@@ -25,7 +25,6 @@ import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant'
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { FeePaymentCapture } from '@/modules/fees/payments/entities';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -40,7 +39,6 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { ExcessCapture } from '@/modules/wallet/excess/entities';
 
 import {
   PAYMENT_ATTEMPT_STATE,
@@ -79,7 +77,6 @@ export class PaymentService {
   }
 
   private async now(manager: EntityManager): Promise<Date> {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }
@@ -104,7 +101,6 @@ export class PaymentService {
     const attempt = prepared.attempt;
     const orderCode = Number(attempt.providerOrderCode);
     const expiredAt = Math.floor(prepared.expiresAt.getTime() / 1000);
-    // Persist before HTTP: a timeout/crash must not allow another charge.
     try {
       const result = await gateway.createPaymentLink({
         orderCode,
@@ -117,7 +113,6 @@ export class PaymentService {
           where: { id: attempt.id },
           lock: { mode: 'pessimistic_write' },
         });
-        // A concurrent query/webhook may have already updated state. Never overwrite capture.
         const attemptIsResolved = !(
           [
             PAYMENT_ATTEMPT_STATE.CREATING,
@@ -175,11 +170,11 @@ export class PaymentService {
       };
     }
     const expiresAt = checkout.expiresAt;
-    const checkoutIsInactive =
+    if (
       checkout.status !== CHECKOUT_STATUS.HELD ||
       !expiresAt ||
-      expiresAt <= now;
-    if (checkoutIsInactive)
+      expiresAt <= now
+    )
       throw new ConflictException('An active checkout is required');
     if (!canStartAttempt(attempts.map((item) => item.state)))
       throw new ConflictException(
@@ -207,19 +202,20 @@ export class PaymentService {
         sum + order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
       0,
     );
-    const amountIsOutsidePayosLimits =
+    if (
       !Number.isSafeInteger(amount) ||
       amount < PAYMENT_MIN_AMOUNT ||
-      amount > PAYMENT_MAX_AMOUNT;
-    if (amountIsOutsidePayosLimits)
+      amount > PAYMENT_MAX_AMOUNT
+    )
       throw new ConflictException('Checkout total is outside PayOS limits');
     const products = await this.lockProducts(manager, checkout);
-    const stockIsNoLongerReserved = !this.ownsProducts(
-      checkout,
-      orders.flatMap((order) => order.items.map((item) => item.productId)),
-      products,
-    );
-    if (stockIsNoLongerReserved)
+    if (
+      !this.ownsProducts(
+        checkout,
+        orders.flatMap((order) => order.items.map((item) => item.productId)),
+        products,
+      )
+    )
       throw new ConflictException('Checkout stock is no longer reserved');
     for (const shopId of [
       ...new Set(orders.map((order) => order.shopId)),
@@ -356,7 +352,6 @@ export class PaymentService {
         ).includes(attempt.state) ||
         attempt.nextQueryAt > now;
       if (attemptCannotBeQueried) return null;
-      // Lease is longer than maximum configured HTTP timeout (60 seconds).
       attempt.nextQueryAt = new Date(now.getTime() + PAYMENT_QUERY_LEASE_MS);
       await manager.save(attempt);
       return Number(attempt.providerOrderCode);
@@ -366,7 +361,7 @@ export class PaymentService {
       const result = await gateway.getPaymentLink(orderCode);
       await this.applyResult(id, result);
     } catch {
-      // Keep the durable unknown state and lease, never infer failure from HTTP.
+      /* Keep durable unknown state and lease. */
     }
   }
 
@@ -390,22 +385,6 @@ export class PaymentService {
         (result.amountPaid > 0 &&
           (providerOutcome(result.status) === PAYMENT_PROVIDER_OUTCOME.FAILED ||
             result.status === PAYOS_STATUS.UNDERPAID));
-      const captureFundsRecovery =
-        hasCapturedFunds &&
-        providerTransId.length > 0 &&
-        (await manager.existsBy(ExcessCapture, { providerTransId }));
-      if (captureFundsRecovery)
-        throw new ConflictException(
-          'PayOS capture already belongs to wallet recovery',
-        );
-      const captureAlreadyFundsFees =
-        hasCapturedFunds &&
-        providerTransId.length > 0 &&
-        (await manager.existsBy(FeePaymentCapture, { providerTransId }));
-      if (captureAlreadyFundsFees)
-        throw new ConflictException(
-          'PayOS capture already belongs to a fee payment',
-        );
       const attemptIsSettled = (
         [
           PAYMENT_ATTEMPT_STATE.PAID,
@@ -460,12 +439,12 @@ export class PaymentService {
         if (attempt.state !== PAYMENT_ATTEMPT_STATE.FAILED)
           attempt.state = PAYMENT_ATTEMPT_STATE.UNKNOWN;
       } else {
-        const capturedFundsAreInvalid =
+        if (
           !providerTransId ||
           !Number.isSafeInteger(result.amountPaid) ||
           result.amountPaid <= 0 ||
-          result.amountPaid > MAX_VND_AMOUNT;
-        if (capturedFundsAreInvalid)
+          result.amountPaid > MAX_VND_AMOUNT
+        )
           throw new ConflictException(
             'Invalid captured funds require reconciliation',
           );
@@ -477,7 +456,6 @@ export class PaymentService {
           await this.queueResultRefunds(manager, id, result, now);
         } else {
           attempt.state = PAYMENT_ATTEMPT_STATE.PAID;
-          // Save payment first for order FK. All writes roll back together.
           await manager.save(attempt);
           await this.fulfilCapturedCheckout(
             manager,
@@ -605,7 +583,6 @@ export class PaymentService {
       manager.create(Order, {
         checkoutOrderId,
         checkoutId: checkout.id,
-        feeDisclosure: snapshot.feeDisclosure ?? null,
         paymentMethod: ORDER_PAYMENT_METHOD.PAYOS,
         paymentId: attempt.id,
         buyerId: attempt.buyerId,
@@ -682,12 +659,12 @@ export class PaymentService {
     now: Date,
   ) {
     const providerTransId = result.providerTransId?.trim() || '';
-    const capturedFundsAreInvalid =
+    if (
       !providerTransId ||
       !Number.isSafeInteger(result.amountPaid) ||
       result.amountPaid <= 0 ||
-      result.amountPaid > MAX_VND_AMOUNT;
-    if (capturedFundsAreInvalid)
+      result.amountPaid > MAX_VND_AMOUNT
+    )
       throw new ConflictException(
         'Invalid captured funds require reconciliation',
       );

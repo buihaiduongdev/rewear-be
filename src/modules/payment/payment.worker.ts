@@ -1,10 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, In, LessThanOrEqual } from 'typeorm';
 
@@ -15,45 +9,20 @@ import {
   PAYMENT_RECONCILIATION_BATCH_SIZE,
   PAYMENT_REFUND_REVIEW_RETRY_MS,
   PAYMENT_REFUND_STATE,
-  PAYMENT_WORKER_INTERVAL_MS,
 } from './constants/payment.constant';
 import { PaymentAttempt, PaymentRefund } from './entities';
 import { PAYOS_CLIENT } from './payment.config';
 import { PaymentService } from './payment.service';
 
 @Injectable()
-export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
+export class PaymentWorker {
   private readonly logger = new Logger(PaymentWorker.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
 
   constructor(
     private readonly db: DataSource,
     private readonly paymentService: PaymentService,
     @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
   ) {}
-
-  onModuleInit() {
-    if (!this.client) return;
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = true;
-      void this.run()
-        .catch(() =>
-          this.logger.error(
-            'Payment reconciliation failed; records remain pending',
-          ),
-        )
-        .finally(() => {
-          this.running = false;
-        });
-    }, PAYMENT_WORKER_INTERVAL_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
 
   async run() {
     if (!this.client) return;
@@ -109,8 +78,6 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  // PayOS VietQR payments do not support automated reverse-transfer APIs; escalate
-  // uncompleted refunds to operational review with durable alerting.
   async refund(id: string) {
     if (!this.client) return;
     await this.db.transaction(async (manager) => {

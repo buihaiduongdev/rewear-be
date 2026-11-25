@@ -9,7 +9,6 @@ import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { Order } from '@/modules/order/entities';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
@@ -34,15 +33,6 @@ export async function adjudicationFixture(db: DataSource) {
     userId: owner.id,
     memberRole: ShopMemberRole.OWNER,
   });
-  const year = new Date().getUTCFullYear();
-  await db.getRepository(FulfillmentCalendar).save(
-    [year - 1, year, year + 1].map((year) => ({
-      year,
-      closedDates: [],
-      source: 'Explicit decision test calendar',
-      approvedBy: admin.id,
-    })),
-  );
   const productId = randomUUID();
   const order = await db.getRepository(Order).save({
     checkoutOrderId: randomUUID(),
@@ -88,9 +78,9 @@ export async function adjudicationFixture(db: DataSource) {
     supplementBy: new Date(validAt.getTime() + ms('24h')),
     validAt,
     sellerNotifiedAt: validAt,
-    sellerRespondBy: businessDeadline(validAt, 1, []),
-    reviewDueAt: businessDeadline(validAt, 3, []),
-    maxReviewDueAt: businessDeadline(validAt, 5, []),
+    sellerRespondBy: businessDeadline(validAt, 1),
+    reviewDueAt: businessDeadline(validAt, 3),
+    maxReviewDueAt: businessDeadline(validAt, 5),
   });
   const media = await createPrivateMedia(db, buyer.id);
   const evidence = await db.getRepository(DisputeEvidence).save({

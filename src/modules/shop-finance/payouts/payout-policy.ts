@@ -1,11 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 
-import { PAYOUT_STATUS } from './constants/payout.constant';
-import type {
-  PayoutSource,
-  PayoutStatus,
-  RecipientSnapshot,
-} from './schemas/payout.schema';
+import type { PayoutSource, RecipientSnapshot } from './schemas/payout.schema';
 
 export function allocatePayout(
   sources: PayoutSource[],
@@ -25,19 +20,7 @@ export function allocatePayout(
     throw new ConflictException('Insufficient available source funds');
   return allocations;
 }
-export function canReleasePayout(
-  status: PayoutStatus,
-  noDebit: boolean,
-  noInflight: boolean,
-): boolean {
-  return (
-    status === PAYOUT_STATUS.PENDING ||
-    ((status === PAYOUT_STATUS.PROCESSING ||
-      status === PAYOUT_STATUS.UNKNOWN) &&
-      noDebit &&
-      noInflight)
-  );
-}
+
 export function assertExactTransfer(
   amount: number,
   recipient: RecipientSnapshot,

@@ -5,7 +5,6 @@ import { dateTimeSchema } from '@/common/schemas';
 import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   CHECKOUT_MAX_ITEMS,
@@ -44,25 +43,19 @@ export type CheckoutItem = {
 
 export type RemovedCheckoutItem = { productId: string; reason: string };
 
-export const createCheckoutSchema = z
-  .strictObject({
-    feePolicyId: z.uuid().optional(),
-    feeTermsAccepted: z.literal(true).optional(),
-    requestId: z.uuid(),
-    addressId: z.uuid(),
-    productIds: z
-      .array(z.uuid())
-      .min(1)
-      .max(CHECKOUT_MAX_ITEMS)
-      .refine(
-        (ids) => new Set(ids).size === ids.length,
-        'Duplicate products are not allowed',
-      ),
-  })
-  .refine(
-    (input) => Boolean(input.feePolicyId) === Boolean(input.feeTermsAccepted),
-    'Fee policy and explicit acceptance must be supplied together',
-  );
+export const createCheckoutSchema = z.strictObject({
+  requestId: z.uuid(),
+  addressId: z.uuid(),
+  productIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(CHECKOUT_MAX_ITEMS)
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      'Duplicate products are not allowed',
+    ),
+});
+export type CreateCheckoutInput = z.infer<typeof createCheckoutSchema>;
 
 const addressSchema = z.object({
   recipientName: z.string(),
@@ -79,11 +72,11 @@ const addressSchema = z.object({
   postalCode: z.string().nullable(),
   deliveryInstructions: z.string().nullable(),
 });
+
 export const checkoutSchema = z.object({
   identityReviewRequired: z.boolean().default(false),
   coinDiscount: z.number().int().nonnegative().default(0),
   coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
-  feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   status: z.enum(CHECKOUT_STATUS),
   expiresAt: dateTimeSchema.nullable(),
@@ -120,14 +113,12 @@ export const checkoutSchema = z.object({
   paymentReady: z.literal(false),
 });
 
-export type CreateCheckoutInput = z.output<typeof createCheckoutSchema>;
-
 export const selectCheckoutCoinsSchema = z.strictObject({
   requestId: z.uuid(),
   amount: z.number().int().nonnegative(),
   mode: z.enum(RECONCILIATION_MODE),
 });
-export type SelectCheckoutCoinsInput = z.output<
+export type SelectCheckoutCoinsInput = z.infer<
   typeof selectCheckoutCoinsSchema
 >;
 

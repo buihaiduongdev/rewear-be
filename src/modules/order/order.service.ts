@@ -10,21 +10,22 @@ import {
   ProductModerationStatus,
   ProductStatus,
 } from '@/modules/product/enums';
-import { UNSAFE_CARRIER_REVIEW_REASONS } from '@/modules/shipment/constants/shipment.constant';
-import { RETURN_INSPECTION_CONDITION } from '@/modules/shipment/constants/shipment.constant';
+import {
+  SHIPMENT_STATE,
+  UNSAFE_CARRIER_REVIEW_REASONS,
+} from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import type { ReturnInspectionCondition } from '@/modules/shipment/schemas/shipment.schema';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
-import { ORDER_POLICY } from './constants/order.constant';
 import {
   ORDER_CANCEL_STATE,
   ORDER_CANCELLATION_REASON,
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
+  ORDER_POLICY,
   ORDER_STATUS,
 } from './constants/order.constant';
 import { Order, OrderEvent } from './entities';
@@ -33,6 +34,7 @@ import type { OrderListInput, RejectOrderInput } from './schemas/order.schema';
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger(OrderService.name);
+
   constructor(
     private readonly db: DataSource,
     private readonly walletService: WalletService,
@@ -50,11 +52,11 @@ export class OrderService {
     );
   }
 
-  async shopList(userId: string, shopId: string, input: OrderListInput) {
+  async shopList(_userId: string, shopId: string, input: OrderListInput) {
     return this.list(this.db.manager, { shopId }, input);
   }
 
-  async shopDetail(userId: string, shopId: string, id: string) {
+  async shopDetail(_userId: string, shopId: string, id: string) {
     return this.detail(
       this.db.manager,
       await this.db.getRepository(Order).findOneByOrFail({ id, shopId }),
@@ -76,9 +78,10 @@ export class OrderService {
 
   async accept(userId: string, shopId: string, id: string) {
     const result = await this.db.transaction(async (manager) => {
-      await this.lock(manager);
-
-      const order = await manager.findOneByOrFail(Order, { id, shopId });
+      const order = await manager.findOneOrFail(Order, {
+        where: { id, shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (order.status === ORDER_STATUS.PREPARING)
         return { order, expired: false };
       if (order.status !== ORDER_STATUS.PENDING)
@@ -114,7 +117,6 @@ export class OrderService {
       );
       return { order, expired: false };
     });
-    // Throw outside the transaction so deadline cancellation/refund stays committed.
     if (result.expired)
       throw new ConflictException(
         'Seller confirmation deadline has passed; order cancelled and refunded',
@@ -129,9 +131,10 @@ export class OrderService {
     { reason }: RejectOrderInput,
   ) {
     const order = await this.db.transaction(async (manager) => {
-      await this.lock(manager);
-
-      const order = await manager.findOneByOrFail(Order, { id, shopId });
+      const order = await manager.findOneOrFail(Order, {
+        where: { id, shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (order.status === ORDER_STATUS.CANCELLED) return order;
       if (order.status !== ORDER_STATUS.PENDING)
         throw new ConflictException('Order is no longer awaiting confirmation');
@@ -168,8 +171,10 @@ export class OrderService {
     for (const item of due) {
       try {
         expired += await this.db.transaction(async (manager) => {
-          await this.lock(manager);
-          const order = await manager.findOneByOrFail(Order, { id: item.id });
+          const order = await manager.findOneOrFail(Order, {
+            where: { id: item.id },
+            lock: { mode: 'pessimistic_write' },
+          });
           const now = await this.now(manager);
           if (
             order.status !== ORDER_STATUS.PENDING ||
@@ -187,8 +192,6 @@ export class OrderService {
           return 1;
         });
       } catch {
-        // One broken refund must not starve unrelated orders. Persist backoff so
-        // even a full batch of failures leaves room on the next worker pass.
         await this.db.getRepository(Order).update(
           { id: item.id, status: ORDER_STATUS.PENDING },
           {
@@ -206,38 +209,70 @@ export class OrderService {
 
   async cancelCodPending(buyerId: string, id: string) {
     const order = await this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      const order = await manager.findOneByOrFail(Order, {
-        id,
-        buyerId,
-        paymentMethod: ORDER_PAYMENT_METHOD.COD,
+      const order = await manager.findOneOrFail(Order, {
+        where: { id, buyerId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
+        lock: { mode: 'pessimistic_write' },
       });
       if (order.status === ORDER_STATUS.CANCELLED) return order;
-      if (order.status !== ORDER_STATUS.PENDING)
-        throw new ConflictException(
-          'Seller already confirmed; request cancellation instead',
-        );
       const now = await this.now(manager);
-      const expired = order.sellerConfirmBy <= now;
-      await this.cancel(
-        manager,
-        order,
-        now,
-        expired
-          ? ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT
-          : ORDER_EVENT_ACTION.BUYER_CANCELLED,
-        expired ? null : buyerId,
-        expired ? null : 'Buyer changed their mind',
-      );
-      if (!expired)
+      if (order.status === ORDER_STATUS.PENDING) {
+        const expired = order.sellerConfirmBy <= now;
+        await this.cancel(
+          manager,
+          order,
+          now,
+          expired
+            ? ORDER_CANCELLATION_REASON.SELLER_CONFIRM_TIMEOUT
+            : ORDER_CANCELLATION_REASON.BUYER_CANCELLED,
+          expired ? null : buyerId,
+          expired ? null : 'Buyer changed their mind',
+        );
+        if (!expired)
+          await this.codPolicy.recordBuyerCancellation(manager, order, now);
+        return order;
+      }
+      const shipment = await manager.findOne(Shipment, {
+        where: { orderId: id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        order.status !== ORDER_STATUS.PREPARING ||
+        shipment?.pickedObservedAt
+      ) {
+        throw new ConflictException(
+          'COD cancellation is only available before carrier pickup',
+        );
+      }
+      if (!shipment) {
+        order.cancelState = ORDER_CANCEL_STATE.APPROVED;
+        await this.cancelCodVerified(manager, order, now);
         await this.codPolicy.recordBuyerCancellation(manager, order, now);
+        return order;
+      }
+      if (order.cancelState === ORDER_CANCEL_STATE.APPROVED) return order;
+      order.cancelState = ORDER_CANCEL_STATE.APPROVED;
+      order.cancelRequestedAt ??= now;
+      shipment.cancelRequestedAt ??= now;
+      shipment.state = SHIPMENT_STATE.CANCEL_PENDING;
+      shipment.nextQueryAt = now;
+      await manager.save(order);
+      await manager.save(shipment);
+      await manager.save(
+        OrderEvent,
+        manager.create(OrderEvent, {
+          orderId: order.id,
+          action: ORDER_EVENT_ACTION.CANCEL_REQUESTED,
+          actorId: buyerId,
+          reason: 'Buyer requested pre-handover cancellation',
+          createdAt: now,
+        }),
+      );
+      await this.codPolicy.recordBuyerCancellation(manager, order, now);
       return order;
     });
     return this.detail(this.db.manager, order);
   }
 
-  // Shipment workflow calls this only after proving no booking exists or GHN
-  // confirms cancellation before any observed pickup, within the same lock/tx.
   async cancelCodVerified(manager: EntityManager, order: Order, now: Date) {
     const codCancellationIsUnsafe =
       order.paymentMethod !== ORDER_PAYMENT_METHOD.COD ||
@@ -253,18 +288,17 @@ export class OrderService {
       now,
       ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED,
       null,
-      order.cancelDecisionReason,
+      'Cancelled before carrier pickup',
     );
     order.cancelState = ORDER_CANCEL_STATE.CLOSED;
     await manager.save(order);
   }
 
-  // Caller holds the commerce lock and has recorded a physical inspection.
   async releaseCodReturnedVerified(
     manager: EntityManager,
     order: Order,
     now: Date,
-    condition: ReturnInspectionCondition,
+    sellable = true,
   ) {
     const shipment = await manager.findOne(Shipment, {
       where: { orderId: order.id },
@@ -283,20 +317,29 @@ export class OrderService {
         UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason));
     if (codReturnIsUnverified)
       throw new ConflictException('Verified uncollected COD return required');
+    await new CoinService().releaseOrderCoins(manager, order, 'SELLER', now);
     order.stockReleaseReviewIds = await this.releaseStock(
       manager,
       order,
-      condition === RETURN_INSPECTION_CONDITION.SELLABLE,
+      sellable,
     );
     order.status = ORDER_STATUS.CANCELLED;
     order.cancelledAt = now;
     order.cancellationReason = ORDER_CANCELLATION_REASON.CARRIER_RETURNED;
     order.cancelState = ORDER_CANCEL_STATE.CLOSED;
+    shipment.reviewReason = null;
+    await manager.save(shipment);
     await manager.save(order);
-  }
-
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+    await manager.save(
+      OrderEvent,
+      manager.create(OrderEvent, {
+        orderId: order.id,
+        action: ORDER_EVENT_ACTION.CANCEL_APPROVED,
+        actorId: null,
+        reason: order.cancellationNote ?? 'Returned by carrier',
+        createdAt: now,
+      }),
+    );
   }
 
   private async now(manager: EntityManager) {

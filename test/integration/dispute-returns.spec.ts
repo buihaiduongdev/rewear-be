@@ -5,7 +5,6 @@ import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-c
 import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { WalletAccount } from '@/modules/wallet/entities';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
@@ -113,7 +112,6 @@ describe('Post-adjudication return clocks and inspection (PostgreSQL)', () => {
   it('calendar gaps do not invent inspection expiry or release money', async () => {
     const f = await disputeReturnFixture(database.dataSource);
     await deliver(f);
-    await f.db.getRepository(FulfillmentCalendar).clear();
     await f.db
       .getRepository(DisputeReturn)
       .update(f.returned.id, { inspectionDueAt: null, calendarMissing: true });

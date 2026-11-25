@@ -18,9 +18,6 @@ import { CoinsModule } from './modules/coins/coins.module';
 import { CoinRewardModule } from './modules/coins/rewards/coin-reward.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DisputeModule } from './modules/dispute/dispute.module';
-import { FeeDisclosureModule } from './modules/fees/disclosure/fee-disclosure.module';
-import { FeeModule } from './modules/fees/fee.module';
-import { FeeSettlementModule } from './modules/fees/settlement/fee-settlement.module';
 import { MediaModule } from './modules/media';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { OrderModule } from './modules/order/order.module';
@@ -50,9 +47,6 @@ import { WishlistModule } from './modules/wishlist';
     AuthorizationModule,
     OrderModule,
     DisputeModule,
-    FeeDisclosureModule,
-    FeeModule,
-    FeeSettlementModule,
     CodModule,
     CoinsModule,
     CoinRewardModule,

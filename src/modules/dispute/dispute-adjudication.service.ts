@@ -4,7 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
@@ -85,8 +85,7 @@ export class DisputeAdjudicationService {
         );
       const review = await loadDecisionReview(manager, issueId);
       await this.assertDecidable(manager, review, data, now);
-      const appealUntil = await fulfillmentDeadline(
-        manager,
+      const appealUntil = businessDeadline(
         now,
         DISPUTE_POLICY.APPEAL_BUSINESS_DAYS,
       );

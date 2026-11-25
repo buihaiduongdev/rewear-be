@@ -14,8 +14,9 @@ export async function releaseWalletHold(
   state: typeof WALLET_HOLD_STATE.RELEASED | typeof WALLET_HOLD_STATE.EXPIRED,
 ) {
   if (hold.state !== WALLET_HOLD_STATE.HELD) return;
-  const account = await manager.findOneByOrFail(WalletAccount, {
-    userId: hold.buyerId,
+  const account = await manager.findOneOrFail(WalletAccount, {
+    where: { userId: hold.buyerId },
+    lock: { mode: 'pessimistic_write' },
   });
   const [available, held] = walletPoolFields(hold.mode);
   if (account[held] < hold.amount)

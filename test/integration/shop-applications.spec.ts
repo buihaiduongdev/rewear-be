@@ -198,8 +198,8 @@ describe('Shop Owner application (PostgreSQL)', () => {
         await db
           .getRepository(ShopBankAccount)
           .findOneByOrFail({ id: f.bank.id })
-      ).verificationStatus,
-    ).toBe('UNVERIFIED');
+      ).accountNumber,
+    ).toBe('123456789');
   });
   it('requires supplemental resubmission and refuses approval of changed bank/profile snapshots', async () => {
     const f = await fixture();

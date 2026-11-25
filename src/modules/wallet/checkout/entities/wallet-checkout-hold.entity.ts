@@ -7,8 +7,8 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/co
 import type { PaymentOrderSnapshot } from '@/modules/payment/schemas/payment.schema';
 import { User } from '@/modules/user/entities';
 
+import type { WalletHoldState } from '../../schemas/wallet.schema';
 import { WALLET_HOLD_STATE } from '../constants/wallet-checkout.constant';
-import type { WalletHoldState } from '../schemas/wallet-checkout.schema';
 
 @Entity('wallet_checkout_holds')
 @Index(['buyerId', 'requestId'], { unique: true })
@@ -43,9 +43,6 @@ export class WalletCheckoutHold extends BaseEntity {
 
   @Column('uuid')
   requestId: string;
-
-  @Column('text')
-  fingerprint: string;
 
   @Column({ type: 'varchar', length: 16 })
   mode: ReconciliationMode;

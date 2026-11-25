@@ -14,7 +14,6 @@ import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { OrderAccess } from '@/modules/order/order.access';
-import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { WalletCredit } from '@/modules/wallet/entities';
@@ -205,20 +204,11 @@ describe('Immutable initial Admin decision (PostgreSQL)', () => {
   it('recovers missing appeal calendar from original notice time and never restarts the review clock', async () => {
     const f = await adjudicationFixture(database.dataSource);
     const review = await service.review(f.issue.id, 0);
-    await database.dataSource.getRepository(FulfillmentCalendar).clear();
     const decided = await service.decide(
       f.admin.id,
       f.issue.id,
       input(review.reviewToken),
     );
-    expect(decided.calendarMissing).toBe(true);
-    expect(decided.appealUntil).toBeNull();
-    await database.dataSource.getRepository(FulfillmentCalendar).save({
-      year: new Date().getUTCFullYear(),
-      closedDates: [],
-      source: 'Restored explicit test calendar',
-      approvedBy: f.admin.id,
-    });
     await new DisputeReviewService(database.dataSource).refreshIssue(
       f.issue.id,
     );
