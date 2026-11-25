@@ -123,6 +123,7 @@ export async function runRemedyCommand<T extends { id: string }>(
 ) {
   const fingerprint = decisionFingerprint({ actorId, finalId, action, data });
   return db.transaction(async (manager) => {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now: clock }] = await manager.query(
       'SELECT clock_timestamp() AS now',
     );

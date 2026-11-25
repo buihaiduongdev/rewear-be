@@ -59,6 +59,7 @@ export class DisputeAdjudicationService {
     const data = disputeDecisionInputSchema.parse(input);
     const fingerprint = decisionFingerprint({ issueId, adminId, ...data });
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await manager.findOneByOrFail(User, {
         id: adminId,
         role: UserRole.ADMIN,

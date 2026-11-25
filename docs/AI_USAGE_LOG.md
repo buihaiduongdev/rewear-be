@@ -1281,9 +1281,12 @@
 
 ### 2026-11-25 — Tinh gọn module khiếu nại và hoàn trả Wave 4
 
-- **Phạm vi công việc:** Nhóm module khiếu nại, kháng cáo, xét xử, hoàn trả hàng và xử lý hoàn tiền sau phán quyết trong nhánh `buihaiduongdev/refactor-wave-4`.
-- **Công cụ AI đã sử dụng:** Trợ lý AI viết mã.
-- **Mục đích sử dụng:** Tách gọn các thực thể đang gom nhiều bảng trong cùng một tệp về chuẩn một thực thể mỗi tệp kèm tệp export tổng; gộp các khai báo kiểu nhỏ vào nhóm schema tương ứng; loại bỏ khóa cố vấn toàn cục dư thừa và bỏ giao dịch cô lập ở các thao tác chỉ đọc nhưng vẫn giữ nguyên toàn bộ giao dịch ghi, đồng hồ cơ sở dữ liệu và ràng buộc duy nhất.
-- **Người thực hiện kiểm tra và chỉnh sửa:** Kiểm tra và cập nhật lại toàn bộ đường dẫn import ở mã nguồn lẫn các bộ kiểm thử liên quan, chạy định dạng, kiểm tra kiểu, phân tích tĩnh, biên dịch và toàn bộ bài kiểm thử đơn vị.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Chưa phát hiện lỗi ngoài việc cần đồng bộ lại các đường dẫn tham chiếu thực thể và schema sau khi tách gọn cấu trúc thư mục.
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Tinh gọn nhóm module khiếu nại, kháng cáo, xét xử, hoàn trả hàng và xử lý hoàn tiền sau phán quyết thuộc Wave 4 (`dispute` và `dispute/returns`) theo chuẩn mỗi bảng một entity, gộp các type nhỏ vào schemas và bỏ giao dịch đọc cô lập dư thừa.
+- **Prompt chính:** Tiếp tục Wave 4 trên `dispute` và `returns`: tách các tệp đang gộp nhiều entity thành từng bảng riêng kèm barrel export, hợp nhất các tệp `types` vào `schemas`, loại bỏ `REPEATABLE READ` chỉ đọc không cần thiết và giữ nguyên khóa tuần tự hóa cho các giao dịch ghi tranh chấp.
+- **Đầu ra AI được sử dụng:** Tách 25 thực thể từ 5 tệp gộp thành chuẩn mỗi thực thể một tệp kèm barrel export ở cả `dispute/entities` và `dispute/returns/entities`; hợp nhất các tệp `types/` vào `schemas/`; gỡ 8 wrapper `REPEATABLE READ` chỉ đọc sang `this.db.manager` đồng thời giữ `pg_advisory_xact_lock` trên các luồng ghi khiếu nại/kháng cáo/hoàn trả và cập nhật đồng bộ đường dẫn tham chiếu trên mã nguồn lẫn bộ test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Rà soát khôi phục lại toàn bộ khóa tuần tự hóa ghi trên các dịch vụ xử lý khiếu nại/hoàn trả, chuẩn hóa nội dung PR và nhật ký theo đúng mẫu dự án.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** AI tự ý bỏ `pg_advisory_xact_lock(782143, 1)` trên các luồng ghi khiếu nại và hoàn trả gây lỗi concurrency ở `dispute`, `dispute-adjudication`, `dispute-appeals`, `dispute-returns`, đồng thời viết sai mẫu PR/AI log; đã khôi phục khóa và chuẩn hóa lại toàn bộ trước khi đẩy lên CI.
 - **Minh chứng:** PR #72; branch `buihaiduongdev/refactor-wave-4`.

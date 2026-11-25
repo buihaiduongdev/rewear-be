@@ -144,6 +144,7 @@ export class ReturnBookingService {
     for (const candidate of candidates) {
       this.pollCursor = candidate.id;
       const claimed = await this.db.transaction(async (manager) => {
+        await this.lock(manager);
         const [{ now: clock }] = await manager.query(
           'SELECT clock_timestamp() AS now',
         );
@@ -177,6 +178,9 @@ export class ReturnBookingService {
     private readonly carrier: GhnShipmentClient,
     private readonly access: DisputeAccess,
   ) {}
+  private async lock(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  }
   private async admin(manager: EntityManager, userId: string) {
     await manager.findOneByOrFail(User, {
       id: userId,
@@ -190,6 +194,7 @@ export class ReturnBookingService {
       .update(JSON.stringify({ returnId, ...data }))
       .digest('hex');
     const claim = await this.db.transaction(async (manager) => {
+      await this.lock(manager);
       await this.admin(manager, adminId);
       const row = await manager.findOneByOrFail(DisputeReturn, {
         id: returnId,
@@ -276,6 +281,7 @@ export class ReturnBookingService {
       );
     } catch {
       await this.db.transaction(async (manager) => {
+        await this.lock(manager);
         const row = await manager.findOneByOrFail(ReturnBooking, {
           id: claim.row.id,
         });
@@ -350,6 +356,7 @@ export class ReturnBookingService {
     if (snapshot.status !== GHN_SHIPMENT_STATUS.CANCEL)
       throw new ConflictException('Carrier has not confirmed cancellation');
     const claim = await this.db.transaction(async (manager) => {
+      await this.lock(manager);
       await this.admin(manager, adminId);
       const current = await manager.findOneByOrFail(ReturnBooking, {
         id: old.id,
@@ -417,6 +424,7 @@ export class ReturnBookingService {
   ) {
     this.validateSnapshot(expected, snapshot, createdCode);
     return this.db.transaction(async (manager) => {
+      await this.lock(manager);
       const row = await manager.findOneByOrFail(ReturnBooking, {
         id: expected.id,
         active: true,

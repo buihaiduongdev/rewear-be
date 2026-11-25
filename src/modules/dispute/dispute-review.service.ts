@@ -43,6 +43,7 @@ export class DisputeReviewService {
   constructor(private readonly db: DataSource) {}
 
   private async lock(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }

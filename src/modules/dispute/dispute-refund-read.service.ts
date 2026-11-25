@@ -96,6 +96,7 @@ export class DisputeRefundReadService {
     const data = refundIncidentSchema.parse(input);
     const fingerprint = decisionFingerprint({ adminId, refundId, ...data });
     return this.db.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

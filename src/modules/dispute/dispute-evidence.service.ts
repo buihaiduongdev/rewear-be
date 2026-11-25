@@ -33,6 +33,7 @@ export class DisputeEvidenceService {
     private readonly media: MediaService,
   ) {}
   private async clock(manager: EntityManager) {
+    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(row.now);
   }
