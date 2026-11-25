@@ -1277,4 +1277,4 @@
   - Tách 13 tệp thực thể gộp nhiều bảng ra từng tệp riêng lẻ một bảng một tệp, hợp nhất các tệp kiểu nhỏ vào lớp lược đồ và cập nhật đồng bộ toàn bộ mã nguồn cùng các bộ kiểm thử đơn vị, kiểm thử tích hợp và kiểm thử đầu cuối.
 - **Kiểm chứng và chỉnh sửa của nhóm:** Tự chạy định dạng mã nguồn, kiểm tra lint, kiểm tra kiểu, biên dịch ứng dụng, bộ kiểm thử thanh toán lõi và toàn bộ kiểm thử đơn vị sau chỉnh sửa.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Một số bài kiểm thử giả lập cũ còn giữ mock phương thức tìm kiếm đơn giản và tên hằng trạng thái cũ; đã cập nhật lại đầy đủ trước khi chạy toàn bộ kiểm thử.
-- **Minh chứng:** Chưa tạo PR; branch `buihaiduongdev/refactor-wave-3`.
+- **Minh chứng:** PR #71; branch `buihaiduongdev/refactor-wave-3`.
