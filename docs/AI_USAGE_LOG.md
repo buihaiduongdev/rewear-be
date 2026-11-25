@@ -1230,3 +1230,15 @@
 - **Cách kiểm chứng:** `pnpm check` đạt; `product-availability.machine.spec.ts` đạt 12/12 tests.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #67; branch `buihaiduongdev/cart-cleanup`.
+
+### 2026-11-25 — Tinh gọn cấu trúc và tối ưu truy vấn module chat
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Hydrogen)
+- **Mục đích và phạm vi:** Giảm số lượng file lẻ tẻ, làm phẳng cấu trúc thư mục, bỏ hằng số/ràng buộc trùng lặp và tối ưu truy vấn N+1 trong module chat.
+- **Prompt chính:** Rà soát và tinh gọn module chat: xóa hằng số thừa, gộp các file nhỏ lẻ vào service và schema chính, tối ưu truy vấn danh sách hội thoại và kiểm tra thẻ sản phẩm.
+- **Đầu ra AI được sử dụng:** Gộp `types/` vào `schemas/chat.schema.ts`, gộp dịch vụ media và evidence thành một file phẳng, đưa view và card snapshot vào `ChatService`, đồng thời tối ưu query `list()` và `resolveCardSnapshot()`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện và yêu cầu bỏ các hằng số dư thừa (`UPLOADS_PER_ACTOR_CONVERSATION_DAY`, `MAX_SEQUENCE`, `IMAGE_BYTES`, `VIDEO_BYTES`) và chỉ đạo gộp gọn các file lẻ.
+- **Cách kiểm chứng:** `pnpm check` đạt; `chat-schema.spec.ts` đạt 3/3 tests.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Branch `buihaiduongdev/chat-cleanup`.

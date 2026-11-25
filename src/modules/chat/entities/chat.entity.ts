@@ -4,7 +4,7 @@ import { BaseEntity } from '@/common/entities';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 
-import type { ChatCardSnapshot, ChatSide } from '../types/chat.type';
+import type { ChatCardSnapshot, ChatSide } from '../schemas/chat.schema';
 
 @Entity('chat_conversations')
 @Index(['buyerId', 'shopId'], { unique: true })

@@ -9,17 +9,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import z from 'zod';
-
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
-import { DISPUTE_EVIDENCE_TAG } from '@/modules/dispute/constants/dispute.constant';
 import { User } from '@/modules/user/entities';
 
+import { ChatMediaService } from './chat-media.service';
 import { ChatService } from './chat.service';
-import { ChatEvidenceService } from './media/chat-evidence.service';
-import { ChatMediaService } from './media/chat-media.service';
 import {
   chatConversationPageSchema,
   chatConversationViewSchema,
@@ -27,30 +23,15 @@ import {
   chatListSchema,
   chatMessagePageSchema,
   chatMessageViewSchema,
+  type ChatPageInput,
   chatPageSchema,
   chatReadSchema,
+  importedEvidenceViewSchema,
+  importEvidenceSchema,
   openChatSchema,
+  type SendChatInput,
   sendChatSchema,
 } from './schemas/chat.schema';
-import type { ChatPageInput, SendChatInput } from './types/chat.type';
-
-const importEvidenceSchema = z.strictObject({
-  orderId: z.uuid(),
-  tags: z
-    .array(z.enum(DISPUTE_EVIDENCE_TAG))
-    .min(1)
-    .max(7)
-    .refine(
-      (tags) => new Set(tags).size === tags.length,
-      'Duplicate evidence tags',
-    ),
-});
-const importedEvidenceViewSchema = z.object({
-  id: z.uuid(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int(),
-  tags: z.array(z.string()),
-});
 
 @ApiTags('Buyer–Shop chat')
 @ApiBearerAuth()
@@ -60,8 +41,8 @@ export class ChatController {
   constructor(
     private readonly service: ChatService,
     private readonly media: ChatMediaService,
-    private readonly evidence: ChatEvidenceService,
   ) {}
+
   @Post('conversations')
   @HttpCode(200)
   @Serialize(chatConversationViewSchema)
@@ -71,6 +52,7 @@ export class ChatController {
   ) {
     return this.service.open(user.id, input.shopId);
   }
+
   @Get('conversations')
   @Serialize(chatConversationPageSchema)
   list(
@@ -79,6 +61,7 @@ export class ChatController {
   ) {
     return this.service.list(user.id, input);
   }
+
   @Get('conversations/:id')
   @Serialize(chatConversationViewSchema)
   detail(
@@ -87,6 +70,7 @@ export class ChatController {
   ) {
     return this.service.detail(user.id, id);
   }
+
   @Get('conversations/:id/messages')
   @Serialize(chatMessagePageSchema)
   messages(
@@ -96,6 +80,7 @@ export class ChatController {
   ) {
     return this.service.messages(user.id, id, input);
   }
+
   @Post('conversations/:id/messages')
   @HttpCode(200)
   @Serialize(chatMessageViewSchema)
@@ -106,6 +91,7 @@ export class ChatController {
   ) {
     return this.service.send(user.id, id, input);
   }
+
   @Post('conversations/:id/read')
   @HttpCode(200)
   @Serialize(chatConversationViewSchema)
@@ -116,6 +102,7 @@ export class ChatController {
   ) {
     return this.service.read(user.id, id, input.throughSequence);
   }
+
   @Get('media/:id/download')
   @Serialize(chatDownloadSchema)
   download(
@@ -124,6 +111,7 @@ export class ChatController {
   ) {
     return this.media.download(user.id, id);
   }
+
   @Post('media/:id/dispute-evidence')
   @HttpCode(200)
   @Serialize(importedEvidenceViewSchema)
@@ -133,6 +121,6 @@ export class ChatController {
     @Body({ schema: importEvidenceSchema })
     input: { orderId: string; tags: string[] },
   ) {
-    return this.evidence.import(user.id, id, input.orderId, input.tags);
+    return this.media.importEvidence(user.id, id, input.orderId, input.tags);
   }
 }

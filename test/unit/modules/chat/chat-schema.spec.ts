@@ -46,7 +46,7 @@ describe('Chat contracts', () => {
     expect(
       schemas.chatUploadSchema.safeParse({
         mimeType: 'image/jpeg',
-        sizeBytes: 100000000,
+        sizeBytes: 0,
       }).success,
     ).toBe(false);
   });

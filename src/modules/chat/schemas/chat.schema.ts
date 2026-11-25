@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas/date-time.schema';
+import { DISPUTE_EVIDENCE_TAG } from '@/modules/dispute/constants/dispute.constant';
 
 import {
   CHAT_CARD,
@@ -8,6 +9,16 @@ import {
   CHAT_POLICY,
   CHAT_SIDE,
 } from '../constants/chat.constant';
+
+export type ChatSide = (typeof CHAT_SIDE)[keyof typeof CHAT_SIDE];
+export type ChatCardType = (typeof CHAT_CARD)[keyof typeof CHAT_CARD];
+export type ChatCardSnapshot = {
+  type: ChatCardType;
+  id: string;
+  title?: string;
+  price?: number | null;
+  status: string;
+};
 
 export const openChatSchema = z.strictObject({ shopId: z.uuid() });
 export const sendChatSchema = z
@@ -50,21 +61,12 @@ export const chatListSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export const chatReadSchema = z.strictObject({
-  throughSequence: z.number().int().min(0).max(CHAT_POLICY.MAX_SEQUENCE),
+  throughSequence: z.number().int().min(0),
 });
-export const chatUploadSchema = z
-  .strictObject({
-    mimeType: z.enum(CHAT_MIME_TYPES),
-    sizeBytes: z.number().int().positive(),
-  })
-  .refine(
-    (input) =>
-      input.sizeBytes <=
-      (input.mimeType.startsWith('video/')
-        ? CHAT_POLICY.VIDEO_BYTES
-        : CHAT_POLICY.IMAGE_BYTES),
-    'Chat media exceeds size limit',
-  );
+export const chatUploadSchema = z.strictObject({
+  mimeType: z.enum(CHAT_MIME_TYPES),
+  sizeBytes: z.number().int().positive(),
+});
 export const chatMediaViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.string(),
@@ -126,3 +128,23 @@ export const chatDownloadSchema = z.object({
   headers: z.record(z.string(), z.string()),
   expiresAt: dateTimeSchema,
 });
+export const importEvidenceSchema = z.strictObject({
+  orderId: z.uuid(),
+  tags: z
+    .array(z.enum(DISPUTE_EVIDENCE_TAG))
+    .min(1)
+    .max(7)
+    .refine(
+      (tags) => new Set(tags).size === tags.length,
+      'Duplicate evidence tags',
+    ),
+});
+export const importedEvidenceViewSchema = z.object({
+  id: z.uuid(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int(),
+  tags: z.array(z.string()),
+});
+
+export type SendChatInput = z.infer<typeof sendChatSchema>;
+export type ChatPageInput = z.infer<typeof chatPageSchema>;

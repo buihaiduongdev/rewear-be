@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import type { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
+import { ChatMediaService } from '@/modules/chat/chat-media.service';
 import { ChatAccess } from '@/modules/chat/chat.access';
 import { ChatService } from '@/modules/chat/chat.service';
-import { ChatEvidenceService } from '@/modules/chat/media/chat-evidence.service';
-import { ChatMediaService } from '@/modules/chat/media/chat-media.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
@@ -21,7 +20,6 @@ describe('Chat private media and evidence PostgreSQL', () => {
   let service: ChatService;
   let media: ChatMediaService;
   let uploads: MediaService;
-  let evidence: ChatEvidenceService;
   const objects = new Map<
     string,
     { eTag: string; contentType: string; sizeBytes: number }
@@ -76,10 +74,6 @@ describe('Chat private media and evidence PostgreSQL', () => {
       db,
       access,
       storage as unknown as StorageService,
-    );
-    evidence = new ChatEvidenceService(
-      db,
-      access,
       new DisputeAccess(new OrderAccess()),
     );
   });
@@ -96,9 +90,12 @@ describe('Chat private media and evidence PostgreSQL', () => {
       clientMessageId: randomUUID(),
       mediaIds: [upload.id],
     });
-    const imported = await evidence.import(f.buyer.id, upload.id, f.order.id, [
-      'ISSUE',
-    ]);
+    const imported = await media.importEvidence(
+      f.buyer.id,
+      upload.id,
+      f.order.id,
+      ['ISSUE'],
+    );
     const source = await database.dataSource.manager.findOneByOrFail(Media, {
       id: upload.id,
     });
@@ -168,12 +165,18 @@ describe('Chat private media and evidence PostgreSQL', () => {
       clientMessageId: randomUUID(),
       mediaIds: [f.upload.id],
     });
-    const first = await evidence.import(f.buyer.id, f.upload.id, f.order.id, [
-      'UNBOX',
-    ]);
-    const again = await evidence.import(f.buyer.id, f.upload.id, f.order.id, [
-      'UNBOX',
-    ]);
+    const first = await media.importEvidence(
+      f.buyer.id,
+      f.upload.id,
+      f.order.id,
+      ['UNBOX'],
+    );
+    const again = await media.importEvidence(
+      f.buyer.id,
+      f.upload.id,
+      f.order.id,
+      ['UNBOX'],
+    );
     expect(again.id).toBe(first.id);
     expect(
       await database.dataSource.manager.countBy(DisputeEvidence, {
@@ -186,25 +189,28 @@ describe('Chat private media and evidence PostgreSQL', () => {
       status: 'RESOLVED_NO_REFUND',
     });
     expect(
-      (await evidence.import(f.buyer.id, f.upload.id, f.order.id, ['UNBOX']))
-        .id,
+      (
+        await media.importEvidence(f.buyer.id, f.upload.id, f.order.id, [
+          'UNBOX',
+        ])
+      ).id,
     ).toBe(first.id);
     await expect(
-      evidence.import(f.buyer.id, f.upload.id, f.order.id, ['ISSUE']),
+      media.importEvidence(f.buyer.id, f.upload.id, f.order.id, ['ISSUE']),
     ).rejects.toThrow('import tags changed');
   });
   it('rejects unattached evidence and media imported for an unrelated order', async () => {
     const f = await fixture();
     const other = await adjudicationFixture(database.dataSource);
     await expect(
-      evidence.import(f.buyer.id, f.upload.id, f.order.id, ['UNBOX']),
+      media.importEvidence(f.buyer.id, f.upload.id, f.order.id, ['UNBOX']),
     ).rejects.toThrow('Chat media not found');
     await service.send(f.buyer.id, f.thread.id, {
       clientMessageId: randomUUID(),
       mediaIds: [f.upload.id],
     });
     await expect(
-      evidence.import(f.buyer.id, f.upload.id, other.order.id, ['UNBOX']),
+      media.importEvidence(f.buyer.id, f.upload.id, other.order.id, ['UNBOX']),
     ).rejects.toThrow('must belong');
   });
 });

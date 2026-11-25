@@ -7,13 +7,12 @@ import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { MediaModule } from '@/modules/media/media.module';
 import { OrderAccess } from '@/modules/order/order.access';
 
+import { ChatMediaService } from './chat-media.service';
 import { ChatAccess } from './chat.access';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatMessageMedia } from './entities/chat-message-media.entity';
 import { ChatConversation, ChatMessage } from './entities/chat.entity';
-import { ChatEvidenceService } from './media/chat-evidence.service';
-import { ChatMediaService } from './media/chat-media.service';
 
 @Module({
   imports: [
@@ -27,7 +26,6 @@ import { ChatMediaService } from './media/chat-media.service';
     ChatAccess,
     ChatService,
     ChatMediaService,
-    ChatEvidenceService,
     DisputeAccess,
     OrderAccess,
   ],
