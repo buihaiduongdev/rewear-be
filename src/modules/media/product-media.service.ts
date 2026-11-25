@@ -14,7 +14,7 @@ import { ProductService } from '@/modules/product/product.service';
 
 import { MAX_PRODUCT_MEDIA } from './constants';
 import { ProductMedia } from './entities';
-import { MediaRole } from './enums';
+import { MediaRole, MediaType } from './enums';
 import { MediaService } from './media.service';
 import type {
   ConfirmMediaUploadInput,
@@ -110,6 +110,8 @@ export class ProductMediaService {
         currentUserId,
         input.mediaId,
       );
+      if (media.mediaType !== MediaType.IMAGE)
+        throw new BadRequestException('Product media must be an image');
       return manager.save(
         manager.create(ProductMedia, {
           media,

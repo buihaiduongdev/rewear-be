@@ -61,6 +61,12 @@ describe('Chat private media and evidence PostgreSQL', () => {
     uploads = new MediaService(
       db.getRepository(Media),
       storage as unknown as StorageService,
+      {
+        storage: {
+          allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+          maxSizeBytes: 10 * 1024 * 1024,
+        },
+      } as never,
     );
     service = new ChatService(db, access, uploads);
     media = new ChatMediaService(

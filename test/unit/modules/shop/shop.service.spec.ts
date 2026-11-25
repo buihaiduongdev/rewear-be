@@ -120,7 +120,10 @@ describe('ShopService', () => {
   it('attaches the uploaded logo in the shop transaction', async () => {
     const logoMediaId = '0b8b4a7c-5a28-4ee3-90f6-62ba3c8f56c6';
     const newShop = { ...shop, logoUrl: 'https://example.test/logo.jpg' };
-    uploads.verifyMedia.mockResolvedValueOnce({ url: newShop.logoUrl });
+    uploads.verifyMedia.mockResolvedValueOnce({
+      url: newShop.logoUrl,
+      mediaType: 'IMAGE',
+    });
     entityManager.create
       .mockReturnValueOnce(newShop)
       .mockReturnValueOnce(ownerMembership);

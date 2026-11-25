@@ -19,9 +19,7 @@ describe('ProductMediaService', () => {
   const storageKey = `products/${productId}/${uploadId}.jpg`;
   const now = new Date('2026-10-19T00:00:00.000Z');
   const ticket: UploadTicket = {
-    storageKey,
     uploadUrl: 'https://upload.example.com/signed',
-    publicUrl: `https://media.example.com/${storageKey}`,
     method: 'PUT',
     headers: { 'Content-Type': 'image/jpeg' },
     expiresAt: new Date('2026-10-19T00:15:00.000Z'),
@@ -99,6 +97,12 @@ describe('ProductMediaService', () => {
   const uploads = new MediaService(
     mediaRepository as unknown as Repository<Media>,
     storageService as unknown as StorageService,
+    {
+      storage: {
+        allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+        maxSizeBytes: 10 * 1024 * 1024,
+      },
+    } as never,
   );
   const service = new ProductMediaService(
     mediaLinkRepository as unknown as Repository<ProductMedia>,
@@ -128,7 +132,26 @@ describe('ProductMediaService', () => {
       contentType: 'image/jpeg',
       sizeBytes: 1024,
     });
-    storageService.getPublicUrl.mockReturnValue(ticket.publicUrl);
+    storageService.getPublicUrl.mockReturnValue(
+      `https://media.example.com/${storageKey}`,
+    );
+  });
+
+  it('rejects videos when attaching product media', async () => {
+    manager.count.mockResolvedValueOnce(0);
+    manager.save.mockResolvedValueOnce({
+      ...makeMedia(mediaId),
+      mediaType: MediaType.VIDEO,
+    });
+    manager.findOne.mockResolvedValueOnce({
+      ...makeMedia(mediaId),
+      mediaType: MediaType.VIDEO,
+      isAttached: false,
+      retiredAt: null,
+    });
+    await expect(
+      service.confirmUpload(productId, userId, { mediaId }),
+    ).rejects.toThrow('Product media must be an image');
   });
 
   it('returns ordered media only after the public product lookup succeeds', async () => {

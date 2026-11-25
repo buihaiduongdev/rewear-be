@@ -74,9 +74,6 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         expiresAt: new Date(Date.now() + 60_000),
       };
     },
-    async getObjectMetadata() {
-      return { contentType: 'image/jpeg', sizeBytes: 1024 };
-    },
     getPublicUrl(key) {
       return `https://storage.example.test/${key}`;
     },

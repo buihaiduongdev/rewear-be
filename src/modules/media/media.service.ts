@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
+import { ConfigService } from '@/modules/config';
 
 import { SUPPORTED_IMAGE_EXTENSIONS } from './constants';
 import { Media } from './entities';
@@ -20,6 +21,7 @@ export class MediaService {
   constructor(
     @InjectRepository(Media) private readonly media: Repository<Media>,
     private readonly storage: StorageService,
+    private readonly config: ConfigService,
   ) {}
 
   async createUploadTicket(
@@ -38,11 +40,17 @@ export class MediaService {
     };
     const extension = Object.hasOwn(SUPPORTED_IMAGE_EXTENSIONS, mimeType)
       ? SUPPORTED_IMAGE_EXTENSIONS[mimeType]
-      : visibility === 'private' && Object.hasOwn(videoExtensions, mimeType)
+      : Object.hasOwn(videoExtensions, mimeType)
         ? videoExtensions[mimeType]
         : undefined;
     if (!extension) throw new BadRequestException('Unsupported media type');
-    if (visibility === 'private' && input.sizeBytes > 100 * 1024 * 1024)
+    if (
+      mimeType.startsWith('image/') &&
+      (!this.config.storage.allowedTypes.includes(mimeType) ||
+        input.sizeBytes > this.config.storage.maxSizeBytes)
+    )
+      throw new BadRequestException('Unsupported image type or size');
+    if (input.sizeBytes > 100 * 1024 * 1024)
       throw new BadRequestException('Media exceeds the maximum allowed size');
     const key = `uploads/${userId}/${randomUUID()}.${extension}`;
     const ticketInput = {
@@ -50,10 +58,10 @@ export class MediaService {
       contentType: mimeType,
       sizeBytes: input.sizeBytes,
     };
-    const ticket =
-      visibility === 'private'
-        ? await this.storage.createUploadTicket(ticketInput, 'private')
-        : await this.storage.createUploadTicket(ticketInput);
+    const ticket = await this.storage.createUploadTicket(
+      ticketInput,
+      visibility,
+    );
     const media = await this.media.save(
       this.media.create({
         uploadedById: userId,

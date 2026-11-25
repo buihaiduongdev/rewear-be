@@ -12,6 +12,7 @@ import { handleDatabaseConstraint } from '@/common/utils/database-constraint.uti
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
+import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
 import { User } from '@/modules/user/entities';
 
@@ -64,6 +65,8 @@ export class ShopService {
             5 * 1024 * 1024,
           )
         : null;
+      if (logo && logo.mediaType !== MediaType.IMAGE)
+        throw new BadRequestException('Shop logo must be an image');
       const shop = await manager.save(
         Shop,
         manager.create(Shop, {
@@ -119,6 +122,8 @@ export class ShopService {
             5 * 1024 * 1024,
           )
         : null;
+      if (logo && logo.mediaType !== MediaType.IMAGE)
+        throw new BadRequestException('Shop logo must be an image');
       const { logoMediaId: _logoMediaId, ...shopInput } = input;
       repository.merge(shop, {
         ...shopInput,

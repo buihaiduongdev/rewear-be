@@ -1172,3 +1172,15 @@
 - **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test` với `TZ=UTC` đạt 128/128 suite và 838/838 test; `pnpm test:e2e` đạt 19/19 suite và 60/60 test trên database test riêng.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung. Điều chỉnh test thời gian dùng cùng đồng hồ PostgreSQL để tránh sai lệch mili giây.
 - **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Thống nhất upload public và private
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Đơn giản hóa upload storage để public và private dùng cùng cách ký, chỉ khác bucket.
+- **Prompt chính:** Thống nhất cách cấp URL, header và kiểm tra file cho hai bucket; chuyển quy tắc file về media và nghiệp vụ.
+- **Đầu ra AI được sử dụng:** Đơn giản hóa storage và media, bỏ kiểm tra metadata không còn sử dụng, cập nhật kiểm thử sản phẩm và logo.
+- **Phần tự làm hoặc đã chỉnh sửa:** Người dùng yêu cầu không phân biệt xử lý file theo public/private và giữ các quy tắc thực sự thuộc nghiệp vụ ở module tương ứng.
+- **Cách kiểm chứng:** `pnpm check` đạt; `TZ=UTC pnpm test` đạt 128/128 suite và 836/836 test; `TZ=UTC pnpm test:e2e` đạt 19/19 suite và 60/60 test. PUT và CORS preflight public trên R2 đạt; object thử nghiệm đã được xóa.
+- **Giới hạn:** Bucket private chưa được cấu hình nên chưa kiểm thử PUT/CORS thực tế trên bucket private.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.

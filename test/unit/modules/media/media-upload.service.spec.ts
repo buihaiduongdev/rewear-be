@@ -30,6 +30,12 @@ const manager = {
 const service = new MediaService(
   repository as unknown as Repository<Media>,
   storage as unknown as StorageService,
+  {
+    storage: {
+      allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+      maxSizeBytes: 10 * 1024 * 1024,
+    },
+  } as never,
 );
 
 beforeEach(() => {
@@ -81,3 +87,18 @@ it('rejects another user and retired tickets', async () => {
     ),
   ).rejects.toBeInstanceOf(NotFoundException);
 });
+
+it.each(['public', 'private'] as const)(
+  'accepts the same video type and size for %s',
+  async (visibility) => {
+    await service.createUploadTicket(userId, {
+      mimeType: 'video/mp4',
+      sizeBytes: 1024,
+      visibility,
+    });
+    expect(storage.createUploadTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: 'video/mp4', sizeBytes: 1024 }),
+      visibility,
+    );
+  },
+);

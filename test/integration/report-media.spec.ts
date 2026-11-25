@@ -56,6 +56,12 @@ describe('Violation report private evidence PostgreSQL', () => {
     uploads = new MediaService(
       database.dataSource.getRepository(Media),
       storage as unknown as StorageService,
+      {
+        storage: {
+          allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+          maxSizeBytes: 10 * 1024 * 1024,
+        },
+      } as never,
     );
     media = new ReportMediaService(
       database.dataSource,
