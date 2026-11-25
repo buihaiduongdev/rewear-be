@@ -47,6 +47,7 @@ describe('Owner KYC application HTTP', () => {
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
+      key: `uploads/${randomUUID()}.jpg`,
       uploadUrl: 'https://private.test/put',
       method: 'PUT',
       headers: { 'If-None-Match': '*' },

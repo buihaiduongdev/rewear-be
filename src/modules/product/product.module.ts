@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { Category } from '@/modules/category/entities';
 import { Media, ProductMedia } from '@/modules/media/entities';
@@ -12,6 +13,7 @@ import { ProductService } from './product.service';
 
 @Module({
   imports: [
+    StorageModule,
     AuthorizationModule,
     TypeOrmModule.forFeature([
       Product,

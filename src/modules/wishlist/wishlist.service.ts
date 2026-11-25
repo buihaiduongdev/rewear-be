@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
@@ -13,7 +14,10 @@ import type { WishlistView } from './schemas/wishlist.schema';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly storage: StorageService,
+  ) {}
 
   async findMine(userId: string): Promise<WishlistView> {
     const items = await this.dataSource.getRepository(WishlistItem).find({
@@ -33,7 +37,12 @@ export class WishlistService {
       },
       relations: { media: true },
     });
-    const coverUrls = new Map(covers.map((c) => [c.productId, c.media.url]));
+    const coverUrls = new Map(
+      covers.map((c) => [
+        c.productId,
+        this.storage.getPublicUrl(c.media.storageKey),
+      ]),
+    );
 
     const mappedItems = items.map((item) => {
       const p = item.product;

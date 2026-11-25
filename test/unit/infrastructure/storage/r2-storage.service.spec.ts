@@ -15,7 +15,8 @@ describe('R2 upload immutability', () => {
       },
     } as ConfigService);
     const ticket = await service.createUploadTicket({
-      key: 'products/test/image.jpg',
+      keyPrefix: 'products/test',
+      extension: 'jpg',
       contentType: 'image/jpeg',
       sizeBytes: 1024,
     });

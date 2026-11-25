@@ -36,6 +36,7 @@ describe('Dispute API and private evidence HTTP', () => {
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
+      key: `uploads/${randomUUID()}.jpg`,
       uploadUrl: 'https://private.test/upload?signature=short',
       method: 'PUT',
       headers: { 'If-None-Match': '*' },

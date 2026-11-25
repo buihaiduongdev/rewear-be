@@ -11,16 +11,31 @@ it.each(['public', 'private'] as const)(
   'validates and normalizes %s uploads identically',
   (visibility) => {
     service.createUploadTicket(
-      { key: 'uploads/test', contentType: 'IMAGE/JPEG', sizeBytes: 42 },
+      {
+        keyPrefix: 'uploads/test',
+        extension: 'jpg',
+        contentType: 'IMAGE/JPEG',
+        sizeBytes: 42,
+      },
       visibility,
     );
     expect(provider.createUploadTicket).toHaveBeenCalledWith(
-      { key: 'uploads/test', contentType: 'image/jpeg', sizeBytes: 42 },
+      {
+        keyPrefix: 'uploads/test',
+        extension: 'jpg',
+        contentType: 'image/jpeg',
+        sizeBytes: 42,
+      },
       visibility,
     );
     expect(() =>
       service.createUploadTicket(
-        { key: 'uploads/test', contentType: 'image/jpeg', sizeBytes: 0 },
+        {
+          keyPrefix: 'uploads/test',
+          extension: 'jpg',
+          contentType: 'image/jpeg',
+          sizeBytes: 0,
+        },
         visibility,
       ),
     ).toThrow(BadRequestException);

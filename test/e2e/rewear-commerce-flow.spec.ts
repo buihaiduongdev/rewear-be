@@ -61,9 +61,10 @@ describe('Rewear application commerce flow (HTTP + PostgreSQL)', () => {
         expiresAt: new Date(Date.now() + 60000),
       };
     },
-    async createUploadTicket({ key, contentType, sizeBytes }) {
+    async createUploadTicket({ keyPrefix, extension, contentType, sizeBytes }) {
+      const key = `${keyPrefix}/${randomUUID()}.${extension}`;
       return {
-        storageKey: key,
+        key,
         uploadUrl: `https://storage.example.test/${key}`,
         publicUrl: `https://storage.example.test/${key}`,
         method: 'PUT',

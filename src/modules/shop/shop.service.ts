@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, MoreThan, Repository } from 'typeorm';
 
 import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
+import { StorageService } from '@/infrastructure/storage';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
@@ -37,6 +38,7 @@ export class ShopService {
     private readonly dataSource: DataSource,
     private readonly shopRoleService: ShopRoleService,
     private readonly uploads: MediaService,
+    private readonly storage: StorageService,
   ) {}
 
   async findAll(): Promise<Shop[]> {
@@ -72,7 +74,9 @@ export class ShopService {
         manager.create(Shop, {
           name: input.name,
           description: input.description || null,
-          logoUrl: logo?.url ?? (input.logoUrl || null),
+          logoUrl: logo
+            ? this.storage.getPublicUrl(logo.storageKey)
+            : input.logoUrl || null,
           status: ShopStatus.PENDING,
           onboardingRequired: true,
           approvedAt: null,
@@ -132,7 +136,7 @@ export class ShopService {
             ? input.description || null
             : undefined,
         logoUrl: logo
-          ? logo.url
+          ? this.storage.getPublicUrl(logo.storageKey)
           : input.logoUrl !== undefined
             ? input.logoUrl || null
             : undefined,

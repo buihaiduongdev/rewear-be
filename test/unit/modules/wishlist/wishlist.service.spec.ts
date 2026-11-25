@@ -48,7 +48,9 @@ describe('WishlistService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new WishlistService(mockDataSource);
+    service = new WishlistService(mockDataSource, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
 
   describe('findMine', () => {
@@ -89,7 +91,7 @@ describe('WishlistService', () => {
       mockMediaRepo.find.mockResolvedValueOnce([
         {
           productId: productId,
-          media: { url: 'https://cdn.example.com/cover.jpg' },
+          media: { storageKey: 'cover.jpg' },
         } as ProductMedia,
       ]);
 
@@ -108,7 +110,7 @@ describe('WishlistService', () => {
           condition: ProductCondition.GOOD,
           size: 'L',
           color: 'Beige',
-          coverUrl: 'https://cdn.example.com/cover.jpg',
+          coverUrl: 'https://public.test/cover.jpg',
           shop: { id: 'shop-1', name: 'Vintage Shop', logoUrl: null },
         },
       });

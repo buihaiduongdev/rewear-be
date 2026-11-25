@@ -6,6 +6,7 @@ import {
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { Category } from '@/modules/category/entities';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
@@ -24,7 +25,10 @@ import type { CartView } from './schemas/cart.schema';
 
 @Injectable()
 export class CartService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly storage: StorageService,
+  ) {}
 
   // A consistent read keeps current content, shop eligibility, images and totals
   // in the same DB snapshot. It does not reserve any product.
@@ -187,7 +191,10 @@ export class CartService {
       relations: { media: true },
     });
     const coverUrls = new Map(
-      covers.map((link) => [link.productId, link.media.url]),
+      covers.map((link) => [
+        link.productId,
+        this.storage.getPublicUrl(link.media.storageKey),
+      ]),
     );
     this.populateCartView(result, items, ownedShops, coverUrls);
     return result;

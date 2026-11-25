@@ -19,7 +19,12 @@ describe('R2 storage buckets', () => {
     async (bucket) => {
       await expect(
         new R2StorageService(config(bucket)).createUploadTicket(
-          { key: 'test', contentType: 'image/jpeg', sizeBytes: 12 },
+          {
+            keyPrefix: 'test',
+            extension: 'jpg',
+            contentType: 'image/jpeg',
+            sizeBytes: 12,
+          },
           'private',
         ),
       ).rejects.toMatchObject({ status: 503 });
@@ -28,7 +33,8 @@ describe('R2 storage buckets', () => {
   it('signs equivalent uploads for both buckets', async () => {
     const service = new R2StorageService(config('private-media'));
     const input = {
-      key: 'uploads/test',
+      keyPrefix: 'uploads/test',
+      extension: 'jpg',
       contentType: 'image/jpeg',
       sizeBytes: 12,
     };
@@ -42,7 +48,8 @@ describe('R2 storage buckets', () => {
     const privateUrl = new URL(privateTicket.uploadUrl);
     expect(publicUrl.hostname).toContain('public-media');
     expect(privateUrl.hostname).toContain('private-media');
-    expect(publicUrl.pathname).toBe(privateUrl.pathname);
+    expect(publicUrl.pathname).toMatch(/^\/uploads\/test\/.+\.jpg$/);
+    expect(privateUrl.pathname).toMatch(/^\/uploads\/test\/.+\.jpg$/);
     expect(privateUrl.searchParams.get('X-Amz-SignedHeaders')).toBe(
       publicUrl.searchParams.get('X-Amz-SignedHeaders'),
     );

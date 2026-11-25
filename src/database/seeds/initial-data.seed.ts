@@ -215,7 +215,7 @@ export async function runInitialDataSeed(manager: EntityManager) {
     }
     const media = await mediaFactory.create({
       uploadedById: users[shopIndex + 2].id,
-      url: `https://images.unsplash.com/${item.photo}?w=800&fit=crop&q=80&fm=jpg`,
+      storageKey: `seed/products/${item.photo}-${index}.jpg`,
       sizeBytes: item.sizeBytes,
     });
     await linkFactory.create({
@@ -460,7 +460,7 @@ export async function seedBuyerOrders(
     });
     const media = await mediaFactory.create({
       uploadedById: users[index + 2].id,
-      url: `https://images.unsplash.com/${item.photo}?w=800&fit=crop&q=80&fm=jpg`,
+      storageKey: `seed/products/${item.photo}-order-${index}-${status}.jpg`,
       sizeBytes: item.sizeBytes,
     });
     await linkFactory.create({
@@ -494,7 +494,7 @@ export async function seedBuyerOrders(
         price: subtotal,
         size: product.size,
         condition: product.condition!,
-        coverUrl: media.url,
+        coverUrl: `${process.env.STORAGE_PUBLIC_BASE_URL?.replace(/\/+$/, '')}/seed/products/${item.photo}-order-${index}-${status}.jpg`,
         shippingPackage: product.shippingPackage,
       },
     ];

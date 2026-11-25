@@ -26,7 +26,9 @@ describe('Follow Shop PostgreSQL', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     service = new ShopFollowService(database.dataSource);
-    feed = new ShopFollowFeedService(database.dataSource);
+    feed = new ShopFollowFeedService(database.dataSource, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
   });
   afterAll(async () => database?.destroy());
   it('cleans follows when a Shop is deleted and safely handles missing targets', async () => {
@@ -97,8 +99,7 @@ describe('Follow Shop PostgreSQL', () => {
       Media,
       db.manager.create(Media, {
         uploadedById: f.owner.id,
-        storageKey: randomUUID(),
-        url: 'https://public.test/cover.jpg',
+        storageKey: 'cover.jpg',
         mediaType: MediaType.IMAGE,
         mimeType: 'image/jpeg',
         sizeBytes: 1024,

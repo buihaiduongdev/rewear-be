@@ -2,12 +2,14 @@ export const STORAGE_PROVIDER = Symbol('STORAGE_PROVIDER');
 export type StorageVisibility = 'public' | 'private';
 
 export interface CreateUploadTicketInput {
-  key: string;
+  keyPrefix: string;
+  extension: string;
   contentType: string;
   sizeBytes: number;
 }
 
 export interface UploadTicket {
+  key: string;
   uploadUrl: string;
   method: 'PUT';
   headers: Record<string, string>;

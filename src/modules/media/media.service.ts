@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import {
   BadRequestException,
   Injectable,
@@ -52,9 +50,9 @@ export class MediaService {
       throw new BadRequestException('Unsupported image type or size');
     if (input.sizeBytes > 100 * 1024 * 1024)
       throw new BadRequestException('Media exceeds the maximum allowed size');
-    const key = `uploads/${userId}/${randomUUID()}.${extension}`;
     const ticketInput = {
-      key,
+      keyPrefix: `uploads/${userId}`,
+      extension,
       contentType: mimeType,
       sizeBytes: input.sizeBytes,
     };
@@ -65,8 +63,7 @@ export class MediaService {
     const media = await this.media.save(
       this.media.create({
         uploadedById: userId,
-        storageKey: key,
-        url: visibility === 'public' ? this.storage.getPublicUrl(key) : null,
+        storageKey: ticket.key,
         visibility,
         mediaType: mimeType.startsWith('video/')
           ? MediaType.VIDEO

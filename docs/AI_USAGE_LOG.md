@@ -1184,3 +1184,14 @@
 - **Cách kiểm chứng:** `pnpm check` đạt; `TZ=UTC pnpm test` đạt 128/128 suite và 836/836 test; `TZ=UTC pnpm test:e2e` đạt 19/19 suite và 60/60 test. PUT và CORS preflight public trên R2 đạt; object thử nghiệm đã được xóa.
 - **Giới hạn:** Bucket private chưa được cấu hình nên chưa kiểm thử PUT/CORS thực tế trên bucket private.
 - **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.
+
+### 2026-11-25 — Đồng bộ key media và ảnh seed
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Codex (OpenAI)
+- **Mục đích và phạm vi:** Theo luồng demo2, storage tạo key; media chỉ lưu key và các API tạo URL public khi đọc.
+- **Prompt chính:** Upload ảnh seed lên bucket rồi dùng ảnh đó; tiếp tục refactor storage và media theo demo2.
+- **Đầu ra AI được sử dụng:** Chuyển ảnh seed sang bucket public, bổ sung lệnh `pnpm seed:images` để chuẩn bị ảnh cho bucket khác và cập nhật các API dùng media.
+- **Cách kiểm chứng:** TypeScript và lint đạt; 42/42 URL ảnh seed public trả HTTP thành công. Không chạy test theo yêu cầu của người dùng.
+- **Giới hạn:** Bucket private chưa cấu hình để kiểm thử upload thực tế; database dev cần seed lại để dùng key ảnh mới.
+- **Minh chứng:** PR #65; branch `buihaiduongdev/media-cleanup`.

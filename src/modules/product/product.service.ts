@@ -16,6 +16,7 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { Category } from '@/modules/category/entities';
@@ -53,6 +54,7 @@ export class ProductService {
     private readonly shopMemberRepository: Repository<ShopMember>,
     private readonly dataSource: DataSource,
     private readonly authorizationService: AuthorizationService,
+    private readonly storage: StorageService,
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
@@ -544,6 +546,7 @@ export class ProductService {
     }
     return products.map((product) => {
       const mediaLinks = byProduct.get(product.id) ?? [];
+      const cover = mediaLinks.find((link) => link.role === MediaRole.COVER);
       return {
         ...product,
         shop: product.shop
@@ -552,9 +555,9 @@ export class ProductService {
               identitySalesPaused: !shopAllowsIdentitySales(product.shop),
             }
           : product.shop,
-        coverUrl:
-          mediaLinks.find((link) => link.role === MediaRole.COVER)?.media.url ??
-          null,
+        coverUrl: cover
+          ? this.storage.getPublicUrl(cover.media.storageKey)
+          : null,
         mediaCount: mediaLinks.length,
       };
     });

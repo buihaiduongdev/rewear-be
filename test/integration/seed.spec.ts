@@ -149,7 +149,9 @@ describe('Seed data (PostgreSQL)', () => {
       true,
     );
 
-    const wishlist = await new WishlistService(db).findMine(buyer.id);
+    const wishlist = await new WishlistService(db, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never).findMine(buyer.id);
     expect(wishlist.totalCount).toBe(3);
     expect(wishlist.items.every((item) => item.product?.coverUrl)).toBe(true);
     const follows = await new ShopFollowService(db).list(buyer.id, {
@@ -180,6 +182,7 @@ describe('Seed data (PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     const result = await products.findAll({ path: '/products', limit: 100 });
     expect(result.data).toHaveLength(30);
@@ -192,7 +195,9 @@ describe('Seed data (PostgreSQL)', () => {
       ),
     ).toBe(true);
 
-    const cartService = new CartService(db);
+    const cartService = new CartService(db, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     const adminCartView = await cartService.findMine(admin.id);
     expect(adminCartView.summary.itemCount).toBe(3);
     expect(adminCartView.summary.availableItemCount).toBe(3);

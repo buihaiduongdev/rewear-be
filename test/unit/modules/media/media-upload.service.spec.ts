@@ -42,7 +42,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   manager.findOne.mockResolvedValue({ ...pending });
   storage.getPublicUrl.mockReturnValue('https://example.test/image.jpg');
-  storage.createUploadTicket.mockResolvedValue({ storageKey: key });
+  storage.createUploadTicket.mockResolvedValue({ key });
 });
 
 it('records a pending upload ticket owned by the user', async () => {

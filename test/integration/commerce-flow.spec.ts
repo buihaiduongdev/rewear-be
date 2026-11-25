@@ -84,6 +84,7 @@ describe('commerce behavior with PostgreSQL', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     const product = await products.create(seller.id, {
       shopId: shop.id,
@@ -99,7 +100,6 @@ describe('commerce behavior with PostgreSQL', () => {
       const media = await db.getRepository(Media).save({
         uploadedById: seller.id,
         storageKey: `products/${product.id}/${randomUUID()}.jpg`,
-        url: `https://media.example.test/${randomUUID()}.jpg`,
         mediaType: MediaType.IMAGE,
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
@@ -160,7 +160,9 @@ describe('commerce behavior with PostgreSQL', () => {
     });
     expect(published.status).toBe(ProductStatus.ACTIVE);
 
-    const cart = new CartService(db);
+    const cart = new CartService(db, {
+      getPublicUrl: (key: string) => `https://public.test/${key}`,
+    } as never);
     const cartView = await cart.add(buyer.id, product.id);
     expect(cartView.summary).toMatchObject({
       itemCount: 1,

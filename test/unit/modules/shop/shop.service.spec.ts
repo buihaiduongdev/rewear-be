@@ -83,6 +83,7 @@ describe('ShopService', () => {
     dataSource as unknown as DataSource,
     { initializeDefaultRoles: jest.fn() } as never,
     uploads as never,
+    { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
   );
 
   beforeEach(() => {
@@ -119,9 +120,9 @@ describe('ShopService', () => {
 
   it('attaches the uploaded logo in the shop transaction', async () => {
     const logoMediaId = '0b8b4a7c-5a28-4ee3-90f6-62ba3c8f56c6';
-    const newShop = { ...shop, logoUrl: 'https://example.test/logo.jpg' };
+    const newShop = { ...shop, logoUrl: 'https://public.test/logo.jpg' };
     uploads.verifyMedia.mockResolvedValueOnce({
-      url: newShop.logoUrl,
+      storageKey: 'logo.jpg',
       mediaType: 'IMAGE',
     });
     entityManager.create

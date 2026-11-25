@@ -337,11 +337,11 @@ export class ProductMediaService {
   }
 
   private toView(link: ProductMedia): ProductMediaView {
-    if (!link.media.url || !link.role)
+    if (!link.role)
       throw new InternalServerErrorException('Invalid product media');
     return {
       id: link.mediaId,
-      url: link.media.url,
+      url: this.storageService.getPublicUrl(link.media.storageKey),
       mediaType: link.media.mediaType,
       mimeType: link.media.mimeType,
       sizeBytes: link.media.sizeBytes,

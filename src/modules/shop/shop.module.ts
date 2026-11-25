@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { MediaModule } from '@/modules/media/media.module';
 
@@ -12,6 +13,7 @@ import { ShopService } from './shop.service';
 
 @Module({
   imports: [
+    StorageModule,
     ShopApplicationModule,
     AuthorizationModule,
     MediaModule,

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { DataSource, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -17,7 +18,10 @@ import type { ShopFollowQuery } from './types/shop-follow.type';
 
 @Injectable()
 export class ShopFollowFeedService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly storage: StorageService,
+  ) {}
   products(userId: string, input: ShopFollowQuery) {
     return this.db.transaction('REPEATABLE READ', async (manager) => {
       await assertFollowUser(manager, userId);
@@ -73,7 +77,9 @@ export class ShopFollowFeedService {
             price: product.price!,
             condition: product.condition,
             size: product.size,
-            coverUrl: cover?.media.url ?? null,
+            coverUrl: cover
+              ? this.storage.getPublicUrl(cover.media.storageKey)
+              : null,
             publishedAt: product.publishedAt!,
             shop: { id: product.shop.id, name: product.shop.name },
           };

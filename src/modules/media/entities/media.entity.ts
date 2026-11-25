@@ -18,9 +18,6 @@ export class Media extends BaseEntity {
   @Column({ length: 512 })
   storageKey: string;
 
-  @Column({ type: 'varchar', length: 2048, nullable: true })
-  url: string | null;
-
   @Column({ type: 'varchar', length: 7, default: 'public' })
   visibility: 'public' | 'private';
 

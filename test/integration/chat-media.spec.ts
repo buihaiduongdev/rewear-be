@@ -30,16 +30,19 @@ describe('Chat private media and evidence PostgreSQL', () => {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(
       async (input: {
-        key: string;
+        keyPrefix: string;
+        extension: string;
         contentType: string;
         sizeBytes: number;
       }) => {
-        objects.set(input.key, {
+        const key = `${input.keyPrefix}/${randomUUID()}.${input.extension}`;
+        objects.set(key, {
           eTag: randomUUID(),
           contentType: input.contentType,
           sizeBytes: input.sizeBytes,
         });
         return {
+          key,
           uploadUrl: 'https://private.test/upload',
           method: 'PUT' as const,
           headers: { 'If-None-Match': '*' },

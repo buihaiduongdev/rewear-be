@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import {
@@ -42,10 +44,11 @@ export class R2StorageService implements IStorageProvider {
   }
 
   async createUploadTicket(
-    { contentType, key }: CreateUploadTicketInput,
+    { contentType, keyPrefix, extension }: CreateUploadTicketInput,
     visibility: StorageVisibility = 'public',
   ): Promise<UploadTicket> {
     const expiresIn = this.configService.storage.uploadExpiresInSeconds;
+    const key = `${keyPrefix.replace(/^\/+|\/+$/g, '')}/${randomUUID()}.${extension}`;
     const uploadUrl = await getSignedUrl(
       this.client,
       new PutObjectCommand({
@@ -60,6 +63,7 @@ export class R2StorageService implements IStorageProvider {
       },
     );
     return {
+      key,
       uploadUrl,
       method: 'PUT',
       headers: { 'Content-Type': contentType, 'If-None-Match': '*' },

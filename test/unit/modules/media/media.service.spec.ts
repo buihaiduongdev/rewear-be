@@ -19,6 +19,7 @@ describe('ProductMediaService', () => {
   const storageKey = `products/${productId}/${uploadId}.jpg`;
   const now = new Date('2026-10-19T00:00:00.000Z');
   const ticket: UploadTicket = {
+    key: storageKey,
     uploadUrl: 'https://upload.example.com/signed',
     method: 'PUT',
     headers: { 'Content-Type': 'image/jpeg' },
@@ -30,7 +31,6 @@ describe('ProductMediaService', () => {
       id,
       uploadedById: userId,
       storageKey: key,
-      url: `https://media.example.com/${key}`,
       mediaType: MediaType.IMAGE,
       mimeType: 'image/jpeg',
       visibility: 'public',

@@ -936,7 +936,12 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         expectedTotal: 230000,
         mode: RECONCILIATION_MODE.EVIDENCE,
       });
-      const checkouts = new CheckoutService(db, new CartService(db));
+      const checkouts = new CheckoutService(
+        db,
+        new CartService(db, {
+          getPublicUrl: (key: string) => `https://public.test/${key}`,
+        } as never),
+      );
       if (action === 'cancel') await checkouts.cancel(buyer.id, checkout.id);
       else {
         await db

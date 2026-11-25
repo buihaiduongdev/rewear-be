@@ -32,7 +32,8 @@
     "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest.js --runInBand",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/seed.runner.ts",
     "db:reset": "pnpm seed --fresh",
-    "test:seed": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --runTestsByPath test/integration/seed.spec.ts"
+    "test:seed": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --runTestsByPath test/integration/seed.spec.ts",
+    "seed:images": "ts-node -r tsconfig-paths/register src/database/seeds/upload-images.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

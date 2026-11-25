@@ -41,6 +41,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
+      key: `uploads/${randomUUID()}.jpg`,
       uploadUrl: 'https://private.test/put',
       method: 'PUT',
       headers: { 'If-None-Match': '*' },
@@ -226,6 +227,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db,
       new ShopRoleService(db),
       uploads,
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     const pending = await shops.create(f.buyer.id, {
       name: 'New applicant Shop',
@@ -246,6 +248,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db.getRepository(ShopMember),
       db,
       new AuthorizationService(db),
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
     );
     await expect(
       products.create(f.buyer.id, { shopId: pending.id }),
