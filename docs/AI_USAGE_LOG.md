@@ -1265,4 +1265,4 @@
   - Cập nhật đồng bộ đường dẫn tham chiếu trong mã nguồn và các bài kiểm thử liên quan.
 - **Kiểm chứng và chỉnh sửa của nhóm:** Đã rà soát toàn bộ thay đổi và chạy định dạng, kiểm tra kiểu, kiểm thử thanh toán lõi và kiểm thử đơn vị toàn dự án sau chỉnh sửa.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Gộp trùng hai khai báo kiểu khi hợp nhất schema xu thưởng; đã xóa phần trùng trước khi kiểm thử lại.
-- **Minh chứng:** Chưa tạo PR; branch `buihaiduongdev/refactor-wave-2`.
+- **Minh chứng:** PR #70; branch `buihaiduongdev/refactor-wave-2`.
