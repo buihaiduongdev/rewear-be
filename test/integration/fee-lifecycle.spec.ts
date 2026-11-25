@@ -148,14 +148,14 @@ describe('fee source corrections (PostgreSQL)', () => {
     await expect(service.object(fee.buyerId, fee.id, proof)).rejects.toThrow(
       'One timely',
     );
-    const before = Date.now();
+    const [{ now: before }] = await db.query('SELECT clock_timestamp() AS now');
     const upheld = await service.correct(admin.id, fee.id, {
       ...proof,
       payableAmount: fee.amount,
     });
     expect(upheld.status).toBe('ACTIVE');
     expect(upheld.dueAt!.getTime()).toBeGreaterThanOrEqual(
-      before + 72 * 60 * 60 * 1000,
+      new Date(before).getTime() + 72 * 60 * 60 * 1000,
     );
     expect(await db.getRepository(FeeNotice).countBy({ feeId: fee.id })).toBe(
       1,

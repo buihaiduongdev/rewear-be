@@ -1169,6 +1169,6 @@
 - **Prompt chính:** Refactor media về một nguồn dữ liệu chung, dùng quan hệ riêng theo nghiệp vụ, đơn giản hóa upload và chuyển KYC sang cùng cơ chế; giữ phân quyền khi truy cập file private.
 - **Đầu ra AI được sử dụng:** Media và storage chung, các quan hệ và API nghiệp vụ liên quan, kiểm thử và tài liệu tương ứng.
 - **Phần tự làm hoặc đã chỉnh sửa:** Người dùng chọn không dùng polymorphic, không giữ dữ liệu dev cũ và yêu cầu chuyển KYC sau khi đồng bộ main.
-- **Cách kiểm chứng:** `pnpm check` đạt; kiểm thử riêng hồ sơ KYC, gia hạn giấy tờ và API đạt 18/18. Kiểm thử đầy đủ được thực hiện trên database test riêng.
-- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung.
+- **Cách kiểm chứng:** `pnpm check` đạt; `pnpm test` với `TZ=UTC` đạt 128/128 suite và 838/838 test; `pnpm test:e2e` đạt 19/19 suite và 60/60 test trên database test riêng.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Ban đầu tạo migration không cần thiết và bỏ sót KYC mới trên main; đã bỏ migration và chuyển KYC sang media chung. Điều chỉnh test thời gian dùng cùng đồng hồ PostgreSQL để tránh sai lệch mili giây.
 - **Minh chứng:** Branch `buihaiduongdev/media-cleanup`.
