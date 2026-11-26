@@ -47,14 +47,22 @@ export class ChatService {
       relations: { buyer: true, shop: true },
     });
     if (!row) {
-      const [shopActive, isOwnShop] = await Promise.all([
-        manager.existsBy(Shop, { id: shopId, status: ShopStatus.ACTIVE }),
-        manager.existsBy(ShopMember, { userId: buyerId, shopId }),
-      ]);
-      if (!shopActive) {
+      const shopCheck = await manager
+        .createQueryBuilder(Shop, 'shop')
+        .leftJoin(
+          ShopMember,
+          'member',
+          'member.shopId = shop.id AND member.userId = :buyerId',
+          { buyerId },
+        )
+        .select('shop.status', 'status')
+        .addSelect('member.id', 'memberId')
+        .where('shop.id = :shopId', { shopId })
+        .getRawOne<{ status: ShopStatus; memberId: string | null }>();
+      if (shopCheck?.status !== ShopStatus.ACTIVE) {
         throw new ForbiddenException('Shop is not accepting new chat messages');
       }
-      if (isOwnShop) {
+      if (shopCheck.memberId) {
         throw new BadRequestException(
           'Shop members cannot open a buyer conversation with their own Shop',
         );
