@@ -10,6 +10,7 @@ import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
@@ -61,7 +62,8 @@ export async function disputeReturnFixture(
 
   const orderAccess = new OrderAccess();
   const access = new DisputeAccess(orderAccess);
-  const refunds = new DisputeRefundService(db, access);
+  const outbox = new OutboxService();
+  const refunds = new DisputeRefundService(db, access, outbox);
   const returns = new DisputeReturnService(
     db,
     {} as GhnShipmentClient,
@@ -74,6 +76,7 @@ export async function disputeReturnFixture(
     access,
     refunds,
     returns,
+    outbox,
   );
 
   const decision = await adjudication.decide(f.admin.id, f.issue.id, {

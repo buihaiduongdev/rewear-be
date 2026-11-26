@@ -10,6 +10,7 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole, MediaType } from '@/modules/media/enums';
 import { Product } from '@/modules/product/entities';
@@ -85,6 +86,7 @@ describe('commerce behavior with PostgreSQL', () => {
       db,
       new AuthorizationService(db),
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      new OutboxService(),
     );
     const product = await products.create(seller.id, {
       shopId: shop.id,

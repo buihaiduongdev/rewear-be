@@ -11,9 +11,10 @@ import { DataSource, type EntityManager, In, IsNull, Not } from 'typeorm';
 
 import { handleDatabaseConstraint } from '@/common/utils/database-constraint.util';
 import { StorageService } from '@/infrastructure/storage';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
-import { notifyShopApplication } from '@/modules/notifications/sources/shop-application.notification';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import { User } from '@/modules/user/entities';
@@ -88,6 +89,7 @@ export class ShopApplicationService {
     private readonly db: DataSource,
     private readonly storage: StorageService,
     private readonly media: MediaService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async assertActiveUser(
@@ -324,11 +326,17 @@ export class ShopApplicationService {
             adminNote: null,
           }),
         );
-        await notifyShopApplication(
-          manager,
-          row,
-          SHOP_APPLICATION_ACTION.CREATED,
-        );
+        await this.outboxService.record(manager, {
+          eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+          resourceId: row.id,
+          payload: {
+            applicationId: row.id,
+            shopId: row.shopId,
+            applicantId: row.applicantId,
+            action: SHOP_APPLICATION_ACTION.CREATED,
+            sendEmail: false,
+          },
+        });
       }
       return this.view(manager, row);
     });
@@ -380,11 +388,17 @@ export class ShopApplicationService {
             adminNote: null,
           }),
         );
-        await notifyShopApplication(
-          manager,
-          row,
-          SHOP_APPLICATION_ACTION.CREATED,
-        );
+        await this.outboxService.record(manager, {
+          eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+          resourceId: row.id,
+          payload: {
+            applicationId: row.id,
+            shopId: row.shopId,
+            applicantId: row.applicantId,
+            action: SHOP_APPLICATION_ACTION.CREATED,
+            sendEmail: false,
+          },
+        });
       }
       return this.view(manager, row);
     });
@@ -419,11 +433,17 @@ export class ShopApplicationService {
         adminNote: null,
       });
       await manager.save(ShopApplication, row);
-      await notifyShopApplication(
-        manager,
-        row,
-        SHOP_APPLICATION_ACTION.SUBMITTED,
-      );
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+        resourceId: row.id,
+        payload: {
+          applicationId: row.id,
+          shopId: row.shopId,
+          applicantId: row.applicantId,
+          action: SHOP_APPLICATION_ACTION.SUBMITTED,
+          sendEmail: false,
+        },
+      });
       return this.view(manager, row);
     });
   }
@@ -454,11 +474,17 @@ export class ShopApplicationService {
         adminNote: null,
       });
       await manager.save(ShopApplication, row);
-      await notifyShopApplication(
-        manager,
-        row,
-        SHOP_APPLICATION_ACTION.SUBMITTED,
-      );
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+        resourceId: row.id,
+        payload: {
+          applicationId: row.id,
+          shopId: row.shopId,
+          applicantId: row.applicantId,
+          action: SHOP_APPLICATION_ACTION.SUBMITTED,
+          sendEmail: false,
+        },
+      });
       return this.view(manager, row);
     });
   }
@@ -527,7 +553,23 @@ export class ShopApplicationService {
         adminNote: data.adminNote || null,
       });
       await manager.save(ShopApplication, row);
-      await notifyShopApplication(manager, row, data.outcome);
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+        resourceId: row.id,
+        payload: {
+          applicationId: row.id,
+          shopId: row.shopId,
+          applicantId: row.applicantId,
+          action: data.outcome,
+          sendEmail: (
+            [
+              SHOP_APPLICATION_ACTION.APPROVED,
+              SHOP_APPLICATION_ACTION.REJECTED,
+              SHOP_APPLICATION_ACTION.NEEDS_INFO,
+            ] as readonly string[]
+          ).includes(data.outcome),
+        },
+      });
       return this.view(manager, row, true);
     });
   }

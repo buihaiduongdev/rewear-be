@@ -14,8 +14,8 @@ import { TransformInterceptor } from '@/common/interceptors/transform.intercepto
 import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
-import { NotificationService } from '@/modules/notifications/notification.service';
-import { NotificationWorker } from '@/modules/notifications/notification.worker';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
@@ -57,7 +57,6 @@ describe('Buyer–Shop chat HTTP', () => {
     await database.destroy();
     let builder = Test.createTestingModule({ imports: [AppModule] });
     for (const worker of [
-      NotificationWorker,
       OrderWorker,
       OrderSettlementWorker,
       ShipmentWorker,
@@ -115,9 +114,12 @@ describe('Buyer–Shop chat HTTP', () => {
       .send({ text: 'Còn hàng không?' })
       .expect(200);
     expect(sent.body.data.senderId).toBe(f.buyer.id);
-    expect((await app.get(NotificationService).unread(f.owner.id)).count).toBe(
-      1,
-    );
+    expect(
+      await db.getRepository(OutboxEvent).countBy({
+        eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+        resourceId: conversationId,
+      }),
+    ).toBe(1);
   });
   it('supports media uploads, authorized signing and evidence import without leaking keys', async () => {
     const server = app.getHttpServer();

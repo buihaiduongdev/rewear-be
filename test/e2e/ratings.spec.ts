@@ -186,12 +186,6 @@ describe('Verified Shop ratings HTTP', () => {
       .send({ orderId: order.id, stars: 2 })
       .expect(200);
     expect(edited.body.data.reply).toBe('Shop response');
-    const notices = await request(app.getHttpServer())
-      .get(`/api/ratings/shops/${order.shopId}/notices`)
-      .set('X-Shop-Id', order.shopId)
-      .auth(token(owner), { type: 'bearer' })
-      .expect(200);
-    expect(notices.body.data).toHaveLength(1);
   });
   it('uses owned upload tickets and rechecks moderation for every signed download', async () => {
     const upload = await request(app.getHttpServer())

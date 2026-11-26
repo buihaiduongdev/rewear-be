@@ -14,6 +14,7 @@ import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.ent
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -39,7 +40,8 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
     database = await createTestDatabase();
     const orderAccess = new OrderAccess();
     const access = new DisputeAccess(orderAccess);
-    refunds = new DisputeRefundService(database.dataSource, access);
+    const outbox = new OutboxService();
+    refunds = new DisputeRefundService(database.dataSource, access, outbox);
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
@@ -52,6 +54,7 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       access,
       refunds,
       returns,
+      outbox,
     );
   });
 
@@ -324,6 +327,7 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
     const settlement = new OrderSettlementService(
       f.db,
       new OrderFundingService(),
+      new OutboxService(),
     );
     await settlement.verifyDelivery(f.admin.id, f.order.id, {
       deliveredAt: f.order.deliveryObservedAt!.toISOString(),

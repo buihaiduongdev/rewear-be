@@ -21,7 +21,6 @@ import {
   ShopRating,
   ShopRatingMedia,
   ShopRatingModerationAudit,
-  ShopRatingNotice,
   ShopRatingVersion,
 } from './entities';
 import {
@@ -185,7 +184,6 @@ export class RatingsService {
       });
       const repo = manager.getRepository(ShopRating);
       let row = await repo.findOneBy({ buyerId, shopId: order.shopId });
-      const editing = Boolean(row);
       if (!row)
         row = repo.create({
           buyerId,
@@ -209,12 +207,6 @@ export class RatingsService {
       });
       row = await repo.save(row);
       await this.version(manager, row, buyerId, 'BUYER');
-      if (editing)
-        await manager.getRepository(ShopRatingNotice).save({
-          ratingId: row.id,
-          shopId: row.shopId,
-          revision: row.revision,
-        });
       return this.privateView(row);
     });
   }
@@ -318,16 +310,6 @@ export class RatingsService {
     return manager.find(ShopRatingVersion, {
       where: { ratingId },
       order: { createdAt: 'ASC', id: 'ASC' },
-      skip: offset,
-      take: 50,
-    });
-  }
-
-  async notices(actorId: string, shopId: string, offset = 0) {
-    await this.assertReplyAccess(this.db.manager, actorId, shopId);
-    return this.db.manager.find(ShopRatingNotice, {
-      where: { shopId },
-      order: { createdAt: 'DESC', id: 'ASC' },
       skip: offset,
       take: 50,
     });

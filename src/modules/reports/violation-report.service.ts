@@ -9,7 +9,8 @@ import {
 
 import { DataSource, type EntityManager } from 'typeorm';
 
-import { notifyViolationReport } from '@/modules/notifications/sources/violation-report.notification';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -46,7 +47,10 @@ import {
 
 @Injectable()
 export class ViolationReportService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly outboxService: OutboxService,
+  ) {}
 
   private fingerprint(input: unknown) {
     return createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -144,7 +148,16 @@ export class ViolationReportService {
         effect,
       }),
     );
-    await notifyViolationReport(manager, row, action);
+    await this.outboxService.record(manager, {
+      eventType: EVENT_TYPES.VIOLATION_REPORT_UPDATED,
+      resourceId: row.id,
+      payload: {
+        reportId: row.id,
+        reporterId: row.reporterId,
+        version: row.version,
+        action,
+      },
+    });
   }
 
   create(userId: string, input: CreateReportInput) {
@@ -289,7 +302,12 @@ export class ViolationReportService {
         throw new ConflictException('Report version changed');
       if (row.status === REPORT_STATUS.RESOLVED)
         throw new ConflictException('Report already resolved');
-      const effect = await applyReportMeasure(manager, row, data);
+      const effect = await applyReportMeasure(
+        manager,
+        row,
+        data,
+        this.outboxService,
+      );
       row.status = REPORT_STATUS.RESOLVED;
       row.version++;
       row.outcome = data.outcome;

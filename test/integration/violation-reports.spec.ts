@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Category } from '@/modules/category/entities';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product } from '@/modules/product/entities';
 import { ProductModeration } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
@@ -22,7 +23,10 @@ describe('Product/Shop violation reports PostgreSQL', () => {
   let read: ViolationReportService;
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new ViolationReportService(database.dataSource);
+    service = new ViolationReportService(
+      database.dataSource,
+      new OutboxService(),
+    );
     read = service;
     admin = service;
   });

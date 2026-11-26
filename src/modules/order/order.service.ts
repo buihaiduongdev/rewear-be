@@ -5,6 +5,8 @@ import { DataSource, EntityManager, In } from 'typeorm';
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { CoinService } from '@/modules/coins/core/coin.service';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -39,6 +41,7 @@ export class OrderService {
     private readonly db: DataSource,
     private readonly walletService: WalletService,
     private readonly codPolicy: CodPolicy,
+    private readonly outboxService: OutboxService,
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {
@@ -105,7 +108,7 @@ export class OrderService {
           now.getTime() + ORDER_POLICY.HANDOVER_WINDOW_MS,
         );
       await manager.save(order);
-      await manager.save(
+      const event = await manager.save(
         OrderEvent,
         manager.create(OrderEvent, {
           orderId: id,
@@ -115,6 +118,17 @@ export class OrderService {
           createdAt: now,
         }),
       );
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.ORDER_UPDATED,
+        resourceId: order.id,
+        payload: {
+          orderId: order.id,
+          orderEventId: event.id,
+          buyerId: order.buyerId,
+          shopId: order.shopId,
+          action: event.action,
+        },
+      });
       return { order, expired: false };
     });
     if (result.expired)
@@ -257,7 +271,7 @@ export class OrderService {
       shipment.nextQueryAt = now;
       await manager.save(order);
       await manager.save(shipment);
-      await manager.save(
+      const event = await manager.save(
         OrderEvent,
         manager.create(OrderEvent, {
           orderId: order.id,
@@ -267,6 +281,17 @@ export class OrderService {
           createdAt: now,
         }),
       );
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.ORDER_UPDATED,
+        resourceId: order.id,
+        payload: {
+          orderId: order.id,
+          orderEventId: event.id,
+          buyerId: order.buyerId,
+          shopId: order.shopId,
+          action: event.action,
+        },
+      });
       await this.codPolicy.recordBuyerCancellation(manager, order, now);
       return order;
     });
@@ -331,7 +356,7 @@ export class OrderService {
     shipment.nextQueryAt = null;
     await manager.save(shipment);
     await manager.save(order);
-    await manager.save(
+    const event = await manager.save(
       OrderEvent,
       manager.create(OrderEvent, {
         orderId: order.id,
@@ -341,6 +366,17 @@ export class OrderService {
         createdAt: now,
       }),
     );
+    await this.outboxService.record(manager, {
+      eventType: EVENT_TYPES.ORDER_UPDATED,
+      resourceId: order.id,
+      payload: {
+        orderId: order.id,
+        orderEventId: event.id,
+        buyerId: order.buyerId,
+        shopId: order.shopId,
+        action: event.action,
+      },
+    });
   }
 
   private async now(manager: EntityManager) {
@@ -375,7 +411,7 @@ export class OrderService {
     order.cancellationReason = reason;
     order.cancellationNote = note;
     await manager.save(order);
-    await manager.save(
+    const event = await manager.save(
       OrderEvent,
       manager.create(OrderEvent, {
         orderId: order.id,
@@ -392,6 +428,17 @@ export class OrderService {
         createdAt: now,
       }),
     );
+    await this.outboxService.record(manager, {
+      eventType: EVENT_TYPES.ORDER_UPDATED,
+      resourceId: order.id,
+      payload: {
+        orderId: order.id,
+        orderEventId: event.id,
+        buyerId: order.buyerId,
+        shopId: order.shopId,
+        action: event.action,
+      },
+    });
   }
 
   private async releaseStock(

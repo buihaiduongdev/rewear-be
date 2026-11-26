@@ -1,160 +1,95 @@
 import {
-  ForbiddenException,
   Injectable,
+  type MessageEvent,
   NotFoundException,
+  type OnModuleDestroy,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 
-import { Brackets, DataSource, EntityManager } from 'typeorm';
+import { paginate, type PaginateQuery } from 'nestjs-paginate';
+import { filter, map, type Observable, Subject } from 'rxjs';
+import { Repository } from 'typeorm';
 
-import { AuthorizationService } from '@/modules/authorization/authorization.service';
-import { ShopMember } from '@/modules/shop/entities';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
-
-import { NOTIFICATION_SCOPE } from './constants/notification.constant';
-import { Notification } from './entities';
-import type { NotificationQuery } from './schemas/notification.schema';
+import { NOTIFICATION_PAGINATION_CONFIG } from './constants/notification-pagination.config';
+import { Notification } from './entities/notification.entity';
+import { notificationResponseSchema } from './schemas/notification.schema';
 
 @Injectable()
-export class NotificationService {
+export class NotificationService implements OnModuleDestroy {
+  private readonly streamSubject = new Subject<Notification>();
+
   constructor(
-    private readonly db: DataSource,
-    private readonly authorization: AuthorizationService,
+    @InjectRepository(Notification)
+    private readonly notificationRepository: Repository<Notification>,
   ) {}
-  async canRead(
-    manager: EntityManager,
-    user: User,
-    notification: Notification,
-  ) {
-    if (
-      user.status !== UserStatus.ACTIVE ||
-      notification.recipientId !== user.id
-    )
-      return false;
-    if (notification.scope === NOTIFICATION_SCOPE.USER) return true;
-    if (notification.scope === NOTIFICATION_SCOPE.ADMIN)
-      return user.role === UserRole.ADMIN;
-    return (
-      !!notification.shopId &&
-      !!notification.permission &&
-      (await this.authorization.hasPermission(
-        user.id,
-        notification.shopId,
-        notification.permission,
-        manager,
-      ))
+
+  onModuleDestroy(): void {
+    this.streamSubject.complete();
+  }
+
+  emit(notifications: Notification[]): void {
+    for (const notification of notifications) {
+      this.streamSubject.next(notification);
+    }
+  }
+
+  subscribe(recipientId: string): Observable<MessageEvent> {
+    return this.streamSubject.asObservable().pipe(
+      filter((notification) => notification.recipientId === recipientId),
+      map((notification) => ({
+        id: notification.id,
+        type: notification.type,
+        data: notificationResponseSchema.parse(notification),
+      })),
     );
   }
-  private async visible(manager: EntityManager, userId: string) {
-    const user = await manager.findOneBy(User, {
-      id: userId,
-      status: UserStatus.ACTIVE,
+
+  findAll(recipientId: string, query: PaginateQuery) {
+    const qb = this.notificationRepository
+      .createQueryBuilder('notification')
+      .where('notification.recipientId = :recipientId', { recipientId });
+
+    return paginate(query, qb, NOTIFICATION_PAGINATION_CONFIG);
+  }
+
+  async getUnreadCount(recipientId: string) {
+    const count = await this.notificationRepository.count({
+      where: {
+        recipientId,
+        isRead: false,
+      },
     });
-    if (!user) throw new ForbiddenException('Active user required');
-    const membership = await manager.findOneBy(ShopMember, { userId });
-    const permissions = membership
-      ? await manager
-          .createQueryBuilder(Notification, 'notice')
-          .select('DISTINCT notice.permission', 'permission')
-          .where('notice.recipientId = :userId AND notice.shopId = :shopId', {
-            userId,
-            shopId: membership.shopId,
-          })
-          .getRawMany<{ permission: string }>()
-      : [];
-    const allowed: string[] = [];
-    for (const { permission } of permissions)
-      if (
-        permission &&
-        (await this.authorization.hasPermission(
-          userId,
-          membership!.shopId,
-          permission,
-          manager,
-        ))
-      )
-        allowed.push(permission);
-    return manager
-      .createQueryBuilder(Notification, 'notice')
-      .where('notice.recipientId = :userId', { userId })
-      .andWhere(
-        new Brackets((q) => {
-          q.where('notice.scope = :personal', {
-            personal: NOTIFICATION_SCOPE.USER,
-          });
-          if (user.role === UserRole.ADMIN)
-            q.orWhere('notice.scope = :admin', {
-              admin: NOTIFICATION_SCOPE.ADMIN,
-            });
-          if (membership && allowed.length)
-            q.orWhere(
-              '(notice.scope = :shop AND notice.shopId = :shopId AND notice.permission IN (:...permissions))',
-              {
-                shop: NOTIFICATION_SCOPE.SHOP,
-                shopId: membership.shopId,
-                permissions: allowed,
-              },
-            );
-        }),
-      );
+    return { count };
   }
-  async list(userId: string, input: NotificationQuery) {
-    const query = await this.visible(this.db.manager, userId);
-    if (input.unreadOnly) query.andWhere('notice.readAt IS NULL');
-    const [items, total] = await query
-      .orderBy('notice.createdAt', 'DESC')
-      .addOrderBy('notice.id', 'DESC')
-      .take(input.limit)
-      .skip(input.offset)
-      .getManyAndCount();
-    return { items, total, offset: input.offset, limit: input.limit };
-  }
-  async unread(userId: string) {
-    return {
-      count: await (
-        await this.visible(this.db.manager, userId)
-      )
-        .andWhere('notice.readAt IS NULL')
-        .getCount(),
-    };
-  }
-  read(userId: string, id: string) {
-    return this.db.transaction(async (manager) => {
-      const row = await (
-        await this.visible(manager, userId)
-      )
-        .andWhere('notice.id = :id', { id })
-        .setLock('pessimistic_write')
-        .getOne();
-      if (!row) throw new NotFoundException('Notification not found');
-      if (!row.readAt) {
-        const [{ now }] = await manager.query(
-          'SELECT clock_timestamp() AS now',
-        );
-        row.readAt = new Date(now);
-        await manager.save(row);
-      }
-      return row;
+
+  async markAsRead(recipientId: string, id: string) {
+    const notification = await this.notificationRepository.findOneBy({
+      id,
+      recipientId,
     });
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    if (notification.isRead) {
+      return notification;
+    }
+
+    notification.isRead = true;
+    return this.notificationRepository.save(notification);
   }
-  readAll(userId: string) {
-    return this.db.transaction(async (manager) => {
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      const visible = await this.visible(manager, userId);
-      const ids = await visible
-        .select('notice.id', 'id')
-        .andWhere('notice.readAt IS NULL')
-        .andWhere('notice.createdAt <= :now', { now })
-        .getRawMany<{ id: string }>();
-      if (ids.length)
-        await manager
-          .createQueryBuilder()
-          .update(Notification)
-          .set({ readAt: new Date(now) })
-          .whereInIds(ids.map((row) => row.id))
-          .andWhere('"readAt" IS NULL')
-          .execute();
-      return { count: ids.length };
-    });
+
+  async markAllAsRead(recipientId: string) {
+    const result = await this.notificationRepository.update(
+      {
+        recipientId,
+        isRead: false,
+      },
+      {
+        isRead: true,
+      },
+    );
+
+    return { updatedCount: result.affected ?? 0 };
   }
 }

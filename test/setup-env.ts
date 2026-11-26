@@ -15,6 +15,8 @@ process.env.MAIL_USER ??= 'rewear-test';
 process.env.MAIL_PASS ??= 'rewear-test';
 process.env.MAIL_FROM ??= 'test@example.test';
 process.env.FRONTEND_URL ??= 'http://localhost:5000';
+process.env.REDIS_HOST ??= '127.0.0.1';
+process.env.REDIS_PORT ??= '6379';
 
 const databaseName = process.env.DB_NAME;
 const databaseHost = process.env.DB_HOST ?? 'localhost';

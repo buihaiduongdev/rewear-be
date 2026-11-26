@@ -13,6 +13,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
@@ -52,6 +53,7 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
           carrier as unknown as GhnSandboxAdapter,
         ),
       ),
+      new OutboxService(),
     );
   });
   afterAll(async () => {
@@ -375,6 +377,7 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
       db,
       new WalletService(db),
       new CodPolicy(db),
+      new OutboxService(),
     );
     await orders.expireDue();
     await service.applyResult(payment.id, capture);

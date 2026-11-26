@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { AuthProvider } from '@/modules/auth/enums';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
-import { Notification } from '@/modules/notifications/entities';
 import { IDENTITY_RENEWAL_POLICY } from '@/modules/shop/applications/constants/shop-application.constant';
 import {
   ShopApplication,
@@ -30,6 +32,7 @@ describe('Owner document renewal (PostgreSQL)', () => {
       database.dataSource,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
       {} as never,
+      new OutboxService(),
     );
   });
 
@@ -143,7 +146,7 @@ describe('Owner document renewal (PostgreSQL)', () => {
 
   it('persists one safe expiry notice per stage and advances past already-notified batches without starvation', async () => {
     const db = database.dataSource;
-    const worker = new IdentityRenewalWorker(db);
+    const worker = new IdentityRenewalWorker(db, new OutboxService());
     const total = IDENTITY_RENEWAL_POLICY.BATCH_SIZE + 2;
     const owners: User[] = [];
 
@@ -180,33 +183,38 @@ describe('Owner document renewal (PostgreSQL)', () => {
       });
     }
 
+    const countForOwner = (applicantId: string) =>
+      db
+        .getRepository(OutboxEvent)
+        .createQueryBuilder('oe')
+        .where('oe.eventType = :eventType', {
+          eventType: EVENT_TYPES.SHOP_IDENTITY_RENEWAL,
+        })
+        .andWhere(`oe.payload->>'applicantId' = :applicantId`, { applicantId })
+        .getCount();
+
     const scanTime = new Date('2026-10-20T00:00:00Z');
     await worker.run(scanTime);
     const tailOwner = owners[total - 1];
-    expect(
-      await db
-        .getRepository(Notification)
-        .countBy({ recipientId: tailOwner.id }),
-    ).toBe(0);
+    expect(await countForOwner(tailOwner.id)).toBe(0);
 
     await worker.run(scanTime);
-    const graceNotice = await db
-      .getRepository(Notification)
-      .findOneByOrFail({ recipientId: tailOwner.id });
-    expect(graceNotice.title).toContain('ân hạn');
+    const graceEvent = await db
+      .getRepository(OutboxEvent)
+      .createQueryBuilder('oe')
+      .where('oe.eventType = :eventType', {
+        eventType: EVENT_TYPES.SHOP_IDENTITY_RENEWAL,
+      })
+      .andWhere(`oe.payload->>'applicantId' = :applicantId`, {
+        applicantId: tailOwner.id,
+      })
+      .getOneOrFail();
+    expect(graceEvent.payload.stage).toBe('grace');
 
     await worker.run(scanTime);
-    expect(
-      await db
-        .getRepository(Notification)
-        .countBy({ recipientId: tailOwner.id }),
-    ).toBe(1);
+    expect(await countForOwner(tailOwner.id)).toBe(1);
 
     await worker.run(new Date('2026-11-20T00:00:00Z'));
-    expect(
-      await db
-        .getRepository(Notification)
-        .countBy({ recipientId: tailOwner.id }),
-    ).toBe(2);
+    expect(await countForOwner(tailOwner.id)).toBe(2);
   });
 });

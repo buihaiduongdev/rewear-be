@@ -33,7 +33,6 @@ import {
   type RatingMode,
   type RatingModerationInput,
   ratingModerationSchema,
-  ratingNoticeSchema,
   ratingReplySchema,
   type RatingUploadInput,
   ratingUploadSchema,
@@ -109,17 +108,6 @@ export class RatingsController {
     query: { offset: number },
   ) {
     return this.ratings.replyHistory(user.id, id, query.offset);
-  }
-  @Get('shops/:shopId/notices')
-  @RequirePermission(SHOP_PERMISSIONS.RATING_REPLY)
-  @Serialize(z.array(ratingNoticeSchema))
-  notices(
-    @CurrentUser() user: User,
-    @Param('shopId', { schema: uuidSchema }) shopId: string,
-    @Query({ schema: ratingListSchema.omit({ mode: true }) })
-    query: { offset: number },
-  ) {
-    return this.ratings.notices(user.id, shopId, query.offset);
   }
   @Post(':id/moderation')
   @Roles(UserRole.ADMIN)

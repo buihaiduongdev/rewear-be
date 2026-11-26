@@ -22,6 +22,7 @@ describe('Product lifecycle boundaries', () => {
     {} as DataSource,
     {} as never,
     { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+    { record: jest.fn() } as never,
   );
 
   it.each([

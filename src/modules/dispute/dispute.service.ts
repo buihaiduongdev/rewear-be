@@ -9,8 +9,9 @@ import {
 import { DataSource, EntityManager, In } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
@@ -51,6 +52,7 @@ export class DisputeService {
     private readonly orders: OrderAccess,
     private readonly storage: StorageService,
     private readonly media: MediaService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   async openIssue(
@@ -147,8 +149,18 @@ export class DisputeService {
           createdAt: now,
         }),
       );
-      await notifyDispute(manager, row, `opened:${issue.id}`, {
-        includeAdmins: true,
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.DISPUTE_UPDATED,
+        resourceId: row.id,
+        payload: {
+          disputeCaseId: row.id,
+          orderId: row.orderId,
+          buyerId: row.buyerId,
+          shopId: row.shopId,
+          event: `opened:${issue.id}`,
+          includeAdmins: true,
+          sendEmail: false,
+        },
       });
       return issue;
     });

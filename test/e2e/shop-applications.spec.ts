@@ -14,13 +14,12 @@ import { TransformInterceptor } from '@/common/interceptors/transform.intercepto
 import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
-import {
-  Notification,
-  NotificationEmailJob,
-} from '@/modules/notifications/entities';
-import { NotificationWorker } from '@/modules/notifications/notification.worker';
+import { Notification } from '@/modules/notifications/entities';
+import { NotificationEventProcessor } from '@/modules/notifications/notification-event.processor';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
@@ -72,7 +71,6 @@ describe('Owner KYC application HTTP', () => {
     await database.destroy();
     let builder = Test.createTestingModule({ imports: [AppModule] });
     for (const worker of [
-      NotificationWorker,
       OrderWorker,
       OrderSettlementWorker,
       ShipmentWorker,
@@ -255,13 +253,27 @@ describe('Owner KYC application HTTP', () => {
     expect(JSON.stringify(detail.body)).not.toContain('PRIVATE ADMIN NOTE');
     expect(detail.body.data).not.toHaveProperty('adminNote');
     await request(server).get(`/api/shops/${shopId}`).expect(200);
+    const outboxEvents = await db.getRepository(OutboxEvent).findBy({
+      eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+      resourceId: applicationId,
+    });
+    const processor = app.get(NotificationEventProcessor);
+    for (const event of outboxEvents) {
+      await processor.handleEvent({
+        eventId: event.id,
+        eventType:
+          event.eventType as typeof EVENT_TYPES.SHOP_APPLICATION_DECIDED,
+        resourceId: event.resourceId,
+        payload: event.payload as never,
+      });
+    }
     const notifications = await db
       .getRepository(Notification)
-      .findBy({ sourceId: applicationId });
+      .findBy({ entityId: applicationId });
+    expect(notifications.length).toBeGreaterThan(0);
     expect(
       JSON.stringify(notifications.map((n) => [n.title, n.body])),
     ).not.toContain('012345678901');
-    expect(await db.getRepository(NotificationEmailJob).count()).toBe(1);
     const doc = SwaggerModule.createDocument(
       app,
       new DocumentBuilder().build(),

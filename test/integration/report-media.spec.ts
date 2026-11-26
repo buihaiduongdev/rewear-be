@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { StorageService } from '@/infrastructure/storage';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
 import { ReportMediaService } from '@/modules/reports/report-media.service';
@@ -63,7 +64,10 @@ describe('Violation report private evidence PostgreSQL', () => {
         },
       } as never,
     );
-    reports = new ViolationReportService(database.dataSource);
+    reports = new ViolationReportService(
+      database.dataSource,
+      new OutboxService(),
+    );
     media = new ReportMediaService(
       database.dataSource,
       reports,

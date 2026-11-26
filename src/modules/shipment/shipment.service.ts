@@ -14,6 +14,8 @@ import {
 import type { GhnShipmentSnapshot } from '@/infrastructure/shipping/types/ghn-shipment.type';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { quoteInputs } from '@/modules/checkout/shipping-quote.inputs';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import {
   ORDER_CANCEL_STATE,
   ORDER_EVENT_ACTION,
@@ -66,6 +68,7 @@ export class ShipmentService {
     private readonly db: DataSource,
     private readonly orderService: OrderService,
     private readonly carrier: GhnShipmentClient,
+    private readonly outboxService: OutboxService,
   ) {}
 
   private async now(manager: EntityManager) {
@@ -499,8 +502,8 @@ export class ShipmentService {
     action: OrderEvent['action'],
     now: Date,
   ) {
-    if (!(await manager.existsBy(OrderEvent, { orderId, action })))
-      await manager.save(
+    if (!(await manager.existsBy(OrderEvent, { orderId, action }))) {
+      const event = await manager.save(
         OrderEvent,
         manager.create(OrderEvent, {
           orderId,
@@ -510,6 +513,24 @@ export class ShipmentService {
           createdAt: now,
         }),
       );
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        select: { id: true, buyerId: true, shopId: true },
+      });
+      if (order) {
+        await this.outboxService.record(manager, {
+          eventType: EVENT_TYPES.ORDER_UPDATED,
+          resourceId: order.id,
+          payload: {
+            orderId: order.id,
+            orderEventId: event.id,
+            buyerId: order.buyerId,
+            shopId: order.shopId,
+            action: event.action,
+          },
+        });
+      }
+    }
   }
 
   private view(row: Shipment) {

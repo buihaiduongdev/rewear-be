@@ -11,8 +11,10 @@ import { ChatService } from '@/modules/chat/chat.service';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { ProductMedia } from '@/modules/media/entities';
-import { NotificationService } from '@/modules/notifications/notification.service';
 import { ORDER_EVENT_ACTION, ORDER_STATUS } from '@/modules/order/constants';
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -162,7 +164,8 @@ describe('Seed data (PostgreSQL)', () => {
     );
     expect(follows.totalCount).toBe(3);
     const authorization = new AuthorizationService(db);
-    const chat = new ChatService(db, authorization, {} as never);
+    const outbox = new OutboxService();
+    const chat = new ChatService(db, authorization, {} as never, outbox);
     const conversations = await chat.list(buyer.id, { limit: 20, offset: 0 });
     expect(conversations.items).toHaveLength(3);
     const sellerConversations = await chat.list(seed.users[2].id, {
@@ -170,8 +173,11 @@ describe('Seed data (PostgreSQL)', () => {
       offset: 0,
     });
     expect(sellerConversations.items[0].unreadCount).toBe(1);
-    const notifications = new NotificationService(db, authorization);
-    expect((await notifications.unread(seed.users[2].id)).count).toBe(1);
+    expect(
+      await db.getRepository(OutboxEvent).countBy({
+        eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+      }),
+    ).toBe(3);
 
     const products = new ProductService(
       db.getRepository(Product),
@@ -181,6 +187,7 @@ describe('Seed data (PostgreSQL)', () => {
       db,
       new AuthorizationService(db),
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      outbox,
     );
     const result = await products.findAll({ path: '/products', limit: 100 });
     expect(result.data).toHaveLength(30);
@@ -210,6 +217,7 @@ describe('Seed data (PostgreSQL)', () => {
       db,
       new WalletService(db),
       new CodPolicy(db),
+      outbox,
     );
     const accepted = await orderService.accept(
       seed.users[2].id,
@@ -237,6 +245,7 @@ describe('Seed data (PostgreSQL)', () => {
     const confirmed = await new OrderSettlementService(
       db,
       new OrderFundingService(),
+      outbox,
     ).confirmReceipt(buyer.id, delivered.id);
     expect(confirmed.status).toBe(ORDER_STATUS.COMPLETED);
     expect(confirmed.receiptConfirmedAt).toBeTruthy();

@@ -8,7 +8,9 @@ import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { Category } from '@/modules/category/entities';
 import { ChatService } from '@/modules/chat/chat.service';
 import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
-import { NotificationService } from '@/modules/notifications/notification.service';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -29,6 +31,7 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       database.dataSource,
       new AuthorizationService(database.dataSource),
       {} as never,
+      new OutboxService(),
     );
   });
   afterAll(async () => database?.destroy());
@@ -195,10 +198,13 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       mediaIds: [],
     });
     expect((await service.detail(f.owner.id, thread.id)).side).toBe('SHOP');
-    const inbox = new NotificationService(db, new AuthorizationService(db));
-    expect((await inbox.unread(f.owner.id)).count).toBe(1);
+    expect(
+      await db.getRepository(OutboxEvent).countBy({
+        eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+        resourceId: thread.id,
+      }),
+    ).toBe(1);
     await db.manager.delete(ShopRolePermission, { roleId: role.id });
-    expect((await inbox.unread(f.owner.id)).count).toBe(0);
     await expect(
       service.send(f.owner.id, thread.id, {
         text: 'Không còn quyền',

@@ -8,6 +8,7 @@ import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeService } from '@/modules/dispute/dispute.service';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
 import { OrderAccess } from '@/modules/order/order.access';
 import { WalletCredit } from '@/modules/wallet/entities';
@@ -24,7 +25,12 @@ describe('Admin adjudication and 3-5 business day SLA (PostgreSQL)', () => {
     database = await createTestDatabase();
     const orderAccess = new OrderAccess();
     const access = new DisputeAccess(orderAccess);
-    const refunds = new DisputeRefundService(database.dataSource, access);
+    const outbox = new OutboxService();
+    const refunds = new DisputeRefundService(
+      database.dataSource,
+      access,
+      outbox,
+    );
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
@@ -37,6 +43,7 @@ describe('Admin adjudication and 3-5 business day SLA (PostgreSQL)', () => {
       access,
       refunds,
       returns,
+      outbox,
     );
     disputes = new DisputeService(
       database.dataSource,
@@ -44,6 +51,7 @@ describe('Admin adjudication and 3-5 business day SLA (PostgreSQL)', () => {
       orderAccess,
       {} as StorageService,
       {} as MediaService,
+      outbox,
     );
   });
 

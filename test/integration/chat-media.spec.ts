@@ -7,6 +7,7 @@ import { ChatService } from '@/modules/chat/chat.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
 import { OrderAccess } from '@/modules/order/order.access';
@@ -68,7 +69,7 @@ describe('Chat private media and evidence PostgreSQL', () => {
         },
       } as never,
     );
-    service = new ChatService(db, authorization, uploads);
+    service = new ChatService(db, authorization, uploads, new OutboxService());
     media = new ChatMediaService(
       db,
       service,

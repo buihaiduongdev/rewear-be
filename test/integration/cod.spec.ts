@@ -20,6 +20,7 @@ import {
   CoinOrderDebit,
   CoinReservation,
 } from '@/modules/coins/core/entities';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/entities';
@@ -56,8 +57,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     const pricing = new PaymentPricing(
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
-    cod = new CodService(db, pricing, policy);
-    orders = new OrderService(db, new WalletService(db), policy);
+    const outbox = new OutboxService();
+    cod = new CodService(db, pricing, policy, outbox);
+    orders = new OrderService(db, new WalletService(db), policy, outbox);
   });
   afterAll(async () => database?.destroy());
 
@@ -429,7 +431,12 @@ describe('COD placement and reservations (PostgreSQL)', () => {
         qrCode: 'qr',
       }),
     } as unknown as PayosClient;
-    const payments = new PaymentService(f.db, gateway, pricing);
+    const payments = new PaymentService(
+      f.db,
+      gateway,
+      pricing,
+      new OutboxService(),
+    );
     const failed = await payments.create(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),
     });

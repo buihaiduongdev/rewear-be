@@ -24,6 +24,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U rewear_test -d rewear_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DB_TYPE: postgres
       DB_HOST: 127.0.0.1
@@ -32,6 +39,8 @@ jobs:
       DB_PASSWORD: rewear_test
       DB_NAME: rewear_test
       DB_SSL: 'false'
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
     steps:
       - uses: actions/checkout@v4
 

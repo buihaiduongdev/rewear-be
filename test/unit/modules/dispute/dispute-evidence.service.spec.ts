@@ -41,6 +41,7 @@ describe('dispute evidence shared media', () => {
       orders as never,
       storage as never,
       uploads as never,
+      { record: jest.fn() } as never,
     );
     const result = await service.attachEvidence('u1', 'o1', {
       mediaId,

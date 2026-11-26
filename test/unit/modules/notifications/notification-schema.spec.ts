@@ -1,22 +1,18 @@
 import z from 'zod';
 
 import {
-  notificationPageSchema,
-  notificationQuerySchema,
-  notificationViewSchema,
+  markAllReadResponseSchema,
+  notificationResponseSchema,
+  paginatedNotificationResponseSchema,
+  unreadCountResponseSchema,
 } from '@/modules/notifications/schemas/notification.schema';
 
-it('describes notification contracts using JSON-compatible dates and strict unread filtering', () => {
+it('describes notification contracts using JSON-compatible dates', () => {
   for (const schema of [
-    notificationPageSchema,
-    notificationQuerySchema,
-    notificationViewSchema,
+    notificationResponseSchema,
+    paginatedNotificationResponseSchema,
+    unreadCountResponseSchema,
+    markAllReadResponseSchema,
   ])
     expect(() => z.toJSONSchema(schema, { io: 'input' })).not.toThrow();
-  expect(
-    notificationQuerySchema.parse({ unreadOnly: 'false' }).unreadOnly,
-  ).toBe(false);
-  expect(
-    notificationQuerySchema.safeParse({ unreadOnly: 'arbitrary' }).success,
-  ).toBe(false);
 });

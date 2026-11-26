@@ -1,389 +1,280 @@
 import { randomUUID } from 'node:crypto';
 
-import { AuthorizationService } from '@/modules/authorization/authorization.service';
+import type { Queue } from 'bullmq';
+import { firstValueFrom, take } from 'rxjs';
+
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
+import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
+import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
+import { OUTBOX_EVENT_STATUSES } from '@/modules/event/constants/event-status.constant';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { EventDelivery } from '@/modules/event/entities/event-delivery.entity';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxPublisherService } from '@/modules/event/outbox-publisher.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import type { MailService } from '@/modules/mail/mail.service';
-import {
-  Notification,
-  NotificationEmailJob,
-  NotificationEvent,
-} from '@/modules/notifications/entities';
-import { NotificationEmailService } from '@/modules/notifications/notification-email.service';
-import { NotificationProjector } from '@/modules/notifications/notification-projector.service';
+import { Notification } from '@/modules/notifications/entities';
+import { NotificationEmailProcessor } from '@/modules/notifications/notification-email.processor';
+import { NotificationEventProcessor } from '@/modules/notifications/notification-event.processor';
 import { NotificationService } from '@/modules/notifications/notification.service';
-import { publishNotification } from '@/modules/notifications/publish-notification';
-import { Order, OrderEvent } from '@/modules/order/entities';
+import { ORDER_EVENT_ACTION } from '@/modules/order/constants/order.constant';
 import { ShopMember } from '@/modules/shop/entities';
-import { ShopInvitation } from '@/modules/shop/entities/shop-invitation.entity';
-import { ShopInvitationStatus } from '@/modules/shop/enums/shop-invitation-status.enum';
+import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';
 
-describe('Central notifications PostgreSQL', () => {
+describe('Outbox + BullMQ Notifications PostgreSQL', () => {
   let database: TestDatabase;
+
   beforeAll(async () => {
     database = await createTestDatabase();
   });
+
   afterAll(async () => database?.destroy());
-  it('retains inactive recipients inbox but blocks reading and email until authorized', async () => {
+
+  it('publishes pending outbox events with SKIP LOCKED and updates status to enqueued', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
-    await db.manager.clear(NotificationEmailJob);
-    await db.manager.update(User, f.buyer.id, { status: UserStatus.INACTIVE });
-    const input = {
-      key: randomUUID(),
-      kind: 'SHOP_INVITATION',
-      sourceId: randomUUID(),
-      title: 'Lời mời',
-      body: 'Mở Rewear.',
-      mode: null,
-      email: true,
-      recipients: [{ userId: f.buyer.id, scope: 'USER' as const }],
-    };
-    await Promise.all([
-      db.transaction((m) => publishNotification(m, input)),
-      db.transaction((m) => publishNotification(m, input)),
-    ]);
-    expect(
-      await db.manager.countBy(Notification, { eventKey: input.key }),
-    ).toBe(1);
-    const service = new NotificationService(db, new AuthorizationService(db));
-    await expect(service.unread(f.buyer.id)).rejects.toThrow(
-      'Active user required',
-    );
-    const send = jest.fn(async () => {});
-    const worker = new NotificationEmailService(db, service, {
-      sendNotificationEmail: send,
-    } as unknown as MailService);
-    await worker.deliverOne();
-    expect(send).not.toHaveBeenCalled();
-    await db.manager.update(User, f.buyer.id, { status: UserStatus.ACTIVE });
-    expect((await service.unread(f.buyer.id)).count).toBe(1);
-  });
-  it('recovers expired leases and terminalizes exhausted crashed attempts', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    await db.manager.clear(NotificationEmailJob);
-    await db.transaction((m) =>
-      publishNotification(m, {
-        key: randomUUID(),
-        kind: 'SHOP_INVITATION',
-        sourceId: randomUUID(),
-        title: 'Lời mời',
-        body: 'Mở Rewear.',
-        mode: null,
-        email: true,
-        recipients: [{ userId: f.buyer.id, scope: 'USER' }],
-      }),
-    );
-    const job = await db.manager.findOneByOrFail(NotificationEmailJob, {
-      state: 'PENDING',
-    });
-    await db.manager.update(NotificationEmailJob, job.id, {
-      state: 'SENDING',
-      attempts: 1,
-      leaseToken: randomUUID(),
-      leasedUntil: new Date(0),
-    });
-    const send = jest.fn(async () => {});
-    const worker = new NotificationEmailService(
-      db,
-      new NotificationService(db, new AuthorizationService(db)),
-      { sendNotificationEmail: send } as unknown as MailService,
-    );
-    await worker.deliverOne();
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(
-      await db.manager.findOneByOrFail(NotificationEmailJob, { id: job.id }),
-    ).toMatchObject({ state: 'SENT', attempts: 2 });
-    await db.manager.update(NotificationEmailJob, job.id, {
-      state: 'SENDING',
-      attempts: 5,
-      leaseToken: randomUUID(),
-      leasedUntil: new Date(0),
-    });
-    expect(await worker.deliverOne()).toBe(false);
-    expect(
-      await db.manager.findOneByOrFail(NotificationEmailJob, { id: job.id }),
-    ).toMatchObject({ state: 'FAILED', leaseToken: null });
-    expect(send).toHaveBeenCalledTimes(1);
-  });
-  it('labels sandbox order updates without coin redemption', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    await db.manager.update(Order, f.order.id, {
-      paymentMethod: 'PAYOS',
-      coinMode: null,
-    });
-    const event = await db.manager.save(
-      OrderEvent,
-      db.manager.create(OrderEvent, {
-        orderId: f.order.id,
-        action: 'SHIPPING',
-        actorId: null,
-        reason: null,
-      }),
-    );
-    await new NotificationProjector(db).run();
-    expect(
-      await db.manager.findOneByOrFail(Notification, {
-        eventKey: 'order-event:' + event.id,
-        recipientId: f.buyer.id,
-      }),
-    ).toMatchObject({
-      mode: 'SIMULATION',
-      sourceId: f.order.id,
-      targetType: 'ORDER',
-    });
-  });
-  it('persists once, rolls back with the domain transaction, and isolates recipient unread/read operations', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    const input = {
-      key: randomUUID(),
-      kind: 'ORDER_CREATED',
-      sourceId: f.order.id,
-      title: 'Đơn hàng mới',
-      body: 'Có cập nhật đơn hàng.',
-      mode: null,
-      recipients: [{ userId: f.buyer.id, scope: 'USER' as const }],
-    };
-    await db.transaction(async (m) => {
-      await publishNotification(m, input);
-      await publishNotification(m, input);
-    });
-    const service = new NotificationService(db, new AuthorizationService(db));
-    expect(await service.unread(f.buyer.id)).toEqual({ count: 1 });
-    expect(await service.unread(f.owner.id)).toEqual({ count: 0 });
-    const page = await service.list(f.buyer.id, {
-      limit: 50,
-      offset: 0,
-      unreadOnly: false,
-    });
-    await expect(service.read(f.owner.id, page.items[0].id)).rejects.toThrow(
-      'Notification not found',
-    );
-    await service.read(f.buyer.id, page.items[0].id);
-    await service.read(f.buyer.id, page.items[0].id);
-    expect(await service.unread(f.buyer.id)).toEqual({ count: 0 });
-    await expect(
-      db.transaction(async (m) => {
-        await publishNotification(m, {
-          ...input,
-          key: 'rollback-' + input.key,
-        });
-        throw new Error('rollback');
-      }),
-    ).rejects.toThrow('rollback');
-    expect(
-      await db.manager.countBy(NotificationEvent, {
-        key: 'rollback-' + input.key,
-      }),
-    ).toBe(0);
-  });
-  it('hides Shop notices after membership revocation and refuses same-key changed recipients', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    const key = randomUUID();
-    const input = {
-      key,
-      kind: 'ORDER_CREATED',
-      sourceId: f.order.id,
-      title: 'Đơn hàng mới',
-      body: 'Có cập nhật đơn hàng.',
-      mode: null,
-      recipients: [
-        {
-          userId: f.owner.id,
-          scope: 'SHOP' as const,
+    const outbox = new OutboxService();
+
+    await db.transaction((manager) =>
+      outbox.record(manager, {
+        eventType: EVENT_TYPES.ORDER_CREATED,
+        resourceId: f.order.id,
+        payload: {
+          orderId: f.order.id,
+          buyerId: f.buyer.id,
           shopId: f.shop.id,
-          permission: SHOP_PERMISSIONS.ORDER_VIEW,
         },
-      ],
-    };
-    await db.transaction((m) => publishNotification(m, input));
-    await expect(
-      db.transaction((m) =>
-        publishNotification(m, {
-          ...input,
-          recipients: [{ userId: f.buyer.id, scope: 'USER' as const }],
-        }),
-      ),
-    ).rejects.toThrow('Notification event payload changed');
-    const service = new NotificationService(db, new AuthorizationService(db));
-    expect((await service.unread(f.owner.id)).count).toBe(1);
-    await db.manager.delete(ShopMember, {
-      userId: f.owner.id,
-      shopId: f.shop.id,
-    });
-    expect((await service.unread(f.owner.id)).count).toBe(0);
-    expect(
-      (
-        await service.list(f.owner.id, {
-          limit: 50,
-          offset: 0,
-          unreadOnly: false,
-        })
-      ).items,
-    ).toHaveLength(0);
-    expect(
-      await db.manager.countBy(Notification, {
-        recipientId: f.buyer.id,
-        eventKey: key,
       }),
-    ).toBe(0);
+    );
+
+    const addBulk = jest.fn(async () => []);
+    const publisher = new OutboxPublisherService(db, {
+      addBulk,
+    } as unknown as Queue);
+
+    const publishedCount = await publisher.publishPendingEvents();
+    expect(publishedCount).toBe(1);
+    expect(addBulk).toHaveBeenCalledTimes(1);
+
+    const pendingCount = await db.getRepository(OutboxEvent).countBy({
+      status: OUTBOX_EVENT_STATUSES.PENDING,
+    });
+    expect(pendingCount).toBe(0);
   });
-  it('projects durable order/invitation sources once across workers and suppresses old-source emails', async () => {
+
+  it('processes domain events idempotently via EventDelivery, emits SSE, and enqueues email jobs for important events', async () => {
     const db = database.dataSource;
-    const projector = new NotificationProjector(db);
-    await projector.initialize();
     const f = await adjudicationFixture(db);
-    const invitation = await db.manager.save(
-      ShopInvitation,
-      db.manager.create(ShopInvitation, {
+    const notificationService = new NotificationService(
+      db.getRepository(Notification),
+    );
+    const emailQueueAddBulk = jest.fn<Promise<unknown[]>, [unknown[]]>(
+      async () => [],
+    );
+    const processor = new NotificationEventProcessor(db, notificationService, {
+      addBulk: emailQueueAddBulk,
+    } as unknown as Queue);
+
+    const ssePromise = firstValueFrom(
+      notificationService.subscribe(f.buyer.id).pipe(take(1)),
+    );
+
+    const eventId = randomUUID();
+    const jobData = {
+      eventId,
+      eventType: EVENT_TYPES.ORDER_CREATED,
+      resourceId: f.order.id,
+      payload: {
+        orderId: f.order.id,
+        buyerId: f.buyer.id,
         shopId: f.shop.id,
-        userId: f.buyer.id,
-        roleIds: [],
-        status: ShopInvitationStatus.PENDING,
-        expiresAt: new Date(Date.now() + 60000),
-      }),
-    );
-    await Promise.all([projector.run(), new NotificationProjector(db).run()]);
-    await projector.run();
-    expect(
-      await db.manager.countBy(NotificationEvent, {
-        key: 'order-created:' + f.order.id,
-      }),
-    ).toBe(1);
-    expect(
-      await db.manager.countBy(Notification, {
-        eventKey: 'order-created:' + f.order.id,
-      }),
-    ).toBe(2);
-    const invitationNotice = await db.manager.findOneByOrFail(Notification, {
-      sourceId: invitation.id,
-      recipientId: f.buyer.id,
-    });
-    expect(
-      await db.manager.countBy(NotificationEmailJob, {
-        notificationId: invitationNotice.id,
-      }),
-    ).toBe(1);
-    const oldOrderNotices = await db.manager.findBy(Notification, {
-      eventKey: 'order-created:' + f.order.id,
-    });
-    for (const notice of oldOrderNotices)
-      expect(
-        await db.manager.countBy(NotificationEmailJob, {
-          notificationId: notice.id,
-        }),
-      ).toBe(0);
-  });
-  it('leases one email once across workers and cancels delivery after permission revocation', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    await db.manager.clear(NotificationEmailJob);
-    await db.transaction((m) =>
-      publishNotification(m, {
-        key: randomUUID(),
-        kind: 'ORDER_CREATED',
-        sourceId: f.order.id,
-        title: 'Đơn hàng mới',
-        body: 'Mở Rewear để xem.',
-        mode: 'SIMULATION',
-        email: true,
-        recipients: [
-          {
-            userId: f.owner.id,
-            scope: 'SHOP',
-            shopId: f.shop.id,
-            permission: SHOP_PERMISSIONS.ORDER_VIEW,
-          },
-        ],
-      }),
-    );
-    const send = jest.fn(async () => {});
-    const inbox = new NotificationService(db, new AuthorizationService(db));
-    const worker = () =>
-      new NotificationEmailService(db, inbox, {
-        sendNotificationEmail: send,
-      } as unknown as MailService);
-    await Promise.all([worker().deliverOne(), worker().deliverOne()]);
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(
-      await db.manager.countBy(NotificationEmailJob, { state: 'SENT' }),
-    ).toBe(1);
-    await db.transaction((m) =>
-      publishNotification(m, {
-        key: randomUUID(),
-        kind: 'ORDER_CREATED',
-        sourceId: f.order.id,
-        title: 'Đơn hàng mới',
-        body: 'Mở Rewear để xem.',
-        mode: null,
-        email: true,
-        recipients: [
-          {
-            userId: f.owner.id,
-            scope: 'SHOP',
-            shopId: f.shop.id,
-            permission: SHOP_PERMISSIONS.ORDER_VIEW,
-          },
-        ],
-      }),
-    );
-    await db.manager.delete(ShopMember, { userId: f.owner.id });
-    await worker().deliverOne();
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(
-      await db.manager.countBy(NotificationEmailJob, { state: 'CANCELLED' }),
-    ).toBe(1);
-  });
-  it('retries SMTP failures durably with stable message identity and stops after the limit', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    await db.manager.clear(NotificationEmailJob);
-    await db.transaction((m) =>
-      publishNotification(m, {
-        key: randomUUID(),
-        kind: 'SHOP_INVITATION',
-        sourceId: randomUUID(),
-        title: 'Lời mời',
-        body: 'Mở Rewear.',
-        mode: null,
-        email: true,
-        recipients: [{ userId: f.buyer.id, scope: 'USER' }],
-      }),
-    );
-    const send = jest.fn(
-      async (_email: string, _notice: Notification, _jobId: string) => {
-        throw new Error('SMTP unavailable');
       },
-    );
-    const worker = new NotificationEmailService(
-      db,
-      new NotificationService(db, new AuthorizationService(db)),
-      { sendNotificationEmail: send } as unknown as MailService,
-    );
-    for (let i = 0; i < 5; i++) {
-      await db.manager
-        .createQueryBuilder()
-        .update(NotificationEmailJob)
-        .set({ nextAttemptAt: new Date(0) })
-        .where('state = :state', { state: 'PENDING' })
-        .execute();
-      await worker.deliverOne();
-    }
-    expect(send).toHaveBeenCalledTimes(5);
-    expect(new Set(send.mock.calls.map((call) => call[2])).size).toBe(1);
-    expect(
-      await db.manager.findOneByOrFail(NotificationEmailJob, {
-        state: 'FAILED',
+    };
+
+    const [first, second] = await Promise.all([
+      processor.handleEvent(jobData),
+      processor.handleEvent(jobData),
+    ]);
+
+    const totalCreated = first.length + second.length;
+    expect(totalCreated).toBe(2); // buyer + shop owner
+    expect(await db.getRepository(EventDelivery).countBy({ eventId })).toBe(1);
+    expect(emailQueueAddBulk).toHaveBeenCalledTimes(1);
+    expect(emailQueueAddBulk.mock.calls[0][0]).toHaveLength(2);
+
+    const sseEvent = await ssePromise;
+    expect(sseEvent.type).toBe(EVENT_TYPES.ORDER_CREATED);
+    expect(sseEvent.data).toMatchObject({
+      recipientId: f.buyer.id,
+      entityId: f.order.id,
+      isRead: false,
+    });
+
+    notificationService.onModuleDestroy();
+  });
+
+  it('resolves shop staff with permission and skips initial ORDER_UPDATED actions', async () => {
+    const db = database.dataSource;
+    const f = await adjudicationFixture(db);
+    const role = await db.manager.save(
+      ShopRole,
+      db.manager.create(ShopRole, {
+        shopId: f.shop.id,
+        name: 'OrderStaff',
+        description: null,
       }),
-    ).toMatchObject({ attempts: 5, leaseToken: null });
-    expect(await worker.deliverOne()).toBe(false);
+    );
+    await db.manager.save(
+      ShopRolePermission,
+      db.manager.create(ShopRolePermission, {
+        roleId: role.id,
+        permissionKey: SHOP_PERMISSIONS.ORDER_VIEW,
+      }),
+    );
+    const member = await db.manager.save(
+      ShopMember,
+      db.manager.create(ShopMember, {
+        shopId: f.shop.id,
+        userId: f.admin.id,
+        memberRole: ShopMemberRole.STAFF,
+      }),
+    );
+    await db.manager.save(
+      ShopMemberRoleAssignment,
+      db.manager.create(ShopMemberRoleAssignment, {
+        memberId: member.id,
+        roleId: role.id,
+      }),
+    );
+
+    const notificationService = new NotificationService(
+      db.getRepository(Notification),
+    );
+    const emailQueueAddBulk = jest.fn<Promise<unknown[]>, [unknown[]]>(
+      async () => [],
+    );
+    const processor = new NotificationEventProcessor(db, notificationService, {
+      addBulk: emailQueueAddBulk,
+    } as unknown as Queue);
+
+    const skipped = await processor.handleEvent({
+      eventId: randomUUID(),
+      eventType: EVENT_TYPES.ORDER_UPDATED,
+      resourceId: f.order.id,
+      payload: {
+        orderId: f.order.id,
+        orderEventId: randomUUID(),
+        buyerId: f.buyer.id,
+        shopId: f.shop.id,
+        action: ORDER_EVENT_ACTION.PAID,
+      },
+    });
+    expect(skipped).toHaveLength(0);
+
+    const created = await processor.handleEvent({
+      eventId: randomUUID(),
+      eventType: EVENT_TYPES.ORDER_UPDATED,
+      resourceId: f.order.id,
+      payload: {
+        orderId: f.order.id,
+        orderEventId: randomUUID(),
+        buyerId: f.buyer.id,
+        shopId: f.shop.id,
+        action: ORDER_EVENT_ACTION.ACCEPTED,
+      },
+    });
+    const recipients = created.map((n) => n.recipientId);
+    expect(recipients).toEqual(
+      expect.arrayContaining([f.buyer.id, f.owner.id, f.admin.id]),
+    );
+    expect(emailQueueAddBulk).not.toHaveBeenCalled();
+
+    notificationService.onModuleDestroy();
+  });
+
+  it('skips email delivery for inactive users and sends for active users', async () => {
+    const db = database.dataSource;
+    const f = await adjudicationFixture(db);
+    const sendNotificationEmail = jest.fn(async () => {});
+    const emailProcessor = new NotificationEmailProcessor(db, {
+      sendNotificationEmail,
+    } as unknown as MailService);
+
+    await db.manager.update(User, f.buyer.id, { status: UserStatus.INACTIVE });
+    await emailProcessor.handleEmail({
+      notificationId: randomUUID(),
+      recipientId: f.buyer.id,
+      title: 'Test',
+      body: 'Body',
+    });
+    expect(sendNotificationEmail).not.toHaveBeenCalled();
+
+    await db.manager.update(User, f.buyer.id, { status: UserStatus.ACTIVE });
+    const notificationId = randomUUID();
+    await emailProcessor.handleEmail({
+      notificationId,
+      recipientId: f.buyer.id,
+      title: 'Test',
+      body: 'Body',
+    });
+    expect(sendNotificationEmail).toHaveBeenCalledWith(
+      f.buyer.email,
+      { title: 'Test', body: 'Body' },
+      notificationId,
+    );
+  });
+
+  it('paginates notifications, counts unread, and marks single or all notifications read', async () => {
+    const db = database.dataSource;
+    const f = await adjudicationFixture(db);
+    const service = new NotificationService(db.getRepository(Notification));
+
+    const repo = db.getRepository(Notification);
+    const n1 = await repo.save(
+      repo.create({
+        recipientId: f.buyer.id,
+        type: EVENT_TYPES.ORDER_CREATED,
+        title: 'First',
+        body: 'First body',
+        entityType: 'order',
+        entityId: f.order.id,
+        isRead: false,
+      }),
+    );
+    await repo.save(
+      repo.create({
+        recipientId: f.buyer.id,
+        type: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+        title: 'Second',
+        body: 'Second body',
+        entityType: 'chat_conversation',
+        entityId: randomUUID(),
+        isRead: false,
+      }),
+    );
+
+    expect(await service.getUnreadCount(f.buyer.id)).toEqual({ count: 2 });
+
+    const page = await service.findAll(f.buyer.id, {
+      path: '/notifications',
+      page: 1,
+      limit: 10,
+    });
+    expect(page.data).toHaveLength(2);
+
+    const marked = await service.markAsRead(f.buyer.id, n1.id);
+    expect(marked.isRead).toBe(true);
+    expect(await service.getUnreadCount(f.buyer.id)).toEqual({ count: 1 });
+
+    expect(await service.markAllAsRead(f.buyer.id)).toEqual({
+      updatedCount: 1,
+    });
+    expect(await service.getUnreadCount(f.buyer.id)).toEqual({ count: 0 });
   });
 });

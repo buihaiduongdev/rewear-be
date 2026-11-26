@@ -10,7 +10,6 @@ import { OrderDeliveryVerification } from '@/modules/order/entities/order-delive
 import {
   ShopRating,
   ShopRatingModerationAudit,
-  ShopRatingNotice,
   ShopRatingVersion,
 } from '@/modules/ratings/entities';
 import { RatingsService } from '@/modules/ratings/ratings.service';
@@ -101,11 +100,6 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
         .getRepository(ShopRatingVersion)
         .countBy({ ratingId: rows[0].id, kind: 'BUYER' }),
     ).toBe(2);
-    expect(
-      await f.db
-        .getRepository(ShopRatingNotice)
-        .countBy({ ratingId: rows[0].id }),
-    ).toBe(1);
   });
   it('requires delivery verification and preserves eligibility after dispute/return', async () => {
     const f = await fixture();

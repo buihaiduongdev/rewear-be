@@ -9,8 +9,9 @@ import { Brackets, DataSource, type EntityManager, In } from 'typeorm';
 
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { notifyChatMessage } from '@/modules/notifications/sources/chat-message.notification';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -38,6 +39,7 @@ export class ChatService {
     private readonly db: DataSource,
     private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
+    private readonly outboxService: OutboxService,
   ) {}
 
   open(buyerId: string, shopId: string) {
@@ -209,7 +211,17 @@ export class ChatService {
       await manager.update(ChatConversation, row.id, {
         lastMessageAt: message.createdAt,
       });
-      await notifyChatMessage(manager, row, message);
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+        resourceId: row.id,
+        payload: {
+          messageId: message.id,
+          conversationId: row.id,
+          buyerId: row.buyerId,
+          shopId: row.shopId,
+          senderId: message.senderId,
+        },
+      });
       return (await this.messageViews(manager, [message]))[0];
     });
   }
