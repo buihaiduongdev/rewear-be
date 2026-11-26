@@ -235,25 +235,17 @@ export class ChatService {
   }
 
   async download(userId: string, id: string) {
-    const links = await this.db.manager
+    const link = await this.db.manager
       .createQueryBuilder(ChatMessageMedia, 'link')
       .innerJoinAndSelect('link.media', 'media')
       .innerJoinAndSelect('link.message', 'message')
-      .innerJoinAndSelect('message.conversation', 'conversation')
       .where('link.mediaId = :mediaId', { mediaId: id })
       .andWhere('media.visibility = :visibility', { visibility: 'private' })
       .andWhere('media.retiredAt IS NULL')
-      .getMany();
-    if (!links.length) {
+      .getOne();
+    if (!link) {
       throw new NotFoundException('Attached chat media not found');
     }
-    const member = await this.db.manager.findOneBy(ShopMember, { userId });
-    const link =
-      links.find(
-        (row) =>
-          row.message.conversation.buyerId === userId ||
-          (member && row.message.conversation.shopId === member.shopId),
-      ) ?? links[0];
     await this.loadConversation(
       this.db.manager,
       userId,
