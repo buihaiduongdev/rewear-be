@@ -1,9 +1,12 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas/date-time.schema';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
 import {
+  EMAIL_STATE,
   NOTIFICATION_POLICY,
+  NOTIFICATION_SCOPE,
   NOTIFICATION_TARGET,
 } from '../constants/notification.constant';
 
@@ -40,3 +43,25 @@ export const notificationPageSchema = z.object({
 });
 export const unreadCountSchema = z.object({ count: z.number().int() });
 export type NotificationQuery = z.output<typeof notificationQuerySchema>;
+
+export type NotificationScope =
+  (typeof NOTIFICATION_SCOPE)[keyof typeof NOTIFICATION_SCOPE];
+export type EmailState = (typeof EMAIL_STATE)[keyof typeof EMAIL_STATE];
+export type NotificationRecipient = {
+  userId: string;
+  scope: NotificationScope;
+  shopId?: string;
+  permission?: string;
+};
+export type NotificationInput = {
+  targetType?: string;
+  key: string;
+  kind: string;
+  sourceId: string;
+  title: string;
+  body: string;
+  mode: ReconciliationMode | null;
+  recipients: NotificationRecipient[];
+  email?: boolean;
+  occurredAt?: Date;
+};

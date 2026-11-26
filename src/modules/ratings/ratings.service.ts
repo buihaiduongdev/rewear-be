@@ -1,11 +1,21 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource, type EntityManager, In } from 'typeorm';
+
+import { AuthorizationService } from '@/modules/authorization/authorization.service';
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
+import { Order } from '@/modules/order/entities/order.entity';
+import { Shop } from '@/modules/shop/entities';
+import { ShopStatus } from '@/modules/shop/enums';
+import { User } from '@/modules/user/entities';
+import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import {
   ShopRating,
@@ -13,38 +23,94 @@ import {
   ShopRatingModerationAudit,
   ShopRatingNotice,
   ShopRatingVersion,
-} from './entities/shop-rating.entity';
-import { RatingAccess } from './rating.access';
-import { publicRating, summarizeRatings } from './rating.policy';
+} from './entities';
 import {
+  hasDeliveryProof,
+  publicRating,
+  summarizeRatings,
+} from './rating.policy';
+import {
+  type RatingInput,
   ratingInputSchema,
+  type RatingMode,
+  type RatingModerationInput,
   ratingModerationSchema,
   ratingModeSchema,
   ratingReplySchema,
 } from './schemas/rating.schema';
-import type {
-  RatingInput,
-  RatingMode,
-  RatingModerationInput,
-} from './types/rating.type';
 
 @Injectable()
 export class RatingsService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: RatingAccess,
+    private readonly authorization: AuthorizationService,
   ) {}
+
   async clock(manager: EntityManager) {
-    // Serialize rating edits, moderation and signed-media authorization across workers.
-    await manager.query('SELECT pg_advisory_xact_lock(782145, 1)');
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(row.now);
   }
+
+  async assertActiveUser(manager: EntityManager, userId: string) {
+    const user = await manager.findOneBy(User, {
+      id: userId,
+      status: UserStatus.ACTIVE,
+    });
+    if (!user) throw new ForbiddenException('Active user required');
+    return user;
+  }
+
+  async assertEligible(
+    manager: EntityManager,
+    buyerId: string,
+    orderId: string,
+    now: Date,
+  ) {
+    await this.assertActiveUser(manager, buyerId);
+    const order = await manager.findOneBy(Order, { id: orderId, buyerId });
+    if (!order) throw new NotFoundException('Order not found');
+    const proof = await manager.findOneBy(OrderDeliveryVerification, {
+      orderId,
+    });
+    if (!hasDeliveryProof(order, proof, now))
+      throw new ForbiddenException('Verified delivery required to rate Shop');
+    return { order, proof: proof! };
+  }
+
+  private async assertReplyAccess(
+    manager: EntityManager,
+    actorId: string,
+    shopId: string,
+  ) {
+    await this.assertActiveUser(manager, actorId);
+    const shop = await manager.findOneBy(Shop, {
+      id: shopId,
+      status: ShopStatus.ACTIVE,
+    });
+    if (
+      !shop ||
+      !(await this.authorization.hasPermission(
+        actorId,
+        shopId,
+        SHOP_PERMISSIONS.RATING_REPLY,
+        manager,
+      ))
+    )
+      throw new ForbiddenException('Shop rating reply permission required');
+  }
+
+  private async assertAdmin(manager: EntityManager, actorId: string) {
+    const actor = await this.assertActiveUser(manager, actorId);
+    if (actor.role !== UserRole.ADMIN)
+      throw new ForbiddenException('Admin required');
+  }
+
   async find(manager: EntityManager, id: string) {
     const row = await manager.findOneBy(ShopRating, { id });
     if (!row) throw new NotFoundException('Rating not found');
     return row;
   }
+
   private async media(
     manager: EntityManager,
     buyerId: string,
@@ -67,6 +133,7 @@ export class RatingsService {
         'Only owned Shop rating media can be attached',
       );
   }
+
   private async version(
     manager: EntityManager,
     row: ShopRating,
@@ -92,13 +159,14 @@ export class RatingsService {
       snapshot,
     });
   }
+
   async upsert(buyerId: string, input: RatingInput) {
     const parsed = ratingInputSchema.safeParse(input);
     if (!parsed.success) throw new BadRequestException('Invalid rating');
     const value = parsed.data;
     return this.db.transaction(async (manager) => {
       const now = await this.clock(manager);
-      const { order, proof } = await this.access.eligible(
+      const { order, proof } = await this.assertEligible(
         manager,
         buyerId,
         value.orderId,
@@ -111,6 +179,10 @@ export class RatingsService {
         proof.mode,
         value.mediaIds,
       );
+      await manager.findOneOrFail(User, {
+        where: { id: buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const repo = manager.getRepository(ShopRating);
       let row = await repo.findOneBy({ buyerId, shopId: order.shopId });
       const editing = Boolean(row);
@@ -126,7 +198,6 @@ export class RatingsService {
           replyHidden: false,
           invalidated: false,
         });
-      // Hidden flags and invalidation deliberately survive every author edit.
       Object.assign(row, {
         orderId: order.id,
         deliveryVerificationId: proof.id,
@@ -147,13 +218,13 @@ export class RatingsService {
       return this.privateView(row);
     });
   }
+
   async reply(actorId: string, ratingId: string, text: string) {
     const parsed = ratingReplySchema.safeParse({ text });
     if (!parsed.success) throw new BadRequestException('Invalid rating reply');
     return this.db.transaction(async (manager) => {
-      await this.clock(manager);
       const row = await this.find(manager, ratingId);
-      await this.access.reply(manager, actorId, row.shopId);
+      await this.assertReplyAccess(manager, actorId, row.shopId);
       row.reply = parsed.data.text;
       row.replyRevision++;
       await manager.save(row);
@@ -166,6 +237,7 @@ export class RatingsService {
       };
     });
   }
+
   async moderate(
     actorId: string,
     ratingId: string,
@@ -177,8 +249,7 @@ export class RatingsService {
         'Verified moderation basis required; low stars are not a violation',
       );
     return this.db.transaction(async (manager) => {
-      await this.clock(manager);
-      await this.access.admin(manager, actorId);
+      await this.assertAdmin(manager, actorId);
       const row = await this.find(manager, ratingId);
       const decision = parsed.data;
       if (
@@ -211,6 +282,7 @@ export class RatingsService {
       return this.privateView(row);
     });
   }
+
   private privateView(row: ShopRating) {
     return {
       ...publicRating(row),
@@ -226,8 +298,9 @@ export class RatingsService {
       createdAt: row.createdAt,
     };
   }
+
   async mine(buyerId: string, offset = 0) {
-    await this.access.activeUser(this.db.manager, buyerId);
+    await this.assertActiveUser(this.db.manager, buyerId);
     const rows = await this.db.manager.find(ShopRating, {
       where: { buyerId },
       order: { updatedAt: 'DESC', id: 'ASC' },
@@ -236,11 +309,12 @@ export class RatingsService {
     });
     return rows.map((row) => this.privateView(row));
   }
+
   async history(actorId: string, ratingId: string, offset = 0) {
     const manager = this.db.manager;
-    await this.access.activeUser(manager, actorId);
+    await this.assertActiveUser(manager, actorId);
     const row = await this.find(manager, ratingId);
-    if (row.buyerId !== actorId) await this.access.admin(manager, actorId);
+    if (row.buyerId !== actorId) await this.assertAdmin(manager, actorId);
     return manager.find(ShopRatingVersion, {
       where: { ratingId },
       order: { createdAt: 'ASC', id: 'ASC' },
@@ -248,8 +322,9 @@ export class RatingsService {
       take: 50,
     });
   }
+
   async notices(actorId: string, shopId: string, offset = 0) {
-    await this.access.reply(this.db.manager, actorId, shopId);
+    await this.assertReplyAccess(this.db.manager, actorId, shopId);
     return this.db.manager.find(ShopRatingNotice, {
       where: { shopId },
       order: { createdAt: 'DESC', id: 'ASC' },
@@ -257,10 +332,11 @@ export class RatingsService {
       take: 50,
     });
   }
+
   async replyHistory(actorId: string, ratingId: string, offset = 0) {
     const manager = this.db.manager;
     const row = await this.find(manager, ratingId);
-    await this.access.reply(manager, actorId, row.shopId);
+    await this.assertReplyAccess(manager, actorId, row.shopId);
     return manager.find(ShopRatingVersion, {
       where: { ratingId, kind: 'REPLY' },
       order: { revision: 'ASC' },
@@ -268,18 +344,17 @@ export class RatingsService {
       take: 50,
     });
   }
+
   async publicShop(shopId: string, mode: RatingMode = 'EVIDENCE', offset = 0) {
     const parsed = ratingModeSchema.safeParse(mode);
     if (!parsed.success) throw new BadRequestException('Invalid rating mode');
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const rows = await manager.find(ShopRating, {
-        where: { shopId, mode: parsed.data, invalidated: false },
-        order: { updatedAt: 'DESC', id: 'ASC' },
-      });
-      return {
-        summary: summarizeRatings(rows, parsed.data),
-        ratings: rows.slice(offset, offset + 50).map(publicRating),
-      };
+    const rows = await this.db.manager.find(ShopRating, {
+      where: { shopId, mode: parsed.data, invalidated: false },
+      order: { updatedAt: 'DESC', id: 'ASC' },
     });
+    return {
+      summary: summarizeRatings(rows, parsed.data),
+      ratings: rows.slice(offset, offset + 50).map(publicRating),
+    };
   }
 }

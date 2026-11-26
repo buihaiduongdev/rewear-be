@@ -1,5 +1,5 @@
-import type { ShopRating } from './entities/shop-rating.entity';
-import type { RatingMode } from './types/rating.type';
+import type { ShopRating } from './entities';
+import type { RatingMode } from './schemas/rating.schema';
 
 export function hasDeliveryProof(
   order: { deliveryVerifiedAt?: Date | null; cancelledAt?: Date | null },

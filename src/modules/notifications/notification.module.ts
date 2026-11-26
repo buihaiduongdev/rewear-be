@@ -9,7 +9,7 @@ import {
   NotificationCheckpoint,
   NotificationEmailJob,
   NotificationEvent,
-} from './entities/notification.entity';
+} from './entities';
 import { NotificationEmailService } from './notification-email.service';
 import { NotificationProjector } from './notification-projector.service';
 import { NotificationController } from './notification.controller';

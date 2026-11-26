@@ -9,11 +9,8 @@ import {
   ReportCommand,
   ReportEvidence,
   ViolationReport,
-} from './entities/report.entity';
-import { ReportMediaService } from './media/report-media.service';
-import { ReportAdminService } from './report-admin.service';
-import { ReportReadService } from './report-read.service';
-import { ReportAccess } from './report.access';
+} from './entities';
+import { ReportMediaService } from './report-media.service';
 import { ReportController } from './report.controller';
 import { ViolationReportService } from './violation-report.service';
 
@@ -29,12 +26,6 @@ import { ViolationReportService } from './violation-report.service';
     ]),
   ],
   controllers: [ReportController],
-  providers: [
-    ReportAccess,
-    ReportAdminService,
-    ReportReadService,
-    ViolationReportService,
-    ReportMediaService,
-  ],
+  providers: [ViolationReportService, ReportMediaService],
 })
 export class ReportModule {}

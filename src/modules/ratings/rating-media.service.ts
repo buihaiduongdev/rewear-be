@@ -4,39 +4,43 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { DataSource, EntityManager, MoreThan } from 'typeorm';
+import { DataSource, type EntityManager, MoreThan } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import { MediaService } from '@/modules/media/media.service';
 
 import { RATING_MIME_TYPES, RATING_POLICY } from './constants/rating.constant';
-import { ShopRating, ShopRatingMedia } from './entities/shop-rating.entity';
-import { RatingAccess } from './rating.access';
+import { ShopRating, ShopRatingMedia } from './entities';
 import { RatingsService } from './ratings.service';
-import { ratingModeSchema, ratingUploadSchema } from './schemas/rating.schema';
-import type { RatingMode, RatingUploadInput } from './types/rating.type';
+import {
+  type RatingMode,
+  ratingModeSchema,
+  type RatingUploadInput,
+  ratingUploadSchema,
+} from './schemas/rating.schema';
 
 @Injectable()
 export class RatingMediaService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: RatingAccess,
     private readonly ratings: RatingsService,
     private readonly storage: StorageService,
     private readonly media: MediaService,
   ) {}
+
   private async find(manager: EntityManager, id: string) {
     const row = await manager.findOneBy(ShopRatingMedia, { id });
     if (!row) throw new NotFoundException('Rating media not found');
     return row;
   }
+
   async attach(buyerId: string, input: RatingUploadInput) {
     const parsed = ratingUploadSchema.safeParse(input);
     if (!parsed.success)
       throw new BadRequestException('Invalid rating media upload');
     return this.db.transaction(async (manager) => {
       const now = await this.ratings.clock(manager);
-      const { order, proof } = await this.access.eligible(
+      const { order, proof } = await this.ratings.assertEligible(
         manager,
         buyerId,
         parsed.data.orderId,
@@ -75,11 +79,11 @@ export class RatingMediaService {
       return { id: row.id, mimeType: file.mimeType, sizeBytes: file.sizeBytes };
     });
   }
+
   async download(id: string, mode: RatingMode = 'EVIDENCE') {
     const parsed = ratingModeSchema.safeParse(mode);
     if (!parsed.success) throw new BadRequestException('Invalid rating mode');
     return this.db.transaction(async (manager) => {
-      await this.ratings.clock(manager);
       const row = await this.find(manager, id);
       const rating = await manager.findOneBy(ShopRating, {
         buyerId: row.buyerId,
@@ -94,7 +98,6 @@ export class RatingMediaService {
         !rating?.mediaIds.includes(id)
       )
         throw new NotFoundException('Visible rating media not found');
-      // Authorize the current attachment while holding the moderation lock, never a historic version.
       return this.storage.createDownloadUrl(row.media.storageKey);
     });
   }

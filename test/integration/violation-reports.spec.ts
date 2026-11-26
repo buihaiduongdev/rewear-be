@@ -5,13 +5,7 @@ import { Product } from '@/modules/product/entities';
 import { ProductModeration } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { ProductModerationStatus } from '@/modules/product/enums';
-import {
-  ReportAudit,
-  ViolationReport,
-} from '@/modules/reports/entities/report.entity';
-import { ReportAdminService } from '@/modules/reports/report-admin.service';
-import { ReportReadService } from '@/modules/reports/report-read.service';
-import { ReportAccess } from '@/modules/reports/report.access';
+import { ReportAudit, ViolationReport } from '@/modules/reports/entities';
 import { ViolationReportService } from '@/modules/reports/violation-report.service';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -24,14 +18,13 @@ import { createTestDatabase, type TestDatabase } from '../support/database';
 describe('Product/Shop violation reports PostgreSQL', () => {
   let database: TestDatabase;
   let service: ViolationReportService;
-  let admin: ReportAdminService;
-  let read: ReportReadService;
+  let admin: ViolationReportService;
+  let read: ViolationReportService;
   beforeAll(async () => {
     database = await createTestDatabase();
-    const access = new ReportAccess();
-    read = new ReportReadService(database.dataSource, access);
-    service = new ViolationReportService(database.dataSource, access, read);
-    admin = new ReportAdminService(database.dataSource, access, read);
+    service = new ViolationReportService(database.dataSource);
+    read = service;
+    admin = service;
   });
   afterAll(async () => database?.destroy());
   async function productFixture() {

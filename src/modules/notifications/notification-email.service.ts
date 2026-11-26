@@ -11,10 +11,7 @@ import {
   EMAIL_STATE,
   NOTIFICATION_POLICY,
 } from './constants/notification.constant';
-import {
-  Notification,
-  NotificationEmailJob,
-} from './entities/notification.entity';
+import { Notification, NotificationEmailJob } from './entities';
 import { NotificationService } from './notification.service';
 
 @Injectable()

@@ -3,16 +3,7 @@ import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 
-import type { EmailState, NotificationScope } from '../types/notification.type';
-
-@Entity('notification_events')
-@Index(['key'], { unique: true })
-export class NotificationEvent extends BaseEntity {
-  @Column('varchar', { length: 512 })
-  key: string;
-  @Column('varchar', { length: 64 })
-  fingerprint: string;
-}
+import type { NotificationScope } from '../schemas/notification.schema';
 
 @Entity('notifications')
 @Index(['eventKey', 'recipientId'], { unique: true })
@@ -42,31 +33,4 @@ export class Notification extends BaseEntity {
   mode: ReconciliationMode | null;
   @Column('timestamptz', { nullable: true })
   readAt: Date | null;
-}
-
-@Entity('notification_email_jobs')
-@Index(['notificationId'], { unique: true })
-@Index(['state', 'nextAttemptAt'])
-export class NotificationEmailJob extends BaseEntity {
-  @Column('uuid')
-  notificationId: string;
-  @Column('varchar', { length: 16 })
-  state: EmailState;
-  @Column('integer', { default: 0 })
-  attempts: number;
-  @Column('timestamptz')
-  nextAttemptAt: Date;
-  @Column('uuid', { nullable: true })
-  leaseToken: string | null;
-  @Column('timestamptz', { nullable: true })
-  leasedUntil: Date | null;
-  @Column('timestamptz', { nullable: true })
-  sentAt: Date | null;
-}
-
-@Entity('notification_checkpoints')
-@Index(['name'], { unique: true })
-export class NotificationCheckpoint extends BaseEntity {
-  @Column('varchar')
-  name: string;
 }

@@ -15,8 +15,8 @@ import {
   Notification,
   NotificationEmailJob,
   NotificationEvent,
-} from './entities/notification.entity';
-import type { NotificationInput } from './types/notification.type';
+} from './entities';
+import type { NotificationInput } from './schemas/notification.schema';
 
 /** Caller transaction commits the source event, inbox and email intent atomically. */
 export async function publishNotification(
@@ -40,21 +40,22 @@ export async function publishNotification(
   const fingerprint = createHash('sha256')
     .update(JSON.stringify({ ...input, recipients, email: !!input.email }))
     .digest('hex');
-  await manager.query('SELECT pg_advisory_xact_lock(782144, hashtext($1))', [
-    input.key,
-  ]);
-  const existing = await manager.findOneBy(NotificationEvent, {
+  const insertResult = await manager
+    .createQueryBuilder()
+    .insert()
+    .into(NotificationEvent)
+    .values({ key: input.key, fingerprint })
+    .orIgnore()
+    .returning(['id'])
+    .execute();
+  const event = await manager.findOneByOrFail(NotificationEvent, {
     key: input.key,
   });
-  if (existing) {
-    if (existing.fingerprint !== fingerprint)
+  if (insertResult.raw.length === 0) {
+    if (event.fingerprint !== fingerprint)
       throw new ConflictException('Notification event payload changed');
-    return existing;
+    return event;
   }
-  const event = await manager.save(
-    NotificationEvent,
-    manager.create(NotificationEvent, { key: input.key, fingerprint }),
-  );
   for (const recipient of recipients) {
     if (
       !(await manager.existsBy(User, {

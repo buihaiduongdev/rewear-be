@@ -9,7 +9,6 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { ShopFollow } from '@/modules/shop-follows/entities/shop-follow.entity';
-import { ShopFollowFeedService } from '@/modules/shop-follows/shop-follow-feed.service';
 import { ShopFollowService } from '@/modules/shop-follows/shop-follow.service';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -22,13 +21,13 @@ import { createTestDatabase, type TestDatabase } from '../support/database';
 describe('Follow Shop PostgreSQL', () => {
   let database: TestDatabase;
   let service: ShopFollowService;
-  let feed: ShopFollowFeedService;
+  let feed: ShopFollowService;
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new ShopFollowService(database.dataSource);
-    feed = new ShopFollowFeedService(database.dataSource, {
+    service = new ShopFollowService(database.dataSource, {
       getPublicUrl: (key: string) => `https://public.test/${key}`,
     } as never);
+    feed = service;
   });
   afterAll(async () => database?.destroy());
   it('cleans follows when a Shop is deleted and safely handles missing targets', async () => {

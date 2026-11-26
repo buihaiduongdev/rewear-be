@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
-import { Notification } from '@/modules/notifications/entities/notification.entity';
+import { Notification } from '@/modules/notifications/entities';
 import {
   ShopApplication,
   ShopApplicationDocument,

@@ -4,15 +4,16 @@ import { dateTimeSchema } from '@/common/schemas/date-time.schema';
 import { ProductCondition } from '@/modules/product/enums';
 import { ShopStatus } from '@/modules/shop/enums';
 
-import { SHOP_FOLLOW_POLICY } from '../constants/shop-follow.constant';
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
 
 export const shopFollowQuerySchema = z.object({
   limit: z.coerce
     .number()
     .int()
     .min(1)
-    .max(SHOP_FOLLOW_POLICY.MAX_PAGE_SIZE)
-    .default(SHOP_FOLLOW_POLICY.DEFAULT_PAGE_SIZE),
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).default(0),
 });
 export const shopFollowInputSchema = z.strictObject({}).default({});
@@ -52,3 +53,5 @@ export const shopFollowProductPageSchema = z.object({
   limit: z.number().int(),
   offset: z.number().int(),
 });
+
+export type ShopFollowQuery = z.infer<typeof shopFollowQuerySchema>;

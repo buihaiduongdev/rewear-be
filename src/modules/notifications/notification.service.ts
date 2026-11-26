@@ -12,7 +12,7 @@ import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { NOTIFICATION_SCOPE } from './constants/notification.constant';
-import { Notification } from './entities/notification.entity';
+import { Notification } from './entities';
 import type { NotificationQuery } from './schemas/notification.schema';
 
 @Injectable()
@@ -98,27 +98,25 @@ export class NotificationService {
         }),
       );
   }
-  list(userId: string, input: NotificationQuery) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const query = await this.visible(manager, userId);
-      if (input.unreadOnly) query.andWhere('notice.readAt IS NULL');
-      const [items, total] = await query
-        .orderBy('notice.createdAt', 'DESC')
-        .addOrderBy('notice.id', 'DESC')
-        .take(input.limit)
-        .skip(input.offset)
-        .getManyAndCount();
-      return { items, total, offset: input.offset, limit: input.limit };
-    });
+  async list(userId: string, input: NotificationQuery) {
+    const query = await this.visible(this.db.manager, userId);
+    if (input.unreadOnly) query.andWhere('notice.readAt IS NULL');
+    const [items, total] = await query
+      .orderBy('notice.createdAt', 'DESC')
+      .addOrderBy('notice.id', 'DESC')
+      .take(input.limit)
+      .skip(input.offset)
+      .getManyAndCount();
+    return { items, total, offset: input.offset, limit: input.limit };
   }
-  unread(userId: string) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => ({
+  async unread(userId: string) {
+    return {
       count: await (
-        await this.visible(manager, userId)
+        await this.visible(this.db.manager, userId)
       )
         .andWhere('notice.readAt IS NULL')
         .getCount(),
-    }));
+    };
   }
   read(userId: string, id: string) {
     return this.db.transaction(async (manager) => {

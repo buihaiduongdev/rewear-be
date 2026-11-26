@@ -1,5 +1,6 @@
 import type { EntityManager } from 'typeorm';
 
+import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import {
   NOTIFICATION_KIND,
   NOTIFICATION_TARGET,
@@ -8,38 +9,21 @@ import { publishNotification } from '@/modules/notifications/publish-notificatio
 import {
   adminRecipients,
   personalRecipient,
+  shopRecipients,
 } from '@/modules/notifications/sources/notification-recipients';
+import type { ViolationReport } from '@/modules/reports/entities';
+import type { ReportAction } from '@/modules/reports/schemas/report.schema';
 
-import { ReportAudit, ViolationReport } from './entities/report.entity';
-import type { ReportAction } from './types/report.type';
-
-export async function recordReportAction(
+export async function notifyViolationReport(
   manager: EntityManager,
   row: ViolationReport,
-  actorId: string,
   action: ReportAction,
-  publicReason: string | null = null,
-  adminNote: string | null = null,
-  effect: Record<string, unknown> | null = null,
 ) {
-  await manager.save(
-    ReportAudit,
-    manager.create(ReportAudit, {
-      reportId: row.id,
-      actorId,
-      action,
-      version: row.version,
-      status: row.status,
-      publicReason,
-      adminNote,
-      effect,
-    }),
-  );
   const recipients = new Map(
     (await adminRecipients(manager)).map((item) => [item.userId, item]),
   );
   recipients.set(row.reporterId, personalRecipient(row.reporterId));
-  await publishNotification(manager, {
+  return publishNotification(manager, {
     key: `violation-report:${row.id}:${row.version}:${action}`,
     kind: NOTIFICATION_KIND.VIOLATION_REPORT,
     targetType: NOTIFICATION_TARGET.VIOLATION_REPORT,
@@ -48,5 +32,26 @@ export async function recordReportAction(
     body: 'Báo cáo vi phạm đã có cập nhật. Mở báo cáo để xem tình trạng và kết quả xử lý.',
     mode: null,
     recipients: [...recipients.values()],
+  });
+}
+
+export async function notifyShopDeactivatedForReport(
+  manager: EntityManager,
+  report: ViolationReport,
+  shopId: string,
+) {
+  return publishNotification(manager, {
+    key: `report-shop-action:${report.id}:${report.version}`,
+    kind: NOTIFICATION_KIND.VIOLATION_REPORT,
+    targetType: NOTIFICATION_TARGET.SHOP,
+    sourceId: shopId,
+    title: 'Cập nhật kiểm duyệt Shop',
+    body: 'Shop đã được Admin ngừng nhận giao dịch mới sau khi xác minh vi phạm. Liên hệ hỗ trợ để làm rõ quyết định.',
+    mode: null,
+    recipients: await shopRecipients(
+      manager,
+      shopId,
+      SHOP_PERMISSIONS.SHOP_OWNER,
+    ),
   });
 }
