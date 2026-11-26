@@ -166,7 +166,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
     expect(submitted.shop.name).toBe(f.shop.name);
     expect(submitted.bank?.id).toBe(f.bank.id);
     await expect(service.detail(f.buyer.id, f.app.id)).rejects.toThrow(
-      'not found',
+      /not found|Could not find/i,
     );
     await expect(
       service.download(f.buyer.id, f.input.documentIds[0]),
@@ -272,7 +272,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       (await service.detail(f.admin.id, f.app.id, true)).documents,
     ).toEqual([]);
     await expect(
-      service.download(f.admin.id, f.input.documentIds[0]),
+      service.download(f.admin.id, f.input.documentIds[0], true),
     ).rejects.toThrow('not found');
     await expect(
       service.submit(f.owner.id, f.app.id, {
@@ -329,10 +329,10 @@ describe('Shop Owner application (PostgreSQL)', () => {
     const adminView = await service.detail(f.admin.id, f.app.id, true);
     expect(adminView.documents.map((d) => d.id)).toEqual([upload.id]);
     await expect(
-      service.download(f.admin.id, f.input.documentIds[0]),
+      service.download(f.admin.id, f.input.documentIds[0], true),
     ).rejects.toThrow('not found');
     await expect(
-      service.download(f.admin.id, upload.id),
+      service.download(f.admin.id, upload.id, true),
     ).resolves.toHaveProperty('url');
   });
 

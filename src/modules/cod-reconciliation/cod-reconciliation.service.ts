@@ -158,13 +158,12 @@ export class CodReconciliationService {
           lock: { mode: 'pessimistic_write' },
         });
       }
-      if (
-        await manager.existsBy(CodRemittance, {
-          mode: data.mode,
-          reference: data.reference,
-        })
-      ) {
-        throw new ConflictException('Remittance reference already recorded');
+      const existing = await manager.findOne(CodRemittance, {
+        where: { mode: data.mode, reference: data.reference },
+        relations: { allocations: true },
+      });
+      if (existing) {
+        return this.resolveExistingRemittance(existing, data);
       }
       const now = await this.now(manager);
       const receivedAt = new Date(data.receivedAt);
@@ -227,7 +226,44 @@ export class CodReconciliationService {
       return RECONCILIATION_REVIEW_REASON.EXCESS_COLLECTION;
     if (requiresFulfillmentReview(order, shipment, now))
       return RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
+    if (!reconciliationMoneySchema.safeParse(order).success)
+      return RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
+    const money = reconciliationMoney(order);
+    if (
+      order.total !== row.expectedAmount ||
+      money.gross !== row.gross ||
+      money.commission !== row.commission ||
+      money.sellerNet !== row.sellerNet
+    )
+      return RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
     return null;
+  }
+
+  private resolveExistingRemittance(
+    existing: CodRemittance,
+    data: RemittanceInput,
+  ) {
+    const existingAllocations = [...(existing.allocations ?? [])].sort((a, b) =>
+      a.orderId.localeCompare(b.orderId),
+    );
+    const sameBatch =
+      existing.netAmount === data.netAmount &&
+      existing.receivedAt.getTime() === new Date(data.receivedAt).getTime() &&
+      existing.reason === data.reason &&
+      existing.evidence === data.evidence &&
+      existingAllocations.length === data.allocations.length &&
+      existingAllocations.every((allocation, index) => {
+        const incoming = data.allocations[index];
+        return (
+          allocation.orderId === incoming.orderId &&
+          allocation.cashAmount === incoming.cashAmount &&
+          allocation.feeDeducted === incoming.feeDeducted
+        );
+      });
+    if (!sameBatch) {
+      throw new ConflictException('Remittance reference already recorded');
+    }
+    return { ...existing, allocations: existingAllocations };
   }
 
   async refresh(adminId: string, orderId: string) {
