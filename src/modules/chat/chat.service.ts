@@ -267,8 +267,7 @@ export class ChatService {
     userId: string,
     id: string,
   ) {
-    const row = await manager.findOneBy(ChatConversation, { id });
-    if (!row) throw new NotFoundException('Conversation not found');
+    const row = await manager.findOneByOrFail(ChatConversation, { id });
     if (row.buyerId === userId) return { row, side: CHAT_SIDE.BUYER };
     if (
       await this.authorization.hasPermission(
