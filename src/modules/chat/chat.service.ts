@@ -129,16 +129,17 @@ export class ChatService {
       userId,
     );
 
-    const items = rows.map((row) => {
-      const side = row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP;
-      return this.formatConversationView(
-        row,
-        row.buyer.fullName,
-        row.shop.name,
-        side,
-        unreadMap.get(row.id) ?? 0,
-      );
-    });
+    const items = await Promise.all(
+      rows.map((row) =>
+        this.conversationView(
+          manager,
+          row,
+          userId,
+          row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP,
+          unreadMap.get(row.id) ?? 0,
+        ),
+      ),
+    );
     return { items, total, ...input };
   }
 
@@ -255,11 +256,18 @@ export class ChatService {
   }
 
   async download(userId: string, id: string) {
-    const links = await this.loadPrivateMediaLinks(
-      this.db.manager,
-      id,
-      'Attached chat media not found',
-    );
+    const links = await this.db.manager
+      .createQueryBuilder(ChatMessageMedia, 'link')
+      .innerJoinAndSelect('link.media', 'media')
+      .innerJoinAndSelect('link.message', 'message')
+      .innerJoinAndSelect('message.conversation', 'conversation')
+      .where('link.mediaId = :mediaId', { mediaId: id })
+      .andWhere('media.visibility = :visibility', { visibility: 'private' })
+      .andWhere('media.retiredAt IS NULL')
+      .getMany();
+    if (!links.length) {
+      throw new NotFoundException('Attached chat media not found');
+    }
     const member = await this.db.manager.findOneBy(ShopMember, { userId });
     const link =
       links.find(
@@ -275,26 +283,6 @@ export class ChatService {
     return this.storage.createDownloadUrl(link.media.storageKey);
   }
 
-  private async loadPrivateMediaLinks(
-    manager: EntityManager,
-    mediaId: string,
-    notFoundMessage: string,
-  ) {
-    const links = await manager
-      .createQueryBuilder(ChatMessageMedia, 'link')
-      .innerJoinAndSelect('link.media', 'media')
-      .innerJoinAndSelect('link.message', 'message')
-      .innerJoinAndSelect('message.conversation', 'conversation')
-      .where('link.mediaId = :mediaId', { mediaId })
-      .andWhere('media.visibility = :visibility', { visibility: 'private' })
-      .andWhere('media.retiredAt IS NULL')
-      .getMany();
-    if (!links.length) {
-      throw new NotFoundException(notFoundMessage);
-    }
-    return links;
-  }
-
   private async loadConversation(
     manager: EntityManager,
     userId: string,
@@ -302,16 +290,7 @@ export class ChatService {
   ) {
     const row = await manager.findOneBy(ChatConversation, { id });
     if (!row) throw new NotFoundException('Conversation not found');
-    const side = await this.resolveSide(manager, userId, row);
-    return { row, side };
-  }
-
-  private async resolveSide(
-    manager: EntityManager,
-    userId: string,
-    row: ChatConversation,
-  ) {
-    if (row.buyerId === userId) return CHAT_SIDE.BUYER;
+    if (row.buyerId === userId) return { row, side: CHAT_SIDE.BUYER };
     if (
       await this.authorization.hasPermission(
         userId,
@@ -319,8 +298,9 @@ export class ChatService {
         SHOP_PERMISSIONS.CHAT_MANAGE,
         manager,
       )
-    )
-      return CHAT_SIDE.SHOP;
+    ) {
+      return { row, side: CHAT_SIDE.SHOP };
+    }
     throw new ForbiddenException('Chat access denied');
   }
 
@@ -354,36 +334,24 @@ export class ChatService {
     row: ChatConversation,
     userId: string,
     side: ChatSide,
+    unreadCount?: number,
   ) {
     const buyer =
       row.buyer ?? (await manager.findOneByOrFail(User, { id: row.buyerId }));
     const shop =
       row.shop ?? (await manager.findOneByOrFail(Shop, { id: row.shopId }));
-    const unreadMap = await this.unreadCounts(manager, [row.id], userId);
-    return this.formatConversationView(
-      row,
-      buyer.fullName,
-      shop.name,
-      side,
-      unreadMap.get(row.id) ?? 0,
-    );
-  }
-
-  private formatConversationView(
-    row: ChatConversation,
-    buyerName: string,
-    shopName: string,
-    side: ChatSide,
-    unreadCount: number,
-  ) {
+    const count =
+      unreadCount ??
+      (await this.unreadCounts(manager, [row.id], userId)).get(row.id) ??
+      0;
     return {
       id: row.id,
       buyerId: row.buyerId,
-      buyerName,
+      buyerName: buyer.fullName,
       shopId: row.shopId,
-      shopName,
+      shopName: shop.name,
       side,
-      unreadCount,
+      unreadCount: count,
       lastMessageAt: row.lastMessageAt,
     };
   }
