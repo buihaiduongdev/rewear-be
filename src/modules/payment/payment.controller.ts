@@ -4,7 +4,6 @@ import {
   Get,
   HttpCode,
   Inject,
-  Optional,
   Param,
   Post,
   Query,
@@ -49,9 +48,7 @@ export class PaymentController {
   constructor(
     @Inject(PAYOS_CLIENT) private readonly payosClient: PayosClient | null,
     private readonly paymentService: PaymentService,
-    @Optional()
-    @Inject(MOMO_CLIENT)
-    private readonly momoClient: MomoClient | null = null,
+    @Inject(MOMO_CLIENT) private readonly momoClient: MomoClient | null,
   ) {}
 
   @AuthenticatedAccess()
@@ -163,11 +160,10 @@ export class PaymentController {
   @ApiOperation({ summary: 'List late-payment refunds for Admin review' })
   @Serialize(adminPaymentRefundListSchema)
   listAdminRefunds(
-    @CurrentUser() user: User,
     @Query({ schema: adminPaymentRefundQuerySchema })
     query: AdminPaymentRefundQuery,
   ) {
-    return this.paymentService.listRefundsForAdmin(user.id, query);
+    return this.paymentService.listRefundsForAdmin(query);
   }
 
   @Roles(UserRole.ADMIN)

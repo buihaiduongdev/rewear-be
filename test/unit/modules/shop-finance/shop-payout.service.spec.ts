@@ -16,7 +16,11 @@ describe('payout service authorization and UNC receipt attachment', () => {
       findOneBy: async () => null,
     };
     const db = { manager };
-    const service = new ShopPayoutService(db as never);
+    const service = new ShopPayoutService(
+      db as never,
+      {} as never,
+      {} as never,
+    );
     await expect(service.ownerView('former', 'shop')).rejects.toThrow(
       'Current active Shop Owner required',
     );
@@ -42,6 +46,7 @@ describe('payout service authorization and UNC receipt attachment', () => {
     const service = new ShopPayoutService(
       { manager } as never,
       mediaService as never,
+      {} as never,
     );
 
     const ticket = await service.createReceiptUploadTicket(ADMIN_ID, {
@@ -98,7 +103,15 @@ describe('payout service authorization and UNC receipt attachment', () => {
           return null;
         },
       ),
-      findOneOrFail: jest.fn(async () => payout),
+      findOneOrFail: jest.fn(
+        async (
+          _entity: unknown,
+          opts?: { relations?: Record<string, boolean> },
+        ) =>
+          opts?.relations?.transferEvidenceMedia
+            ? { ...payout, transferEvidenceMedia: media }
+            : payout,
+      ),
       save: jest.fn(async (value: unknown) => value),
     };
     const db = {
@@ -204,7 +217,11 @@ describe('payout service authorization and UNC receipt attachment', () => {
         visibility: 'private',
       }),
     };
-    const service = new ShopPayoutService(db as never, mediaService as never);
+    const service = new ShopPayoutService(
+      db as never,
+      mediaService as never,
+      {} as never,
+    );
 
     await expect(
       service.succeed(ADMIN_ID, PAYOUT_ID, {

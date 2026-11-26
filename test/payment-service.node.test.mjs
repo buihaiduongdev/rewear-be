@@ -20,7 +20,6 @@ class PaymentRefund {}
 class Order {}
 class OrderEvent {}
 class WalletCheckoutHold {}
-class User {}
 class CoinService {
   async consumeCheckoutCoins(_manager, _checkoutId, orders) {
     assert.equal(
@@ -68,15 +67,11 @@ const deps = {
   Order,
   OrderEvent,
   WalletCheckoutHold,
-  User,
-  UserRole: { ADMIN: 'ADMIN' },
-  UserStatus: { ACTIVE: 'ACTIVE' },
   CoinService,
   RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,
-  ForbiddenException: ApplicationError,
   NotFoundException: ApplicationError,
   UnauthorizedException: ApplicationError,
   ServiceUnavailableException: ApplicationError,
@@ -89,7 +84,6 @@ const original = await readFile(
 const transformed = original
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '')
-  .replace(/@Optional\(\)/g, '')
   .replace(/@Inject\(forwardRef\(\(\) => [^)]+\)\)/g, '')
   .replace(/@Inject\([^)]+\)/g, '');
 const { PaymentService } = await import(
@@ -207,6 +201,8 @@ function setup() {
     },
     { record: async () => undefined },
     new CoinService(),
+    null,
+    { creditLatePaymentRefund: async () => undefined },
   );
   return { service, rows, checkout, client, calls: () => createCalls };
 }

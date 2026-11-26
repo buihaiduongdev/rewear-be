@@ -25,7 +25,11 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
   const admin = randomUUID();
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new ShopPayoutService(database.dataSource);
+    service = new ShopPayoutService(
+      database.dataSource,
+      {} as never,
+      {} as never,
+    );
     await database.dataSource.getRepository(User).save({
       id: admin,
       email: randomUUID() + '@test.local',

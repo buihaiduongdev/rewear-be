@@ -4,8 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
@@ -80,8 +78,8 @@ export function assertExactTransfer(
 export class ShopPayoutService {
   constructor(
     private readonly db: DataSource,
-    @Optional() private readonly mediaService?: MediaService,
-    @Optional() private readonly storageService?: StorageService,
+    private readonly mediaService: MediaService,
+    private readonly storageService: StorageService,
   ) {}
 
   private async now(manager: EntityManager): Promise<Date> {
@@ -171,7 +169,7 @@ export class ShopPayoutService {
   }
 
   private async resolveReceiptUrl(media: Media | null | undefined) {
-    if (!media || media.retiredAt || !this.storageService) return null;
+    if (!media || media.retiredAt) return null;
     if (media.visibility === 'private') {
       const signed = await this.storageService.createDownloadUrl(
         media.storageKey,
@@ -187,9 +185,6 @@ export class ShopPayoutService {
   ) {
     const data = payoutReceiptUploadTicketSchema.parse(input);
     await this.assertAdmin(this.db.manager, actorId);
-    if (!this.mediaService) {
-      throw new ServiceUnavailableException('Media upload service unavailable');
-    }
     const ticket = await this.mediaService.createUploadTicket(actorId, {
       mimeType: data.mimeType,
       sizeBytes: data.sizeBytes,
@@ -206,18 +201,13 @@ export class ShopPayoutService {
   async getReceiptDownload(actorId: string, payoutId: string) {
     const manager = this.db.manager;
     await this.assertAdmin(manager, actorId);
-    const payout = await manager.findOneBy(ShopPayout, { id: payoutId });
-    if (!payout || !payout.transferEvidenceMediaId) {
-      throw new NotFoundException('Payout receipt not found');
-    }
-    const media = await manager.findOneBy(Media, {
-      id: payout.transferEvidenceMediaId,
+    const payout = await manager.findOneOrFail(ShopPayout, {
+      where: { id: payoutId },
+      relations: { transferEvidenceMedia: true },
     });
+    const media = payout.transferEvidenceMedia;
     if (!media || media.retiredAt) {
       throw new NotFoundException('Payout receipt not found');
-    }
-    if (!this.storageService) {
-      throw new ServiceUnavailableException('Storage service unavailable');
     }
     if (media.visibility === 'private') {
       const signed = await this.storageService.createDownloadUrl(
@@ -506,11 +496,6 @@ export class ShopPayoutService {
 
       let attachedMedia: Media | null = null;
       if (requestedMediaId) {
-        if (!this.mediaService) {
-          throw new ServiceUnavailableException(
-            'Media upload service unavailable',
-          );
-        }
         attachedMedia = await this.mediaService.verifyMedia(
           manager,
           actorId,

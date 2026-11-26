@@ -1,10 +1,4 @@
-import {
-  forwardRef,
-  Inject,
-  Injectable,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
@@ -37,12 +31,9 @@ export class PaymentWorker {
     private readonly db: DataSource,
     private readonly paymentService: PaymentService,
     @Inject(PAYOS_CLIENT) private readonly payosClient: PayosClient | null,
-    @Optional()
-    @Inject(MOMO_CLIENT)
-    private readonly momoClient: MomoClient | null = null,
-    @Optional()
+    @Inject(MOMO_CLIENT) private readonly momoClient: MomoClient | null,
     @Inject(forwardRef(() => WalletService))
-    private readonly walletService?: WalletService,
+    private readonly walletService: WalletService,
   ) {}
 
   @Interval(PAYMENT_WORKER_INTERVAL_MS)
@@ -109,10 +100,6 @@ export class PaymentWorker {
 
   async refund(id: string) {
     if (!this.payosClient && !this.momoClient) return;
-    if (!this.momoClient && !this.walletService) {
-      await this.escalateToReview(id, true);
-      return;
-    }
 
     const claimed = await this.claimRefundForProcessing(id);
     if (!claimed) return;
@@ -151,7 +138,7 @@ export class PaymentWorker {
     }
 
     // 2. Auto-credit buyer's Refund-only Wallet for PayOS or failed MoMo refund.
-    if (attempt && this.walletService) {
+    if (attempt) {
       try {
         await this.completeRefundWithWallet(id, attempt.buyerId, refund.amount);
         return;
@@ -161,7 +148,7 @@ export class PaymentWorker {
     }
 
     // 3. Escalate to Admin review if automatic refund and wallet credit fail.
-    await this.escalateToReview(id, false);
+    await this.escalateToReview(id);
   }
 
   private async claimRefundForProcessing(id: string) {
@@ -229,7 +216,7 @@ export class PaymentWorker {
         lock: { mode: 'pessimistic_write' },
       });
       if (!refund || refund.state === PAYMENT_REFUND_STATE.COMPLETED) return;
-      await this.walletService!.creditLatePaymentRefund(manager, {
+      await this.walletService.creditLatePaymentRefund(manager, {
         userId: buyerId,
         paymentRefundId: refund.id,
         amount,
@@ -244,7 +231,7 @@ export class PaymentWorker {
     });
   }
 
-  private async escalateToReview(id: string, enforceNextQueryAt: boolean) {
+  private async escalateToReview(id: string) {
     await this.db.transaction(async (manager) => {
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const current = new Date(now);
@@ -252,11 +239,7 @@ export class PaymentWorker {
         where: { id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (
-        !refund ||
-        refund.state === PAYMENT_REFUND_STATE.COMPLETED ||
-        (enforceNextQueryAt && refund.nextQueryAt > current)
-      ) {
+      if (!refund || refund.state === PAYMENT_REFUND_STATE.COMPLETED) {
         return;
       }
       await this.markReviewAlert(manager, refund, current);

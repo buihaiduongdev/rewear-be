@@ -2,12 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import {
   ConflictException,
-  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
   NotFoundException,
-  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -42,8 +40,6 @@ import { ProductStatus } from '@/modules/product/enums';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
@@ -145,12 +141,9 @@ export class PaymentService {
     private readonly paymentPricing: PaymentPricing,
     private readonly outboxService: OutboxService,
     private readonly coinService: CoinService,
-    @Optional()
-    @Inject(MOMO_CLIENT)
-    private readonly momoClient: MomoClient | null = null,
-    @Optional()
+    @Inject(MOMO_CLIENT) private readonly momoClient: MomoClient | null,
     @Inject(forwardRef(() => WalletService))
-    private readonly walletService?: WalletService,
+    private readonly walletService: WalletService,
   ) {}
 
   private payosGateway() {
@@ -168,15 +161,6 @@ export class PaymentService {
   private async now(manager: EntityManager): Promise<Date> {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
-  }
-
-  private async assertAdmin(manager: EntityManager, actorId: string) {
-    const admin = await manager.findOneBy(User, {
-      id: actorId,
-      role: UserRole.ADMIN,
-      status: UserStatus.ACTIVE,
-    });
-    if (!admin) throw new ForbiddenException('Active Admin required');
   }
 
   async create(
@@ -911,9 +895,8 @@ export class PaymentService {
     return true;
   }
 
-  async listRefundsForAdmin(actorId: string, query: AdminPaymentRefundQuery) {
+  async listRefundsForAdmin(query: AdminPaymentRefundQuery) {
     const manager = this.db.manager;
-    await this.assertAdmin(manager, actorId);
     const refunds = await manager.find(PaymentRefund, {
       where: query.state ? { state: query.state } : {},
       order: { createdAt: 'DESC' },
@@ -944,14 +927,10 @@ export class PaymentService {
   ) {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      await this.assertAdmin(manager, actorId);
-      const refund = await manager.findOne(PaymentRefund, {
+      const refund = await manager.findOneOrFail(PaymentRefund, {
         where: { id: refundId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!refund) {
-        throw new NotFoundException('Payment refund not found');
-      }
       if (refund.state === PAYMENT_REFUND_STATE.COMPLETED) {
         throw new ConflictException('Payment refund is already completed');
       }
@@ -961,9 +940,6 @@ export class PaymentService {
       });
 
       if (input.action === 'CREDIT_WALLET') {
-        if (!this.walletService) {
-          throw new ServiceUnavailableException('Wallet service unavailable');
-        }
         await this.walletService.creditLatePaymentRefund(manager, {
           userId: attempt.buyerId,
           paymentRefundId: refund.id,

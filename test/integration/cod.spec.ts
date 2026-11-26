@@ -459,6 +459,8 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       pricing,
       new OutboxService(),
       new CoinService(f.db),
+      null,
+      {} as never,
     );
     const failed = await payments.create(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),

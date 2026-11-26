@@ -290,6 +290,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       pricing,
       new OutboxService(),
       new CoinService(database.dataSource),
+      null,
+      new WalletService(db),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
@@ -488,6 +490,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       pricing,
       new OutboxService(),
       new CoinService(database.dataSource),
+      null,
+      new WalletService(first.db),
     );
     const attempt = await payos.create(first.buyer.id, first.checkout.id, {
       requestId: randomUUID(),
@@ -544,6 +548,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       pricing,
       new OutboxService(),
       new CoinService(database.dataSource),
+      null,
+      new WalletService(f.db),
     );
     await expect(
       payos.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
@@ -607,6 +613,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         pricing,
         new OutboxService(),
         new CoinService(db),
+        null,
+        new WalletService(db),
       ).create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('outside PayOS limits');
     expect(
@@ -775,6 +783,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       ),
       new OutboxService(),
       new CoinService(database.dataSource),
+      null,
+      new WalletService(db),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),

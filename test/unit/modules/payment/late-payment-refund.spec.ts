@@ -234,6 +234,8 @@ describe('Late-payment refund worker & admin resolution', () => {
       {} as never,
       {} as never,
       {} as never,
+      null,
+      { creditLatePaymentRefund: jest.fn() } as never,
     );
     const resolvedManual = await manualService.resolveRefund(
       fManual.admin.id!,
@@ -252,10 +254,10 @@ describe('Late-payment refund worker & admin resolution', () => {
     expect(fManual.attempt.state).toBe(PAYMENT_ATTEMPT_STATE.REFUNDED);
 
     await expect(
-      manualService.resolveRefund('not-admin', fManual.refund.id!, {
+      manualService.resolveRefund(fManual.admin.id!, fManual.refund.id!, {
         action: 'MANUAL_TRANSFER',
         bankReference: 'X',
       }),
-    ).rejects.toThrow('Active Admin required');
+    ).rejects.toThrow('Payment refund is already completed');
   });
 });
