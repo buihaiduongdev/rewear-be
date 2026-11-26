@@ -23,8 +23,6 @@ import {
   chatMessageViewSchema,
   type ChatPageInput,
   chatPageSchema,
-  importedEvidenceViewSchema,
-  importEvidenceSchema,
   openChatSchema,
   type SendChatInput,
   sendChatSchema,
@@ -103,22 +101,5 @@ export class ChatController {
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
     return this.chatService.download(user.id, id);
-  }
-
-  @Post('media/:id/dispute-evidence')
-  @HttpCode(200)
-  @Serialize(importedEvidenceViewSchema)
-  importEvidence(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: importEvidenceSchema })
-    input: { orderId: string; tags: string[] },
-  ) {
-    return this.chatService.importEvidence(
-      user.id,
-      id,
-      input.orderId,
-      input.tags,
-    );
   }
 }

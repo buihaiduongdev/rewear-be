@@ -171,7 +171,6 @@ describe('Seed data (PostgreSQL)', () => {
       {} as never,
       outbox,
       {} as never,
-      {} as never,
     );
     const conversations = await chat.list(buyer.id, { limit: 20, offset: 0 });
     expect(conversations.items).toHaveLength(3);

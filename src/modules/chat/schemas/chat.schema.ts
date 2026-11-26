@@ -1,7 +1,6 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas/date-time.schema';
-import { DISPUTE_EVIDENCE_TAG } from '@/modules/dispute/constants/dispute.constant';
 
 import {
   CHAT_MIME_TYPES,
@@ -86,23 +85,6 @@ export const chatDownloadSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
   expiresAt: dateTimeSchema,
-});
-export const importEvidenceSchema = z.strictObject({
-  orderId: z.uuid(),
-  tags: z
-    .array(z.enum(DISPUTE_EVIDENCE_TAG))
-    .min(1)
-    .max(7)
-    .refine(
-      (tags) => new Set(tags).size === tags.length,
-      'Duplicate evidence tags',
-    ),
-});
-export const importedEvidenceViewSchema = z.object({
-  id: z.uuid(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int(),
-  tags: z.array(z.string()),
 });
 
 export type SendChatInput = z.infer<typeof sendChatSchema>;

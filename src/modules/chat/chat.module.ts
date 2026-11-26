@@ -3,9 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { MediaModule } from '@/modules/media/media.module';
-import { OrderAccess } from '@/modules/order/order.access';
 
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
@@ -20,7 +18,7 @@ import { ChatMessageMedia } from './entities/chat-message-media.entity';
     TypeOrmModule.forFeature([ChatConversation, ChatMessage, ChatMessageMedia]),
   ],
   controllers: [ChatController],
-  providers: [ChatService, DisputeAccess, OrderAccess],
+  providers: [ChatService],
   exports: [ChatService],
 })
 export class ChatModule {}

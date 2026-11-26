@@ -33,7 +33,6 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       {} as never,
       new OutboxService(),
       {} as never,
-      {} as never,
     );
   });
   afterAll(async () => database?.destroy());
