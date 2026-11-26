@@ -1325,4 +1325,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện sự bất hợp lý của các bảng audit/command/fingerprint trên nhóm module phụ trợ dù đã qua các đợt dọn trước, chốt phạm vi giữ lại và kiểm tra kết quả sau khi gộp.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 warnings/errors, Prettier, TypeScript, Build); `pnpm test:unit` đạt 61/61 suites (337/337 tests).
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện (đã chủ động rà thêm các E2E test cũ còn gọi endpoint pre-upload đã xóa để cập nhật đồng bộ).
-- **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
+- **Minh chứng:** PR #76; branch `refactor/clean-auxiliary-modules`.
