@@ -21,7 +21,6 @@ import {
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
-import { UserStatus } from '@/modules/user/enums';
 
 import { CHAT_SIDE } from './constants/chat.constant';
 import { ChatConversation, ChatMessage } from './entities';
@@ -46,7 +45,6 @@ export class ChatService {
 
   open(buyerId: string, shopId: string) {
     return this.db.transaction(async (manager) => {
-      await this.assertActiveUser(manager, buyerId);
       let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
       if (!row) {
         await this.assertActiveShop(manager, shopId);
@@ -88,7 +86,6 @@ export class ChatService {
 
   async list(userId: string, input: ChatPageInput) {
     const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId);
     const member = await manager.findOneBy(ShopMember, { userId });
     const shopId =
       member &&
@@ -293,21 +290,11 @@ export class ChatService {
     return { row, side };
   }
 
-  private async assertActiveUser(manager: EntityManager, userId: string) {
-    const user = await manager.findOneBy(User, {
-      id: userId,
-      status: UserStatus.ACTIVE,
-    });
-    if (!user) throw new ForbiddenException('Active chat participant required');
-    return user;
-  }
-
   private async resolveSide(
     manager: EntityManager,
     userId: string,
     row: ChatConversation,
   ) {
-    await this.assertActiveUser(manager, userId);
     if (row.buyerId === userId) return CHAT_SIDE.BUYER;
     if (
       await this.authorization.hasPermission(
