@@ -53,6 +53,7 @@ export const publicRatingSchema = z.object({
   stars: z.number().int(),
   comment: z.string().nullable(),
   mediaIds: z.array(z.uuid()),
+  mediaUrls: z.array(z.string()).default([]),
   reply: z.string().nullable(),
   revision: z.number().int(),
   updatedAt: dateTimeSchema,
@@ -92,12 +93,6 @@ export const ratingVersionSchema = z.object({
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
-export const ratingDownloadSchema = z.object({
-  url: z.url(),
-  headers: z.record(z.string(), z.string()),
-  expiresAt: dateTimeSchema,
-});
-
 export type RatingMode = (typeof RATING_MODES)[number];
 export type RatingInput = z.infer<typeof ratingInputSchema>;
 export type RatingModerationInput = z.infer<typeof ratingModerationSchema>;

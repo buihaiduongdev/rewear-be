@@ -32,7 +32,6 @@ describe('Verified Shop ratings HTTP', () => {
   let buyer: User, owner: User, staff: User, admin: User, order: Order;
   let token: (user: User) => string;
   let ratingId: string;
-  let mediaId: string;
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
@@ -187,26 +186,24 @@ describe('Verified Shop ratings HTTP', () => {
       .expect(200);
     expect(edited.body.data.reply).toBe('Shop response');
   });
-  it('uses owned upload tickets and rechecks moderation for every signed download', async () => {
+  it('uses owned public upload tickets and hides moderated media URLs', async () => {
     const upload = await request(app.getHttpServer())
       .post('/api/media/upload-ticket')
       .auth(token(buyer), { type: 'bearer' })
-      .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
+      .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'public' })
       .expect(201);
     const ticketId = upload.body.data.id;
-    await request(app.getHttpServer())
-      .get(`/api/ratings/media/${ticketId}/download`)
-      .expect(404);
     const rated = await request(app.getHttpServer())
       .post('/api/ratings')
       .auth(token(buyer), { type: 'bearer' })
       .send({ orderId: order.id, stars: 2, mediaIds: [ticketId] })
       .expect(200);
-    mediaId = rated.body.data.mediaIds[0];
+    expect(rated.body.data.mediaIds).toEqual([ticketId]);
     expect(rated.body.data).not.toHaveProperty('storageKey');
-    await request(app.getHttpServer())
-      .get(`/api/ratings/media/${mediaId}/download`)
+    const beforeModeration = await request(app.getHttpServer())
+      .get(`/api/ratings/shops/${order.shopId}`)
       .expect(200);
+    expect(beforeModeration.body.data.ratings[0].mediaUrls).toHaveLength(1);
     await request(app.getHttpServer())
       .post(`/api/ratings/${ratingId}/moderation`)
       .auth(token(owner), { type: 'bearer' })
@@ -229,13 +226,11 @@ describe('Verified Shop ratings HTTP', () => {
         evidence: 'Review record',
       })
       .expect(200);
-    await request(app.getHttpServer())
-      .get(`/api/ratings/media/${mediaId}/download`)
-      .expect(404);
     const page = await request(app.getHttpServer())
       .get(`/api/ratings/shops/${order.shopId}`)
       .expect(200);
     expect(page.body.data.summary.count).toBe(1);
     expect(page.body.data.ratings[0].mediaIds).toEqual([]);
+    expect(page.body.data.ratings[0].mediaUrls).toEqual([]);
   });
 });

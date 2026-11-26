@@ -24,7 +24,6 @@ import { RatingsService } from './ratings.service';
 import {
   privateRatingSchema,
   publicRatingPageSchema,
-  ratingDownloadSchema,
   type RatingInput,
   ratingInputSchema,
   ratingListSchema,
@@ -112,15 +111,5 @@ export class RatingsController {
     @Body({ schema: ratingModerationSchema }) input: RatingModerationInput,
   ) {
     return this.ratings.moderate(user.id, id, input);
-  }
-  @Get('media/:id/download')
-  @PublicAccess()
-  @Serialize(ratingDownloadSchema)
-  download(
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Query({ schema: ratingListSchema.pick({ mode: true }) })
-    query: { mode: RatingMode },
-  ) {
-    return this.ratings.download(id, query.mode);
   }
 }

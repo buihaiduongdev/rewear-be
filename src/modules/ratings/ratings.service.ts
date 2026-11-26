@@ -53,13 +53,14 @@ export function hasDeliveryProof(
   );
 }
 
-export function publicRating(row: ShopRating) {
+export function publicRating(row: ShopRating, mediaUrls: string[] = []) {
   return {
     id: row.id,
     shopId: row.shopId,
     stars: row.stars,
     comment: row.commentHidden ? null : row.comment,
     mediaIds: row.mediaHidden ? [] : row.mediaIds,
+    mediaUrls: row.mediaHidden ? [] : mediaUrls,
     reply: row.replyHidden ? null : row.reply,
     revision: row.revision,
     updatedAt: row.updatedAt,
@@ -184,7 +185,7 @@ export class RatingsService {
         buyerId,
         mediaId,
         undefined,
-        'private',
+        'public',
       );
       const limit = file.mimeType.startsWith('image/')
         ? RATING_POLICY.IMAGE_BYTES
@@ -320,39 +321,46 @@ export class RatingsService {
       if (decision.component === 'media') row.mediaHidden = decision.hidden;
       if (decision.component === 'reply') row.replyHidden = decision.hidden;
       await manager.save(row);
-      return this.privateView(row);
+      return this.privateView(
+        row,
+        (await this.resolveMediaUrls(manager, [row])).get(row.id) ?? [],
+      );
     });
   }
 
-  async download(id: string, mode: RatingMode = 'EVIDENCE') {
-    const parsed = ratingModeSchema.safeParse(mode);
-    if (!parsed.success) throw new BadRequestException('Invalid rating mode');
-    return this.db.transaction(async (manager) => {
-      const row = await manager.findOneBy(ShopRatingMedia, { mediaId: id });
-      if (!row) throw new NotFoundException('Rating media not found');
-      const rating = await manager.findOneBy(ShopRating, {
-        buyerId: row.buyerId,
-        shopId: row.shopId,
-        mode: parsed.data,
-        invalidated: false,
-        mediaHidden: false,
-      });
-      if (
-        row.media.retiredAt ||
-        row.mode !== parsed.data ||
-        !rating?.mediaIds.includes(id)
-      )
-        throw new NotFoundException('Visible rating media not found');
-      return this.storage.createDownloadUrl(row.media.storageKey);
+  private async resolveMediaUrls(manager: EntityManager, rows: ShopRating[]) {
+    const allIds = [...new Set(rows.flatMap((row) => row.mediaIds))];
+    const map = new Map<string, string[]>();
+    if (!allIds.length) return map;
+    const links = await manager.findBy(ShopRatingMedia, {
+      mediaId: In(allIds),
     });
+    const urlByMediaId = new Map(
+      links
+        .filter((link) => !link.media.retiredAt)
+        .map((link) => [
+          link.mediaId,
+          this.storage.getPublicUrl(link.media.storageKey),
+        ]),
+    );
+    for (const row of rows) {
+      map.set(
+        row.id,
+        row.mediaIds
+          .map((id) => urlByMediaId.get(id))
+          .filter((url): url is string => !!url),
+      );
+    }
+    return map;
   }
 
-  private privateView(row: ShopRating) {
+  private privateView(row: ShopRating, mediaUrls: string[] = []) {
     return {
-      ...publicRating(row),
+      ...publicRating(row, mediaUrls),
       orderId: row.orderId,
       comment: row.comment,
       mediaIds: row.mediaIds,
+      mediaUrls,
       reply: row.reply,
       replyRevision: row.replyRevision,
       commentHidden: row.commentHidden,
@@ -371,7 +379,8 @@ export class RatingsService {
       skip: offset,
       take: 50,
     });
-    return rows.map((row) => this.privateView(row));
+    const urlMap = await this.resolveMediaUrls(this.db.manager, rows);
+    return rows.map((row) => this.privateView(row, urlMap.get(row.id) ?? []));
   }
 
   async history(actorId: string, ratingId: string, offset = 0) {
@@ -406,9 +415,13 @@ export class RatingsService {
       where: { shopId, mode: parsed.data, invalidated: false },
       order: { updatedAt: 'DESC', id: 'ASC' },
     });
+    const pageRows = rows.slice(offset, offset + 50);
+    const urlMap = await this.resolveMediaUrls(this.db.manager, pageRows);
     return {
       summary: summarizeRatings(rows, parsed.data),
-      ratings: rows.slice(offset, offset + 50).map(publicRating),
+      ratings: pageRows.map((row) =>
+        publicRating(row, urlMap.get(row.id) ?? []),
+      ),
     };
   }
 }
