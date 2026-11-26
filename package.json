@@ -64,6 +64,7 @@
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "ts-pattern": "^5.9.2",
     "typeorm": "^1.1.0",
     "xstate": "^5.33.4",
     "zod": "^4.4.3"
