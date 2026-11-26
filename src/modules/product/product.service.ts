@@ -32,10 +32,10 @@ import { Product, ProductModeration } from './entities';
 import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import { suspendProductForModeration } from './policies/suspend-product.policy';
-import type { SuspendProductInput } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
   ModerateProductInput,
+  SuspendProductInput,
   UpdateProductInput,
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
@@ -251,16 +251,19 @@ export class ProductService {
       product.condition = input.condition;
       contentChanged = true;
     }
-    for (const field of ['measurements', 'defects'] as const) {
-      if (
-        input[field] !== undefined &&
-        JSON.stringify(product[field]) !== JSON.stringify(input[field])
-      ) {
-        if (field === 'measurements')
-          product.measurements = input.measurements!;
-        else product.defects = input.defects!;
-        contentChanged = true;
-      }
+    if (
+      input.measurements !== undefined &&
+      !isDeepStrictEqual(product.measurements, input.measurements)
+    ) {
+      product.measurements = input.measurements;
+      contentChanged = true;
+    }
+    if (
+      input.defects !== undefined &&
+      !isDeepStrictEqual(product.defects, input.defects)
+    ) {
+      product.defects = input.defects;
+      contentChanged = true;
     }
     if (
       input.shippingPackage !== undefined &&
@@ -412,7 +415,7 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductModeration> {
     if (shopId) {
-      await this.findManagedProduct(id, shopId);
+      await this.productRepository.findOneByOrFail({ id, shopId });
     }
     return this.dataSource
       .getRepository(ProductModeration)

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { pruneIdentityCheckout } from '@/modules/checkout/checkout.service';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { pruneIdentityCheckout } from '@/modules/checkout/identity-checkout.policy';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { PaymentAttempt } from '@/modules/payment/entities';

@@ -1,11 +1,18 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
-import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
-import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
+import { aggregateParcel } from '@/common/schemas/shipping-package.schema';
+import {
+  type CarrierQuoteInput,
+  GhnSandboxAdapter,
+} from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
+import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
+import { pruneIdentityCheckout } from './checkout.service';
+import { CHECKOUT_STATUS } from './constants/checkout.constant';
 import {
   SHIPPING_QUOTE_CARRIER,
   SHIPPING_QUOTE_ENVIRONMENT,
@@ -16,10 +23,105 @@ import {
 } from './constants/shipping-quote.constant';
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
-import { pruneIdentityCheckout } from './identity-checkout.policy';
-import { quoteReasonSchema } from './schemas/shipping-quote.schema';
-import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
-import { quoteInputs } from './shipping-quote.inputs';
+import {
+  type QuoteOrder,
+  quoteReasonSchema,
+  type ShippingQuoteResult,
+} from './schemas/shipping-quote.schema';
+
+export async function quoteInputs(
+  manager: EntityManager,
+  orders: CheckoutOrder[],
+) {
+  const shopIds = [...new Set(orders.map((order) => order.shopId))];
+  const pickups = shopIds.length
+    ? await manager.find(PickupLocation, {
+        where: { shopId: In(shopIds) },
+      })
+    : [];
+  const pickupByShop = new Map(pickups.map((p) => [p.shopId, p]));
+  const inputs: (CarrierQuoteInput | null)[] = [];
+  const results: QuoteOrder[] = [];
+
+  for (const order of orders) {
+    const pickup = pickupByShop.get(order.shopId);
+    const row: QuoteOrder = {
+      orderId: order.id,
+      shopId: order.shopId,
+      parcel: null,
+      parcelCount: 1,
+      itemCount: order.items.length,
+      status: SHIPPING_QUOTE_ORDER_STATUS.UNAVAILABLE,
+      reason: null,
+      fee: null,
+      estimatedDeliveryAt: null,
+    };
+    try {
+      row.parcel = aggregateParcel(
+        order.items.map((item) => item.shippingPackage ?? null),
+      );
+    } catch (error) {
+      const reason = quoteReasonSchema.safeParse(
+        error instanceof Error ? error.message : '',
+      );
+      row.reason = reason.success
+        ? reason.data
+        : SHIPPING_QUOTE_REASON.PACKAGE_REQUIRED;
+    }
+    if (
+      !row.reason &&
+      (!pickup || pickup.ghnSyncStatus !== 'CONNECTED' || !pickup.ghnShopId)
+    ) {
+      row.reason = SHIPPING_QUOTE_REASON.PICKUP_REQUIRED;
+    }
+    if (
+      !row.reason &&
+      order.subtotal > GHN_SHIPPING_LIMITS.MAX_DECLARED_VALUE
+    ) {
+      row.reason = SHIPPING_QUOTE_REASON.DECLARED_VALUE_LIMIT;
+    }
+    inputs.push(
+      pickup && row.parcel
+        ? {
+            ghnShopId: pickup.ghnShopId ?? undefined,
+            from: {
+              name: pickup.contactName,
+              phone: pickup.phone,
+              addressLine1: pickup.addressLine1,
+              countryCode: pickup.countryCode,
+              provinceId: pickup.provinceId,
+              provinceName: pickup.provinceName,
+              districtId: pickup.districtId,
+              districtName: pickup.districtName,
+              wardCode: pickup.wardCode,
+              wardName: pickup.wardName,
+            },
+            to: {
+              name: order.address.recipientName,
+              phone: order.address.phone,
+              addressLine1: [
+                order.address.addressLine1,
+                order.address.addressLine2,
+              ]
+                .filter(Boolean)
+                .join(', '),
+              countryCode: order.address.countryCode,
+              provinceId: order.address.provinceId,
+              provinceName: order.address.provinceName,
+              districtId: order.address.districtId,
+              districtName: order.address.districtName,
+              wardCode: order.address.wardCode,
+              wardName: order.address.wardName,
+            },
+            parcel: row.parcel,
+            value: order.subtotal,
+          }
+        : null,
+    );
+    results.push(row);
+  }
+  return { inputs, results };
+}
 
 @Injectable()
 export class ShippingQuoteService {
@@ -32,33 +134,36 @@ export class ShippingQuoteService {
     buyerId: string,
     checkoutId: string,
   ): Promise<ShippingQuoteResult> {
-    await this.db.transaction(async (manager) => {
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    const { checkout, now } = await this.db.transaction(async (manager) => {
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const currentNow = new Date(clock);
       const row = await manager.findOneOrFail(Checkout, {
         where: { id: checkoutId, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      await pruneIdentityCheckout(manager, row, new Date(now));
+      await pruneIdentityCheckout(manager, row, currentNow);
+      return { checkout: row, now: currentNow };
     });
-    const checkout = await this.db.getRepository(Checkout).findOneByOrFail({
-      id: checkoutId,
-      buyerId,
-    });
-    await this.assertActive(checkout);
+    this.assertActive(checkout, now);
+
     const orders = await this.db.getRepository(CheckoutOrder).find({
       where: { checkoutId },
       order: { id: 'ASC' },
-      relations: { shop: true },
     });
     const { inputs, results } = await quoteInputs(this.db.manager, orders);
     await this.quoteOrders(inputs, results);
-    const currentCheckout = await this.db
-      .getRepository(Checkout)
-      .findOneByOrFail({
+
+    const [currentCheckout, [{ now: afterClock }]] = await Promise.all([
+      this.db.getRepository(Checkout).findOneByOrFail({
         id: checkoutId,
         buyerId,
-      });
-    await this.assertActive(currentCheckout);
+      }),
+      this.db.query('SELECT clock_timestamp() AS now'),
+    ]);
+    this.assertActive(currentCheckout, new Date(afterClock));
+
     const quoted = results.filter(
       (order) => order.status === SHIPPING_QUOTE_ORDER_STATUS.QUOTED,
     );
@@ -104,8 +209,8 @@ export class ShippingQuoteService {
   }
 
   private async quoteOrders(
-    inputs: Awaited<ReturnType<typeof quoteInputs>>['inputs'],
-    results: Awaited<ReturnType<typeof quoteInputs>>['results'],
+    inputs: (CarrierQuoteInput | null)[],
+    results: QuoteOrder[],
   ) {
     const signal = AbortSignal.timeout(8000);
     let next = 0;
@@ -135,13 +240,13 @@ export class ShippingQuoteService {
     );
   }
 
-  private async assertActive(checkout: Checkout) {
-    const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
+  private assertActive(checkout: Checkout, now: Date) {
     const reservationIsInactive =
       checkout.status !== CHECKOUT_STATUS.HELD ||
       !checkout.expiresAt ||
-      checkout.expiresAt <= new Date(now);
-    if (reservationIsInactive)
+      checkout.expiresAt <= now;
+    if (reservationIsInactive) {
       throw new ConflictException('An active reservation is required');
+    }
   }
 }

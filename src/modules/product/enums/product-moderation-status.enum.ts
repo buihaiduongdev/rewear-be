@@ -1,8 +1,0 @@
-export enum ProductModerationStatus {
-  DRAFT = 'DRAFT',
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  CANCELLED = 'CANCELLED',
-  SUSPENDED = 'SUSPENDED',
-}
