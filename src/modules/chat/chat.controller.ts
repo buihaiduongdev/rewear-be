@@ -35,7 +35,7 @@ import {
 @AuthenticatedAccess()
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly service: ChatService) {}
+  constructor(private readonly chatService: ChatService) {}
 
   @Post('conversations')
   @HttpCode(200)
@@ -44,7 +44,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Body({ schema: openChatSchema }) input: { shopId: string },
   ) {
-    return this.service.open(user.id, input.shopId);
+    return this.chatService.open(user.id, input.shopId);
   }
 
   @Get('conversations')
@@ -53,7 +53,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Query({ schema: chatPageSchema }) input: ChatPageInput,
   ) {
-    return this.service.list(user.id, input);
+    return this.chatService.list(user.id, input);
   }
 
   @Get('conversations/:id')
@@ -62,7 +62,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.service.detail(user.id, id);
+    return this.chatService.detail(user.id, id);
   }
 
   @Get('conversations/:id/messages')
@@ -72,7 +72,7 @@ export class ChatController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Query({ schema: chatPageSchema }) input: ChatPageInput,
   ) {
-    return this.service.messages(user.id, id, input);
+    return this.chatService.messages(user.id, id, input);
   }
 
   @Post('conversations/:id/messages')
@@ -83,7 +83,7 @@ export class ChatController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: sendChatSchema }) input: SendChatInput,
   ) {
-    return this.service.send(user.id, id, input);
+    return this.chatService.send(user.id, id, input);
   }
 
   @Post('conversations/:id/read')
@@ -93,7 +93,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.service.read(user.id, id);
+    return this.chatService.read(user.id, id);
   }
 
   @Get('media/:id/download')
@@ -102,7 +102,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.service.download(user.id, id);
+    return this.chatService.download(user.id, id);
   }
 
   @Post('media/:id/dispute-evidence')
@@ -114,6 +114,11 @@ export class ChatController {
     @Body({ schema: importEvidenceSchema })
     input: { orderId: string; tags: string[] },
   ) {
-    return this.service.importEvidence(user.id, id, input.orderId, input.tags);
+    return this.chatService.importEvidence(
+      user.id,
+      id,
+      input.orderId,
+      input.tags,
+    );
   }
 }
