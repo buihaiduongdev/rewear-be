@@ -1314,3 +1314,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); `pnpm test:payment:core` đạt 20/20 tests; `pnpm test:unit` đạt 61/61 suites (338/338 tests); kiểm thử tích hợp và E2E trên PostgreSQL (bao gồm `--detectOpenHandles`) đều pass 100% không rò rỉ tiến trình nền.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bổ sung gói phụ thuộc `ioredis` còn thiếu cho `bullmq` khi chạy E2E; rà soát cơ chế enqueue email sau khi giao dịch DB commit và xác nhận tính đồng bộ với luồng hiện hành.
 - **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
+
+### 2026-11-26 — Tinh gọn module theo dõi cửa hàng
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn module theo dõi cửa hàng (`shop-follows`) để giảm truy vấn kiểm tra lặp, tận dụng cơ chế sẵn có của TypeORM/NestJS và đơn giản hóa schema cùng kiểm thử liên quan.
+- **Prompt chính:** Rà soát module theo dõi cửa hàng (`shop-follows`), bỏ các bước kiểm tra trạng thái người dùng đang hoạt động bị lặp lại sau JWT guard, chuyển các đoạn kiểm tra không tìm thấy thủ công sang `findOneByOrFail`, gọn hóa schema phân trang/phản hồi và tối ưu bước tra cứu theo dõi trong danh sách, đồng thời cập nhật lại kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Gỡ bỏ hàm kiểm tra `assertActiveUser` dư thừa và chuyển tra cứu cửa hàng/bản ghi theo dõi sang `findOneByOrFail` trong `src/modules/shop-follows/shop-follow.service.ts`; thay thao tác tìm tuyến tính trong vòng lặp bằng `Map`; gộp gọn các schema chỉ dùng một lần với `pageOf` trong `src/modules/shop-follows/schemas/shop-follow.schema.ts`; cập nhật đồng bộ `src/modules/shop-follows/shop-follow.controller.ts` và `test/integration/shop-follows.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi công việc để giữ nguyên toàn bộ các phân hệ đã chốt ổn định, rà soát luồng nghiệp vụ và kiểm tra lại kết quả build cùng unit test trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:unit` pass 61/61 suites (338/338 unit tests); `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Branch `refactor/clean-social-moderation-modules`, commit `52605b9`.
