@@ -18,7 +18,6 @@ import { WalletCheckoutHold } from './wallet-checkout-hold.entity';
 
 @Entity('wallet_debits')
 @Index(['holdId'], { unique: true })
-@Index(['buyerId', 'requestId'], { unique: true })
 @Check('CHK_wallet_debit_amount', '"amount" > 0')
 @Check(
   'CHK_wallet_debit_mode',
@@ -31,9 +30,6 @@ export class WalletDebit extends BaseEntity {
   @OneToOne(() => WalletCheckoutHold, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'holdId' })
   hold: WalletCheckoutHold;
-
-  @Column('uuid')
-  requestId: string;
 
   @Column('uuid')
   buyerId: string;

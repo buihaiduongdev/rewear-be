@@ -4,6 +4,7 @@ import type { DataSource } from 'typeorm';
 
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
@@ -44,7 +45,7 @@ export async function disputeReturnFixture(
     providerStatus: 'delivered',
   });
   await db.getRepository(Order).update(f.order.id, { status: 'delivered' });
-  await new CodReconciliationService(db).recordCollection(
+  await new CodReconciliationService(db, new CoinService(db)).recordCollection(
     f.admin.id,
     f.order.id,
     {

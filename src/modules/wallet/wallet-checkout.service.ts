@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
@@ -8,7 +12,7 @@ import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant'
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import {
@@ -28,11 +32,10 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 
-import { WALLET_HOLD_STATE } from '../constants/wallet.constant';
-import { WalletAccount } from '../entities';
-import { walletBalanceSchema } from '../schemas/wallet.schema';
-import type { ReserveWalletCheckoutInput } from '../schemas/wallet.schema';
-import { WalletCheckoutHold, WalletDebit } from './entities';
+import { WALLET_HOLD_STATE } from './constants/wallet.constant';
+import { WalletAccount, WalletCheckoutHold, WalletDebit } from './entities';
+import { walletBalanceSchema } from './schemas/wallet.schema';
+import type { ReserveWalletCheckoutInput } from './schemas/wallet.schema';
 
 export function walletCheckoutTotal(
   orders: { subtotal: number; shippingFee: number; coinDiscount?: number }[],
@@ -86,12 +89,68 @@ export async function releaseWalletHold(
   await manager.save(hold);
 }
 
+export async function verifiedWalletCapture(
+  manager: EntityManager,
+  order: Order,
+) {
+  if (
+    order.paymentMethod !== ORDER_PAYMENT_METHOD.WALLET ||
+    !order.walletDebitId
+  )
+    return null;
+  const debit = await manager.findOneBy(WalletDebit, {
+    id: order.walletDebitId,
+  });
+  if (!debit) return null;
+  const [hold, checkout] = await Promise.all([
+    manager.findOneBy(WalletCheckoutHold, { id: debit.holdId }),
+    manager.findOneBy(Checkout, { id: debit.checkoutId }),
+  ]);
+  const snapshot = hold?.orders.find(
+    (row) => row.checkoutOrderId === order.checkoutOrderId,
+  );
+  const captureMatches =
+    hold?.state === WALLET_HOLD_STATE.CAPTURED &&
+    hold.capturedAt &&
+    hold.buyerId === debit.buyerId &&
+    hold.checkoutId === debit.checkoutId &&
+    hold.mode === debit.mode &&
+    hold.amount === debit.amount &&
+    hold.amount ===
+      hold.orders.reduce(
+        (sum, row) =>
+          sum + row.subtotal + row.shippingFee - (row.coinDiscount ?? 0),
+        0,
+      ) &&
+    (!order.deliveryObservedAt || hold.capturedAt <= order.deliveryObservedAt);
+  const checkoutMatches =
+    checkout?.status === CHECKOUT_STATUS.PAID &&
+    checkout.buyerId === order.buyerId &&
+    debit.buyerId === order.buyerId &&
+    debit.checkoutId === order.checkoutId &&
+    order.commissionBasisPoints ===
+      ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS;
+  const snapshotMatches =
+    snapshot?.shopId === order.shopId &&
+    snapshot.subtotal === order.subtotal &&
+    snapshot.shippingFee === order.shippingFee &&
+    order.total ===
+      order.subtotal + order.shippingFee - (order.coinDiscount ?? 0) &&
+    (snapshot.coinDiscount ?? 0) === (order.coinDiscount ?? 0) &&
+    (snapshot.coinMode ?? null) === (order.coinMode ?? null) &&
+    (!(order.coinDiscount ?? 0) || order.coinMode === debit.mode) &&
+    JSON.stringify(snapshot.items) === JSON.stringify(order.items) &&
+    JSON.stringify(snapshot.address) === JSON.stringify(order.address);
+  return captureMatches && checkoutMatches && snapshotMatches ? debit : null;
+}
+
 @Injectable()
 export class WalletCheckoutService {
   constructor(
     private readonly db: DataSource,
-    private readonly pricing: PaymentPricing,
+    private readonly paymentPricing: PaymentPricing,
     private readonly outboxService: OutboxService,
+    private readonly coinService: CoinService,
   ) {}
 
   private async now(manager: EntityManager) {
@@ -99,19 +158,20 @@ export class WalletCheckoutService {
     return new Date(now);
   }
 
-  private assertReplay(
-    hold: WalletCheckoutHold,
-    checkoutId: string,
-    input: ReserveWalletCheckoutInput,
-  ) {
-    if (
-      hold.checkoutId !== checkoutId ||
-      hold.mode !== input.mode ||
-      hold.amount !== input.expectedTotal
-    )
-      throw new ConflictException(
-        'Request ID already used for another wallet payment',
-      );
+  private async lockHold(manager: EntityManager, buyerId: string, id: string) {
+    const target = await manager.findOneByOrFail(WalletCheckoutHold, {
+      id,
+      buyerId,
+    });
+    const checkout = await manager.findOneOrFail(Checkout, {
+      where: { id: target.checkoutId, buyerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const hold = await manager.findOneOrFail(WalletCheckoutHold, {
+      where: { id, buyerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    return { checkout, hold };
   }
 
   async reserve(
@@ -119,14 +179,7 @@ export class WalletCheckoutService {
     checkoutId: string,
     input: ReserveWalletCheckoutInput,
   ) {
-    const prior = await this.db
-      .getRepository(WalletCheckoutHold)
-      .findOneBy({ buyerId, requestId: input.requestId });
-    if (prior) {
-      this.assertReplay(prior, checkoutId, input);
-      return this.findMine(buyerId, prior.id);
-    }
-    const quote = await this.pricing.quote(buyerId, checkoutId);
+    const quote = await this.paymentPricing.quote(buyerId, checkoutId);
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
       await manager.findOne(User, {
@@ -138,14 +191,6 @@ export class WalletCheckoutService {
         lock: { mode: 'pessimistic_write' },
       });
       await this.expireDue(manager, buyerId, now);
-      const previous = await manager.findOneBy(WalletCheckoutHold, {
-        buyerId,
-        requestId: input.requestId,
-      });
-      if (previous) {
-        this.assertReplay(previous, checkoutId, input);
-        return previous;
-      }
       if (
         checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
@@ -176,7 +221,11 @@ export class WalletCheckoutService {
         );
       if ((checkout.coinDiscount ?? 0) > 0 && checkout.coinMode !== input.mode)
         throw new ConflictException('Wallet and coins must use the same mode');
-      const orders = await this.pricing.snapshot(manager, checkout, quote);
+      const orders = await this.paymentPricing.snapshot(
+        manager,
+        checkout,
+        quote,
+      );
       const amount = walletCheckoutTotal(orders, input.expectedTotal);
       const stockCheckedAt = await this.validateStock(
         manager,
@@ -208,7 +257,6 @@ export class WalletCheckoutService {
         manager.create(WalletCheckoutHold, {
           checkoutId,
           buyerId,
-          requestId: input.requestId,
           mode: input.mode,
           state: WALLET_HOLD_STATE.HELD,
           amount,
@@ -224,18 +272,7 @@ export class WalletCheckoutService {
   async findMine(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
-        id,
-        buyerId,
-      });
-      await manager.findOneOrFail(Checkout, {
-        where: { id: target.checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const hold = await manager.findOneOrFail(WalletCheckoutHold, {
-        where: { id, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const { hold } = await this.lockHold(manager, buyerId, id);
       if (hold.state === WALLET_HOLD_STATE.HELD && hold.expiresAt <= now)
         await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.EXPIRED);
       return hold;
@@ -245,18 +282,7 @@ export class WalletCheckoutService {
   async release(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
-        id,
-        buyerId,
-      });
-      await manager.findOneOrFail(Checkout, {
-        where: { id: target.checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const hold = await manager.findOneOrFail(WalletCheckoutHold, {
-        where: { id, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const { hold } = await this.lockHold(manager, buyerId, id);
       await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.RELEASED);
       return hold;
     });
@@ -265,18 +291,7 @@ export class WalletCheckoutService {
   async confirm(buyerId: string, id: string) {
     const result = await this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      const target = await manager.findOneByOrFail(WalletCheckoutHold, {
-        id,
-        buyerId,
-      });
-      const checkout = await manager.findOneOrFail(Checkout, {
-        where: { id: target.checkoutId, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const hold = await manager.findOneOrFail(WalletCheckoutHold, {
-        where: { id, buyerId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const { checkout, hold } = await this.lockHold(manager, buyerId, id);
       if (hold.state === WALLET_HOLD_STATE.CAPTURED) return hold;
       if (hold.state === WALLET_HOLD_STATE.HELD && hold.expiresAt <= now) {
         await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.EXPIRED);
@@ -310,7 +325,7 @@ export class WalletCheckoutService {
       const createdOrders = await manager.find(Order, {
         where: { checkoutId: checkout.id },
       });
-      await new CoinService().consumeCheckoutCoins(
+      await this.coinService.consumeCheckoutCoins(
         manager,
         checkout.id,
         createdOrders,
@@ -356,7 +371,6 @@ export class WalletCheckoutService {
       WalletDebit,
       manager.create(WalletDebit, {
         holdId: hold.id,
-        requestId: hold.requestId,
         buyerId: hold.buyerId,
         checkoutId: hold.checkoutId,
         mode: hold.mode,
@@ -472,14 +486,19 @@ export class WalletCheckoutService {
     )
       throw new ConflictException('Checkout stock is no longer reserved');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-    for (const id of [...new Set(orders.map((row) => row.shopId))].sort()) {
-      const shop = await manager.findOneOrFail(Shop, {
-        where: { id, status: ShopStatus.ACTIVE },
-        lock: { mode: 'pessimistic_read' },
-      });
-      if (!shopAllowsIdentitySales(shop, new Date(now)))
-        throw new ConflictException('Shop identity requires review');
-    }
-    return new Date(now);
+    const current = new Date(now);
+    const shopIds = [...new Set(orders.map((row) => row.shopId))].sort();
+    const shops = shopIds.length
+      ? await manager.find(Shop, {
+          where: { id: In(shopIds), status: ShopStatus.ACTIVE },
+          order: { id: 'ASC' },
+          lock: { mode: 'pessimistic_read' },
+        })
+      : [];
+    if (shops.length !== shopIds.length)
+      throw new NotFoundException('Active shop not found');
+    if (shops.some((shop) => !shopAllowsIdentitySales(shop, current)))
+      throw new ConflictException('Shop identity requires review');
+    return current;
   }
 }

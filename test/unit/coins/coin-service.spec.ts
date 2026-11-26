@@ -2,18 +2,22 @@ import { randomUUID } from 'node:crypto';
 
 import type { DataSource, EntityManager } from 'typeorm';
 
-import { CoinService } from '@/modules/coins/core/coin.service';
-import { COIN_POLICY } from '@/modules/coins/core/constants/coin.constant';
+import {
+  adjustPurchaseReward,
+  CoinRewardService,
+} from '@/modules/coins/coin-reward.service';
+import { CoinRewardWorker } from '@/modules/coins/coin-reward.worker';
+import {
+  CoinService,
+  verifiedOrderCoinDebit,
+} from '@/modules/coins/coin.service';
+import { COIN_POLICY } from '@/modules/coins/constants/coin.constant';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinPurchaseReward,
   CoinReservation,
-} from '@/modules/coins/core/entities';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
-import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
-import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
-import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
+} from '@/modules/coins/entities';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import type { Order } from '@/modules/order/entities';
@@ -144,7 +148,7 @@ function createInMemoryManager() {
 }
 
 describe('CoinService flat balance, hold, debit, and reward clawback', () => {
-  const coins = new CoinService();
+  const coins = new CoinService({} as DataSource);
   const now = new Date('2026-11-25T00:00:00Z');
 
   it('grants purchase rewards, caps checkout holds at 10%, removes consumed holds, and captures verified order debits', async () => {

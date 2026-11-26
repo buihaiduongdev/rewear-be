@@ -11,7 +11,7 @@ import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import {
@@ -38,8 +38,8 @@ import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
 
 import { COD_FAULT_PARTY } from './constants/cod.constant';
 import { CodPolicy } from './policies/cod.policy';
@@ -58,6 +58,7 @@ export class CodService {
     private readonly pricing: PaymentPricing,
     private readonly policy: CodPolicy,
     private readonly outboxService: OutboxService,
+    private readonly coinService: CoinService,
     @Optional() private readonly orderService?: OrderService,
     @Optional() private readonly shopFinanceService?: ShopFinanceService,
   ) {}
@@ -153,7 +154,7 @@ export class CodService {
         snapshots,
         now,
       );
-      await new CoinService().commitCodCoins(manager, checkout.id, orders, now);
+      await this.coinService.commitCodCoins(manager, checkout.id, orders, now);
       checkout.status = CHECKOUT_STATUS.COD_PLACED;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });

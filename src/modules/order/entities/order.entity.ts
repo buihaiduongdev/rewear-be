@@ -7,7 +7,7 @@ import type {
 } from '@/modules/checkout/schemas/checkout.schema';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { PaymentAttempt } from '@/modules/payment/entities';
-import { WalletDebit } from '@/modules/wallet/checkout/entities';
+import { WalletDebit } from '@/modules/wallet/entities';
 
 import {
   ORDER_PAYMENT_METHOD,

@@ -1,16 +1,16 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { CoinRewardService } from './coin-reward.service';
+import { CoinRewardWorker } from './coin-reward.worker';
 import { CoinController } from './coin.controller';
-import { CoinService } from './core/coin.service';
+import { CoinService } from './coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinPurchaseReward,
   CoinReservation,
-} from './core/entities';
-import { CoinRewardService } from './rewards/coin-reward.service';
-import { CoinRewardWorker } from './rewards/coin-reward.worker';
+} from './entities';
 
 @Global()
 @Module({

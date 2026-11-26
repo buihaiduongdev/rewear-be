@@ -17,8 +17,8 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CoinService } from '@/modules/coins/core/coin.service';
-import { CoinAccount, CoinOrderDebit } from '@/modules/coins/core/entities';
+import { CoinService } from '@/modules/coins/coin.service';
+import { CoinAccount, CoinOrderDebit } from '@/modules/coins/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
@@ -38,13 +38,14 @@ import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.ent
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
-import {
-  WalletCheckoutHold,
-  WalletDebit,
-} from '@/modules/wallet/checkout/entities';
-import { WalletCheckoutService } from '@/modules/wallet/checkout/wallet-checkout.service';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
-import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
+import {
+  WalletAccount,
+  WalletCheckoutHold,
+  WalletCredit,
+  WalletDebit,
+} from '@/modules/wallet/entities';
+import { WalletCheckoutService } from '@/modules/wallet/wallet-checkout.service';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase } from '../support/database';
@@ -67,6 +68,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         ),
       ),
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
   });
   afterAll(async () => database?.destroy());
@@ -247,7 +249,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await fund(buyer.id);
     await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       expectedTotal: 210000,
     });
@@ -288,6 +289,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       client as unknown as PayosClient,
       pricing,
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
@@ -334,7 +336,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await fund(buyer.id);
     await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       expectedTotal: 210000,
     });
@@ -364,7 +365,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await fund(buyer.id);
     await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       expectedTotal: 210000,
     });
@@ -395,7 +395,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
     await expect(
       wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         mode: 'SIMULATION',
         expectedTotal: 210000,
       }),
@@ -488,6 +487,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       client as unknown as PayosClient,
       pricing,
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
     const attempt = await payos.create(first.buyer.id, first.checkout.id, {
       requestId: randomUUID(),
@@ -543,6 +543,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       client as unknown as PayosClient,
       pricing,
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
     await expect(
       payos.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
@@ -605,6 +606,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         client as unknown as PayosClient,
         pricing,
         new OutboxService(),
+        new CoinService(db),
       ).create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('outside PayOS limits');
     expect(
@@ -657,7 +659,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     const { db, buyer, checkout, product } = await fixture();
     await fund(buyer.id);
     const input = {
-      requestId: randomUUID(),
       expectedTotal: 230000,
       mode: 'EVIDENCE' as const,
     };
@@ -667,8 +668,8 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         .getRepository(WalletAccount)
         .findOneByOrFail({ userId: buyer.id }),
     ).toMatchObject({ balance: 0, heldBalance: 230000 });
-    expect((await wallet.reserve(buyer.id, checkout.id, input)).id).toBe(
-      hold.id,
+    await expect(wallet.reserve(buyer.id, checkout.id, input)).rejects.toThrow(
+      'existing wallet reservation',
     );
     await Promise.all([
       wallet.confirm(buyer.id, hold.id),
@@ -698,13 +699,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await fund(buyer.id, 'SIMULATION');
     await expect(
       wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 230000,
         mode: 'EVIDENCE',
       }),
     ).rejects.toThrow('Insufficient');
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       expectedTotal: 230000,
       mode: 'SIMULATION',
     });
@@ -724,7 +723,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     const { db, buyer, checkout } = await fixture();
     await fund(buyer.id);
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       expectedTotal: 230000,
       mode: 'EVIDENCE',
     });
@@ -750,7 +748,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     await fund(buyer.id);
     await expect(
       wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 229999,
         mode: 'EVIDENCE',
       }),
@@ -777,13 +774,13 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         ),
       ),
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
     });
     await expect(
       wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 230000,
         mode: 'EVIDENCE',
       }),
@@ -792,7 +789,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       .getRepository(PaymentAttempt)
       .update(attempt.id, { state: 'FAILED' });
     const hold = await wallet.reserve(buyer.id, checkout.id, {
-      requestId: randomUUID(),
       expectedTotal: 230000,
       mode: 'EVIDENCE',
     });
@@ -836,7 +832,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     const results = await Promise.allSettled(
       [first.checkout.id, second.checkout.id].map((id) =>
         wallet.reserve(first.buyer.id, id, {
-          requestId: randomUUID(),
           expectedTotal: 230000,
           mode: 'EVIDENCE',
         }),
@@ -855,7 +850,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       const { db, buyer, checkout } = await fixture();
       await fund(buyer.id, mode);
       const hold = await wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 230000,
         mode,
       });
@@ -893,7 +887,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       const { db, buyer, checkout } = await fixture();
       await fund(buyer.id, mode);
       const hold = await wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 230000,
         mode,
       });
@@ -962,7 +955,6 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       const { db, buyer, checkout, product } = await fixture();
       await fund(buyer.id);
       const hold = await wallet.reserve(buyer.id, checkout.id, {
-        requestId: randomUUID(),
         expectedTotal: 230000,
         mode: RECONCILIATION_MODE.EVIDENCE,
       });

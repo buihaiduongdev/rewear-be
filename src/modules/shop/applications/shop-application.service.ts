@@ -16,7 +16,7 @@ import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
-import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
+import { ShopBankAccount } from '@/modules/shop-finance/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 

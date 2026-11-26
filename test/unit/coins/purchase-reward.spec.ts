@@ -1,4 +1,4 @@
-import { purchaseRewardAmount } from '@/modules/coins/rewards/adjust-purchase-reward';
+import { purchaseRewardAmount } from '@/modules/coins/coin-reward.service';
 
 describe('purchase reward basis', () => {
   it('excludes coin discount and refunded goods before rounding once per order', () => {

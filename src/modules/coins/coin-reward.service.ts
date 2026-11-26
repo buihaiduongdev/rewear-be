@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
@@ -13,13 +13,68 @@ import { OrderDeliveryVerification } from '@/modules/order/entities/order-delive
 import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement.policy';
 import { WalletCredit } from '@/modules/wallet/entities';
 
-import { CoinService } from '../core/coin.service';
-import { COIN_POLICY } from '../core/constants/coin.constant';
-import { CoinPurchaseReward } from '../core/entities';
-import {
-  adjustPurchaseReward,
-  purchaseRewardAmount,
-} from './adjust-purchase-reward';
+import { clawbackCoins, CoinService } from './coin.service';
+import { COIN_POLICY } from './constants/coin.constant';
+import { CoinPurchaseReward } from './entities';
+
+export const PURCHASE_REWARD_DIVISOR = COIN_POLICY.PURCHASE_REWARD_DIVISOR;
+
+export function purchaseRewardAmount(
+  subtotal: number,
+  coinDiscount: number,
+  itemRefunds: number,
+) {
+  return Math.floor(
+    Math.max(0, subtotal - coinDiscount - itemRefunds) /
+      PURCHASE_REWARD_DIVISOR,
+  );
+}
+
+export async function adjustPurchaseReward(
+  manager: EntityManager,
+  order: Order,
+  now: Date,
+) {
+  const prior = await manager.findOne(CoinPurchaseReward, {
+    where: { orderId: order.id },
+    lock: { mode: 'pessimistic_write' },
+  });
+  if (!prior) return null;
+  if (prior.buyerId !== order.buyerId)
+    throw new ConflictException('Purchase reward owner changed');
+  const cancellation = await manager.findOneBy(WalletCredit, {
+    orderId: order.id,
+  });
+  if (
+    cancellation &&
+    (cancellation.mode !== prior.mode || cancellation.userId !== prior.buyerId)
+  )
+    throw new ConflictException('Reward cancellation source changed');
+  const refunds = await manager.findBy(DisputeRefundCredit, {
+    orderId: order.id,
+    mode: prior.mode,
+  });
+  const target = cancellation
+    ? 0
+    : purchaseRewardAmount(
+        order.subtotal,
+        order.coinDiscount ?? 0,
+        refunds.reduce((sum, row) => sum + row.amount, 0),
+      );
+  const entitlement = Math.min(prior.entitlement, target);
+  if (entitlement < prior.entitlement) {
+    const deducted = await clawbackCoins(
+      manager,
+      prior.buyerId,
+      prior.entitlement - entitlement,
+      prior.mode,
+    );
+    prior.recoveredAmount += deducted;
+    prior.entitlement = entitlement;
+  }
+  prior.evaluatedAt = now;
+  return manager.save(CoinPurchaseReward, prior);
+}
 
 @Injectable()
 export class CoinRewardService {
@@ -28,7 +83,7 @@ export class CoinRewardService {
 
   constructor(
     private readonly db: DataSource,
-    private readonly coins: CoinService,
+    private readonly coinService: CoinService,
   ) {}
 
   async evaluate(orderId: string) {
@@ -60,7 +115,7 @@ export class CoinRewardService {
         refunds.reduce((sum, row) => sum + row.amount, 0),
       );
       if (!target) return null;
-      return this.coins.grantPurchaseReward(
+      return this.coinService.grantPurchaseReward(
         manager,
         order.buyerId,
         orderId,

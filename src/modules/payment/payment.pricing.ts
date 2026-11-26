@@ -6,7 +6,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
-import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
+import { allocateCoins } from '@/modules/coins/coin.service';
 
 import {
   SHIPPING_QUOTE_MAX_AGE_MS,

@@ -12,7 +12,7 @@ import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { Category } from '@/modules/category/entities';
-import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
+import { CoinRewardWorker } from '@/modules/coins/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { MailService } from '@/modules/mail/mail.service';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';

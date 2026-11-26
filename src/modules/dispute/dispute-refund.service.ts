@@ -3,7 +3,7 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
+import { adjustPurchaseReward } from '@/modules/coins/coin-reward.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';

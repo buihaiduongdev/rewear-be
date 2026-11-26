@@ -7,14 +7,14 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/co
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
 
-import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import {
   ACTIVE_PAYOUT_STATUSES,
   PAYOUT_SOURCE_KIND,
   PAYOUT_STATUS,
   SHOP_LEDGER_ENTRY_TYPE,
-} from './payouts/constants/payout.constant';
-import type { PayoutSource } from './payouts/schemas/payout.schema';
+} from './constants/payout.constant';
+import { ShopLedgerEntry } from './entities/shop-ledger.entity';
+import type { PayoutSource } from './schemas/payout.schema';
 import type { PayoutSourceRow } from './schemas/shop-finance.schema';
 
 export function payoutSourceBalance(
@@ -45,42 +45,43 @@ export async function readPayoutSources(
   mode: ReconciliationMode,
   excludePayoutId?: string,
 ) {
-  const rows: PayoutSourceRow[] = await manager.query(
-    `
-    WITH sources AS (
-      SELECT $8::varchar AS kind, s.id AS "sourceId", s."orderId",
-        GREATEST(0, s.amount - GREATEST(0, COALESCE((SELECT SUM(r."sellerDebit") FROM dispute_refund_credits r
-          WHERE r."orderId"=s."orderId" AND r."shopId"=s."shopId" AND r.mode=s.mode),0)-s."refundDebit")) AS net
-      FROM shop_settlements s WHERE s."shopId"=$1 AND s.mode=$2
-    )
-    SELECT s.*,
-      COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
-        WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2 AND p.status=$3),0) AS paid,
-      COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
-        WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2
-          AND p.status=ANY($4::varchar[]) AND ($5::uuid IS NULL OR p.id<>$5)),0) AS reserved,
-      (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
-        WHERE c."orderId"=s."orderId" AND i.status=ANY($6::varchar[]))
-       OR EXISTS(SELECT 1 FROM dispute_returns r WHERE r."orderId"=s."orderId" AND r.state<>ALL($7::varchar[]))) AS blocked
-    FROM sources s ORDER BY s.kind, s."sourceId"`,
-    [
-      shopId,
-      mode,
-      PAYOUT_STATUS.SUCCEEDED,
-      [...ACTIVE_PAYOUT_STATUSES],
-      excludePayoutId ?? null,
-      [...OPEN_DISPUTE_STATES],
-      [RETURN_STATE.READY, RETURN_STATE.EXPIRED],
-      PAYOUT_SOURCE_KIND.SETTLEMENT,
-    ],
-  );
-  const shippingDebit = Number(
-    (await manager.sum(ShopLedgerEntry, 'amount', {
+  const [rows, rawShippingDebit] = await Promise.all([
+    manager.query<PayoutSourceRow[]>(
+      `
+      WITH sources AS (
+        SELECT $8::varchar AS kind, s.id AS "sourceId", s."orderId",
+          GREATEST(0, s.amount - GREATEST(0, COALESCE((SELECT SUM(r."sellerDebit") FROM dispute_refund_credits r
+            WHERE r."orderId"=s."orderId" AND r."shopId"=s."shopId" AND r.mode=s.mode),0)-s."refundDebit")) AS net
+        FROM shop_settlements s WHERE s."shopId"=$1 AND s.mode=$2
+      )
+      SELECT s.*,
+        COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
+          WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2 AND p.status=$3),0) AS paid,
+        COALESCE((SELECT SUM(a.amount) FROM shop_payout_allocations a JOIN shop_payouts p ON p.id=a."payoutId"
+          WHERE a.kind=s.kind AND a."sourceId"=s."sourceId" AND a.mode=$2 AND p."shopId"=$1 AND p.mode=$2
+            AND p.status=ANY($4::varchar[]) AND ($5::uuid IS NULL OR p.id<>$5)),0) AS reserved,
+        (EXISTS(SELECT 1 FROM dispute_issues i JOIN dispute_cases c ON c.id=i."caseId"
+          WHERE c."orderId"=s."orderId" AND i.status=ANY($6::varchar[]))
+         OR EXISTS(SELECT 1 FROM dispute_returns r WHERE r."orderId"=s."orderId" AND r.state<>ALL($7::varchar[]))) AS blocked
+      FROM sources s ORDER BY s.kind, s."sourceId"`,
+      [
+        shopId,
+        mode,
+        PAYOUT_STATUS.SUCCEEDED,
+        [...ACTIVE_PAYOUT_STATUSES],
+        excludePayoutId ?? null,
+        [...OPEN_DISPUTE_STATES],
+        [RETURN_STATE.READY, RETURN_STATE.EXPIRED],
+        PAYOUT_SOURCE_KIND.SETTLEMENT,
+      ],
+    ),
+    manager.sum(ShopLedgerEntry, 'amount', {
       shopId,
       mode,
       type: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
-    })) ?? 0,
-  );
+    }),
+  ]);
+  const shippingDebit = Number(rawShippingDebit ?? 0);
   let remainingShippingDebit = shippingDebit;
   const result = {
     sources: [] as PayoutSource[],

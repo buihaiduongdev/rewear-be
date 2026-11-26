@@ -4,7 +4,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -42,6 +42,7 @@ export class OrderService {
     private readonly walletService: WalletService,
     private readonly codPolicy: CodPolicy,
     private readonly outboxService: OutboxService,
+    private readonly coinService: CoinService,
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {
@@ -342,7 +343,7 @@ export class OrderService {
         UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason));
     if (codReturnIsUnverified)
       throw new ConflictException('Verified uncollected COD return required');
-    await new CoinService().releaseOrderCoins(manager, order, 'SELLER', now);
+    await this.coinService.releaseOrderCoins(manager, order, 'SELLER', now);
     order.stockReleaseReviewIds = await this.releaseStock(
       manager,
       order,
@@ -398,7 +399,7 @@ export class OrderService {
       const buyerCancellation =
         reason === ORDER_CANCELLATION_REASON.BUYER_CANCELLED ||
         reason === ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED;
-      await new CoinService().releaseOrderCoins(
+      await this.coinService.releaseOrderCoins(
         manager,
         order,
         buyerCancellation ? 'BUYER_CHANGE' : 'SELLER',

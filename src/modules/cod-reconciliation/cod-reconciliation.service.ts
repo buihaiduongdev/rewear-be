@@ -4,12 +4,12 @@ import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, Not, QueryFailedError } from 'typeorm';
 
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 
 import { RECONCILIATION_REVIEW_REASON } from './constants/cod-reconciliation.constant';
 import {
@@ -49,7 +49,10 @@ const isUniqueViolation = (error: unknown) =>
 
 @Injectable()
 export class CodReconciliationService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly coinService: CoinService,
+  ) {}
 
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
@@ -314,7 +317,7 @@ export class CodReconciliationService {
       throw new ConflictException('Invalid collection time');
     const money = reconciliationMoney(order);
     if (data.collectedAmount === order.total && (order.coinDiscount ?? 0) > 0)
-      await new CoinService().consumeOrderCoins(manager, order, data.mode, now);
+      await this.coinService.consumeOrderCoins(manager, order, data.mode, now);
     const isInvalidExpectedAmount = order.total <= 0;
     if (isInvalidExpectedAmount)
       throw new ConflictException('COD expected amount must be positive');

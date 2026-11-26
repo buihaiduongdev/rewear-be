@@ -10,9 +10,9 @@ import { Order } from '@/modules/order/entities';
 import type { OrderService } from '@/modules/order/order.service';
 import type { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
@@ -197,6 +197,7 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
       {} as PaymentPricing,
       {} as CodPolicy,
       { record: jest.fn() } as never,
+      {} as never,
       orderService,
       shopFinance,
     );

@@ -1,7 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
+import { ShopBankAccount } from '@/modules/shop-finance/entities';
 import { User } from '@/modules/user/entities';
 
 import { Shop } from '../../entities';
