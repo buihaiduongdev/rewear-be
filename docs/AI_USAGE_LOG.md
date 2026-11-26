@@ -1325,4 +1325,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu đầy đủ 6 tiêu chí rà soát và giữ nguyên toàn bộ quy tắc nghiệp vụ khiếu nại/hoàn trả, quyền truy cập tệp riêng tư và 12 phân hệ đã khóa; rà soát kết quả lint, build và bộ kiểm thử trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 592 tệp, Prettier, TypeScript, Build); unit test trọng tâm nhóm vận hành - khiếu nại pass 14/14 suites (65/65 tests); `node --test test/payment-service.node.test.mjs` pass 8/8 tests; `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `refactor/clean-fulfillment-dispute-kyc`, commit `73aacb6`.
+- **Minh chứng:** PR #81; branch `refactor/clean-fulfillment-dispute-kyc`, commit `73aacb6`.
