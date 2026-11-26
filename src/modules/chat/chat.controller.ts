@@ -21,6 +21,7 @@ import {
   chatDownloadSchema,
   chatMessagePageSchema,
   chatMessageViewSchema,
+  chatOpenViewSchema,
   type ChatPageInput,
   chatPageSchema,
   openChatSchema,
@@ -37,7 +38,7 @@ export class ChatController {
 
   @Post('conversations')
   @HttpCode(200)
-  @Serialize(chatConversationViewSchema)
+  @Serialize(chatOpenViewSchema)
   open(
     @CurrentUser() user: User,
     @Body({ schema: openChatSchema }) input: { shopId: string },

@@ -40,10 +40,7 @@ export class ChatService {
 
   async open(buyerId: string, shopId: string) {
     const manager = this.db.manager;
-    let row = await manager.findOne(ChatConversation, {
-      where: { buyerId, shopId },
-      relations: { buyer: true, shop: true },
-    });
+    let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
     if (!row) {
       const shopCheck = await manager
         .createQueryBuilder(Shop, 'shop')
@@ -72,12 +69,12 @@ export class ChatService {
         .values({ buyerId, shopId })
         .orIgnore()
         .execute();
-      row = await manager.findOneOrFail(ChatConversation, {
-        where: { buyerId, shopId },
-        relations: { buyer: true, shop: true },
+      row = await manager.findOneByOrFail(ChatConversation, {
+        buyerId,
+        shopId,
       });
     }
-    return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
+    return { id: row.id };
   }
 
   async detail(userId: string, id: string) {
