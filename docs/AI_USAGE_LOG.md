@@ -1314,3 +1314,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); `pnpm test:payment:core` đạt 20/20 tests; `pnpm test:unit` đạt 61/61 suites (338/338 tests); kiểm thử tích hợp và E2E trên PostgreSQL (bao gồm `--detectOpenHandles`) đều pass 100% không rò rỉ tiến trình nền.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bổ sung gói phụ thuộc `ioredis` còn thiếu cho `bullmq` khi chạy E2E; rà soát cơ chế enqueue email sau khi giao dịch DB commit và xác nhận tính đồng bộ với luồng hiện hành.
 - **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
+
+### 2026-11-26 — Tinh gọn nhóm module vận hành đơn hàng và khiếu nại
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn nhóm năm phân hệ `cod`, `cod-reconciliation`, `order`, `dispute` và `shop` (gồm `shop/applications`) để chuẩn hóa tiêm phụ thuộc (DI), loại bỏ cơ chế chống trùng dư thừa bằng fingerprint/requestId, làm phẳng thư mục nhiều cấp, bỏ kiểm tra lặp và tối ưu truy vấn đọc mà không làm thay đổi 12 phân hệ đã chốt ổn định.
+- **Prompt chính:** Rà soát nhóm module `cod`, `cod-reconciliation`, `order`, `dispute` và `shop/applications`: bỏ `@Optional()` và các chỗ khởi tạo thủ công `new CoinService()`/`new OrderFundingService()`, bỏ `requestFingerprint`/`orderFingerprint`/`requestId` thừa ở đối soát COD khi database đã có ràng buộc unique, làm phẳng thư mục lồng 3 cấp, gỡ các bước `assertActiveUser` lặp và `catch (EntityNotFoundError)` thủ công, gộp truy vấn đọc hồ sơ cửa hàng và hoàn tiền khiếu nại, đồng thời cập nhật đồng bộ bộ kiểm thử.
+- **Đầu ra AI được sử dụng:** Gỡ `@Optional()` ở `CodService` dùng `forwardRef` chuẩn NestJS, xóa `cod-policy.module.ts`, tiêm `CoinService` xuyên suốt `cod`/`cod-reconciliation`/`order`; bỏ SHA-256 fingerprint và `requestId` thừa ở `cod-reconciliation`, dùng quan hệ `OneToMany` `allocations` tránh N+1; gộp `order.access.ts`, `order-settlement.policy.ts`, `dispute-refund-accounting.ts`, `dispute-refund-funding.ts` và làm phẳng `dispute/returns/` cùng `shop/applications/renewal/` (giữ lại stub mỏng cho `OrderAccess`/`DisputeAccess` để không chạm module `chat` đã khóa); gỡ 9 chỗ `assertActiveUser` dư thừa ở `shop/applications`, dùng `findOneOrFail`/`findOneByOrFail`/`getOneOrFail`, thay 4 truy vấn rời ở `view()` bằng một truy vấn join kèm mapper đồng bộ; chuẩn hóa tên DI và cập nhật đồng bộ bộ test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu đầy đủ 6 tiêu chí rà soát và giữ nguyên toàn bộ quy tắc nghiệp vụ khiếu nại/hoàn trả, quyền truy cập tệp riêng tư và 12 phân hệ đã khóa; rà soát kết quả lint, build và bộ kiểm thử trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 592 tệp, Prettier, TypeScript, Build); unit test trọng tâm nhóm vận hành - khiếu nại pass 14/14 suites (65/65 tests); `node --test test/payment-service.node.test.mjs` pass 8/8 tests; `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** Branch `refactor/clean-fulfillment-dispute-kyc`, commit `73aacb6`.
