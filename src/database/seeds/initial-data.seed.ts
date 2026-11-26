@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { EntityManager } from 'typeorm';
 
@@ -25,18 +25,14 @@ import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shi
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
-import { notifyChatMessage } from '@/modules/chat/chat-message.notification';
-import { CHAT_SIDE } from '@/modules/chat/constants/chat.constant';
-import {
-  ChatConversation,
-  ChatMessage,
-} from '@/modules/chat/entities/chat.entity';
+import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
 import { sendChatSchema } from '@/modules/chat/schemas/chat.schema';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
+import { notifyChatMessage } from '@/modules/notifications/sources/chat-message.notification';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -331,29 +327,22 @@ export async function runInitialDataSeed(manager: EntityManager) {
     follows.push(
       await shopFollowFactory.create({ userId: buyer.id, shopId: shop.id }),
     );
+    const now = new Date();
     const conversation = await chatConversationFactory.create({
       buyerId: buyer.id,
       shopId: shop.id,
-      lastSequence: 1,
-      buyerReadSequence: 1,
-      shopReadSequence: 0,
-      lastMessageAt: new Date(),
+      buyerLastReadAt: now,
+      shopLastReadAt: null,
+      lastMessageAt: now,
     });
     const payload = sendChatSchema.parse({
-      clientMessageId: randomUUID(),
       text: 'Hello! Is this item still available?',
     });
     const message = await chatMessageFactory.create({
       conversationId: conversation.id,
-      sequence: 1,
       senderId: buyer.id,
-      senderSide: CHAT_SIDE.BUYER,
-      clientMessageId: payload.clientMessageId,
-      fingerprint: createHash('sha256')
-        .update(JSON.stringify(payload))
-        .digest('hex'),
       text: payload.text,
-      card: null,
+      productId: null,
     });
     await notifyChatMessage(manager, conversation, message);
     conversations.push(conversation);

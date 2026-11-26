@@ -1,18 +1,14 @@
 import type { EntityManager } from 'typeorm';
 
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import type { ChatConversation, ChatMessage } from '@/modules/chat/entities';
+
 import {
   NOTIFICATION_KIND,
   NOTIFICATION_TARGET,
-} from '@/modules/notifications/constants/notification.constant';
-import { publishNotification } from '@/modules/notifications/publish-notification';
-import {
-  personalRecipient,
-  shopRecipients,
-} from '@/modules/notifications/sources/notification-recipients';
-
-import { CHAT_SIDE } from './constants/chat.constant';
-import type { ChatConversation, ChatMessage } from './entities/chat.entity';
+} from '../constants/notification.constant';
+import { publishNotification } from '../publish-notification';
+import { personalRecipient, shopRecipients } from './notification-recipients';
 
 export async function notifyChatMessage(
   manager: EntityManager,
@@ -20,7 +16,7 @@ export async function notifyChatMessage(
   message: ChatMessage,
 ) {
   const recipients =
-    message.senderSide === CHAT_SIDE.SHOP
+    message.senderId !== conversation.buyerId
       ? [personalRecipient(conversation.buyerId)]
       : await shopRecipients(
           manager,

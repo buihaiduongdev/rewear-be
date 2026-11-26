@@ -3,7 +3,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import { Media } from '@/modules/media/entities';
 
-import { ChatMessage } from './chat.entity';
+import { ChatMessage } from './chat-message.entity';
 
 @Entity('chat_message_media')
 @Index(['messageId', 'mediaId'], { unique: true })

@@ -7,7 +7,6 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { CartService } from '@/modules/cart/cart.service';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
-import { ChatAccess } from '@/modules/chat/chat.access';
 import { ChatService } from '@/modules/chat/chat.service';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
@@ -160,11 +159,7 @@ describe('Seed data (PostgreSQL)', () => {
     });
     expect(follows.totalCount).toBe(3);
     const authorization = new AuthorizationService(db);
-    const chat = new ChatService(
-      db,
-      new ChatAccess(authorization),
-      {} as never,
-    );
+    const chat = new ChatService(db, authorization, {} as never);
     const conversations = await chat.list(buyer.id, { limit: 20, offset: 0 });
     expect(conversations.items).toHaveLength(3);
     const sellerConversations = await chat.list(seed.users[2].id, {
