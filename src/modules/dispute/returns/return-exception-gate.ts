@@ -1,15 +1,13 @@
 import { EntityManager } from 'typeorm';
 
 import { DISPUTE_REFUND_CONDITION } from '../constants/refund.constant';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
 import { CARRIER_DIRECTION } from './constants/return-exception.constant';
 import { RETURN_STATE } from './constants/return.constant';
+import { DisputeReturnException } from './entities/dispute-return-exception.entity';
 import { DisputeReturn } from './entities/dispute-return.entity';
-import {
-  DisputeReturnException,
-  DisputeSafetyWaiver,
-} from './entities/return-exception.entity';
-import type { ReturnGate } from './types/return.type';
+import { DisputeSafetyWaiver } from './entities/dispute-safety-waiver.entity';
+import type { ReturnGate } from './schemas/return.schema';
 
 export async function returnExceptionGate(
   manager: EntityManager,

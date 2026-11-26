@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
-import { DisputeNotice } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import type { MailService } from '@/modules/mail/mail.service';
 import {
   Notification,

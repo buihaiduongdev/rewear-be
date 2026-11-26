@@ -1,7 +1,7 @@
 import type { EntityManager } from 'typeorm';
 
-import type { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
-import { DisputeIssue } from '@/modules/dispute/entities/dispute.entity';
+import type { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import {
   applyVerifiedHandoverClock,

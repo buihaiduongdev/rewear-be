@@ -22,43 +22,33 @@ import { DisputeAccess } from './dispute.access';
 import { DisputeController } from './dispute.controller';
 import { DisputeService } from './dispute.service';
 import { DisputeWorker } from './dispute.worker';
-import {
-  DisputeAppeal,
-  DisputeAppealEvidence,
-  DisputeAppealReview,
-  DisputeFinalDecision,
-} from './entities/dispute-appeal.entity';
+import { DisputeAppealEvidence } from './entities/dispute-appeal-evidence.entity';
+import { DisputeAppealReview } from './entities/dispute-appeal-review.entity';
+import { DisputeAppeal } from './entities/dispute-appeal.entity';
+import { DisputeAttachment } from './entities/dispute-attachment.entity';
+import { DisputeAudit } from './entities/dispute-audit.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundConsent,
-  DisputeRefundCredit,
-  DisputeRefundIncidentUpdate,
-} from './entities/dispute-refund.entity';
-import {
-  DisputeAttachment,
-  DisputeAudit,
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-  DisputeMessage,
-  DisputeNotice,
-} from './entities/dispute.entity';
-import {
-  DisputeReturn,
-  ReturnEvent,
-  ReturnEvidenceLink,
-} from './returns/entities/dispute-return.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
+import { DisputeNotice } from './entities/dispute-notice.entity';
+import { DisputeRefundConsent } from './entities/dispute-refund-consent.entity';
+import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
+import { DisputeRefundIncidentUpdate } from './entities/dispute-refund-incident-update.entity';
+import { DisputeRefund } from './entities/dispute-refund.entity';
+import { CarrierCompensationAcknowledgement } from './returns/entities/carrier-compensation-acknowledgement.entity';
+import { CarrierCompensationReceipt } from './returns/entities/carrier-compensation-receipt.entity';
+import { DisputeRemedyEvent } from './returns/entities/dispute-remedy-event.entity';
+import { DisputeRemedyEvidenceLink } from './returns/entities/dispute-remedy-evidence-link.entity';
+import { DisputeReturnException } from './returns/entities/dispute-return-exception.entity';
+import { DisputeReturn } from './returns/entities/dispute-return.entity';
+import { DisputeSafetyWaiver } from './returns/entities/dispute-safety-waiver.entity';
 import { ReturnBooking } from './returns/entities/return-booking.entity';
-import {
-  CarrierCompensationAcknowledgement,
-  CarrierCompensationReceipt,
-  DisputeRemedyEvent,
-  DisputeRemedyEvidenceLink,
-  DisputeReturnException,
-  DisputeSafetyWaiver,
-  ReturnShippingCharge,
-} from './returns/entities/return-exception.entity';
+import { ReturnEvent } from './returns/entities/return-event.entity';
+import { ReturnEvidenceLink } from './returns/entities/return-evidence-link.entity';
+import { ReturnShippingCharge } from './returns/entities/return-shipping-charge.entity';
 import { ReturnBookingController } from './returns/return-booking.controller';
 import { ReturnBookingService } from './returns/return-booking.service';
 import { ReturnBookingWorker } from './returns/return-booking.worker';

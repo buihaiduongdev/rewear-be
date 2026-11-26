@@ -2,7 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 
 import type { EntityManager } from 'typeorm';
 
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import {
   FEE_COLLECTION_METHOD,
   FEE_PARTY,

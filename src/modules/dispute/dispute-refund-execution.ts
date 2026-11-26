@@ -19,12 +19,10 @@ import { REFUND_STATE } from './constants/refund-execution.constant';
 import { restoreDisputeCaseIfClear } from './dispute-finalization.lifecycle';
 import type { refundFunding } from './dispute-refund-funding';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
-import {
-  DisputeRefund,
-  DisputeRefundCredit,
-} from './entities/dispute-refund.entity';
-import { DisputeIssue } from './entities/dispute.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
+import { DisputeRefund } from './entities/dispute-refund.entity';
 import { refundAllocation } from './policies/refund-allocation.policy';
 
 export async function executeDisputeRefund(

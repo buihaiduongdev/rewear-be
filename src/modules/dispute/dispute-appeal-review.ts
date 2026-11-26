@@ -6,13 +6,11 @@ import {
   decisionFingerprint,
   loadDecisionReview,
 } from './dispute-decision-review';
-import {
-  DisputeAppeal,
-  DisputeAppealReview,
-  DisputeFinalDecision,
-} from './entities/dispute-appeal.entity';
+import { DisputeAppealReview } from './entities/dispute-appeal-review.entity';
+import { DisputeAppeal } from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import { DisputeEvidence } from './entities/dispute.entity';
+import { DisputeEvidence } from './entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
 
 export async function loadAppealReview(
   manager: EntityManager,

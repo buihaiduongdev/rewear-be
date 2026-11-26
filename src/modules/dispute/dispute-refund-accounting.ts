@@ -8,7 +8,7 @@ import {
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
-import { DisputeRefundCredit } from './entities/dispute-refund.entity';
+import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
 
 export async function orderRefundDebit(
   manager: EntityManager,

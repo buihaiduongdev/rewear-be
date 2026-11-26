@@ -20,12 +20,10 @@ import {
   type ReconciliationMode,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { shopRefundDeductions } from '@/modules/dispute/dispute-refund-accounting';
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
-import {
-  CarrierCompensationReceipt,
-  ReturnShippingCharge,
-} from '@/modules/dispute/returns/entities/return-exception.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
+import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
 import { FeeAssessment } from '@/modules/fees/entities';
 import { feeOutstanding } from '@/modules/fees/fee-accounting';

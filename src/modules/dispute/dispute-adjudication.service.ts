@@ -30,30 +30,29 @@ import {
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
 import { disputeDecisionInputSchema } from './schemas/dispute-decision.schema';
-import type { DisputeDecisionInput } from './types/dispute-decision.type';
+import type { DisputeDecisionInput } from './schemas/dispute-decision.schema';
 
 @Injectable()
 export class DisputeAdjudicationService {
   constructor(private readonly db: DataSource) {}
 
-  review(issueId: string, offset = 0) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const review = await loadDecisionReview(manager, issueId);
-      const decision = await manager.findOneBy(DisputeDecision, { issueId });
-      return {
-        issue: review.issue,
-        order: review.orderSnapshot,
-        reviewToken: review.reviewToken,
-        evidence: review.evidence,
-        messages: review.messages.slice(
-          offset,
-          offset + DISPUTE_POLICY.BATCH_SIZE,
-        ),
-        messageCount: review.messages.length,
-        messageOffset: offset,
-        decision,
-      };
-    });
+  async review(issueId: string, offset = 0) {
+    const manager = this.db.manager;
+    const review = await loadDecisionReview(manager, issueId);
+    const decision = await manager.findOneBy(DisputeDecision, { issueId });
+    return {
+      issue: review.issue,
+      order: review.orderSnapshot,
+      reviewToken: review.reviewToken,
+      evidence: review.evidence,
+      messages: review.messages.slice(
+        offset,
+        offset + DISPUTE_POLICY.BATCH_SIZE,
+      ),
+      messageCount: review.messages.length,
+      messageOffset: offset,
+      decision,
+    };
   }
 
   async decide(adminId: string, issueId: string, input: DisputeDecisionInput) {

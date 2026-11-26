@@ -74,3 +74,6 @@ export const refundDetailViewSchema = z.object({
   credits: z.array(refundCreditViewSchema),
   updates: z.array(refundIncidentViewSchema),
 });
+
+export type RefundState = (typeof REFUND_STATE)[keyof typeof REFUND_STATE];
+export type RefundBlock = (typeof REFUND_BLOCK)[keyof typeof REFUND_BLOCK];

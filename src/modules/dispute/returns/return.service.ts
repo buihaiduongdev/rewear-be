@@ -15,18 +15,16 @@ import { DISPUTE_ACTION } from '../constants/dispute.constant';
 import { decisionFingerprint } from '../dispute-decision-review';
 import { DisputeAccess } from '../dispute.access';
 import { notifyDispute } from '../dispute.lifecycle';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
-import { DisputeEvidence } from '../entities/dispute.entity';
+import { DisputeEvidence } from '../entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
 import {
   RETURN_ACTION,
   RETURN_POLICY,
   RETURN_STATE,
 } from './constants/return.constant';
-import {
-  DisputeReturn,
-  ReturnEvent,
-  ReturnEvidenceLink,
-} from './entities/dispute-return.entity';
+import { DisputeReturn } from './entities/dispute-return.entity';
+import { ReturnEvent } from './entities/return-event.entity';
+import { ReturnEvidenceLink } from './entities/return-evidence-link.entity';
 import {
   applyVerifiedHandoverClock,
   assertReturnResumable,
@@ -39,7 +37,7 @@ import {
   type ReturnActionInput,
   returnActionSchema,
 } from './schemas/return.schema';
-import type { ReturnEvidenceKind } from './types/return.type';
+import type { ReturnEvidenceKind } from './schemas/return.schema';
 
 export type ReturnAction = (typeof RETURN_ACTION)[keyof typeof RETURN_ACTION];
 const adminActions: ReturnAction[] = [
@@ -120,28 +118,27 @@ export class DisputeReturnService {
   }
 
   async read(userId: string, id: string, admin = false) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const row = await manager.findOneByOrFail(DisputeReturn, { id });
-      await this.authorize(manager, row, userId, admin);
-      const links = await manager.find(ReturnEvidenceLink, {
-        where: { returnId: row.id },
-        order: { createdAt: 'ASC' },
-      });
-      const evidence = links.length
-        ? await manager.find(DisputeEvidence, {
-            where: { id: In(links.map((link) => link.evidenceId)) },
-            order: { createdAt: 'ASC' },
-          })
-        : [];
-      const events = await manager.find(ReturnEvent, {
-        where: { returnId: row.id },
-        order: { createdAt: 'ASC' },
-      });
-      const view = { ...row, evidence, evidenceLinks: links, events };
-      return admin
-        ? { returnCase: view, reviewToken: await this.token(manager, row) }
-        : view;
+    const manager = this.db.manager;
+    const row = await manager.findOneByOrFail(DisputeReturn, { id });
+    await this.authorize(manager, row, userId, admin);
+    const links = await manager.find(ReturnEvidenceLink, {
+      where: { returnId: row.id },
+      order: { createdAt: 'ASC' },
     });
+    const evidence = links.length
+      ? await manager.find(DisputeEvidence, {
+          where: { id: In(links.map((link) => link.evidenceId)) },
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+    const events = await manager.find(ReturnEvent, {
+      where: { returnId: row.id },
+      order: { createdAt: 'ASC' },
+    });
+    const view = { ...row, evidence, evidenceLinks: links, events };
+    return admin
+      ? { returnCase: view, reviewToken: await this.token(manager, row) }
+      : view;
   }
 
   async act(

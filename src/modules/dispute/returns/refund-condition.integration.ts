@@ -7,11 +7,11 @@ import {
 import { REFUND_BLOCK } from '../constants/refund-execution.constant';
 import { DISPUTE_REFUND_CONDITION as CONDITION } from '../constants/refund.constant';
 import { decisionFingerprint } from '../dispute-decision-review';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
-import { DisputeRefundConsent } from '../entities/dispute-refund.entity';
-import type { RefundBlock } from '../types/refund-execution.type';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
+import { DisputeRefundConsent } from '../entities/dispute-refund-consent.entity';
+import type { RefundBlock } from '../schemas/refund-execution.schema';
 import { CARRIER_DIRECTION } from './constants/return-exception.constant';
-import { DisputeReturnException } from './entities/return-exception.entity';
+import { DisputeReturnException } from './entities/dispute-return-exception.entity';
 import { returnExceptionGate } from './return-exception-gate';
 import { returnExecutionGate } from './return.lifecycle';
 

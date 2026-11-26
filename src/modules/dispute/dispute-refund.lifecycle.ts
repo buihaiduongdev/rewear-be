@@ -5,9 +5,10 @@ import {
   REFUND_BLOCK,
   REFUND_STATE,
 } from './constants/refund-execution.constant';
-import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeRefund } from './entities/dispute-refund.entity';
-import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
 
 /** Enqueue in the final-decision transaction; execution failure must never erase the decision. */
 export async function queueDisputeRefund(

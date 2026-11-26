@@ -22,20 +22,18 @@ import { refundFunding } from './dispute-refund-funding';
 import { queueDisputeRefund } from './dispute-refund.lifecycle';
 import { DisputeAccess } from './dispute.access';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundConsent,
-} from './entities/dispute-refund.entity';
-import { DisputeIssue } from './entities/dispute.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeRefundConsent } from './entities/dispute-refund-consent.entity';
+import { DisputeRefund } from './entities/dispute-refund.entity';
 import { assertDisputeRefundPlan } from './policies/dispute-refund-plan.policy';
 import {
   exactRefundPlanToken,
   resolveRefundCondition,
 } from './returns/refund-condition.integration';
 import { closeExpiredReturnRefund } from './returns/refund-return.integration';
-import type { ReturnGate } from './returns/types/return.type';
+import type { ReturnGate } from './returns/schemas/return.schema';
 import { refundConsentSchema } from './schemas/refund-execution.schema';
 
 @Injectable()

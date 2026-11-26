@@ -12,9 +12,10 @@ import {
 } from './constants/dispute.constant';
 import { queueDisputeRefund } from './dispute-refund.lifecycle';
 import { notifyDispute, recordDisputeAction } from './dispute.lifecycle';
-import { DisputeFinalDecision } from './entities/dispute-appeal.entity';
+import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import { DisputeCase, DisputeIssue } from './entities/dispute.entity';
+import { DisputeFinalDecision } from './entities/dispute-final-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
 
 export async function restoreDisputeCaseIfClear(
   manager: EntityManager,

@@ -13,11 +13,11 @@ import { DISPUTE_CASE_STATE } from '../constants/dispute.constant';
 import { REFUND_STATE } from '../constants/refund-execution.constant';
 import { restoreDisputeCaseIfClear } from '../dispute-finalization.lifecycle';
 import { notifyDispute, recordDisputeAction } from '../dispute.lifecycle';
-import { DisputeFinalDecision } from '../entities/dispute-appeal.entity';
+import { DisputeCase } from '../entities/dispute-case.entity';
+import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
+import { DisputeIssue } from '../entities/dispute-issue.entity';
 import { DisputeRefund } from '../entities/dispute-refund.entity';
-import { DisputeIssue } from '../entities/dispute.entity';
-import { DisputeCase } from '../entities/dispute.entity';
-import type { DisputeAction } from '../types/dispute.type';
+import type { DisputeAction } from '../schemas/dispute.schema';
 import { DisputeReturn } from './entities/dispute-return.entity';
 
 /** Repairs only technical expiry disproved by newly verified timely carrier movement. */

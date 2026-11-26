@@ -6,11 +6,9 @@ import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DISPUTE_NOTICE_AUDIENCE } from '@/modules/dispute/constants/dispute.constant';
-import {
-  DisputeCase,
-  DisputeIssue,
-  DisputeNotice,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeNotice } from '@/modules/dispute/entities/dispute-notice.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
 import { FeeAssessment, FeeNotice } from '@/modules/fees/entities';
 import {

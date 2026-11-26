@@ -25,7 +25,8 @@ import {
   recordDisputeAction,
 } from './dispute.lifecycle';
 import { DisputeDecision } from './entities/dispute-decision.entity';
-import { DisputeIssue, DisputeMessage } from './entities/dispute.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeMessage } from './entities/dispute-message.entity';
 import { disputeExtensionSchema } from './schemas/dispute.schema';
 
 const clockIssueStates = [

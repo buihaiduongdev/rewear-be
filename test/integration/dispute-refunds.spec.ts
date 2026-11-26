@@ -11,16 +11,12 @@ import { CoinRewardAdjustmentNotice } from '@/modules/coins/rewards/entities';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import {
-  DisputeRefund,
-  DisputeRefundCredit,
-} from '@/modules/dispute/entities/dispute-refund.entity';
-import {
-  DisputeCase,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
+import { DisputeRefund } from '@/modules/dispute/entities/dispute-refund.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';

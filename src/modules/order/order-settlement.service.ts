@@ -5,10 +5,8 @@ import { DataSource, EntityManager } from 'typeorm';
 import { requiresFulfillmentReview } from '@/modules/cod-reconciliation/policies/cod-funding.policy';
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
 import { orderRefundDebit } from '@/modules/dispute/dispute-refund-accounting';
-import {
-  DisputeCase,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 

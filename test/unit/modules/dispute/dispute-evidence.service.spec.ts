@@ -1,5 +1,5 @@
 import { DisputeEvidenceService } from '@/modules/dispute/dispute-evidence.service';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 
 describe('dispute evidence shared media', () => {
   it('attaches owned private media without a storage HEAD request', async () => {
@@ -18,6 +18,7 @@ describe('dispute evidence shared media', () => {
     };
     const manager: any = {
       query: jest.fn().mockResolvedValue([{ now: new Date() }]),
+      findOne: jest.fn().mockResolvedValue({ id: 'o1' }),
       getRepository: jest.fn((entity) =>
         entity === DisputeEvidence ? repo : null,
       ),

@@ -1,10 +1,8 @@
 import { EntityManager } from 'typeorm';
 
 import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
-import {
-  CarrierCompensationReceipt,
-  ReturnShippingCharge,
-} from '@/modules/dispute/returns/entities/return-exception.entity';
+import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
+import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-shipping-charge.entity';
 
 import { FEE_COLLECTION_METHOD, FEE_PARTY } from '../constants/fee.constant';
 import { FeeAssessment, FeeCollection } from '../entities';

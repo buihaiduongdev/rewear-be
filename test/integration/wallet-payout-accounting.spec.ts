@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
-import {
-  DisputeCase,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { Order } from '@/modules/order/entities';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';

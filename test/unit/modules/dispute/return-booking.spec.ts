@@ -162,10 +162,10 @@ describe('return booking cancellation safeguards', () => {
     const manager = {
       query: jest.fn(),
       save: jest.fn(async (row) => row),
-      findOneByOrFail: jest
+      findOneOrFail: jest
         .fn()
-        .mockResolvedValueOnce(current)
-        .mockResolvedValueOnce(obligation),
+        .mockResolvedValueOnce(obligation)
+        .mockResolvedValueOnce(current),
     };
     const db = { transaction: jest.fn(async (callback) => callback(manager)) };
     const carrier = {

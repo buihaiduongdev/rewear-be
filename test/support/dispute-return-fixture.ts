@@ -6,9 +6,9 @@ import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-recon
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-appeal.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { installReturnLabel } from '@/modules/dispute/returns/return.lifecycle';
 import { Order } from '@/modules/order/entities';

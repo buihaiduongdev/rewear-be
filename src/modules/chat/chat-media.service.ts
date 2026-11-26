@@ -9,7 +9,7 @@ import { DataSource, type EntityManager } from 'typeorm';
 import { StorageService } from '@/infrastructure/storage';
 import { DISPUTE_POLICY } from '@/modules/dispute/constants/dispute.constant';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import {
   disputeFileSchema,
   disputeUploadSchema,

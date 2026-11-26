@@ -8,8 +8,8 @@ import {
 import type {
   DisputeDecisionOutcome,
   DisputeResponsibility,
-} from '../types/dispute-decision.type';
-import type { DisputeKind } from '../types/dispute.type';
+} from '../schemas/dispute-decision.schema';
+import type { DisputeKind } from '../schemas/dispute.schema';
 
 export function assertDisputeRemedy(
   kind: DisputeKind,

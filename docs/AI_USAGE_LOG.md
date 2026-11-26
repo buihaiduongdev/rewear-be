@@ -1278,3 +1278,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện AI từng bỏ nhầm khóa ghi tài chính cốt lõi, kiểm tra ping webhook PayOS quá chặt theo chuỗi mô tả cũ (chặn `VQRIO123`), bỏ sót `expiredAt` ở link phí/thu hồi ví và xử lý thiếu trường hợp chuyển khoản một phần khi link hết hạn; đã khắc phục toàn bộ trước khi đẩy lên CI.
 - **Minh chứng:** PR #71; branch `buihaiduongdev/refactor-wave-3`.
+
+### 2026-11-25 — Tinh gọn module khiếu nại và hoàn trả Wave 4
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Tinh gọn nhóm module khiếu nại, kháng cáo, xét xử, hoàn trả hàng và xử lý hoàn tiền sau phán quyết thuộc Wave 4 (`dispute` và `dispute/returns`) theo chuẩn mỗi bảng một entity, gộp các type nhỏ vào schemas và bỏ giao dịch đọc cô lập dư thừa.
+- **Prompt chính:** Tiếp tục Wave 4 trên `dispute` và `returns`: tách các tệp đang gộp nhiều entity thành từng bảng riêng kèm barrel export, hợp nhất các tệp `types` vào `schemas`, loại bỏ `REPEATABLE READ` chỉ đọc không cần thiết và giữ nguyên khóa tuần tự hóa cho các giao dịch ghi tranh chấp.
+- **Đầu ra AI được sử dụng:** Tách 25 thực thể từ 5 tệp gộp thành chuẩn mỗi thực thể một tệp kèm barrel export ở cả `dispute/entities` và `dispute/returns/entities`; hợp nhất các tệp `types/` vào `schemas/`; gỡ 8 wrapper `REPEATABLE READ` chỉ đọc sang `this.db.manager`, giữ `pg_advisory_xact_lock` trên các luồng ghi tranh chấp chéo sổ cái và thay khóa toàn cục bằng khóa dòng `pessimistic_write` ở `DisputeEvidenceService`, `DisputeRefundReadService` và `ReturnBookingService`; cập nhật đồng bộ đường dẫn tham chiếu trên mã nguồn lẫn bộ test.
+- **Phần tự làm hoặc đã chỉnh sửa:** Rà soát giữ khóa tuần tự hóa cho các luồng ghi tranh chấp cốt lõi, chuyển các thao tác cô lập (nộp bằng chứng, cập nhật sự cố hoàn tiền, đặt/tra soát vận đơn hoàn) sang khóa dòng mục tiêu và chuẩn hóa nội dung PR/nhật ký.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** AI từng bỏ nhầm `pg_advisory_xact_lock(782143, 1)` trên các luồng ghi tranh chấp cốt lõi và ngược lại giữ khóa toàn cục ở các luồng cô lập (`DisputeEvidenceService`, `DisputeRefundReadService`, `ReturnBookingService`); đã phân tách rõ phạm vi khóa và chuẩn hóa lại toàn bộ trước khi đẩy lên CI.
+- **Minh chứng:** PR #72; branch `buihaiduongdev/refactor-wave-4`.

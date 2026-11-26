@@ -2,7 +2,7 @@ import {
   DISPUTE_EVIDENCE_TAG,
   DISPUTE_KIND,
 } from '../constants/dispute.constant';
-import type { DisputeKind } from '../types/dispute.type';
+import type { DisputeKind } from '../schemas/dispute.schema';
 
 export function hasMinimumDisputeEvidence(
   kind: DisputeKind,

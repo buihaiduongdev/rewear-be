@@ -8,18 +8,14 @@ import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudicati
 import { DisputeAppealService } from '@/modules/dispute/dispute-appeal.service';
 import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
 import { DisputeAccess } from '@/modules/dispute/dispute.access';
-import {
-  DisputeAppeal,
-  DisputeAppealReview,
-  DisputeFinalDecision,
-} from '@/modules/dispute/entities/dispute-appeal.entity';
+import { DisputeAppealReview } from '@/modules/dispute/entities/dispute-appeal-review.entity';
+import { DisputeAppeal } from '@/modules/dispute/entities/dispute-appeal.entity';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import {
-  DisputeCase,
-  DisputeEvidence,
-  DisputeIssue,
-} from '@/modules/dispute/entities/dispute.entity';
-import type { DisputeAppealInput } from '@/modules/dispute/types/dispute-appeal.type';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import type { DisputeAppealInput } from '@/modules/dispute/schemas/dispute-appeal.schema';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
 import { FulfillmentCalendar } from '@/modules/shipment/entities';

@@ -14,7 +14,7 @@ import { TransformInterceptor } from '@/common/interceptors/transform.intercepto
 import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute.entity';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';

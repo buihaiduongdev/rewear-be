@@ -5,7 +5,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
-import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
+import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';

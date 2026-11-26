@@ -1,8 +1,13 @@
 import { z } from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { disputeEvidenceViewSchema } from '../../schemas/dispute-view.schema';
+import {
+  RETURN_EVIDENCE_KIND,
+  RETURN_STATE,
+} from '../constants/return.constant';
 
 export const returnActionSchema = z
   .object({
@@ -70,3 +75,13 @@ export const returnReviewSchema = z.object({
   returnCase: returnViewSchema,
   reviewToken: z.string(),
 });
+
+export type ReturnState = (typeof RETURN_STATE)[keyof typeof RETURN_STATE];
+export type ReturnEvidenceKind =
+  (typeof RETURN_EVIDENCE_KIND)[keyof typeof RETURN_EVIDENCE_KIND];
+export interface ReturnGate {
+  status: 'PENDING' | 'READY' | 'CLOSED';
+  amount: number;
+  at: Date | null;
+  mode: ReconciliationMode | null;
+}
