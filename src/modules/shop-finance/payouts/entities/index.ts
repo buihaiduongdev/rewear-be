@@ -1,5 +1,3 @@
-export * from './shop-bank-account.entity';
-export * from './shop-payout.entity';
-export * from './shop-payout-allocation.entity';
-export * from './shop-payout-event.entity';
-export * from './shop-payout-risk.entity';
+export { ShopBankAccount } from './shop-bank-account.entity';
+export { ShopPayout } from './shop-payout.entity';
+export { ShopPayoutAllocation } from './shop-payout-allocation.entity';

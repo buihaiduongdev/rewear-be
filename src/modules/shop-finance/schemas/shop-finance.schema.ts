@@ -2,21 +2,18 @@ import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas';
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
-import {
-  RECONCILIATION_MODE,
-  SHOP_LEDGER_TYPE,
-} from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import {
   collectionViewSchema,
   vndSchema,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import {
-  carrierReceiptViewSchema,
-  returnShippingChargeViewSchema,
-} from '@/modules/dispute/returns/schemas/return-exception.schema';
 import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
+import { SHOP_LEDGER_ENTRY_TYPE } from '../payouts/constants/payout.constant';
 import type { PayoutSource } from '../payouts/schemas/payout.schema';
+
+export type ShopLedgerEntryType =
+  (typeof SHOP_LEDGER_ENTRY_TYPE)[keyof typeof SHOP_LEDGER_ENTRY_TYPE];
 
 export interface PayoutSourceRow {
   kind: PayoutSource['kind'];
@@ -25,7 +22,6 @@ export interface PayoutSourceRow {
   net: string;
   paid: string;
   reserved: string;
-  feeSpent: string;
   blocked: boolean;
 }
 
@@ -40,13 +36,7 @@ export const shopFinanceViewSchema = z.object({
   paidOutDebt: safeBalanceSchema,
   heldShortfall: safeBalanceSchema,
   reviewHeld: safeBalanceSchema,
-  feePayable: safeBalanceSchema,
-  feeDebited: safeBalanceSchema,
-  feeSourceDebt: safeBalanceSchema,
-  carrierCompensation: safeBalanceSchema,
-  returnFeePayable: safeBalanceSchema,
-  carrierReceipts: z.array(carrierReceiptViewSchema),
-  returnCharges: z.array(returnShippingChargeViewSchema),
+  shippingDebit: safeBalanceSchema,
   refunds: z.array(refundCreditViewSchema),
   settlements: z.array(
     z.object({
@@ -60,7 +50,7 @@ export const shopFinanceViewSchema = z.object({
     z.object({
       id: z.uuid(),
       orderId: z.uuid(),
-      type: z.enum(SHOP_LEDGER_TYPE),
+      type: z.enum(SHOP_LEDGER_ENTRY_TYPE),
       amount: vndSchema,
       createdAt: dateTimeSchema,
     }),

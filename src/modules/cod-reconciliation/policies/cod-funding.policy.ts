@@ -17,22 +17,16 @@ const deliveredOrderStates: readonly OrderState[] = [
   ORDER_STATUS.COMPLETED,
 ];
 
-function hasUnresolvedCancellation(order: Order, now: Date): boolean {
-  const wasCancellationRejected =
-    order.cancelState === ORDER_CANCEL_STATE.REJECTED;
-  if (!wasCancellationRejected) return Boolean(order.cancelState);
-
-  const reviewWindowMissing = !order.cancelReviewUntil;
-  const reviewWindowOpen = Boolean(
-    order.cancelReviewUntil && order.cancelReviewUntil > now,
+function hasUnresolvedCancellation(order: Order): boolean {
+  return Boolean(
+    order.cancelState && order.cancelState !== ORDER_CANCEL_STATE.CLOSED,
   );
-  return reviewWindowMissing || reviewWindowOpen;
 }
 
 export function requiresFulfillmentReview(
   order: Order,
   shipment: Shipment,
-  now: Date,
+  _now?: Date,
 ): boolean {
   const isOrderDelivered =
     deliveredOrderStates.includes(order.status) &&
@@ -45,19 +39,19 @@ export function requiresFulfillmentReview(
   const hasReturnInProgress = Boolean(
     shipment.returnRequestedAt || order.carrierReturnedAt,
   );
-  const isCancellationUnresolved = hasUnresolvedCancellation(order, now);
+  const isCancellationUnresolved = hasUnresolvedCancellation(order);
   const hasHandoverReview = order.handoverReviewRequired;
   const hasUnsafeCarrierData = Boolean(
     shipment.reviewReason &&
     UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason),
   );
 
-  const requiresReview =
+  return (
     !isDeliveryVerified ||
     isShipmentCancelled ||
     hasReturnInProgress ||
     isCancellationUnresolved ||
     hasHandoverReview ||
-    hasUnsafeCarrierData;
-  return requiresReview;
+    hasUnsafeCarrierData
+  );
 }

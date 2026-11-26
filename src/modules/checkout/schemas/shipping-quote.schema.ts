@@ -26,7 +26,6 @@ export const quoteOrderSchema = z.object({
 });
 export const shippingQuoteSchema = z.object({
   identityReviewRequired: z.boolean().optional(),
-  identityQuoteFingerprint: z.string().nullable().optional(),
   status: z.enum(SHIPPING_QUOTE_STATUS),
   environment: z.literal(SHIPPING_QUOTE_ENVIRONMENT.SANDBOX),
   carrier: z.literal(SHIPPING_QUOTE_CARRIER.GHN),

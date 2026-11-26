@@ -16,9 +16,7 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import { PayosClient } from '@/infrastructure/payment/payos.client';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { PublicAccess } from '@/modules/authorization/decorators/public-access.decorator';
-import { FeePaymentService } from '@/modules/fees/payments/fee-payment.service';
 import { User } from '@/modules/user/entities';
-import { ExcessPaymentService } from '@/modules/wallet/excess/payments/excess-payment.service';
 
 import { PAYOS_CLIENT } from './payment.config';
 import { PaymentService } from './payment.service';
@@ -38,8 +36,6 @@ export class PaymentController {
   constructor(
     @Inject(PAYOS_CLIENT) private readonly payosClient: PayosClient | null,
     private readonly paymentService: PaymentService,
-    private readonly feePayments: FeePaymentService,
-    private readonly excessPayments: ExcessPaymentService,
   ) {}
 
   @AuthenticatedAccess()
@@ -94,14 +90,7 @@ export class PaymentController {
     if (verified.isTestPing) {
       return { success: true };
     }
-    const orderCode = String(verified.orderCode);
-    if (await this.excessPayments.handlesOrderCode(orderCode)) {
-      await this.excessPayments.applyWebhook(verified);
-    } else if (await this.feePayments.handlesOrderCode(orderCode)) {
-      await this.feePayments.applyWebhook(verified);
-    } else {
-      await this.paymentService.applyWebhook(verified);
-    }
+    await this.paymentService.applyWebhook(verified);
     return { success: true };
   }
 }

@@ -2,519 +2,431 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
+import { shipmentPayloadSchema } from '@/infrastructure/shipping/schemas/ghn-shipment.schema';
+import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
-import { fulfillmentDeadline } from '@/modules/shipment/utils/fulfillment-calendar';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { DISPUTE_ACTION } from '../constants/dispute.constant';
-import { decisionFingerprint } from '../dispute-decision-review';
-import { DisputeAccess } from '../dispute.access';
-import { notifyDispute } from '../dispute.lifecycle';
-import { DisputeEvidence } from '../entities/dispute-evidence.entity';
-import { DisputeFinalDecision } from '../entities/dispute-final-decision.entity';
 import {
-  RETURN_ACTION,
+  DISPUTE_DECISION_OUTCOME,
+  DISPUTE_ISSUE_STATE,
+  DISPUTE_POLICY,
+} from '../constants/dispute.constant';
+import { DisputeRefundService } from '../dispute-refund.service';
+import { DisputeAccess, restoreDisputeCaseIfClear } from '../dispute.access';
+import { DisputeCase } from '../entities/dispute-case.entity';
+import { DisputeDecision } from '../entities/dispute-decision.entity';
+import { DisputeIssue } from '../entities/dispute-issue.entity';
+import type {
+  ReturnCarrierStatusInput,
+  ReturnLabelInput,
+  ReturnParcelInput,
+} from '../schemas/dispute.schema';
+import {
+  returnCarrierStatusSchema,
+  returnLabelInputSchema,
+} from '../schemas/dispute.schema';
+import {
+  RETURN_BOOKING_INSTRUCTIONS,
   RETURN_POLICY,
   RETURN_STATE,
 } from './constants/return.constant';
 import { DisputeReturn } from './entities/dispute-return.entity';
-import { ReturnEvent } from './entities/return-event.entity';
-import { ReturnEvidenceLink } from './entities/return-evidence-link.entity';
-import {
-  applyVerifiedHandoverClock,
-  assertReturnResumable,
-  resumedHandoverDeadline,
-} from './policies/return-clock.policy';
-import { recoverTimelyReturnRefunds } from './refund-return.integration';
-import { reconcileReturnClock } from './return.lifecycle';
-import {
-  type ReturnActionData,
-  type ReturnActionInput,
-  returnActionSchema,
-} from './schemas/return.schema';
-import type { ReturnEvidenceKind } from './schemas/return.schema';
 
-export type ReturnAction = (typeof RETURN_ACTION)[keyof typeof RETURN_ACTION];
-const adminActions: ReturnAction[] = [
-  RETURN_ACTION.VERIFY_OBSTACLE,
-  RETURN_ACTION.REJECT_OBSTACLE,
-  RETURN_ACTION.RESUME,
-  RETURN_ACTION.HANDOVER,
-  RETURN_ACTION.DELIVERY,
-  RETURN_ACTION.EXTEND,
-  RETURN_ACTION.RESOLVE,
-  RETURN_ACTION.RECOVER_HANDOVER,
-];
+export function reverseReturnPayload(
+  forward: Record<string, unknown>,
+  clientCode: string,
+  parcel: ReturnParcelInput,
+) {
+  const route: Record<string, unknown> = {};
+  for (const [source, target] of [
+    ['to', 'from'],
+    ['from', 'to'],
+  ]) {
+    for (const suffix of [
+      'name',
+      'phone',
+      'address',
+      'province_name',
+      'ward_name',
+      'district_id',
+      'ward_code',
+    ]) {
+      const value = forward[`${source}_${suffix}`];
+      if (value !== undefined) route[`${target}_${suffix}`] = value;
+    }
+    for (const suffix of ['name', 'phone', 'address']) {
+      if (
+        typeof route[`${target}_${suffix}`] !== 'string' ||
+        !String(route[`${target}_${suffix}`]).trim()
+      ) {
+        throw new ConflictException('Original shipment route requires review');
+      }
+    }
+    const ids =
+      Number.isSafeInteger(route[`${target}_district_id`]) &&
+      Number(route[`${target}_district_id`]) > 0 &&
+      typeof route[`${target}_ward_code`] === 'string' &&
+      Boolean(route[`${target}_ward_code`]);
+    const names = ['province_name', 'ward_name'].every(
+      (suffix) =>
+        typeof route[`${target}_${suffix}`] === 'string' &&
+        Boolean(String(route[`${target}_${suffix}`]).trim()),
+    );
+    if (!ids && !names) {
+      throw new ConflictException('Original shipment route requires review');
+    }
+    route[`is_new_${target}_address`] = !ids;
+  }
+  return shipmentPayloadSchema.parse({
+    ...route,
+    client_order_code: clientCode,
+    payment_type_id: RETURN_POLICY.PAYMENT_TYPE,
+    cod_amount: RETURN_POLICY.COD_AMOUNT,
+    cod_failed_amount: RETURN_POLICY.COD_AMOUNT,
+    insurance_value: RETURN_POLICY.DECLARED_VALUE,
+    order_value: RETURN_POLICY.DECLARED_VALUE,
+    weight: parcel.weightGrams,
+    length: parcel.lengthCm,
+    width: parcel.widthCm,
+    height: parcel.heightCm,
+    service_type_id:
+      parcel.weightGrams < RETURN_POLICY.HEAVY_PARCEL_GRAMS
+        ? RETURN_POLICY.STANDARD_SERVICE
+        : RETURN_POLICY.HEAVY_SERVICE,
+    required_note: 'KHONGCHOXEMHANG',
+    content: RETURN_POLICY.CONTENT,
+    items: [
+      {
+        name: RETURN_POLICY.CONTENT,
+        quantity: 1,
+        price: 0,
+        weight: parcel.weightGrams,
+        length: parcel.lengthCm,
+        width: parcel.widthCm,
+        height: parcel.heightCm,
+      },
+    ],
+  });
+}
 
 @Injectable()
 export class DisputeReturnService {
-  constructor(private readonly db: DataSource) {}
+  private readonly logger = new Logger(DisputeReturnService.name);
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-    return new Date(now);
-  }
+  constructor(
+    private readonly db: DataSource,
+    private readonly carrier: GhnShipmentClient,
+    private readonly access: DisputeAccess,
+    private readonly orders: OrderAccess,
+    private readonly refunds: DisputeRefundService,
+  ) {}
 
-  private async token(manager: EntityManager, row: DisputeReturn) {
-    const links = await manager.find(ReturnEvidenceLink, {
-      where: { returnId: row.id },
-      order: { evidenceId: 'ASC', kind: 'ASC' },
+  private async lockOrderAndReturn(manager: EntityManager, id: string) {
+    const meta = await manager
+      .createQueryBuilder(DisputeReturn, 'r')
+      .where('r.id = :id', { id })
+      .select('r.orderId', 'orderId')
+      .getRawOne<{ orderId: string }>();
+    if (!meta) {
+      await manager.findOneByOrFail(DisputeReturn, { id });
+      throw new ConflictException('Return record missing');
+    }
+    await manager.findOneOrFail(Order, {
+      where: { id: meta.orderId },
+      lock: { mode: 'pessimistic_write' },
     });
-    const evidence = links.length
-      ? await manager.find(DisputeEvidence, {
-          where: { id: In(links.map((link) => link.evidenceId)) },
-          order: { id: 'ASC' },
-        })
-      : [];
-    return decisionFingerprint({
-      id: row.id,
-      state: row.state,
-      objectionAt: row.objectionAt,
-      objectionDueAt: row.objectionDueAt,
-      extendedAt: row.extendedAt,
-      refundLimit: row.refundLimit,
-      deliveredAt: row.deliveredAt,
-      mode: row.mode,
-      objectionReason: row.objectionReason,
-      handoverAt: row.handoverAt,
-      handoverBy: row.handoverBy,
-      labelCode: row.labelCode,
-      timelyHandoverReviewRequired: row.timelyHandoverReviewRequired,
-      evidence: evidence.map((item) => ({
-        id: item.id,
-        mediaId: item.mediaId,
-        tags: item.tags,
-      })),
-      links: links.map((link) => ({
-        evidenceId: link.evidenceId,
-        kind: link.kind,
-      })),
+    return manager.findOneOrFail(DisputeReturn, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
     });
   }
 
-  private async authorize(
+  async ensureReturn(
     manager: EntityManager,
-    row: DisputeReturn,
-    userId: string,
-    admin: boolean,
+    decision: DisputeDecision,
+    issue: DisputeIssue,
+    disputeCase: DisputeCase,
   ) {
-    if (admin)
-      return manager.findOneByOrFail(User, {
-        id: userId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
-    return new DisputeAccess(new OrderAccess()).assertParty(
-      manager,
-      userId,
-      row.orderId,
+    if (decision.finalOutcome !== DISPUTE_DECISION_OUTCOME.REQUIRE_RETURN) {
+      throw new ConflictException('Decision does not require item return');
+    }
+    const existing = await manager.findOneBy(DisputeReturn, {
+      decisionId: decision.id,
+    });
+    if (existing) return existing;
+    return manager.save(
+      DisputeReturn,
+      manager.create(DisputeReturn, {
+        decisionId: decision.id,
+        orderId: disputeCase.orderId,
+        productId: issue.productId,
+        buyerId: disputeCase.buyerId,
+        shopId: disputeCase.shopId,
+        state: RETURN_STATE.WAITING_LABEL,
+        mode: null,
+        labelCode: null,
+        instructions: null,
+        handoverBy: null,
+        handoverAt: null,
+        deliveredAt: null,
+        readyAt: null,
+      }),
     );
   }
 
   async read(userId: string, id: string, admin = false) {
     const manager = this.db.manager;
     const row = await manager.findOneByOrFail(DisputeReturn, { id });
-    await this.authorize(manager, row, userId, admin);
-    const links = await manager.find(ReturnEvidenceLink, {
-      where: { returnId: row.id },
-      order: { createdAt: 'ASC' },
-    });
-    const evidence = links.length
-      ? await manager.find(DisputeEvidence, {
-          where: { id: In(links.map((link) => link.evidenceId)) },
-          order: { createdAt: 'ASC' },
-        })
-      : [];
-    const events = await manager.find(ReturnEvent, {
-      where: { returnId: row.id },
-      order: { createdAt: 'ASC' },
-    });
-    const view = { ...row, evidence, evidenceLinks: links, events };
-    return admin
-      ? { returnCase: view, reviewToken: await this.token(manager, row) }
-      : view;
+    if (admin) {
+      await manager.findOneByOrFail(User, {
+        id: userId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+    } else {
+      await this.access.assertParty(manager, userId, row.orderId);
+    }
+    return row;
   }
 
-  async act(
-    userId: string,
-    id: string,
-    action: ReturnAction,
-    input: ReturnActionInput,
-  ) {
-    const parsed = returnActionSchema.parse(input);
-    const data: ReturnActionData = {
-      ...parsed,
-      observedAt: parsed.observedAt ? new Date(parsed.observedAt) : undefined,
-    };
-    const fingerprint = decisionFingerprint({
-      id,
-      userId,
-      action,
-      ...data,
-      evidenceIds: [...data.evidenceIds].sort(),
-    });
-    return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const row = await manager.findOneByOrFail(DisputeReturn, { id });
-      await this.authorize(manager, row, userId, adminActions.includes(action));
-      const replay = await manager.findOneBy(ReturnEvent, {
-        requestId: data.requestId,
+  async createLabel(adminId: string, id: string, input: ReturnLabelInput) {
+    const data = returnLabelInputSchema.parse(input);
+    let bookedCode = data.waybillCode;
+    let mode = data.mode;
+
+    if (!bookedCode && data.parcel) {
+      const target = await this.db.manager.findOneByOrFail(DisputeReturn, {
+        id,
       });
-      if (replay) {
-        if (replay.requestFingerprint !== fingerprint)
-          throw new ConflictException('Return request already used');
-        return row;
+      await this.db.manager.findOneByOrFail(User, {
+        id: adminId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+      if (target.state !== RETURN_STATE.WAITING_LABEL) {
+        throw new ConflictException('Return is not waiting for label');
       }
-      await reconcileReturnClock(manager, row, now);
-      await this.apply(manager, row, userId, action, data, now);
-      await manager.save(row);
-      await manager.save(
-        ReturnEvent,
-        manager.create(ReturnEvent, {
-          returnId: id,
-          requestId: data.requestId,
-          actorId: userId,
-          requestFingerprint: fingerprint,
-          action,
-          reason: data.reason,
-          data: { ...data },
-          createdAt: now,
-        }),
-      );
-      const final = await manager.findOneByOrFail(DisputeFinalDecision, {
-        id: row.finalDecisionId,
+      const forward = await this.db.manager.findOneByOrFail(Shipment, {
+        orderId: target.orderId,
       });
-      await notifyDispute(
-        manager,
-        final.issueId,
-        DISPUTE_ACTION.RETURN_UPDATED,
-        now,
-        data.reason,
-        data.requestId,
+      const accountId =
+        forward.input.ghnShopId ?? Number(process.env.GHN_SANDBOX_SHOP_ID);
+      if (
+        !Number.isSafeInteger(accountId) ||
+        accountId <= 0 ||
+        process.env.GHN_BOOKING_ENABLED !== 'true' ||
+        process.env.GHN_SANDBOX_ENABLED !== 'true' ||
+        !process.env.GHN_SANDBOX_TOKEN?.trim()
+      ) {
+        throw new ServiceUnavailableException('GHN_BOOKING_UNAVAILABLE');
+      }
+      const created = await this.carrier.create(
+        reverseReturnPayload(forward.payload, target.id, data.parcel),
+        accountId,
       );
+      bookedCode = created.orderCode;
+      mode = RECONCILIATION_MODE.SIMULATION;
+    }
+
+    return this.db.transaction(async (manager) => {
+      await manager.findOneByOrFail(User, {
+        id: adminId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      const row = await this.lockOrderAndReturn(manager, id);
+      if (row.labelCode) {
+        if (row.labelCode === bookedCode) return row;
+        throw new ConflictException('Return label already installed');
+      }
+      if (row.state !== RETURN_STATE.WAITING_LABEL) {
+        throw new ConflictException('Return is not waiting for label');
+      }
+      row.mode = mode;
+      row.labelCode = bookedCode!;
+      row.instructions = data.instructions ?? RETURN_BOOKING_INSTRUCTIONS;
+      row.handoverBy = new Date(now.getTime() + RETURN_POLICY.HANDOVER_MS);
+      row.state = RETURN_STATE.AWAITING_HANDOVER;
+      return manager.save(row);
+    });
+  }
+
+  async recordHandover(userId: string, id: string) {
+    return this.db.transaction(async (manager) => {
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      const row = await this.lockOrderAndReturn(manager, id);
+      const user = await manager.findOneByOrFail(User, {
+        id: userId,
+        status: UserStatus.ACTIVE,
+      });
+      if (user.role !== UserRole.ADMIN && row.buyerId !== userId) {
+        throw new ForbiddenException(
+          'Only buyer or Admin can record return handover',
+        );
+      }
+      if (row.state === RETURN_STATE.IN_TRANSIT) return row;
+      if (row.state !== RETURN_STATE.AWAITING_HANDOVER || !row.labelCode) {
+        throw new ConflictException('Return is not awaiting handover');
+      }
+      if (row.handoverBy && now > row.handoverBy) {
+        await this.markExpired(manager, row);
+        throw new ConflictException('Return handover window expired');
+      }
+      row.handoverAt = now;
+      row.state = RETURN_STATE.IN_TRANSIT;
+      return manager.save(row);
+    });
+  }
+
+  async updateCarrierStatus(
+    adminId: string,
+    id: string,
+    input: ReturnCarrierStatusInput,
+  ) {
+    const data = returnCarrierStatusSchema.parse(input);
+    return this.db.transaction(async (manager) => {
+      await manager.findOneByOrFail(User, {
+        id: adminId,
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+      });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      const observedAt = data.observedAt ? new Date(data.observedAt) : now;
+      const row = await this.lockOrderAndReturn(manager, id);
+      if (!row.labelCode) {
+        throw new ConflictException('Return label is not installed');
+      }
+      if (row.state === RETURN_STATE.EXPIRED) {
+        throw new ConflictException('Return has already expired');
+      }
+      if (data.status === 'IN_TRANSIT') {
+        if (row.handoverBy && observedAt > row.handoverBy && !row.handoverAt) {
+          await this.markExpired(manager, row);
+          throw new ConflictException('Return handover window expired');
+        }
+        row.handoverAt ??= observedAt;
+        if (row.state === RETURN_STATE.AWAITING_HANDOVER) {
+          row.state = RETURN_STATE.IN_TRANSIT;
+        }
+        return manager.save(row);
+      }
+      if (!row.handoverAt && row.handoverBy && observedAt > row.handoverBy) {
+        await this.markExpired(manager, row);
+        throw new ConflictException('Return handover window expired');
+      }
+      row.handoverAt ??= observedAt;
+      row.deliveredAt = observedAt;
+      row.readyAt = now;
+      row.state = RETURN_STATE.READY;
+      await manager.save(row);
+      await this.refunds.executeInTransaction(manager, row.decisionId, now);
       return row;
     });
   }
 
-  private async evidence(
-    manager: EntityManager,
-    row: DisputeReturn,
-    userId: string,
-    data: ReturnActionData,
-    kind: ReturnEvidenceKind,
-    tags: string[] = [],
-    admin = false,
-  ) {
-    if (!data.evidenceIds.length)
-      throw new ConflictException('Evidence required');
-    const ids = [...new Set(data.evidenceIds)];
-    const evidence = await manager.find(DisputeEvidence, {
-      where: { id: In(ids) },
-    });
-    if (
-      evidence.length !== ids.length ||
-      evidence.some(
-        (e) =>
-          e.orderId !== row.orderId || (!admin && e.uploadedById !== userId),
-      )
-    )
-      throw new ConflictException(
-        'Ready evidence from this order and actor required',
+  async confirmReceipt(userId: string, id: string) {
+    return this.db.transaction(async (manager) => {
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
       );
-    if (
-      tags.some(
-        (tag) =>
-          !evidence.some(
-            (e) => e.tags.includes(tag) && e.mimeType.startsWith('image/'),
-          ),
-      )
-    )
-      throw new ConflictException('Required photographs missing');
-    for (const evidenceId of ids) {
+      const now = new Date(clock);
+      const row = await this.lockOrderAndReturn(manager, id);
+      await this.orders.assertManage(manager, userId, row.shopId);
+      if (row.state === RETURN_STATE.READY) return row;
       if (
-        !(await manager.existsBy(ReturnEvidenceLink, {
-          returnId: row.id,
-          evidenceId,
-          kind,
-        }))
-      )
-        await manager.save(
-          ReturnEvidenceLink,
-          manager.create(ReturnEvidenceLink, {
-            returnId: row.id,
-            evidenceId,
-            kind,
-          }),
-        );
-    }
-  }
-
-  private async apply(
-    manager: EntityManager,
-    row: DisputeReturn,
-    userId: string,
-    action: ReturnAction,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    if (action === RETURN_ACTION.PACKING || action === RETURN_ACTION.OBSTACLE) {
-      if (row.buyerId !== userId)
-        throw new ForbiddenException('Buyer required');
-      if (row.state !== RETURN_STATE.AWAITING_HANDOVER || row.handoverAt)
-        throw new ConflictException('Return not awaiting handover');
-      if (action === RETURN_ACTION.PACKING) {
-        // Accessory photos remain accepted when applicable; missing accessories
-        // can be raised in seller inspection and never establish fault automatically.
-        if (data.labelCode !== row.labelCode)
-          throw new ConflictException('Packing must identify return label');
-        await this.evidence(manager, row, userId, data, RETURN_ACTION.PACKING, [
-          'RETURN_ITEM',
-          'RETURN_PACKED_LABEL',
-        ]);
-      } else {
-        await this.evidence(manager, row, userId, data, RETURN_ACTION.OBSTACLE);
-        row.obstaclePending = true;
-        row.obstacleReportedAt = now;
-        row.obstacleReason = data.reason;
+        (row.state !== RETURN_STATE.IN_TRANSIT &&
+          row.state !== RETURN_STATE.AWAITING_HANDOVER) ||
+        !row.labelCode
+      ) {
+        throw new ConflictException('Return is not in transit for receipt');
       }
-      return;
-    }
-    if (action === RETURN_ACTION.OBJECTION)
-      return this.object(manager, row, userId, data, now);
-    if (action === RETURN_ACTION.RECOVER_HANDOVER)
-      return this.recoverHandover(manager, row, data, now);
-    if (action === RETURN_ACTION.ACCEPT_INSPECTION) {
-      await new OrderAccess().assertManage(manager, userId, row.shopId);
-      if (row.state !== RETURN_STATE.INSPECTION)
-        throw new ConflictException('Return not in inspection');
-      row.state = RETURN_STATE.READY;
+      if (!row.handoverAt && row.handoverBy && now > row.handoverBy) {
+        await this.markExpired(manager, row);
+        throw new ConflictException('Return handover window expired');
+      }
+      row.handoverAt ??= now;
+      row.deliveredAt ??= now;
       row.readyAt = now;
-      row.readyReason = 'SELLER_ACCEPTED_RETURN';
-      return;
-    }
-    if (
-      (
-        [
-          RETURN_ACTION.VERIFY_OBSTACLE,
-          RETURN_ACTION.REJECT_OBSTACLE,
-          RETURN_ACTION.RESUME,
-        ] as ReturnAction[]
-      ).includes(action)
-    )
-      return this.obstacle(row, action, data, now);
-    if (action === RETURN_ACTION.HANDOVER || action === RETURN_ACTION.DELIVERY)
-      return this.movement(manager, row, userId, action, data, now);
-    if (action === RETURN_ACTION.EXTEND || action === RETURN_ACTION.RESOLVE)
-      return this.resolve(manager, row, action, data, now);
-    throw new ConflictException('Unsupported return action');
+      row.state = RETURN_STATE.READY;
+      await manager.save(row);
+      await this.refunds.executeInTransaction(manager, row.decisionId, now);
+      return row;
+    });
   }
 
-  private obstacle(
-    row: DisputeReturn,
-    action: ReturnAction,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    if (action === RETURN_ACTION.RESUME) {
-      assertReturnResumable(row);
-      if (data.mode !== row.mode)
-        throw new ConflictException('Return mode mismatch');
-      row.handoverBy = resumedHandoverDeadline(Number(row.remainingMs), now);
-      row.state = RETURN_STATE.AWAITING_HANDOVER;
-      return;
-    }
-    if (!row.obstaclePending || row.state !== RETURN_STATE.AWAITING_HANDOVER)
-      throw new ConflictException('No pending obstacle');
-    if (action === RETURN_ACTION.VERIFY_OBSTACLE) {
-      const at = data.observedAt;
-      if (
-        data.mode !== row.mode ||
-        !at ||
-        !row.labelNotifiedAt ||
-        at < row.labelNotifiedAt ||
-        at > now ||
-        at > row.handoverBy!
-      )
-        throw new ConflictException(
-          'Verified obstacle must be within handover window',
-        );
-      row.obstacleAt = at;
-      row.pausedAt = now;
-      row.remainingMs = Math.max(0, row.handoverBy!.getTime() - at.getTime());
-      row.state = RETURN_STATE.PAUSED;
-    }
-    row.obstaclePending = false;
-  }
+  async expireDue() {
+    const overdue = await this.db.manager
+      .createQueryBuilder(DisputeReturn, 'r')
+      .where('r.state = :state', { state: RETURN_STATE.AWAITING_HANDOVER })
+      .andWhere('r.handoverAt IS NULL')
+      .andWhere('r.handoverBy < clock_timestamp()')
+      .select('r.id', 'id')
+      .orderBy('r.id', 'ASC')
+      .limit(DISPUTE_POLICY.BATCH_SIZE)
+      .getRawMany<{ id: string }>();
 
-  private async movement(
-    manager: EntityManager,
-    row: DisputeReturn,
-    userId: string,
-    action: ReturnAction,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    const at = data.observedAt;
-    if (
-      !row.labelCode ||
-      data.labelCode !== row.labelCode ||
-      data.mode !== row.mode ||
-      !at ||
-      at > now ||
-      at < row.labelNotifiedAt!
-    )
-      throw new ConflictException(
-        'Verified matching carrier observation required',
-      );
-    await this.evidence(manager, row, userId, data, 'MOVEMENT', [], true);
-    if (action === RETURN_ACTION.HANDOVER) {
-      if (row.handoverAt)
-        throw new ConflictException('Handover already recorded');
-      applyVerifiedHandoverClock(row, at);
-      const proof = await manager.find(ReturnEvidenceLink, {
-        where: { returnId: row.id, kind: RETURN_ACTION.PACKING },
-      });
-      row.packingMissing = !proof.some((link) => link.createdAt <= at);
-    } else {
-      if (!row.handoverAt || at < row.handoverAt || row.deliveredAt)
-        throw new ConflictException('Handover before delivery required');
-      row.deliveredAt = at;
-      if (row.state === RETURN_STATE.IN_TRANSIT) {
-        row.state = RETURN_STATE.INSPECTION;
-        await reconcileReturnClock(manager, row, now);
+    for (const candidate of overdue) {
+      try {
+        await this.db.transaction(async (manager) => {
+          const [{ now: clock }] = await manager.query(
+            'SELECT clock_timestamp() AS now',
+          );
+          const now = new Date(clock);
+          const row = await this.lockOrderAndReturn(manager, candidate.id);
+          if (
+            row.state === RETURN_STATE.AWAITING_HANDOVER &&
+            !row.handoverAt &&
+            row.handoverBy &&
+            now > row.handoverBy
+          ) {
+            await this.markExpired(manager, row);
+          }
+        });
+      } catch (error) {
+        this.logger.error({
+          returnId: candidate.id,
+          message:
+            error instanceof Error ? error.message : 'Return expiry failed',
+        });
       }
     }
   }
 
-  private async object(
-    manager: EntityManager,
-    row: DisputeReturn,
-    userId: string,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    await new OrderAccess().assertManage(manager, userId, row.shopId);
-    if (
-      row.state !== RETURN_STATE.INSPECTION ||
-      (row.inspectionDueAt && now > row.inspectionDueAt)
-    )
-      throw new ConflictException('Inspection objection window not open');
-    if (data.labelCode !== row.labelCode)
-      throw new ConflictException('Return label required');
-    await this.evidence(manager, row, userId, data, RETURN_ACTION.OBJECTION, [
-      'RETURN_PARCEL',
-      'RETURN_LABEL',
-      'RETURN_RECEIVED_ITEMS',
-    ]);
-    row.state = RETURN_STATE.OBJECTION;
-    row.objectionAt = now;
-    row.objectionReason = data.reason;
-    await reconcileReturnClock(manager, row, now);
-  }
-
-  private async recoverHandover(
-    manager: EntityManager,
-    row: DisputeReturn,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    if (data.reviewToken !== (await this.token(manager, row)))
-      throw new ConflictException('Return review is stale');
-    const effectivePauseAt = row.obstacleAt ?? row.pausedAt;
-    const pausedMovement =
-      row.state === RETURN_STATE.PAUSED &&
-      effectivePauseAt &&
-      row.handoverAt &&
-      row.handoverAt >= effectivePauseAt &&
-      row.remainingMs !== null;
-    const reviewablePhase =
-      row.state === RETURN_STATE.EXPIRED || row.state === RETURN_STATE.PAUSED;
-    const timelyMovement =
-      row.handoverAt &&
-      row.handoverBy &&
-      (row.handoverAt <= row.handoverBy || !!pausedMovement);
-    if (
-      !reviewablePhase ||
-      !row.timelyHandoverReviewRequired ||
-      !row.handoverAt ||
-      !row.handoverBy ||
-      !timelyMovement ||
-      data.mode !== row.mode ||
-      data.labelCode !== row.labelCode
-    )
-      throw new ConflictException(
-        'Verified timely handover and matching parcel required',
-      );
-    await recoverTimelyReturnRefunds(manager, row, now);
-    if (pausedMovement)
-      row.handoverBy = resumedHandoverDeadline(
-        Number(row.remainingMs),
-        row.handoverAt,
-      );
-    row.state = row.deliveredAt
-      ? RETURN_STATE.INSPECTION
-      : RETURN_STATE.IN_TRANSIT;
-    row.timelyHandoverReviewRequired = false;
-    row.labelReplacementRequired = false;
-    await reconcileReturnClock(manager, row, now);
-  }
-
-  private async resolve(
-    manager: EntityManager,
-    row: DisputeReturn,
-    action: ReturnAction,
-    data: ReturnActionData,
-    now: Date,
-  ) {
-    if (row.state !== RETURN_STATE.OBJECTION)
-      throw new ConflictException('Return has no objection');
-    if (data.reviewToken !== (await this.token(manager, row)))
-      throw new ConflictException('Return review is stale');
-    if (action === RETURN_ACTION.EXTEND) {
-      if (row.extendedAt)
-        throw new ConflictException('Return objection already extended');
-      row.extendedAt = now;
-      row.extensionReason = data.reason;
-      row.objectionDueAt = await fulfillmentDeadline(
-        manager,
-        row.objectionAt!,
-        RETURN_POLICY.MAX_OBJECTION_BUSINESS_DAYS,
-      );
-      row.calendarMissing = !row.objectionDueAt;
-      return;
-    }
-    if (!data.conclusion) throw new ConflictException('Conclusion required');
-    const final = await manager.findOneByOrFail(DisputeFinalDecision, {
-      id: row.finalDecisionId,
+  private async markExpired(manager: EntityManager, row: DisputeReturn) {
+    row.state = RETURN_STATE.EXPIRED;
+    await manager.save(row);
+    const decision = await manager.findOneByOrFail(DisputeDecision, {
+      id: row.decisionId,
     });
-    if (data.conclusion === 'BUYER_FAULT') {
-      if (
-        !data.evidenceIds.length ||
-        data.refundLimit === undefined ||
-        data.refundLimit > final.refundPlan!.amount
-      )
-        throw new ConflictException(
-          'Verified item fault evidence and bounded refund limit required',
-        );
-      await this.evidence(
-        manager,
-        row,
-        '',
-        data,
-        RETURN_ACTION.OBJECTION,
-        [],
-        true,
-      );
-      row.refundLimit = data.refundLimit;
+    const issue = await manager.findOneOrFail(DisputeIssue, {
+      where: { id: decision.issueId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (issue.status === DISPUTE_ISSUE_STATE.AWAITING_EXECUTION) {
+      issue.status = DISPUTE_ISSUE_STATE.RESOLVED_NO_REFUND;
+      await manager.save(issue);
+      await restoreDisputeCaseIfClear(manager, issue.caseId);
     }
-    row.state = RETURN_STATE.READY;
-    row.readyAt = now;
-    row.readyReason = data.conclusion;
   }
 }

@@ -1,10 +1,5 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
@@ -21,16 +16,16 @@ import {
 } from '@/modules/checkout/constants/checkout.constant';
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { snapshotFeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
-import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
+import { User } from '@/modules/user/entities';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
+import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
@@ -41,47 +36,39 @@ import type {
   SelectCheckoutCoinsInput,
 } from './schemas/checkout.schema';
 
+const EXPIRE_BATCH_SIZE = 100;
+
 @Injectable()
-export class CheckoutService implements OnModuleInit, OnModuleDestroy {
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
+  private running = false;
 
   constructor(
     private readonly db: DataSource,
     private readonly cartService: CartService,
   ) {}
 
-  onModuleInit() {
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = true;
-      void this.expire()
-        .catch((error: unknown) =>
-          this.logger.error(
-            'Checkout expiry failed',
-            error instanceof Error ? error.stack : undefined,
-          ),
-        )
-        .finally(() => {
-          this.running = false;
-        });
-    }, 30_000);
-    this.timer.unref();
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  @Interval(30_000)
+  async run() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      await this.expire();
+    } catch {
+      this.logger.error('Checkout expiry scan failed; retry required');
+    } finally {
+      this.running = false;
+    }
   }
 
   async create(buyerId: string, input: CreateCheckoutInput) {
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      await this.expireDue(manager);
+      await manager.findOne(User, {
+        where: { id: buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const productIds = [...input.productIds].sort();
+      await this.expireBuyerAndProducts(manager, buyerId, productIds);
       const previous = await manager.findOneBy(Checkout, {
         buyerId,
         requestId: input.requestId,
@@ -89,9 +76,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       if (previous) {
         const replaySelectionHasChanged =
           previous.addressId !== input.addressId ||
-          (previous.feeDisclosure?.buyerAcceptedAt
-            ? previous.feeDisclosure.policyId
-            : undefined) !== input.feePolicyId ||
           JSON.stringify(previous.requestedProductIds) !==
             JSON.stringify(productIds);
         if (replaySelectionHasChanged) {
@@ -113,18 +97,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       });
       await this.lockProductEligibility(manager, products);
       const cartView = await this.cartService.findMine(buyerId, manager);
-
-      const [{ disclosureNow }] = await manager.query(
-        'SELECT clock_timestamp() AS "disclosureNow"',
-      );
-      const feeDisclosure = await snapshotFeeDisclosure(
-        manager,
-        input,
-        [...new Set(products.map((product) => product.shopId))],
-        new Date(disclosureNow),
-      );
       const checkout = manager.create(Checkout, {
-        feeDisclosure,
         buyerId,
         requestId: input.requestId,
         addressId: input.addressId,
@@ -191,7 +164,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     manager: EntityManager,
     products: Product[],
   ) {
-    // Keep shop/category eligibility stable while taking the approved snapshot.
     for (const id of [
       ...new Set(
         products.map((p) => p.categoryId).filter((id): id is string => !!id),
@@ -246,7 +218,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       const row = products.find((p) => p.id === productId)!;
-      // Eligibility and held-state check occurred after acquiring the product write lock.
       if (row.reservationId)
         throw new ConflictException('Product reservation is inconsistent');
       let order = groups.get(cartEntry.shop.id);
@@ -285,7 +256,7 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       where: { id: addressId, userId: buyerId },
       lock: { mode: 'pessimistic_read' },
     });
-    const snapshot: CheckoutAddress = {
+    return {
       recipientName: address.recipientName,
       phone: address.phone,
       addressLine1: address.addressLine1,
@@ -300,7 +271,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
       postalCode: address.postalCode,
       deliveryInstructions: address.deliveryInstructions,
     };
-    return snapshot;
   }
 
   async selectCoins(
@@ -309,13 +279,28 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     input: SelectCheckoutCoinsInput,
   ) {
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      await this.expireDue(manager);
+      await manager.findOne(User, {
+        where: { id: buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
+      const checkout =
+        typeof manager.findOneOrFail === 'function'
+          ? await manager.findOneOrFail(Checkout, {
+              where: { id, buyerId },
+              lock: { mode: 'pessimistic_write' },
+            })
+          : await manager.findOneByOrFail(Checkout, { id, buyerId });
+      if (
+        checkout.status === CHECKOUT_STATUS.HELD &&
+        checkout.expiresAt &&
+        checkout.expiresAt <= now
+      ) {
+        await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+      }
       if (
         checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
@@ -362,42 +347,108 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
 
   async findMine(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      await this.expireDue(manager);
-      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      await pruneIdentityCheckout(manager, checkout, new Date(now));
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
+      if (
+        checkout.status === CHECKOUT_STATUS.HELD &&
+        checkout.expiresAt &&
+        checkout.expiresAt <= now
+      ) {
+        await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+      } else {
+        await pruneIdentityCheckout(manager, checkout, now);
+      }
       return this.view(manager, checkout);
     });
   }
 
   async cancel(buyerId: string, id: string) {
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      await this.expireDue(manager);
-      const checkout = await manager.findOneByOrFail(Checkout, { id, buyerId });
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const [{ now: clock }] = await manager.query(
+        'SELECT clock_timestamp() AS now',
+      );
+      const now = new Date(clock);
       if (checkout.status === CHECKOUT_STATUS.HELD)
-        await this.release(manager, checkout, CHECKOUT_STATUS.CANCELLED);
+        await this.release(
+          manager,
+          checkout,
+          checkout.expiresAt && checkout.expiresAt <= now
+            ? CHECKOUT_STATUS.EXPIRED
+            : CHECKOUT_STATUS.CANCELLED,
+        );
       return this.view(manager, checkout);
     });
   }
 
   async expire() {
-    await this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      await this.expireDue(manager);
-    });
-  }
-
-  private async expireDue(manager: EntityManager) {
-    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-    const expired = await manager.find(Checkout, {
+    const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
+    const due = await this.db.getRepository(Checkout).find({
+      select: { id: true },
       where: {
         status: CHECKOUT_STATUS.HELD,
         expiresAt: LessThanOrEqual(new Date(now)),
       },
-      order: { id: 'ASC' },
+      order: { expiresAt: 'ASC', id: 'ASC' },
+      take: EXPIRE_BATCH_SIZE,
     });
+    for (const item of due) {
+      try {
+        await this.db.transaction(async (manager) => {
+          const checkout = await manager.findOne(Checkout, {
+            where: { id: item.id },
+            lock: { mode: 'pessimistic_write' },
+          });
+          const [{ now: current }] = await manager.query(
+            'SELECT clock_timestamp() AS now',
+          );
+          if (
+            checkout?.status === CHECKOUT_STATUS.HELD &&
+            checkout.expiresAt &&
+            checkout.expiresAt <= new Date(current)
+          ) {
+            await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+          }
+        });
+      } catch {
+        this.logger.warn({
+          checkoutId: item.id,
+          message: 'Checkout expiry rolled back; retry on next scan',
+        });
+      }
+    }
+  }
+
+  private async expireBuyerAndProducts(
+    manager: EntityManager,
+    buyerId: string,
+    productIds: string[],
+  ) {
+    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    const expired = await manager
+      .createQueryBuilder(Checkout, 'checkout')
+      .where('checkout.status = :status AND checkout.expiresAt <= :now', {
+        status: CHECKOUT_STATUS.HELD,
+        now: new Date(now),
+      })
+      .andWhere(
+        productIds.length > 0
+          ? '(checkout.buyerId = :buyerId OR EXISTS (SELECT 1 FROM products p WHERE p."reservationId" = checkout.id AND p.id IN (:...productIds)))'
+          : 'checkout.buyerId = :buyerId',
+        { buyerId, productIds },
+      )
+      .orderBy('checkout.id', 'ASC')
+      .setLock('pessimistic_write')
+      .getMany();
     for (const checkout of expired)
       await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
   }
@@ -415,6 +466,8 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     const holds = await manager.find(WalletCheckoutHold, {
       where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+      order: { id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
     });
     for (const hold of holds)
       await releaseWalletHold(

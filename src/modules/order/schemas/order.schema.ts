@@ -3,7 +3,6 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
 
 import {
   ORDER_CANCEL_STATE,
@@ -24,11 +23,6 @@ export type OrderCancelState =
   (typeof ORDER_CANCEL_STATE)[keyof typeof ORDER_CANCEL_STATE];
 export type OrderPaymentMethod =
   (typeof ORDER_PAYMENT_METHOD)[keyof typeof ORDER_PAYMENT_METHOD];
-export type OrderListInput = {
-  status?: OrderState;
-  limit?: number;
-  offset?: number;
-};
 
 export { orderStates, orderEventActions };
 
@@ -37,14 +31,26 @@ export const orderListInputSchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
+export type OrderListInput = z.infer<typeof orderListInputSchema>;
+
 export const rejectOrderSchema = z.strictObject({
   reason: trimmedTextSchema.min(1).max(1000),
 });
+export type RejectOrderInput = z.infer<typeof rejectOrderSchema>;
+
 export const acceptOrderSchema = z.strictObject({});
+
+export const verifyDeliverySchema = z.strictObject({
+  deliveredAt: z.iso.datetime({ offset: true }),
+  mode: z.enum(RECONCILIATION_MODE),
+  reason: trimmedTextSchema.min(1).max(1000),
+  evidence: trimmedTextSchema.min(1).max(2000),
+});
+export type VerifyDeliveryInput = z.output<typeof verifyDeliverySchema>;
+
 export const orderSchema = z.object({
   coinDiscount: z.number().int().nonnegative().default(0),
   coinMode: z.enum(RECONCILIATION_MODE).nullable().default(null),
-  feeDisclosure: feeDisclosureSchema.nullable().default(null),
   id: z.uuid(),
   orderCode: z.string().regex(/^RW-[0-9A-F]{10}$/),
   paymentId: z.uuid().nullable(),
@@ -60,10 +66,6 @@ export const orderSchema = z.object({
   carrierReturnedAt: dateTimeSchema.nullable(),
   cancelState: z.enum(ORDER_CANCEL_STATE).nullable(),
   cancelRequestedAt: dateTimeSchema.nullable(),
-  cancelRespondBy: dateTimeSchema.nullable(),
-  cancelReviewUntil: dateTimeSchema.nullable(),
-  cancelDecisionReason: z.string().nullable(),
-  cancelDecisionEvidence: z.string().nullable(),
   shopId: z.uuid(),
   shopName: z.string(),
   status: z.enum(ORDER_STATUS),
@@ -93,13 +95,9 @@ export const orderSchema = z.object({
         action: z.enum(ORDER_EVENT_ACTION),
         actorId: z.uuid().nullable(),
         reason: z.string().nullable(),
-        evidence: z.string().nullable(),
-        approved: z.boolean().nullable(),
         createdAt: dateTimeSchema,
       }),
     )
     .optional(),
 });
 export const orderListSchema = z.array(orderSchema);
-
-export type RejectOrderInput = z.output<typeof rejectOrderSchema>;

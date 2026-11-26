@@ -1,8 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import type z from 'zod';
-
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
@@ -11,7 +9,6 @@ import { User } from '@/modules/user/entities';
 import { CheckoutService } from './checkout.service';
 import {
   checkoutSchema,
-  confirmIdentityCheckoutSchema,
   type CreateCheckoutInput,
   createCheckoutSchema,
   type SelectCheckoutCoinsInput,
@@ -31,22 +28,7 @@ export class CheckoutController {
     private readonly checkoutService: CheckoutService,
     private readonly shippingQuoteService: ShippingQuoteService,
   ) {}
-  @AuthenticatedAccess()
-  @Post(':id/identity-review/confirm')
-  @HttpCode(200)
-  @Serialize(shippingQuoteSchema)
-  confirmIdentity(
-    @CurrentUser() user: User,
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: confirmIdentityCheckoutSchema })
-    input: z.input<typeof confirmIdentityCheckoutSchema>,
-  ) {
-    return this.shippingQuoteService.confirmIdentityReview(
-      user.id,
-      id,
-      input.fingerprint,
-    );
-  }
+
   @AuthenticatedAccess()
   @Post(':id/shipping-quotes')
   @HttpCode(200)
@@ -58,6 +40,7 @@ export class CheckoutController {
   ) {
     return this.shippingQuoteService.refresh(user.id, id);
   }
+
   @AuthenticatedAccess()
   @Post(':id/coins')
   @HttpCode(200)
@@ -81,6 +64,7 @@ export class CheckoutController {
   ) {
     return this.checkoutService.create(user.id, input);
   }
+
   @AuthenticatedAccess()
   @Get(':id')
   @Serialize(checkoutSchema)
@@ -90,6 +74,7 @@ export class CheckoutController {
   ) {
     return this.checkoutService.findMine(user.id, id);
   }
+
   @AuthenticatedAccess()
   @Post(':id/cancel')
   @HttpCode(200)

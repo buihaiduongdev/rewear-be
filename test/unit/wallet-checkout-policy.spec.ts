@@ -1,7 +1,7 @@
 import {
   walletCheckoutTotal,
   walletPoolFields,
-} from '@/modules/wallet/checkout/policies/wallet-checkout.policy';
+} from '@/modules/wallet/checkout/wallet-checkout.service';
 
 describe('wallet checkout rules', () => {
   it('requires the exact full confirmed total', () => {

@@ -32,6 +32,7 @@ describe('coin checkout payment routes', () => {
     return {
       query: jest.fn(async () => [{ now }]),
       findOne: jest.fn(async () => row),
+      findOneOrFail: jest.fn(async () => row),
       findOneByOrFail: jest.fn(async () => row),
       find: jest.fn(async (entity: unknown) =>
         entity === CheckoutOrder

@@ -1,7 +1,6 @@
-import { EntityManager } from 'typeorm';
+import { EntityManager, Not } from 'typeorm';
 
 import {
-  COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
   RECONCILIATION_REVIEW_REASON,
   SHOP_LEDGER_TYPE,
@@ -15,9 +14,9 @@ import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { WalletCredit } from '@/modules/wallet/entities';
 
-/** Only server-verified payment data establishes a refund source. Delivery alone never does. */
 export async function refundFunding(
   manager: EntityManager,
   order: Order,
@@ -39,22 +38,16 @@ export async function refundFunding(
       order,
       shipment,
     );
-    return credit
-      ? {
-          mode: credit.mode,
-          verifiedAt: credit.createdAt,
-          funded: true,
-          itemFundsAvailable: order.subtotal,
-        }
-      : null;
+    return credit ? { mode: credit.mode } : null;
   }
   if (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD) return null;
   const collection = await manager.findOneBy(CodCollection, {
     orderId: order.id,
   });
   if (!collection) return null;
-  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode)))
+  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode))) {
     return null;
+  }
   const reviewAcceptable =
     collection.reviewReason === null ||
     collection.reviewReason ===
@@ -75,6 +68,7 @@ export async function refundFunding(
   if (!proofMatches) return null;
   const credit = await manager.findOneBy(ShopLedgerEntry, {
     orderId: order.id,
+    type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
   });
   const creditMatches =
     credit?.mode === collection.mode &&
@@ -84,22 +78,5 @@ export async function refundFunding(
     credit.collectionId === collection.id &&
     collection.cashReceived + collection.feeDeducted === order.total;
   if (credit && !creditMatches) return null;
-  const funded =
-    collection.status === COD_RECONCILIATION_STATUS.FUNDED_HELD &&
-    creditMatches;
-  const reservedShipping = Math.max(
-    0,
-    order.shippingFee - collection.feeDeducted,
-  );
-  const itemFundsAvailable = Math.min(
-    order.subtotal,
-    Math.max(0, collection.cashReceived - reservedShipping) +
-      (order.coinDiscount ?? 0),
-  );
-  return {
-    mode: collection.mode,
-    verifiedAt: collection.createdAt,
-    funded,
-    itemFundsAvailable,
-  };
+  return { mode: collection.mode };
 }

@@ -1,10 +1,5 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { DataSource, In, LessThanOrEqual } from 'typeorm';
 
@@ -22,9 +17,8 @@ import { PAYOS_CLIENT } from './payment.config';
 import { PaymentService } from './payment.service';
 
 @Injectable()
-export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
+export class PaymentWorker {
   private readonly logger = new Logger(PaymentWorker.name);
-  private timer?: ReturnType<typeof setInterval>;
   private running = false;
 
   constructor(
@@ -33,84 +27,68 @@ export class PaymentWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
   ) {}
 
-  onModuleInit() {
-    if (!this.client) return;
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = true;
-      void this.run()
-        .catch(() =>
-          this.logger.error(
-            'Payment reconciliation failed; records remain pending',
-          ),
-        )
-        .finally(() => {
-          this.running = false;
-        });
-    }, PAYMENT_WORKER_INTERVAL_MS);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-
+  @Interval(PAYMENT_WORKER_INTERVAL_MS)
   async run() {
-    if (!this.client) return;
-    const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
-    const due = new Date(now);
-    const attempts = await this.db.getRepository(PaymentAttempt).find({
-      where: {
-        state: In([
-          PAYMENT_ATTEMPT_STATE.CREATING,
-          PAYMENT_ATTEMPT_STATE.PENDING,
-          PAYMENT_ATTEMPT_STATE.UNKNOWN,
-        ]),
-        nextQueryAt: LessThanOrEqual(due),
-      },
-      order: { nextQueryAt: 'ASC' },
-      take: PAYMENT_RECONCILIATION_BATCH_SIZE,
-    });
-    await Promise.all(
-      attempts.map(async (attempt) => {
-        try {
-          await this.paymentService.queryAttempt(attempt.id);
-        } catch {
-          this.logger.warn({
-            paymentId: attempt.id,
-            message: 'Payment requires reconciliation',
-          });
-        }
-      }),
-    );
-    const refunds = await this.db.getRepository(PaymentRefund).find({
-      where: {
-        state: In([
-          PAYMENT_REFUND_STATE.QUEUED,
-          PAYMENT_REFUND_STATE.UNKNOWN,
-          PAYMENT_REFUND_STATE.REVIEW_REQUIRED,
-        ]),
-        nextQueryAt: LessThanOrEqual(due),
-      },
-      order: { nextQueryAt: 'ASC' },
-      take: PAYMENT_RECONCILIATION_BATCH_SIZE,
-    });
-    await Promise.all(
-      refunds.map(async (refund) => {
-        try {
-          await this.refund(refund.id);
-        } catch {
-          this.logger.warn({
-            refundId: refund.id,
-            message: 'Refund requires reconciliation',
-          });
-        }
-      }),
-    );
+    if (!this.client || this.running) return;
+    this.running = true;
+    try {
+      const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
+      const due = new Date(now);
+      const attempts = await this.db.getRepository(PaymentAttempt).find({
+        where: {
+          state: In([
+            PAYMENT_ATTEMPT_STATE.CREATING,
+            PAYMENT_ATTEMPT_STATE.PENDING,
+            PAYMENT_ATTEMPT_STATE.UNKNOWN,
+          ]),
+          nextQueryAt: LessThanOrEqual(due),
+        },
+        order: { nextQueryAt: 'ASC' },
+        take: PAYMENT_RECONCILIATION_BATCH_SIZE,
+      });
+      await Promise.all(
+        attempts.map(async (attempt) => {
+          try {
+            await this.paymentService.queryAttempt(attempt.id);
+          } catch {
+            this.logger.warn({
+              paymentId: attempt.id,
+              message: 'Payment requires reconciliation',
+            });
+          }
+        }),
+      );
+      const refunds = await this.db.getRepository(PaymentRefund).find({
+        where: {
+          state: In([
+            PAYMENT_REFUND_STATE.QUEUED,
+            PAYMENT_REFUND_STATE.UNKNOWN,
+            PAYMENT_REFUND_STATE.REVIEW_REQUIRED,
+          ]),
+          nextQueryAt: LessThanOrEqual(due),
+        },
+        order: { nextQueryAt: 'ASC' },
+        take: PAYMENT_RECONCILIATION_BATCH_SIZE,
+      });
+      await Promise.all(
+        refunds.map(async (refund) => {
+          try {
+            await this.refund(refund.id);
+          } catch {
+            this.logger.warn({
+              refundId: refund.id,
+              message: 'Refund requires reconciliation',
+            });
+          }
+        }),
+      );
+    } catch {
+      this.logger.error('Payment reconciliation scan failed; retry required');
+    } finally {
+      this.running = false;
+    }
   }
 
-  // PayOS VietQR payments do not support automated reverse-transfer APIs; escalate
-  // uncompleted refunds to operational review with durable alerting.
   async refund(id: string) {
     if (!this.client) return;
     await this.db.transaction(async (manager) => {

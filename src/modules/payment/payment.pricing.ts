@@ -4,7 +4,6 @@ import { EntityManager } from 'typeorm';
 
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { identityQuoteFingerprint } from '@/modules/checkout/identity-quote.policy';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
@@ -16,13 +15,11 @@ import {
 } from '../checkout/constants/shipping-quote.constant';
 import type { PaymentOrderSnapshot } from './schemas/payment.schema';
 
-// Never accept a client amount, fee or quote object as an authoritative price.
 @Injectable()
 export class PaymentPricing {
   constructor(private readonly shippingQuoteService: ShippingQuoteService) {}
 
   async quote(buyerId: string, checkoutId: string) {
-    // GHN HTTP must finish before acquiring any payment/stock transaction lock.
     return {
       checkoutId,
       quote: await this.shippingQuoteService.refresh(buyerId, checkoutId),
@@ -40,14 +37,9 @@ export class PaymentPricing {
       relations: { shop: true },
     });
     const { quote } = prepared;
-    const needsConfirmation =
-      checkout.identityReviewRequired ||
-      (checkout.identityConfirmedQuote &&
-        checkout.identityConfirmedQuote !==
-          identityQuoteFingerprint(checkout, orders, quote));
-    if (needsConfirmation)
+    if (checkout.identityReviewRequired)
       throw new ConflictException(
-        'Confirm the revised checkout quote before paying',
+        'Refresh the revised checkout quote before paying',
       );
     const age = Date.now() - Date.parse(quote.quotedAt);
     if (
@@ -88,7 +80,6 @@ export class PaymentPricing {
         coinDiscount,
         coinMode: checkout.coinMode ?? null,
         checkoutOrderId: order.id,
-        feeDisclosure: checkout.feeDisclosure ?? null,
         shopId: order.shopId,
         shopName: order.shop.name,
         subtotal: order.subtotal,

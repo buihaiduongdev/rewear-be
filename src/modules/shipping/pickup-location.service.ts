@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { GhnShopClient } from '@/infrastructure/shipping/clients/ghn-shop.client';
 import { AdministrativeDivisionService } from '@/modules/administrative-division/administrative-division.service';
@@ -25,6 +25,13 @@ export class PickupLocationService {
     private readonly administrativeDivisionService: AdministrativeDivisionService,
     private readonly ghn: GhnShopClient,
   ) {}
+
+  private lockShop(manager: EntityManager, shopId: string) {
+    return manager.findOne(Shop, {
+      where: { id: shopId },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
 
   async read(shopId: string) {
     const location = await this.db
@@ -67,10 +74,11 @@ export class PickupLocationService {
       input.wardCode,
     );
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        shopId,
-      ]);
-      const existing = await manager.findOneBy(PickupLocation, { shopId });
+      await this.lockShop(manager, shopId);
+      const existing = await manager.findOne(PickupLocation, {
+        where: { shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (existing?.ghnSyncStatus === 'CREATING')
         throw new ConflictException('GHN connection is in progress');
       const changed =
@@ -119,10 +127,11 @@ export class PickupLocationService {
 
   async disconnectGhn(shopId: string) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        shopId,
-      ]);
-      const location = await manager.findOneBy(PickupLocation, { shopId });
+      await this.lockShop(manager, shopId);
+      const location = await manager.findOne(PickupLocation, {
+        where: { shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!location) throw new NotFoundException('Pickup address not found');
       if (
         location.ghnSyncStatus === 'CREATING' ||
@@ -143,11 +152,13 @@ export class PickupLocationService {
 
   async connectGhn(shopId: string, input?: ConnectGhnShopInput) {
     const prepared = await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        shopId,
-      ]);
-      const location = await manager.findOneByOrFail(PickupLocation, {
-        shopId,
+      const shop = await manager.findOneOrFail(Shop, {
+        where: { id: shopId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const location = await manager.findOneOrFail(PickupLocation, {
+        where: { shopId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (!['NOT_CONNECTED', 'STALE'].includes(location.ghnSyncStatus))
         throw new ConflictException(
@@ -158,7 +169,6 @@ export class PickupLocationService {
       if (!districtId || !wardCode) {
         throw new BadRequestException('Pickup address is incomplete');
       }
-      const shop = await manager.findOneByOrFail(Shop, { id: shopId });
       const attempt = {
         name: shop.name,
         phone: location.phone,
@@ -179,11 +189,10 @@ export class PickupLocationService {
       result = { status: 'UNKNOWN' };
     }
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        shopId,
-      ]);
-      const location = await manager.findOneByOrFail(PickupLocation, {
-        shopId,
+      await this.lockShop(manager, shopId);
+      const location = await manager.findOneOrFail(PickupLocation, {
+        where: { shopId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (location.ghnSyncStatus !== 'CREATING') {
         if (
@@ -214,11 +223,10 @@ export class PickupLocationService {
         'Active GHN shop was not found under the platform account',
       );
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        shopId,
-      ]);
-      const location = await manager.findOneByOrFail(PickupLocation, {
-        shopId,
+      await this.lockShop(manager, shopId);
+      const location = await manager.findOneOrFail(PickupLocation, {
+        where: { shopId },
+        lock: { mode: 'pessimistic_write' },
       });
       const attempt = location.ghnSyncAttempt;
       if (location.ghnSyncStatus !== 'UNKNOWN' || !attempt)

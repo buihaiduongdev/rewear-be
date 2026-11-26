@@ -1,7 +1,6 @@
 import {
   allocatePayout,
   assertExactTransfer,
-  canReleasePayout,
 } from '@/modules/shop-finance/payouts/payout-policy';
 
 describe('manual payout invariants', () => {
@@ -22,12 +21,7 @@ describe('manual payout invariants', () => {
       'Insufficient available source funds',
     );
   });
-  it('never unlocks processing or unknown money without verified no debit and no inflight evidence', () => {
-    expect(canReleasePayout('UNKNOWN', false, false)).toBe(false);
-    expect(canReleasePayout('PROCESSING', true, false)).toBe(false);
-    expect(canReleasePayout('UNKNOWN', true, true)).toBe(true);
-    expect(canReleasePayout('PENDING', false, false)).toBe(true);
-  });
+
   it('requires exact received amount and the original recipient', () => {
     const recipient = {
       bankCode: 'VCB',

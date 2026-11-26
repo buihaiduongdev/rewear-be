@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
-import { DataSource, type EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 
 import {
   NOTIFICATION_KIND,
@@ -21,112 +17,115 @@ import {
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
 import { ShopApplication } from '../entities';
-import {
-  identityGraceDeadline,
-  shopAllowsIdentitySales,
-} from './identity-sale.policy';
+import { shopAllowsIdentitySales } from './identity-sale.policy';
+
+const { VIETNAM_OFFSET_MS, DAY_MS, GRACE_DAYS, BATCH_SIZE } =
+  IDENTITY_RENEWAL_POLICY;
 
 @Injectable()
-export class IdentityRenewalWorker implements OnModuleInit, OnModuleDestroy {
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class IdentityRenewalWorker {
   private readonly logger = new Logger(IdentityRenewalWorker.name);
+  private running = false;
+
   constructor(private readonly db: DataSource) {}
-  onModuleInit() {
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = true;
-      void this.run()
-        .catch((e) =>
-          this.logger.error(
-            'Identity renewal scan failed',
-            e instanceof Error ? e.stack : undefined,
-          ),
-        )
-        .finally(() => {
-          this.running = false;
-        });
-    }, IDENTITY_RENEWAL_POLICY.WORKER_MS);
-    this.timer.unref();
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-  async run() {
-    await this.db.transaction(async (manager) => {
-      const [{ now: clock }] = await manager.query(
-        'SELECT clock_timestamp() AS now',
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async run(now?: Date) {
+    if (this.running) return;
+    this.running = true;
+    const current = now instanceof Date ? now : new Date();
+    try {
+      await this.scan(current);
+    } catch (error) {
+      this.logger.error(
+        error instanceof Error
+          ? error.message
+          : 'Identity renewal scan failed; retry required',
       );
-      const now = new Date(clock);
-      const shops = await manager
+      if (now instanceof Date) throw error;
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async scan(now: Date) {
+    await this.db.transaction(async (manager) => {
+      const today = new Date(now.getTime() + VIETNAM_OFFSET_MS)
+        .toISOString()
+        .slice(0, 10);
+      const pausedCutoff = new Date(
+        now.getTime() + VIETNAM_OFFSET_MS - (GRACE_DAYS + 1) * DAY_MS,
+      )
+        .toISOString()
+        .slice(0, 10);
+
+      const rows = await manager
         .getRepository(Shop)
         .createQueryBuilder('shop')
-        .where('shop."onboardingRequired"=true')
-        .andWhere('shop."approvedAt" IS NOT NULL')
-        .andWhere(
-          '(shop."identityNextCheckAt" IS NULL OR shop."identityNextCheckAt" <= :now)',
-          { now },
+        .innerJoin(
+          ShopApplication,
+          'app',
+          'app."shopId" = shop.id AND app.kind = :kind AND app.state = :state',
+          {
+            kind: SHOP_APPLICATION_KIND.INITIAL,
+            state: SHOP_APPLICATION_STATE.APPROVED,
+          },
         )
-        .orderBy('shop."identityNextCheckAt"', 'ASC', 'NULLS FIRST')
+        .select([
+          'shop.id AS "shopId"',
+          'to_char(shop."identityExpiresOn", \'YYYY-MM-DD\') AS "identityExpiresOn"',
+          'shop."identityManualRestriction" AS "identityManualRestriction"',
+          'app.id AS "applicationId"',
+          'app."applicantId" AS "applicantId"',
+        ])
+        .where('shop."onboardingRequired" = true')
+        .andWhere('shop."approvedAt" IS NOT NULL')
+        .andWhere('shop."identityExpiresOn" IS NOT NULL')
+        .andWhere('shop."identityExpiresOn" < :today', { today })
+        .andWhere(
+          `NOT EXISTS (
+            SELECT 1 FROM notification_events ne
+            WHERE ne.key = (
+              'identity-renewal:' || shop.id::text || ':' ||
+              to_char(shop."identityExpiresOn", 'YYYY-MM-DD') || ':' ||
+              CASE
+                WHEN shop."identityManualRestriction" = true
+                  OR shop."identityExpiresOn" <= :pausedCutoff
+                THEN 'paused'
+                ELSE 'grace'
+              END
+            )
+          )`,
+          { pausedCutoff },
+        )
+        .orderBy('shop."identityExpiresOn"', 'ASC')
         .addOrderBy('shop.id', 'ASC')
-        .take(IDENTITY_RENEWAL_POLICY.BATCH_SIZE)
-        .getMany();
-      for (const shop of shops) await this.observe(manager, shop, now);
+        .limit(BATCH_SIZE)
+        .getRawMany<{
+          shopId: string;
+          identityExpiresOn: string;
+          identityManualRestriction: boolean;
+          applicationId: string;
+          applicantId: string;
+        }>();
+
+      for (const row of rows) {
+        const paused = !shopAllowsIdentitySales(row, now);
+        const stage = paused ? 'paused' : 'grace';
+        await publishNotification(manager, {
+          key: `identity-renewal:${row.shopId}:${row.identityExpiresOn}:${stage}`,
+          kind: NOTIFICATION_KIND.SHOP_APPLICATION,
+          targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
+          sourceId: row.applicationId,
+          title: paused
+            ? 'Shop tạm dừng giao dịch mới'
+            : 'Giấy tờ định danh sắp hết thời gian ân hạn',
+          body: 'Mở hồ sơ Shop sau đăng nhập để cập nhật giấy tờ định danh. Đơn hàng cũ vẫn được xử lý bình thường.',
+          mode: null,
+          email: true,
+          recipients: [personalRecipient(row.applicantId)],
+        });
+      }
     });
-  }
-  private async observe(manager: EntityManager, shop: Shop, now: Date) {
-    const original = await manager.findOneBy(ShopApplication, {
-      shopId: shop.id,
-      kind: SHOP_APPLICATION_KIND.INITIAL,
-      state: SHOP_APPLICATION_STATE.APPROVED,
-    });
-    if (!original?.snapshot) {
-      shop.identityNextCheckAt = new Date(
-        now.getTime() + IDENTITY_RENEWAL_POLICY.RECHECK_MS,
-      );
-      await manager.save(shop);
-      return;
-    }
-    if (!shop.identityDocumentVersion) {
-      shop.identityDocumentVersion = 1;
-      shop.identityExpiresOn = original.snapshot.identity.expiresOn;
-    }
-    const paused = !shopAllowsIdentitySales(shop, now);
-    const expired =
-      shop.identityExpiresOn &&
-      now.getTime() >=
-        identityGraceDeadline(shop.identityExpiresOn).getTime() -
-          IDENTITY_RENEWAL_POLICY.GRACE_DAYS * IDENTITY_RENEWAL_POLICY.DAY_MS;
-    const firstExpiry =
-      expired &&
-      shop.identityExpiryNotifiedVersion !== shop.identityDocumentVersion;
-    const changed = paused !== !!shop.identityObservedRestricted;
-    if (firstExpiry || changed) {
-      shop.identityNoticeRevision = (shop.identityNoticeRevision ?? 0) + 1;
-      await publishNotification(manager, {
-        key: `identity-renewal:${shop.id}:${shop.identityNoticeRevision}`,
-        kind: NOTIFICATION_KIND.SHOP_APPLICATION,
-        targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
-        sourceId: original.id,
-        title: paused ? 'Shop tạm dừng giao dịch mới' : 'Cập nhật giấy tờ Shop',
-        body: 'Mở hồ sơ Shop sau đăng nhập để xem trạng thái giấy tờ và hướng xử lý. Đơn hàng cũ vẫn được quản lý.',
-        mode: null,
-        email: true,
-        recipients: [personalRecipient(original.applicantId)],
-      });
-      if (firstExpiry)
-        shop.identityExpiryNotifiedVersion = shop.identityDocumentVersion;
-    }
-    shop.identityObservedRestricted = paused;
-    const next = now.getTime() + IDENTITY_RENEWAL_POLICY.RECHECK_MS;
-    const boundary = shop.identityExpiresOn
-      ? identityGraceDeadline(shop.identityExpiresOn).getTime()
-      : next;
-    const correction = shop.identityCorrectionUntil?.getTime() ?? boundary;
-    const futureBoundary = Math.max(boundary, correction);
-    shop.identityNextCheckAt = new Date(
-      futureBoundary > now.getTime() ? Math.min(next, futureBoundary) : next,
-    );
-    await manager.save(shop);
   }
 }

@@ -1,37 +1,27 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { ORDER_POLICY } from './constants/order.constant';
 import { OrderService } from './order.service';
 
 @Injectable()
-export class OrderWorker implements OnModuleInit, OnModuleDestroy {
+export class OrderWorker {
   private readonly logger = new Logger(OrderWorker.name);
-  private timer?: ReturnType<typeof setInterval>;
   private running = false;
+
   constructor(private readonly orderService: OrderService) {}
-  onModuleInit() {
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = true;
-      void this.orderService
-        .expireDue()
-        .catch(() =>
-          this.logger.error(
-            'Order expiry failed; transaction rolled back and pending orders will be retried',
-          ),
-        )
-        .finally(() => {
-          this.running = false;
-        });
-    }, ORDER_POLICY.WORKER_INTERVAL_MS);
-    this.timer.unref();
-  }
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+
+  @Interval(ORDER_POLICY.WORKER_INTERVAL_MS)
+  async run() {
+    if (this.running) return 0;
+    this.running = true;
+    try {
+      return await this.orderService.expireDue();
+    } catch {
+      this.logger.error('Order expiry scan failed; retry required');
+      return 0;
+    } finally {
+      this.running = false;
+    }
   }
 }

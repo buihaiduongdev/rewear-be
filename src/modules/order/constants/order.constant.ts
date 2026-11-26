@@ -21,10 +21,7 @@ export const ORDER_CANCELLATION_REASON = {
 } as const;
 
 export const ORDER_CANCEL_STATE = {
-  PENDING: 'PENDING',
   APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED',
-  ADMIN_REVIEW: 'ADMIN_REVIEW',
   CLOSED: 'CLOSED',
 } as const;
 

@@ -202,14 +202,7 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     ['dispute', { status: 'dispute' }],
     ['return', { carrierReturnedAt: new Date() }],
     ['handover review', { handoverReviewRequired: true }],
-    ['pending cancellation', { cancelState: 'PENDING' }],
-    [
-      'cancellation appeal',
-      {
-        cancelState: 'REJECTED',
-        cancelReviewUntil: new Date(Date.now() + ms('1h')),
-      },
-    ],
+    ['approved cancellation', { cancelState: 'APPROVED' }],
   ])('blocks release for %s after funding', async (_name, changes) => {
     const f = await fixture();
     await fund(f);

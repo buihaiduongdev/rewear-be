@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { EntityManager } from 'typeorm';
 
 import {
@@ -17,6 +19,7 @@ export async function notifyShopApplication(
   row: ShopApplication,
   action: string,
 ) {
+  const eventId = randomUUID();
   const owner = personalRecipient(row.applicantId);
   const decision = (
     [
@@ -26,7 +29,7 @@ export async function notifyShopApplication(
     ] as readonly string[]
   ).includes(action);
   await publishNotification(manager, {
-    key: `shop-application:${row.id}:${row.version}:applicant`,
+    key: `shop-application:${row.id}:${eventId}:applicant`,
     kind: NOTIFICATION_KIND.SHOP_APPLICATION,
     targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
     sourceId: row.id,
@@ -41,7 +44,7 @@ export async function notifyShopApplication(
   );
   if (admins.length)
     await publishNotification(manager, {
-      key: `shop-application:${row.id}:${row.version}:admins`,
+      key: `shop-application:${row.id}:${eventId}:admins`,
       kind: NOTIFICATION_KIND.SHOP_APPLICATION,
       targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
       sourceId: row.id,

@@ -1,5 +1,5 @@
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
-import { walletCheckoutTotal } from '@/modules/wallet/checkout/policies/wallet-checkout.policy';
+import { walletCheckoutTotal } from '@/modules/wallet/checkout/wallet-checkout.service';
 
 describe('checkout coin allocation', () => {
   it('uses exact largest remainders and stable IDs independent of input order', () => {

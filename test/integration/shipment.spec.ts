@@ -16,7 +16,6 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import { ShipmentCancellationService } from '@/modules/shipment/shipment-cancellation.service';
 import { ShipmentService } from '@/modules/shipment/shipment.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -29,8 +28,8 @@ import type { TestDatabase } from '../support/database';
 
 describe('GHN booking and COD cancellation (PostgreSQL)', () => {
   let database: TestDatabase;
+  let orders: OrderService;
   let shipments: ShipmentService;
-  let cancellations: ShipmentCancellationService;
   let status: string;
   let amount: number;
   let carrierCode: string;
@@ -46,17 +45,12 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     database = await createTestDatabase();
     const db = database.dataSource;
 
-    const orders = new OrderService(
-      db,
-      new WalletService(db),
-      new CodPolicy(db),
-    );
+    orders = new OrderService(db, new WalletService(db), new CodPolicy(db));
     shipments = new ShipmentService(
       db,
       orders,
       client as unknown as GhnShipmentClient,
     );
-    cancellations = new ShipmentCancellationService(db, orders);
   });
   afterAll(async () => database?.destroy());
 
@@ -191,6 +185,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     client.requestReturn.mockResolvedValue(true);
     return { db, buyer, owner, shop, order, product, ghnShopId };
   }
+
   async function due(id: string) {
     await database.dataSource
       .getRepository(Shipment)
@@ -289,7 +284,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     ).toBe('CARRIER_DATA_MISMATCH');
   });
 
-  it('does not unlock on cancellation acknowledgement until the carrier confirms cancelled', async () => {
+  it('does not unlock booked COD stock until the carrier confirms cancelled', async () => {
     const f = await fixture();
     const booked = await shipments.create(
       f.owner.id,
@@ -297,12 +292,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       f.order.id,
       {},
     );
-    await cancellations.request(f.buyer.id, f.order.id);
-    await cancellations.respond(f.owner.id, f.shop.id, f.order.id, {
-      approve: true,
-      reason: 'Buyer changed their mind',
-      evidence: 'Buyer request',
-    });
+    await orders.cancelCodPending(f.buyer.id, f.order.id);
     await due(booked.id);
     await shipments.reconcile(booked.id);
     expect(
@@ -325,20 +315,16 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     );
   });
 
-  it('blocks booking during cancellation and auto-approves after 12 hours without a waybill', async () => {
+  it('cancels unbooked preparing COD order immediately before carrier pickup', async () => {
     const f = await fixture();
-    await cancellations.request(f.buyer.id, f.order.id);
-    await expect(
-      shipments.create(f.owner.id, f.shop.id, f.order.id, {}),
-    ).rejects.toThrow('Order cannot be booked');
-    await f.db
-      .getRepository(Order)
-      .update(f.order.id, { cancelRespondBy: new Date(Date.now() - 1) });
-    await cancellations.run();
+    await orders.cancelCodPending(f.buyer.id, f.order.id);
     expect(
       (await f.db.getRepository(Order).findOneByOrFail({ id: f.order.id }))
         .status,
     ).toBe('cancelled');
+    await expect(
+      shipments.create(f.owner.id, f.shop.id, f.order.id, {}),
+    ).rejects.toThrow('Order cannot be booked');
   });
 
   it('escalates a cancellation still unknown after 30 minutes even when every carrier query fails', async () => {
@@ -349,12 +335,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       f.order.id,
       {},
     );
-    await cancellations.request(f.buyer.id, f.order.id);
-    await cancellations.respond(f.owner.id, f.shop.id, f.order.id, {
-      approve: true,
-      reason: 'Cannot continue',
-      evidence: 'Buyer request',
-    });
+    await orders.cancelCodPending(f.buyer.id, f.order.id);
     await f.db.getRepository(Shipment).update(booked.id, {
       cancelRequestedAt: new Date(Date.now() - 31 * 60000),
       nextQueryAt: new Date(0),
@@ -372,7 +353,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
     ).toBe(ProductStatus.HELD);
   });
 
-  it('requests carrier return after pickup during cancellation and keeps stock locked until physical inspection', async () => {
+  it('requests carrier return after pickup during cancellation and keeps stock locked until return resolution', async () => {
     const f = await fixture();
     const booked = await shipments.create(
       f.owner.id,
@@ -380,12 +361,7 @@ describe('GHN booking and COD cancellation (PostgreSQL)', () => {
       f.order.id,
       {},
     );
-    await cancellations.request(f.buyer.id, f.order.id);
-    await cancellations.respond(f.owner.id, f.shop.id, f.order.id, {
-      approve: true,
-      reason: 'Stop parcel',
-      evidence: 'Buyer request',
-    });
+    await orders.cancelCodPending(f.buyer.id, f.order.id);
     status = 'picked';
     await due(booked.id);
     await shipments.reconcile(booked.id);

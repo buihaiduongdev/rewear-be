@@ -6,7 +6,7 @@ import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 
-import { WALLET_HOLD_STATE } from './constants/wallet-checkout.constant';
+import { WALLET_HOLD_STATE } from '../constants/wallet.constant';
 import { WalletCheckoutHold, WalletDebit } from './entities';
 
 export async function verifiedWalletCapture(

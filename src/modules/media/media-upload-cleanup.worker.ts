@@ -1,9 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 
 import { DataSource } from 'typeorm';
 
@@ -12,9 +8,8 @@ import { StorageService } from '@/infrastructure/storage';
 const DAY = 24 * 60 * 60 * 1000;
 
 @Injectable()
-export class MediaUploadCleanupWorker implements OnModuleInit, OnModuleDestroy {
+export class MediaUploadCleanupWorker {
   private readonly logger = new Logger(MediaUploadCleanupWorker.name);
-  private timer?: ReturnType<typeof setInterval>;
   private running = false;
 
   constructor(
@@ -22,16 +17,7 @@ export class MediaUploadCleanupWorker implements OnModuleInit, OnModuleDestroy {
     private readonly storage: StorageService,
   ) {}
 
-  onModuleInit() {
-    if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => void this.run(), DAY);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-
+  @Interval(DAY)
   async run() {
     if (this.running) return;
     this.running = true;

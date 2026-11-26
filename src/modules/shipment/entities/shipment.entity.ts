@@ -58,21 +58,11 @@ export class Shipment extends BaseEntity {
   returnRequestedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  returnInspectionBy: Date | null;
-
-  @Column({ default: false })
-  returnInspectionCalendarMissing: boolean;
-
-  @Column({ default: false })
-  returnInspectionOverdue: boolean;
-
-  @Column({ type: 'timestamptz', nullable: true })
   codCollectedAt: Date | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   carrierTransferredAt: Date | null;
 
   @Column({ type: 'text', nullable: true })
-  // Keep unknown historical reasons readable; new writes use SHIPMENT_REVIEW_REASON.
   reviewReason: string | null;
 }

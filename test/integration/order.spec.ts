@@ -587,7 +587,7 @@ describe('paid order acceptance with PostgreSQL', () => {
       { status: 'cancelled', balance: 230000, accepted: 0, rejected: 1 },
     ]).toContainEqual({
       status: order.status,
-      balance: wallet.balance,
+      balance: wallet.simulationBalance,
       accepted,
       rejected,
     });

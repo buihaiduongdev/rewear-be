@@ -8,6 +8,7 @@ import {
 } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
+import { User } from '@/modules/user/entities';
 
 import {
   COD_CANCELLATION_THRESHOLD,
@@ -22,6 +23,7 @@ import {
   COD_RESTRICTION_CAUSE,
 } from '../constants/cod.constant';
 import { CodBuyerCancellation, CodRestriction } from '../entities';
+import type { CodRestrictionCause } from '../schemas/cod.schema';
 
 @Injectable()
 export class CodPolicy {
@@ -99,6 +101,12 @@ export class CodPolicy {
     now: Date,
   ) {
     if (!order.checkoutId) return;
+    if (manager.queryRunner?.isTransactionActive && manager.findOne) {
+      await manager.findOne(User, {
+        where: { id: order.buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+    }
     if (
       await manager.existsBy(CodBuyerCancellation, {
         buyerId: order.buyerId,
@@ -140,14 +148,61 @@ export class CodPolicy {
       .andWhere('event.createdAt > :since', { since })
       .getCount();
     if (count < COD_CANCELLATION_THRESHOLD) return;
+    await this.createRestriction(
+      manager,
+      order.buyerId,
+      COD_RESTRICTION_CAUSE.REPEATED_CANCELLATION,
+      restrictions,
+      now,
+    );
+  }
+
+  async recordFailedDelivery(
+    manager: EntityManager,
+    order: Pick<Order, 'buyerId'>,
+    now: Date,
+  ) {
+    if (manager.queryRunner?.isTransactionActive && manager.findOne) {
+      await manager.findOne(User, {
+        where: { id: order.buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+    }
+    const restrictions = await manager.find(CodRestriction, {
+      where: { buyerId: order.buyerId },
+      order: { createdAt: 'DESC' },
+    });
+    if (
+      restrictions.some(
+        (row) =>
+          !row.resolvedAt && (!row.blockedUntil || row.blockedUntil > now),
+      )
+    )
+      return restrictions[0];
+    return this.createRestriction(
+      manager,
+      order.buyerId,
+      COD_RESTRICTION_CAUSE.FAILED_DELIVERY,
+      restrictions,
+      now,
+    );
+  }
+
+  private createRestriction(
+    manager: EntityManager,
+    buyerId: string,
+    cause: CodRestrictionCause,
+    restrictions: CodRestriction[],
+    now: Date,
+  ) {
     const episodes = restrictions.filter(
       (row) => row.createdAt.getTime() >= now.getTime() - COD_EPISODE_WINDOW_MS,
     ).length;
-    await manager.save(
+    return manager.save(
       CodRestriction,
       manager.create(CodRestriction, {
-        buyerId: order.buyerId,
-        cause: COD_RESTRICTION_CAUSE.REPEATED_CANCELLATION,
+        buyerId,
+        cause,
         blockedUntil:
           episodes >= COD_MANUAL_REVIEW_EPISODES
             ? null

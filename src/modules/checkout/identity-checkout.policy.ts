@@ -6,9 +6,9 @@ import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
-import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
+import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
+import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
 import {
   CHECKOUT_REMOVAL_REASON,
@@ -36,7 +36,6 @@ export async function pruneIdentityCheckout(
   const removed = orders.filter((o) => !shopAllowsIdentitySales(o.shop, now));
   if (!removed.length) return;
   checkout.identityReviewRequired = true;
-  checkout.identityConfirmedQuote = null;
   const unresolved = await manager.existsBy(PaymentAttempt, {
     checkoutId: checkout.id,
     state: In([
@@ -53,6 +52,8 @@ export async function pruneIdentityCheckout(
   }
   const holds = await manager.find(WalletCheckoutHold, {
     where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+    order: { id: 'ASC' },
+    lock: { mode: 'pessimistic_write' },
   });
   for (const hold of holds)
     await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.RELEASED);

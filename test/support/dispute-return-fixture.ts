@@ -2,20 +2,19 @@ import { randomUUID } from 'node:crypto';
 
 import type { DataSource } from 'typeorm';
 
+import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
-import { DisputeReviewService } from '@/modules/dispute/dispute-review.service';
+import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
-import { DisputeFinalDecision } from '@/modules/dispute/entities/dispute-final-decision.entity';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import { installReturnLabel } from '@/modules/dispute/returns/return.lifecycle';
+import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { Order } from '@/modules/order/entities';
+import { OrderAccess } from '@/modules/order/order.access';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { adjudicationFixture } from './adjudication-fixture';
-import { createPrivateMedia } from './private-media';
 
 export async function disputeReturnFixture(
   db: DataSource,
@@ -59,58 +58,49 @@ export async function disputeReturnFixture(
     },
   );
   await db.getRepository(Order).update(f.order.id, { status: 'dispute' });
-  const adjudication = new DisputeAdjudicationService(db);
+
+  const orderAccess = new OrderAccess();
+  const access = new DisputeAccess(orderAccess);
+  const refunds = new DisputeRefundService(db, access);
+  const returns = new DisputeReturnService(
+    db,
+    {} as GhnShipmentClient,
+    access,
+    orderAccess,
+    refunds,
+  );
+  const adjudication = new DisputeAdjudicationService(
+    db,
+    access,
+    refunds,
+    returns,
+  );
+
   const decision = await adjudication.decide(f.admin.id, f.issue.id, {
-    requestId: randomUUID(),
-    reviewToken: (await adjudication.review(f.issue.id)).reviewToken,
     outcome: 'REQUIRE_RETURN',
     responsibility: 'SELLER',
-    reason: 'Wrong item',
-    evidenceAssessment: 'Both parties evidence verified',
-    refundPlan: { amount: f.order.subtotal, condition: 'RETURN_REQUIRED' },
+    reason: 'Wrong item received',
   });
   await db
     .getRepository(DisputeDecision)
     .update(decision.id, { appealUntil: new Date(Date.now() - 1000) });
-  await new DisputeReviewService(db).refreshIssue(f.issue.id);
-  const final = await db
-    .getRepository(DisputeFinalDecision)
-    .findOneByOrFail({ decisionId: decision.id });
-  const refunds = new DisputeRefundService(db);
-  await refunds.refresh(final.id);
+  await adjudication.refreshIssue(f.issue.id);
+
+  const finalized = await db
+    .getRepository(DisputeDecision)
+    .findOneByOrFail({ id: decision.id });
   const returned = await db
     .getRepository(DisputeReturn)
-    .findOneByOrFail({ remedyKey: final.remedyKey });
-  return { ...f, db, shipment, decision, final, returned, refunds };
-}
-export async function evidenceForReturn(
-  f: Awaited<ReturnType<typeof disputeReturnFixture>>,
-  actorId = f.buyer.id,
-  tags: string[] = ['RETURN_ITEM', 'RETURN_PACKED_LABEL', 'RETURN_ACCESSORIES'],
-) {
-  const media = await createPrivateMedia(f.db, actorId);
-  return f.db.getRepository(DisputeEvidence).save({
-    orderId: f.order.id,
-    uploadedById: actorId,
-    mediaId: media.id,
-    media,
-    tags,
-  });
-}
-export async function labelForReturn(
-  f: Awaited<ReturnType<typeof disputeReturnFixture>>,
-  mode: 'EVIDENCE' | 'SIMULATION' = 'EVIDENCE',
-) {
-  return f.db.transaction(async (manager) =>
-    installReturnLabel(
-      manager,
-      await manager.findOneByOrFail(DisputeReturn, { id: f.returned.id }),
-      {
-        mode,
-        waybillCode: randomUUID(),
-        instructions: 'Prepaid return label; buyer does not advance shipping',
-      },
-      new Date(Date.now() - 60000),
-    ),
-  );
+    .findOneByOrFail({ decisionId: decision.id });
+
+  return {
+    ...f,
+    db,
+    shipment,
+    decision: finalized,
+    returned,
+    refunds,
+    returns,
+    adjudication,
+  };
 }

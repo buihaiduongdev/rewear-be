@@ -17,7 +17,6 @@ import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
-import { ShopPayoutWorker } from '@/modules/shop-finance/payouts/shop-payout.worker';
 import { User } from '@/modules/user/entities';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 
@@ -37,7 +36,6 @@ describe('Wallet and payout HTTP access and API contracts', () => {
       OrderSettlementWorker,
       ShipmentWorker,
       DisputeWorker,
-      ShopPayoutWorker,
     ])
       builder = builder.overrideProvider(worker).useValue({});
     const module = await builder.compile();
@@ -68,7 +66,6 @@ describe('Wallet and payout HTTP access and API contracts', () => {
       checkoutId: checkout.id,
       buyerId: f.buyer.id,
       requestId: randomUUID(),
-      fingerprint: 'private',
       mode: 'EVIDENCE',
       state: 'RELEASED',
       amount: 100,

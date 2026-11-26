@@ -21,7 +21,7 @@ import { isSettlementWindowDue } from './policies/order-settlement.policy';
 import {
   type VerifyDeliveryInput,
   verifyDeliverySchema,
-} from './schemas/order-settlement.schema';
+} from './schemas/order.schema';
 
 const receiptStates = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
 
@@ -29,23 +29,23 @@ const receiptStates = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
 export class OrderSettlementService {
   private readonly logger = new Logger(OrderSettlementService.name);
   private cursor: string | undefined;
+
   constructor(
     private readonly db: DataSource,
     private readonly funding: OrderFundingService,
   ) {}
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
+  private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }
 
   async confirmReceipt(buyerId: string, orderId: string) {
     return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const order = await manager.findOneByOrFail(Order, {
-        id: orderId,
-        buyerId,
+      const now = await this.now(manager);
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: orderId, buyerId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (order.receiptConfirmedAt) return order;
       const shipment = await manager.findOneBy(Shipment, { orderId });
@@ -80,8 +80,11 @@ export class OrderSettlementService {
   ) {
     const data = verifyDeliverySchema.parse(input);
     return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const order = await manager.findOneByOrFail(Order, { id: orderId });
+      const now = await this.now(manager);
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const deliveredAt = new Date(data.deliveredAt);
       const existing = await manager.findOneBy(OrderDeliveryVerification, {
         orderId,
@@ -131,7 +134,6 @@ export class OrderSettlementService {
       order.deliveryVerifiedAt = deliveredAt;
       order.disputeDeadlineAt = deadline;
       await manager.save(order);
-      // Private evidence stays in the verification table, never in buyer-facing events.
       await this.event(
         manager,
         orderId,
@@ -145,10 +147,13 @@ export class OrderSettlementService {
 
   async settleOrder(orderId: string) {
     return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
+      const now = await this.now(manager);
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const existing = await manager.findOneBy(ShopSettlement, { orderId });
       if (existing) return existing;
-      const order = await manager.findOneByOrFail(Order, { id: orderId });
       const shipment = await manager.findOneBy(Shipment, { orderId });
       const canConsider =
         receiptStates.includes(
@@ -181,11 +186,9 @@ export class OrderSettlementService {
           null,
         );
       }
-      // Completion is a delivery outcome, independent of carrier remittance.
       const credit = await this.funding.heldCredit(manager, order, shipment);
       if (!credit) return null;
-      const canRelease = windowDue && verification?.mode === credit.mode;
-      if (!canRelease) return null;
+      if (!windowDue || verification?.mode !== credit.mode) return null;
       const refundDebit = await orderRefundDebit(
         manager,
         order.id,
@@ -216,7 +219,6 @@ export class OrderSettlementService {
   }
 
   async settleDue() {
-    // Keyset traversal visits blocked and failing rows without starving later orders.
     const candidates = this.db.manager
       .createQueryBuilder(Order, 'order')
       .select('order.id', 'id')
@@ -258,8 +260,6 @@ export class OrderSettlementService {
         action,
         actorId,
         reason: null,
-        evidence: null,
-        approved: null,
         createdAt: now,
       }),
     );

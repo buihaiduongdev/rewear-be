@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 
 import { ConflictException, Injectable } from '@nestjs/common';
 
-import { DataSource, EntityManager, In } from 'typeorm';
+import { DataSource, EntityManager, In, Not, QueryFailedError } from 'typeorm';
 
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { CarrierCompensationReceipt } from '@/modules/dispute/returns/entities/carrier-compensation-receipt.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 
 import { RECONCILIATION_REVIEW_REASON } from './constants/cod-reconciliation.constant';
 import {
@@ -42,13 +42,15 @@ import {
 const fingerprint = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
+const isUniqueViolation = (error: unknown) =>
+  error instanceof QueryFailedError &&
+  (error as QueryFailedError & { driverError?: { code?: string } }).driverError
+    ?.code === '23505';
+
 @Injectable()
 export class CodReconciliationService {
   constructor(private readonly db: DataSource) {}
 
-  private async lock(manager: EntityManager) {
-    await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-  }
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
@@ -65,7 +67,10 @@ export class CodReconciliationService {
     const data = collectionInputSchema.parse(input);
     const requestFingerprint = fingerprint({ orderId, ...data });
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
+      await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const existing = await this.findCollectionReplay(
         manager,
         orderId,
@@ -88,7 +93,21 @@ export class CodReconciliationService {
     const data = remittanceInputSchema.parse(input);
     const requestFingerprint = fingerprint(data);
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
+      const uniqueOrderIds = [
+        ...new Set(data.allocations.map((a) => a.orderId)),
+      ].sort();
+      if (uniqueOrderIds.length > 0) {
+        await manager.find(Order, {
+          where: { id: In(uniqueOrderIds) },
+          order: { id: 'ASC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+        await manager.find(Shipment, {
+          where: { orderId: In(uniqueOrderIds) },
+          order: { orderId: 'ASC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+      }
       const existing = await this.findRemittanceReplay(
         manager,
         data,
@@ -170,8 +189,18 @@ export class CodReconciliationService {
 
   async refresh(adminId: string, orderId: string) {
     return this.db.transaction(async (manager) => {
-      await this.lock(manager);
-      const row = await manager.findOneByOrFail(CodCollection, { orderId });
+      await manager.findOne(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      await manager.findOne(Shipment, {
+        where: { orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const row = await manager.findOneOrFail(CodCollection, {
+        where: { orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       await this.updateProjection(
         manager,
         row,
@@ -249,11 +278,17 @@ export class CodReconciliationService {
     orderId: string,
     data: CollectionInput,
   ): Promise<CollectionContext> {
-    const order = await manager.findOneByOrFail(Order, {
-      id: orderId,
-      paymentMethod: ORDER_PAYMENT_METHOD.COD,
+    const order = await manager.findOneOrFail(Order, {
+      where: {
+        id: orderId,
+        paymentMethod: ORDER_PAYMENT_METHOD.COD,
+      },
+      lock: { mode: 'pessimistic_write' },
     });
-    const shipment = await manager.findOneByOrFail(Shipment, { orderId });
+    const shipment = await manager.findOneOrFail(Shipment, {
+      where: { orderId },
+      lock: { mode: 'pessimistic_write' },
+    });
     const hasMatchingWaybill =
       Boolean(shipment.orderCode) && shipment.orderCode === data.waybillCode;
     const hasMatchingAmount = shipment.codAmount === order.total;
@@ -283,26 +318,36 @@ export class CodReconciliationService {
     const isInvalidExpectedAmount = order.total <= 0;
     if (isInvalidExpectedAmount)
       throw new ConflictException('COD expected amount must be positive');
-    const row = await manager.save(
-      CodCollection,
-      manager.create(CodCollection, {
-        ...data,
-        orderId: order.id,
-        shopId: order.shopId,
-        shipmentId: shipment.id,
-        actorId: adminId,
-        expectedAmount: order.total,
-        ...money,
-        collectedAt,
-        requestFingerprint,
-        orderFingerprint: this.orderFingerprint(order, shipment),
-        status: COD_RECONCILIATION_STATUS.AWAITING,
-        cashReceived: 0,
-        feeDeducted: 0,
-        reviewReason: null,
-        fundedAt: null,
-      }),
-    );
+    let row: CodCollection;
+    try {
+      row = await manager.save(
+        CodCollection,
+        manager.create(CodCollection, {
+          ...data,
+          orderId: order.id,
+          shopId: order.shopId,
+          shipmentId: shipment.id,
+          actorId: adminId,
+          expectedAmount: order.total,
+          ...money,
+          collectedAt,
+          requestFingerprint,
+          orderFingerprint: this.orderFingerprint(order, shipment),
+          status: COD_RECONCILIATION_STATUS.AWAITING,
+          cashReceived: 0,
+          feeDeducted: 0,
+          reviewReason: null,
+          fundedAt: null,
+        }),
+      );
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(
+          'Collection already recorded with another request or payload',
+        );
+      }
+      throw error;
+    }
     await this.updateProjection(manager, row, now, adminId);
     return row;
   }
@@ -312,15 +357,6 @@ export class CodReconciliationService {
     data: RemittanceInput,
     requestFingerprint: string,
   ) {
-    if (
-      await manager.existsBy(CarrierCompensationReceipt, {
-        mode: data.mode,
-        reference: data.reference,
-      })
-    )
-      throw new ConflictException(
-        'Receipt reference already allocated to carrier compensation',
-      );
     const existing = await manager.findOneBy(CodRemittance, [
       { requestId: data.requestId },
       { mode: data.mode, reference: data.reference },
@@ -339,9 +375,13 @@ export class CodReconciliationService {
     data: RemittanceInput,
     receivedAt: Date,
   ): Promise<ValidatedRemittanceAllocation[]> {
-    const orderIds = data.allocations.map((a) => a.orderId);
+    const orderIds = [
+      ...new Set(data.allocations.map((a) => a.orderId)),
+    ].sort();
     const collections = await manager.find(CodCollection, {
       where: { orderId: In(orderIds) },
+      order: { orderId: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
     });
     const collectionMap = new Map(collections.map((c) => [c.orderId, c]));
 
@@ -388,27 +428,36 @@ export class CodReconciliationService {
       throw new ConflictException('Receipt exceeds verified collection');
   }
 
-  private saveRemittance(
+  private async saveRemittance(
     manager: EntityManager,
     adminId: string,
     data: RemittanceInput,
     receivedAt: Date,
     requestFingerprint: string,
   ) {
-    return manager.save(
-      CodRemittance,
-      manager.create(CodRemittance, {
-        requestId: data.requestId,
-        mode: data.mode,
-        reference: data.reference,
-        netAmount: data.netAmount,
-        receivedAt,
-        reason: data.reason,
-        evidence: data.evidence,
-        actorId: adminId,
-        requestFingerprint,
-      }),
-    );
+    try {
+      return await manager.save(
+        CodRemittance,
+        manager.create(CodRemittance, {
+          requestId: data.requestId,
+          mode: data.mode,
+          reference: data.reference,
+          netAmount: data.netAmount,
+          receivedAt,
+          reason: data.reason,
+          evidence: data.evidence,
+          actorId: adminId,
+          requestFingerprint,
+        }),
+      );
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(
+          'Remittance already recorded with another request or payload',
+        );
+      }
+      throw error;
+    }
   }
 
   private async applyAllocations(
@@ -443,6 +492,7 @@ export class CodReconciliationService {
   ): Promise<void> {
     let entry = await manager.findOneBy(ShopLedgerEntry, {
       orderId: row.orderId,
+      type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
     });
     if (!entry) {
       entry = await manager.save(

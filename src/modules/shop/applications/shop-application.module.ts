@@ -6,19 +6,10 @@ import { MediaModule } from '@/modules/media/media.module';
 
 import {
   OwnerIdentity,
-  OwnerIdentityDocument,
   ShopApplication,
-  ShopApplicationAudit,
-  ShopApplicationCommand,
   ShopApplicationDocument,
-  ShopApplicationRevision,
 } from './entities';
 import { IdentityRenewalWorker } from './renewal/identity-renewal.worker';
-import { OwnerIdentityRenewalService } from './renewal/owner-identity-renewal.service';
-import { ShopApplicationAdminService } from './shop-application-admin.service';
-import { ShopApplicationMediaService } from './shop-application-media.service';
-import { ShopApplicationReadService } from './shop-application-read.service';
-import { ShopApplicationAccess } from './shop-application.access';
 import { ShopApplicationController } from './shop-application.controller';
 import { ShopApplicationService } from './shop-application.service';
 
@@ -28,23 +19,11 @@ import { ShopApplicationService } from './shop-application.service';
     MediaModule,
     TypeOrmModule.forFeature([
       ShopApplication,
-      ShopApplicationAudit,
-      ShopApplicationCommand,
       ShopApplicationDocument,
-      ShopApplicationRevision,
       OwnerIdentity,
-      OwnerIdentityDocument,
     ]),
   ],
-  providers: [
-    IdentityRenewalWorker,
-    OwnerIdentityRenewalService,
-    ShopApplicationAccess,
-    ShopApplicationReadService,
-    ShopApplicationService,
-    ShopApplicationAdminService,
-    ShopApplicationMediaService,
-  ],
+  providers: [IdentityRenewalWorker, ShopApplicationService],
   controllers: [ShopApplicationController],
 })
 export class ShopApplicationModule {}

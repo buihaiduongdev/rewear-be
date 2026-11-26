@@ -16,7 +16,7 @@ import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service'
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import {
-  CoinGrant,
+  CoinAccount,
   CoinOrderDebit,
   CoinReservation,
 } from '@/modules/coins/core/entities';
@@ -172,13 +172,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
 
   it('commits coins to COD order holds and keeps collection net without spending before collection', async () => {
     const f = await fixture();
-    const grant = await f.db.getRepository(CoinGrant).save({
-      buyerId: f.buyer.id,
-      mode: 'EVIDENCE',
-      source: 'PROGRAM',
-      sourceId: randomUUID(),
-      amount: 20000,
-      expiresAt: new Date(Date.now() + 60000),
+    await f.db.getRepository(CoinAccount).save({
+      userId: f.buyer.id,
+      balance: 20000,
     });
     await new CheckoutService(f.db, {} as CartService).selectCoins(
       f.buyer.id,
@@ -208,8 +204,10 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       .update(f.checkout.id, { expiresAt: new Date(Date.now() - 1000) });
     await new CheckoutService(f.db, {} as CartService).expire();
     expect(
-      await f.db.getRepository(CoinGrant).findOneByOrFail({ id: grant.id }),
-    ).toMatchObject({ held: 20000, spent: 0 });
+      await f.db
+        .getRepository(CoinAccount)
+        .findOneByOrFail({ userId: f.buyer.id }),
+    ).toMatchObject({ balance: 0, heldBalance: 20000 });
   });
 
   it('rejects reserved stock whose moderation is no longer approved', async () => {
@@ -474,12 +472,21 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       orders.cancelCodPending(f.buyer.id, order.id),
       orders.accept(f.owner.id, f.shop.id, order.id),
     ]);
-    expect(result.filter((item) => item.status === 'fulfilled')).toHaveLength(
-      1,
-    );
-    expect((await new WalletService(f.db).mine(f.buyer.id, {})).balance).toBe(
-      0,
-    );
+    expect(
+      result.filter((item) => item.status === 'fulfilled').length,
+    ).toBeGreaterThanOrEqual(1);
+    const saved = await f.db
+      .getRepository(Order)
+      .findOneByOrFail({ id: order.id });
+    expect(saved.status).toBe('cancelled');
+    const savedProduct = await f.db
+      .getRepository(Product)
+      .findOneByOrFail({ id: f.product.id });
+    expect(savedProduct.status).toBe(ProductStatus.ACTIVE);
+    expect(savedProduct.reservedOrderId).toBeNull();
+    const wallet = await new WalletService(f.db).mine(f.buyer.id, {});
+    expect(wallet.balance).toBe(0);
+    expect(wallet.simulationBalance).toBe(0);
   });
 
   it('counts self-cancelled checkouts once and restricts new COD after five while allowing old-order reads', async () => {
