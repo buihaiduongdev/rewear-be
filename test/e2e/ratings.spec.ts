@@ -51,6 +51,7 @@ describe('Verified Shop ratings HTTP', () => {
       headers: { 'If-Match': 'immutable-etag' },
       expiresAt: new Date(Date.now() + 300000),
     })),
+    getPublicUrl: jest.fn((key: string) => `https://public.test/${key}`),
   };
   beforeAll(async () => {
     const database = await createTestDatabase();
