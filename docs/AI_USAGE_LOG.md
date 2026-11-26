@@ -1326,3 +1326,14 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:unit` pass 61/61 suites (338/338 unit tests); `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #77; branch `refactor/clean-social-moderation-modules`, commit `52605b9`.
+### 2026-11-26 — Tinh gọn module thanh toán giỏ hàng và sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn hai module `checkout` và `product` theo hướng giảm truy vấn lặp (N+1), tiêm phụ thuộc chuẩn NestJS, gom các tệp phụ trợ nhỏ lẻ và bỏ các máy trạng thái dư thừa mà vẫn giữ nguyên các module đã chốt ổn định.
+- **Prompt chính:** Rà soát và dọn gọn hai module `checkout` và `product`: gộp truy vấn theo lô `In(...)` thay cho truy vấn lặp từng phần tử, tiêm `CoinService` qua DI thay vì khởi tạo thủ công, gộp các file helper/enum nhỏ lẻ, bỏ máy trạng thái vòng đời không còn sử dụng và thay phần kiểm tra khả dụng sản phẩm bằng các hàm thuần gọn gàng hơn, đồng thời cập nhật lại kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Gộp truy vấn trong `lockProductEligibility` và `quoteInputs` bằng `In(...)`, chuyển `CheckoutService#view()` sang đồng bộ, tiêm `CoinService` vào `CheckoutService` và `ShippingQuoteService`, gộp `identity-checkout.policy.ts` và `shipping-quote.inputs.ts` vào các service tương ứng; xóa `product-lifecycle.machine.ts` không dùng, thay boilerplate XState trong `product-availability.machine.ts` bằng hàm thuần, gom 3 file enum sản phẩm về `product.enum.ts`, tối ưu `ProductService#findModeration` bằng `findOneByOrFail`, đồng bộ các test constructor liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu toàn bộ 6 tiêu chí rà soát module và phạm vi cô lập để không đụng vào 12 phân hệ đã chốt; yêu cầu khôi phục nguyên vẹn giá trị enum tình trạng sản phẩm và loại bỏ triệt để toàn bộ chỗ khởi tạo `new CoinService()` thủ công trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 596 tệp, Prettier, TypeScript, Build); unit test trọng tâm (`coin-checkout-routes.spec.ts` và nhóm `test/unit/modules/product`) pass 3/3 suites (25/25 tests); `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần gộp đầu tiên AI làm lệch giá trị enum `ProductCondition` so với database và còn sót 3 chỗ khởi tạo thủ công `new CoinService()` trong `checkout.service.ts`; đã rà soát phát hiện, khôi phục đúng giá trị enum gốc (`FAIR`, `GOOD`, `EXCELLENT`, `PRISTINE`) và chuyển sang tiêm `CoinService` qua DI ở commit `c6276dd`.
+- **Minh chứng:** Branch `refactor/clean-duong-modules`, commits `51e345a`, `c6276dd`.
