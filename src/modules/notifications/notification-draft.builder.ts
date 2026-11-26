@@ -37,59 +37,6 @@ export type TNotificationDraft = {
   sendEmail?: boolean;
 };
 
-async function resolveShopRecipients(
-  manager: EntityManager,
-  shopId: string,
-  permission: string,
-): Promise<string[]> {
-  const qb = manager
-    .getRepository(ShopMember)
-    .createQueryBuilder('member')
-    .select('DISTINCT member.userId', 'userId')
-    .where('member.shopId = :shopId', { shopId });
-
-  if (permission === SHOP_PERMISSIONS.SHOP_OWNER) {
-    qb.andWhere('member.memberRole = :ownerRole', {
-      ownerRole: ShopMemberRole.OWNER,
-    });
-  } else {
-    qb.leftJoin(
-      ShopMemberRoleAssignment,
-      'assignment',
-      'assignment.memberId = member.id',
-    )
-      .leftJoin(
-        ShopRole,
-        'role',
-        'role.id = assignment.roleId AND role.shopId = :shopId',
-        { shopId },
-      )
-      .leftJoin(
-        ShopRolePermission,
-        'rp',
-        'rp.roleId = role.id AND rp.permissionKey = :permission',
-        { permission },
-      )
-      .andWhere(
-        '(member.memberRole = :ownerRole OR rp.permissionKey IS NOT NULL)',
-        { ownerRole: ShopMemberRole.OWNER },
-      );
-  }
-
-  const rows = await qb.getRawMany<{ userId: string }>();
-  return rows.map((row) => row.userId);
-}
-
-async function resolveAdminRecipients(
-  manager: EntityManager,
-): Promise<string[]> {
-  const admins = await manager.find(User, {
-    where: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
-    select: { id: true },
-  });
-  return admins.map((u) => u.id);
-}
-
 export async function buildNotificationDrafts(
   manager: EntityManager,
   data: TDomainEventJobData,
@@ -302,4 +249,57 @@ export async function buildNotificationDrafts(
       },
     )
     .exhaustive();
+}
+
+async function resolveShopRecipients(
+  manager: EntityManager,
+  shopId: string,
+  permission: string,
+): Promise<string[]> {
+  const qb = manager
+    .getRepository(ShopMember)
+    .createQueryBuilder('member')
+    .select('DISTINCT member.userId', 'userId')
+    .where('member.shopId = :shopId', { shopId });
+
+  if (permission === SHOP_PERMISSIONS.SHOP_OWNER) {
+    qb.andWhere('member.memberRole = :ownerRole', {
+      ownerRole: ShopMemberRole.OWNER,
+    });
+  } else {
+    qb.leftJoin(
+      ShopMemberRoleAssignment,
+      'assignment',
+      'assignment.memberId = member.id',
+    )
+      .leftJoin(
+        ShopRole,
+        'role',
+        'role.id = assignment.roleId AND role.shopId = :shopId',
+        { shopId },
+      )
+      .leftJoin(
+        ShopRolePermission,
+        'rp',
+        'rp.roleId = role.id AND rp.permissionKey = :permission',
+        { permission },
+      )
+      .andWhere(
+        '(member.memberRole = :ownerRole OR rp.permissionKey IS NOT NULL)',
+        { ownerRole: ShopMemberRole.OWNER },
+      );
+  }
+
+  const rows = await qb.getRawMany<{ userId: string }>();
+  return rows.map((row) => row.userId);
+}
+
+async function resolveAdminRecipients(
+  manager: EntityManager,
+): Promise<string[]> {
+  const admins = await manager.find(User, {
+    where: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+    select: { id: true },
+  });
+  return admins.map((u) => u.id);
 }
