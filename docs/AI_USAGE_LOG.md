@@ -1336,4 +1336,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu toàn bộ 6 tiêu chí rà soát module và phạm vi cô lập để không đụng vào 12 phân hệ đã chốt; yêu cầu khôi phục nguyên vẹn giá trị enum tình trạng sản phẩm và loại bỏ triệt để toàn bộ chỗ khởi tạo `new CoinService()` thủ công trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 596 tệp, Prettier, TypeScript, Build); unit test trọng tâm (`coin-checkout-routes.spec.ts` và nhóm `test/unit/modules/product`) pass 3/3 suites (25/25 tests); `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần gộp đầu tiên AI làm lệch giá trị enum `ProductCondition` so với database và còn sót 3 chỗ khởi tạo thủ công `new CoinService()` trong `checkout.service.ts`; đã rà soát phát hiện, khôi phục đúng giá trị enum gốc (`FAIR`, `GOOD`, `EXCELLENT`, `PRISTINE`) và chuyển sang tiêm `CoinService` qua DI ở commit `c6276dd`.
-- **Minh chứng:** Branch `refactor/clean-duong-modules`, commits `51e345a`, `c6276dd`.
+- **Minh chứng:** PR #78; branch `refactor/clean-duong-modules`, commits `51e345a`, `c6276dd`.
