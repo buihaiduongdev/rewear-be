@@ -11,11 +11,8 @@ import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { OutboxService } from '@/modules/event/outbox.service';
-import { Product, ProductModeration } from '@/modules/product/entities';
-import {
-  ProductModerationStatus,
-  ProductStatus,
-} from '@/modules/product/enums';
+import { Product } from '@/modules/product/entities';
+import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 
@@ -36,7 +33,7 @@ describe('Buyer–Shop chat PostgreSQL', () => {
     );
   });
   afterAll(async () => database?.destroy());
-  it('allows only currently public approved product attachments from the same Shop', async () => {
+  it('allows only active product attachments from the same Shop', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const thread = await service.open(f.buyer.id, f.shop.id);
@@ -58,15 +55,6 @@ describe('Buyer–Shop chat PostgreSQL', () => {
         categoryId: category.id,
       }),
     );
-    const moderation = await db.manager.save(
-      ProductModeration,
-      db.manager.create(ProductModeration, {
-        productId: product.id,
-        status: ProductModerationStatus.APPROVED,
-        version: 1,
-        reason: null,
-      }),
-    );
     const sent = await service.send(f.buyer.id, thread.id, {
       mediaIds: [],
       productId: product.id,
@@ -77,37 +65,19 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       price: 200000,
       status: 'ACTIVE',
     });
-    await db.manager.update(ProductModeration, moderation.id, {
-      status: ProductModerationStatus.DRAFT,
-    });
-    await expect(
-      service.send(f.buyer.id, thread.id, {
-        mediaIds: [],
-        productId: product.id,
-      }),
-    ).rejects.toThrow('public approved listing');
     expect(
       (await service.messages(f.owner.id, thread.id, { limit: 50, offset: 0 }))
         .items[0].product?.title,
     ).toBe('Áo khoác');
-    await db.manager.update(ProductModeration, moderation.id, {
-      status: ProductModerationStatus.APPROVED,
+    await db.manager.update(Product, product.id, {
+      status: ProductStatus.HIDDEN,
     });
-    await db.manager.update(Category, category.id, { isActive: false });
     await expect(
       service.send(f.buyer.id, thread.id, {
         mediaIds: [],
         productId: product.id,
       }),
-    ).rejects.toThrow('public approved listing');
-    await db.manager.update(Category, category.id, { isActive: true });
-    await db.manager.update(Shop, f.shop.id, { status: ShopStatus.INACTIVE });
-    await expect(
-      service.send(f.owner.id, thread.id, {
-        mediaIds: [],
-        productId: product.id,
-      }),
-    ).rejects.toThrow('public approved listing');
+    ).rejects.toThrow('active listing');
   });
   it('creates one conversation per buyer/Shop even under concurrent retries', async () => {
     const f = await adjudicationFixture(database.dataSource);

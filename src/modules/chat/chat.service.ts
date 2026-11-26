@@ -13,11 +13,8 @@ import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { Product, ProductModeration } from '@/modules/product/entities';
-import {
-  ProductModerationStatus,
-  ProductStatus,
-} from '@/modules/product/enums';
+import { Product } from '@/modules/product/entities';
+import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -416,28 +413,14 @@ export class ChatService {
     conversation: ChatConversation,
     productId: string,
   ) {
-    const product = await manager.findOne(Product, {
-      where: {
-        id: productId,
-        shopId: conversation.shopId,
-        status: ProductStatus.ACTIVE,
-      },
-      relations: { category: true, shop: true },
+    const product = await manager.findOneBy(Product, {
+      id: productId,
+      shopId: conversation.shopId,
+      status: ProductStatus.ACTIVE,
     });
-    const approved =
-      product &&
-      (await manager.existsBy(ProductModeration, {
-        productId: product.id,
-        status: ProductModerationStatus.APPROVED,
-      }));
-    if (
-      !product ||
-      !approved ||
-      product.category?.isActive !== true ||
-      product.shop?.status !== ShopStatus.ACTIVE
-    ) {
+    if (!product) {
       throw new BadRequestException(
-        'Product must be a public approved listing of this Shop',
+        'Product must be an active listing of this Shop',
       );
     }
     return product;
