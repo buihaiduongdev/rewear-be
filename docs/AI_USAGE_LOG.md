@@ -1325,4 +1325,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi công việc để giữ nguyên toàn bộ các phân hệ đã chốt ổn định, rà soát luồng nghiệp vụ và kiểm tra lại kết quả build cùng unit test trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:unit` pass 61/61 suites (338/338 unit tests); `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `refactor/clean-social-moderation-modules`, commit `52605b9`.
+- **Minh chứng:** PR #77; branch `refactor/clean-social-moderation-modules`, commit `52605b9`.
