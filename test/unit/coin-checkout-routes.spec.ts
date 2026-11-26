@@ -66,6 +66,7 @@ describe('coin checkout payment routes', () => {
     const service = new CheckoutService(
       db as unknown as DataSource,
       {} as CartService,
+      new CoinService(db as unknown as DataSource),
     );
     const requestId = randomUUID();
     await service.selectCoins(row.buyerId, row.id, {
@@ -105,6 +106,7 @@ describe('coin checkout payment routes', () => {
         new CheckoutService(
           db as unknown as DataSource,
           {} as CartService,
+          new CoinService(db as unknown as DataSource),
         ).selectCoins(row.buyerId, row.id, {
           requestId: randomUUID(),
           amount: 0,

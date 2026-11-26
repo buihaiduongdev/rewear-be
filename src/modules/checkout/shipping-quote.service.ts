@@ -9,6 +9,7 @@ import {
   GhnSandboxAdapter,
 } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
 import { pruneIdentityCheckout } from './checkout.service';
@@ -128,6 +129,7 @@ export class ShippingQuoteService {
   constructor(
     private readonly db: DataSource,
     private readonly carrier: GhnSandboxAdapter,
+    private readonly coinService: CoinService,
   ) {}
 
   async refresh(
@@ -143,7 +145,7 @@ export class ShippingQuoteService {
         where: { id: checkoutId, buyerId },
         lock: { mode: 'pessimistic_write' },
       });
-      await pruneIdentityCheckout(manager, row, currentNow);
+      await pruneIdentityCheckout(manager, row, currentNow, this.coinService);
       return { checkout: row, now: currentNow };
     });
     this.assertActive(checkout, now);

@@ -1,19 +1,19 @@
 export enum ProductCondition {
-  LIKE_NEW = 'LIKE_NEW',
-  GOOD = 'GOOD',
   FAIR = 'FAIR',
-  HEAVILY_USED = 'HEAVILY_USED',
+  GOOD = 'GOOD',
+  EXCELLENT = 'EXCELLENT',
+  PRISTINE = 'PRISTINE',
 }
 
 export enum ProductStatus {
   DRAFT = 'DRAFT',
   PENDING_REVIEW = 'PENDING_REVIEW',
   REJECTED = 'REJECTED',
+  SUSPENDED = 'SUSPENDED',
   ACTIVE = 'ACTIVE',
-  HIDDEN = 'HIDDEN',
   HELD = 'HELD',
   SOLD = 'SOLD',
-  SUSPENDED = 'SUSPENDED',
+  HIDDEN = 'HIDDEN',
 }
 
 export enum ProductModerationStatus {

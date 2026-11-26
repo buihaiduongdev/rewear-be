@@ -17,6 +17,7 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { CoinAccount, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { OutboxService } from '@/modules/event/outbox.service';
@@ -62,6 +63,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         new ShippingQuoteService(
           database.dataSource,
           carrier as unknown as GhnSandboxAdapter,
+          new CoinService(database.dataSource),
         ),
       ),
       new OutboxService(),
@@ -227,7 +229,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
           : { userId: buyerId, balance: 20000 },
         ['userId'],
       );
-    const checkoutService = new CheckoutService(db, {} as CartService);
+    const checkoutService = new CheckoutService(
+      db,
+      {} as CartService,
+      new CoinService(db),
+    );
     await checkoutService.selectCoins(buyerId, checkoutId, {
       requestId: randomUUID(),
       amount: 20000,
@@ -271,7 +277,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     const { db, buyer, checkout } = await fixture();
     await coinSelection(buyer.id, checkout.id, 'SIMULATION');
     const pricing = new PaymentPricing(
-      new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+      new ShippingQuoteService(
+        db,
+        carrier as unknown as GhnSandboxAdapter,
+        new CoinService(db),
+      ),
     );
     const payos = new PaymentService(
       db,
@@ -284,11 +294,15 @@ describe('Wallet full checkout (PostgreSQL)', () => {
     });
     expect(attempt.amount).toBe(210000);
     await expect(
-      new CheckoutService(db, {} as CartService).selectCoins(
-        buyer.id,
-        checkout.id,
-        { requestId: randomUUID(), amount: 0, mode: 'SIMULATION' },
-      ),
+      new CheckoutService(
+        db,
+        {} as CartService,
+        new CoinService(db),
+      ).selectCoins(buyer.id, checkout.id, {
+        requestId: randomUUID(),
+        amount: 0,
+        mode: 'SIMULATION',
+      }),
     ).rejects.toThrow('Resolve payment');
     const savedAttempt = await db
       .getRepository(PaymentAttempt)
@@ -407,7 +421,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       const { db, buyer, checkout } = await fixture();
       await coinSelection(buyer.id, checkout.id, 'EVIDENCE');
       const expiry = new Date(Date.now() - 1000);
-      const service = new CheckoutService(db, {} as CartService);
+      const service = new CheckoutService(
+        db,
+        {} as CartService,
+        new CoinService(db),
+      );
       if (action === 'cancel') await service.cancel(buyer.id, checkout.id);
       else {
         await db
@@ -449,15 +467,20 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       userId: first.buyer.id,
       simulationBalance: 40000,
     });
-    await new CheckoutService(first.db, {} as CartService).selectCoins(
-      first.buyer.id,
-      first.checkout.id,
-      { requestId: randomUUID(), amount: 40000, mode: 'SIMULATION' },
-    );
+    await new CheckoutService(
+      first.db,
+      {} as CartService,
+      new CoinService(first.db),
+    ).selectCoins(first.buyer.id, first.checkout.id, {
+      requestId: randomUUID(),
+      amount: 40000,
+      mode: 'SIMULATION',
+    });
     const pricing = new PaymentPricing(
       new ShippingQuoteService(
         first.db,
         carrier as unknown as GhnSandboxAdapter,
+        new CoinService(first.db),
       ),
     );
     const payos = new PaymentService(
@@ -498,14 +521,22 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       userId: f.buyer.id,
       simulationBalance: 100,
     });
-    const service = new CheckoutService(f.db, {} as CartService);
+    const service = new CheckoutService(
+      f.db,
+      {} as CartService,
+      new CoinService(f.db),
+    );
     await service.selectCoins(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),
       amount: 100,
       mode: 'SIMULATION',
     });
     const pricing = new PaymentPricing(
-      new ShippingQuoteService(f.db, carrier as unknown as GhnSandboxAdapter),
+      new ShippingQuoteService(
+        f.db,
+        carrier as unknown as GhnSandboxAdapter,
+        new CoinService(f.db),
+      ),
     );
     const payos = new PaymentService(
       f.db,
@@ -551,14 +582,22 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       userId: buyer.id,
       simulationBalance: 100,
     });
-    const selection = new CheckoutService(db, {} as CartService);
+    const selection = new CheckoutService(
+      db,
+      {} as CartService,
+      new CoinService(db),
+    );
     await selection.selectCoins(buyer.id, checkout.id, {
       requestId: randomUUID(),
       amount: 100,
       mode: 'SIMULATION',
     });
     const pricing = new PaymentPricing(
-      new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+      new ShippingQuoteService(
+        db,
+        carrier as unknown as GhnSandboxAdapter,
+        new CoinService(db),
+      ),
     );
     await expect(
       new PaymentService(
@@ -591,7 +630,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       userId: first.buyer.id,
       balance: 20000,
     });
-    const service = new CheckoutService(first.db, {} as CartService);
+    const service = new CheckoutService(
+      first.db,
+      {} as CartService,
+      new CoinService(first.db),
+    );
     const results = await Promise.allSettled(
       [first.checkout.id, second.checkout.id].map((id) =>
         service.selectCoins(first.buyer.id, id, {
@@ -727,7 +770,11 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       db,
       client as unknown as PayosClient,
       new PaymentPricing(
-        new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+        new ShippingQuoteService(
+          db,
+          carrier as unknown as GhnSandboxAdapter,
+          new CoinService(db),
+        ),
       ),
       new OutboxService(),
     );
@@ -924,6 +971,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
         new CartService(db, {
           getPublicUrl: (key: string) => `https://public.test/${key}`,
         } as never),
+        new CoinService(db),
       );
       if (action === 'cancel') await checkouts.cancel(buyer.id, checkout.id);
       else {

@@ -51,6 +51,7 @@ export async function pruneIdentityCheckout(
   manager: EntityManager,
   checkout: Checkout,
   now: Date,
+  coinService: CoinService,
 ): Promise<CheckoutOrder[] | null> {
   const active =
     checkout.status === CHECKOUT_STATUS.HELD &&
@@ -84,7 +85,7 @@ export async function pruneIdentityCheckout(
   for (const hold of holds) {
     await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.RELEASED);
   }
-  await new CoinService().releaseCheckoutCoins(manager, checkout.id, now);
+  await coinService.releaseCheckoutCoins(manager, checkout.id, now);
   checkout.coinDiscount = 0;
   checkout.coinMode = null;
 
@@ -134,6 +135,7 @@ export class CheckoutService {
   constructor(
     private readonly db: DataSource,
     private readonly cartService: CartService,
+    private readonly coinService: CoinService,
   ) {}
 
   @Interval(30_000)
@@ -424,7 +426,7 @@ export class CheckoutService {
         );
       }
       const orders = await this.loadOrders(manager, id);
-      await new CoinService().reserveCheckoutCoins(
+      await this.coinService.reserveCheckoutCoins(
         manager,
         {
           ...checkout,
@@ -460,7 +462,12 @@ export class CheckoutService {
       ) {
         await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
       } else {
-        orders = await pruneIdentityCheckout(manager, checkout, now);
+        orders = await pruneIdentityCheckout(
+          manager,
+          checkout,
+          now,
+          this.coinService,
+        );
       }
       return this.view(
         checkout,
@@ -582,7 +589,7 @@ export class CheckoutService {
           : WALLET_HOLD_STATE.RELEASED,
       );
     }
-    await new CoinService().releaseCheckoutCoins(
+    await this.coinService.releaseCheckoutCoins(
       manager,
       checkout.id,
       new Date(now),
