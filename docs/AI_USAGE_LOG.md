@@ -1313,4 +1313,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi sự kiện và email bắt buộc theo `NOTIF-SESSION-01`, yêu cầu giữ cấu trúc đồng nhất với nhánh tham chiếu và kiểm tra rà soát 2 vòng trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); `pnpm test:payment:core` đạt 20/20 tests; `pnpm test:unit` đạt 61/61 suites (338/338 tests); kiểm thử tích hợp và E2E trên PostgreSQL (bao gồm `--detectOpenHandles`) đều pass 100% không rò rỉ tiến trình nền.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bổ sung gói phụ thuộc `ioredis` còn thiếu cho `bullmq` khi chạy E2E; rà soát cơ chế enqueue email sau khi giao dịch DB commit và xác nhận tính đồng bộ với luồng hiện hành.
-- **Minh chứng:** PR #PENDING; branch `feat/notifications-bullmq`.
+- **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
