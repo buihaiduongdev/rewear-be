@@ -176,8 +176,17 @@ export class ChatService {
       }
 
       const product = parsed.productId
-        ? await this.resolveProduct(manager, row, parsed.productId)
+        ? await manager.findOneBy(Product, {
+            id: parsed.productId,
+            shopId: row.shopId,
+            status: ProductStatus.ACTIVE,
+          })
         : null;
+      if (parsed.productId && !product) {
+        throw new BadRequestException(
+          'Product must be an active listing of this Shop',
+        );
+      }
 
       const message = await manager.save(
         ChatMessage,
@@ -406,23 +415,5 @@ export class ChatService {
           sizeBytes: media.sizeBytes,
         })),
     }));
-  }
-
-  private async resolveProduct(
-    manager: EntityManager,
-    conversation: ChatConversation,
-    productId: string,
-  ) {
-    const product = await manager.findOneBy(Product, {
-      id: productId,
-      shopId: conversation.shopId,
-      status: ProductStatus.ACTIVE,
-    });
-    if (!product) {
-      throw new BadRequestException(
-        'Product must be an active listing of this Shop',
-      );
-    }
-    return product;
   }
 }
