@@ -1314,3 +1314,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); `pnpm test:payment:core` đạt 20/20 tests; `pnpm test:unit` đạt 61/61 suites (338/338 tests); kiểm thử tích hợp và E2E trên PostgreSQL (bao gồm `--detectOpenHandles`) đều pass 100% không rò rỉ tiến trình nền.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bổ sung gói phụ thuộc `ioredis` còn thiếu cho `bullmq` khi chạy E2E; rà soát cơ chế enqueue email sau khi giao dịch DB commit và xác nhận tính đồng bộ với luồng hiện hành.
 - **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
+
+### 2026-11-26 — Tinh gọn ba module phụ trợ reports, ratings và chat
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và cắt bỏ các cơ chế dư thừa trên ba module phụ trợ (`reports`, `ratings`, `chat`) sau khi đối chiếu lại các bảng audit, command, mã băm chống trùng và các service tách lẻ không cần thiết.
+- **Prompt chính:** Rà soát và dọn gọn ba module phụ trợ `reports`, `ratings` và `chat`: bỏ các bảng audit, command, mã băm `fingerprint`, kiểm tra `version`/`clock_timestamp()` dư thừa, gộp các file policy và media service lẻ về service chính, cập nhật lại kiểm thử liên quan và đẩy lên PR #75.
+- **Đầu ra AI được sử dụng:** Gộp `report.policy.ts` và `ReportMediaService` vào `ViolationReportService`, xóa `ReportCommand` và `ReportAudit`, bỏ `requestId`/`fingerprint`/`version` và nhận trực tiếp `mediaIds` qua `MediaService.verifyMedia`; xóa `ShopRatingModerationAudit`, gộp `rating.policy.ts` và `RatingMediaService` vào `RatingsService`, bỏ `expectedRevision` và giới hạn upload theo ngày; gộp `ChatMediaService` vào `ChatService`, bỏ `SELECT clock_timestamp()` và kiểm tra `tagsChanged` dư thừa; đồng bộ các bộ unit, integration và E2E test liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện sự bất hợp lý của các bảng audit/command/fingerprint trên nhóm module phụ trợ dù đã qua các đợt dọn trước, chốt phạm vi giữ lại và kiểm tra kết quả sau khi gộp.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 warnings/errors, Prettier, TypeScript, Build); `pnpm test:unit` đạt 61/61 suites (337/337 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện (đã chủ động rà thêm các E2E test cũ còn gọi endpoint pre-upload đã xóa để cập nhật đồng bộ).
+- **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
