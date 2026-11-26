@@ -3,9 +3,11 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 
+import { PAYMENT_PROVIDER } from '../constants/payment.constant';
 import type {
   AttemptState,
   PaymentOrderSnapshot,
+  PaymentProvider,
 } from '../schemas/payment.schema';
 
 export type { PaymentOrderSnapshot } from '../schemas/payment.schema';
@@ -16,6 +18,9 @@ export type { PaymentOrderSnapshot } from '../schemas/payment.schema';
 @Index(['providerTransId'], { unique: true })
 @Index(['state', 'nextQueryAt'])
 export class PaymentAttempt extends BaseEntity {
+  @Column({ type: 'varchar', length: 16, default: PAYMENT_PROVIDER.PAYOS })
+  provider: PaymentProvider;
+
   @Column('uuid')
   checkoutId: string;
 

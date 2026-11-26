@@ -2,7 +2,11 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
-import type { RefundReason, RefundState } from '../schemas/payment.schema';
+import type {
+  RefundReason,
+  RefundResolutionMethod,
+  RefundState,
+} from '../schemas/payment.schema';
 import { PaymentAttempt } from './payment-attempt.entity';
 
 @Entity('payment_refunds')
@@ -34,4 +38,16 @@ export class PaymentRefund extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   alertedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  resolutionMethod: RefundResolutionMethod | null;
+
+  @Column({ type: 'text', nullable: true })
+  resolutionNote: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  resolvedById: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resolvedAt: Date | null;
 }

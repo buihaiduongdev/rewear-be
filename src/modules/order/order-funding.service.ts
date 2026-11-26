@@ -39,7 +39,11 @@ export class OrderFundingService {
       return this.codCredit(manager, order, shipment, money.sellerNet);
     if (order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET)
       return this.walletCredit(manager, order, money.sellerNet);
-    if (order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS) return null;
+    if (
+      order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS &&
+      order.paymentMethod !== ORDER_PAYMENT_METHOD.MOMO
+    )
+      return null;
     return this.payosCredit(manager, order, money.sellerNet);
   }
 

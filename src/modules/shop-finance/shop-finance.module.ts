@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { StorageModule } from '@/infrastructure/storage';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
+import { MediaModule } from '@/modules/media';
 import { OrderModule } from '@/modules/order/order.module';
 
 import {
@@ -18,6 +20,8 @@ import { ShopPayoutService } from './shop-payout.service';
 @Module({
   imports: [
     OrderModule,
+    MediaModule,
+    StorageModule,
     TypeOrmModule.forFeature([
       CodCollection,
       ShopLedgerEntry,

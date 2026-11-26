@@ -1,5 +1,10 @@
 import ms from 'ms';
 
+export const PAYMENT_PROVIDER = {
+  PAYOS: 'PAYOS',
+  MOMO: 'MOMO',
+} as const;
+
 export const PAYMENT_ATTEMPT_STATE = {
   CREATING: 'CREATING',
   PENDING: 'PENDING',
@@ -15,6 +20,12 @@ export const PAYMENT_REFUND_STATE = {
   UNKNOWN: 'UNKNOWN',
   COMPLETED: 'COMPLETED',
   REVIEW_REQUIRED: 'REVIEW_REQUIRED',
+} as const;
+
+export const PAYMENT_REFUND_RESOLUTION = {
+  MOMO_REFUND: 'MOMO_REFUND',
+  WALLET_CREDIT: 'WALLET_CREDIT',
+  MANUAL_TRANSFER: 'MANUAL_TRANSFER',
 } as const;
 
 export const PAYMENT_REFUND_REASON = {

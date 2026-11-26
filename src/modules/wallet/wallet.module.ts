@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { PaymentModule } from '@/modules/payment/payment.module';
@@ -15,7 +15,7 @@ import { WalletService } from './wallet.service';
 
 @Module({
   imports: [
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     TypeOrmModule.forFeature([
       WalletAccount,
       WalletCredit,

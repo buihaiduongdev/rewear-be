@@ -1,11 +1,19 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
+  Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
+import { Media } from '@/modules/media/entities';
+import { MediaType } from '@/modules/media/enums';
+import { MediaService } from '@/modules/media/media.service';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
@@ -24,6 +32,8 @@ import {
   bankAccountInputSchema,
   type PayoutFailureInput,
   payoutFailureSchema,
+  type PayoutReceiptUploadTicketInput,
+  payoutReceiptUploadTicketSchema,
   type PayoutRequestInput,
   payoutRequestSchema,
   type PayoutSource,
@@ -68,7 +78,11 @@ export function assertExactTransfer(
 
 @Injectable()
 export class ShopPayoutService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    @Optional() private readonly mediaService?: MediaService,
+    @Optional() private readonly storageService?: StorageService,
+  ) {}
 
   private async now(manager: EntityManager): Promise<Date> {
     const [row] = await manager.query('SELECT clock_timestamp() AS now');
@@ -147,8 +161,78 @@ export class ShopPayoutService {
     return {
       accounts,
       payouts: payouts.map(
-        ({ transferEvidence: _transferEvidence, ...payout }) => payout,
+        ({
+          transferEvidence: _transferEvidence,
+          transferEvidenceMediaId: _transferEvidenceMediaId,
+          ...payout
+        }) => payout,
       ),
+    };
+  }
+
+  private async resolveReceiptUrl(media: Media | null | undefined) {
+    if (!media || media.retiredAt || !this.storageService) return null;
+    if (media.visibility === 'private') {
+      const signed = await this.storageService.createDownloadUrl(
+        media.storageKey,
+      );
+      return signed.url;
+    }
+    return this.storageService.getPublicUrl(media.storageKey);
+  }
+
+  async createReceiptUploadTicket(
+    actorId: string,
+    input: PayoutReceiptUploadTicketInput,
+  ) {
+    const data = payoutReceiptUploadTicketSchema.parse(input);
+    await this.assertAdmin(this.db.manager, actorId);
+    if (!this.mediaService) {
+      throw new ServiceUnavailableException('Media upload service unavailable');
+    }
+    const ticket = await this.mediaService.createUploadTicket(actorId, {
+      mimeType: data.mimeType,
+      sizeBytes: data.sizeBytes,
+      visibility: 'private',
+    });
+    return {
+      id: ticket.mediaId,
+      uploadUrl: ticket.uploadUrl,
+      method: ticket.method,
+      headers: ticket.headers,
+    };
+  }
+
+  async getReceiptDownload(actorId: string, payoutId: string) {
+    const manager = this.db.manager;
+    await this.assertAdmin(manager, actorId);
+    const payout = await manager.findOneBy(ShopPayout, { id: payoutId });
+    if (!payout || !payout.transferEvidenceMediaId) {
+      throw new NotFoundException('Payout receipt not found');
+    }
+    const media = await manager.findOneBy(Media, {
+      id: payout.transferEvidenceMediaId,
+    });
+    if (!media || media.retiredAt) {
+      throw new NotFoundException('Payout receipt not found');
+    }
+    if (!this.storageService) {
+      throw new ServiceUnavailableException('Storage service unavailable');
+    }
+    if (media.visibility === 'private') {
+      const signed = await this.storageService.createDownloadUrl(
+        media.storageKey,
+      );
+      return {
+        mediaId: media.id,
+        url: signed.url,
+        expiresAt: signed.expiresAt,
+      };
+    }
+    return {
+      mediaId: media.id,
+      url: this.storageService.getPublicUrl(media.storageKey),
+      expiresAt: null,
     };
   }
 
@@ -159,7 +243,28 @@ export class ShopPayoutService {
       order: { createdAt: 'DESC' },
       take: 100,
     });
-    return { payouts };
+    const mediaIds = [
+      ...new Set(
+        payouts
+          .map((row) => row.transferEvidenceMediaId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const mediaRows = mediaIds.length
+      ? await manager.find(Media, { where: { id: In(mediaIds) } })
+      : [];
+    const mediaById = new Map(mediaRows.map((row) => [row.id, row]));
+    const enriched = await Promise.all(
+      payouts.map(async (payout) => ({
+        ...payout,
+        transferEvidenceUrl: payout.transferEvidenceMediaId
+          ? await this.resolveReceiptUrl(
+              mediaById.get(payout.transferEvidenceMediaId),
+            )
+          : null,
+      })),
+    );
+    return { payouts: enriched };
   }
 
   async saveBank(
@@ -368,22 +473,29 @@ export class ShopPayoutService {
 
   async succeed(actorId: string, id: string, input: PayoutSuccessInput) {
     const data = payoutSuccessSchema.parse(input);
-    return this.db.transaction(async (manager) => {
+    const { payout, media } = await this.db.transaction(async (manager) => {
       const now = await this.now(manager);
       await this.assertAdmin(manager, actorId);
       const payout = await this.findForUpdate(manager, id);
       assertExactTransfer(payout.amount, payout.recipientSnapshot, data);
       if (new Date(data.transferredAt) > now)
         throw new ConflictException('Transfer time cannot be in the future');
+      const requestedMediaId = data.transferEvidenceMediaId ?? null;
       if (payout.status === PAYOUT_STATUS.SUCCEEDED) {
         if (
           payout.bankReference !== data.bankReference ||
           payout.transferEvidence !== data.evidence ||
+          (payout.transferEvidenceMediaId ?? null) !== requestedMediaId ||
           payout.bankTransferredAt?.getTime() !==
             new Date(data.transferredAt).getTime()
         )
           throw new ConflictException('Conflicting bank result');
-        return payout;
+        const existingMedia = payout.transferEvidenceMediaId
+          ? await manager.findOneBy(Media, {
+              id: payout.transferEvidenceMediaId,
+            })
+          : null;
+        return { payout, media: existingMedia };
       }
       if (
         !(
@@ -391,12 +503,41 @@ export class ShopPayoutService {
         ).includes(payout.status)
       )
         throw new ConflictException('Transfer must have started');
+
+      let attachedMedia: Media | null = null;
+      if (requestedMediaId) {
+        if (!this.mediaService) {
+          throw new ServiceUnavailableException(
+            'Media upload service unavailable',
+          );
+        }
+        attachedMedia = await this.mediaService.verifyMedia(
+          manager,
+          actorId,
+          requestedMediaId,
+          undefined,
+          'private',
+        );
+        if (attachedMedia.mediaType !== MediaType.IMAGE) {
+          throw new BadRequestException(
+            'Payout UNC receipt must be an image file',
+          );
+        }
+      }
+
       payout.status = PAYOUT_STATUS.SUCCEEDED;
       payout.bankReference = data.bankReference;
       payout.bankTransferredAt = new Date(data.transferredAt);
       payout.transferEvidence = data.evidence;
+      payout.transferEvidenceMediaId = attachedMedia?.id ?? null;
       payout.completedAt = now;
-      return manager.save(payout);
+      const saved = await manager.save(payout);
+      return { payout: saved, media: attachedMedia };
     });
+
+    return {
+      ...payout,
+      transferEvidenceUrl: await this.resolveReceiptUrl(media),
+    };
   }
 }

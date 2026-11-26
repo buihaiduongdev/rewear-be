@@ -17,6 +17,7 @@ class Logger {
 }
 globalThis.__workerDependencies = {
   ...(await load('../src/modules/payment/constants/payment.constant.ts')),
+  RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   PaymentAttempt,
   PaymentRefund,
   Logger,
@@ -29,7 +30,9 @@ const source = (
 )
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '')
-  .replace(/@Inject\(PAYOS_CLIENT\)/g, '')
+  .replace(/@Optional\(\)/g, '')
+  .replace(/@Inject\(forwardRef\(\(\) => [^)]+\)\)/g, '')
+  .replace(/@Inject\([^)]+\)/g, '')
   .replace(/@Interval\([^)]+\)/g, '');
 const { PaymentWorker } = await import(
   `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(globalThis.__workerDependencies).join(', ')} } = globalThis.__workerDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-worker-under-test.js`).toString('base64')}`
