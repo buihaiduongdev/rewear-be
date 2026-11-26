@@ -1371,4 +1371,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi nghiệp vụ `FEAT-06` và `FEAT-10`, rà soát bỏ toàn bộ `@Optional()` DI, bước kiểm tra `assertAdmin` lặp và kiểm tra 404 thủ công sau vòng review trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 597 tệp, Prettier, TypeScript, Build); `pnpm test:payment:core` pass 20/20 tests; unit test trọng tâm nhóm `payment`, `shop-finance`, `wallet` pass 10/10 suites (55/55 tests); kiểm tra tài liệu Swagger UI và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần triển khai đầu AI để lại 7 chỗ `@Optional()` DI trên `PaymentService`, `PaymentController`, `PaymentWorker`, `ShopPayoutService`, thêm kiểm tra `assertAdmin` lặp lại sau role guard và dùng `findOne` kèm ném 404 thủ công; toàn bộ đã được rà soát và sửa gọn ở commit `b42d873`.
-- **Minh chứng:** Branch `feat/momo-payment-and-payout-receipt`, commits `47996da`, `b42d873`.
+- **Minh chứng:** PR #84; branch `feat/momo-payment-and-payout-receipt`, commits `47996da`, `b42d873`.
