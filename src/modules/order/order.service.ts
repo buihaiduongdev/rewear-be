@@ -1,4 +1,11 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
@@ -17,8 +24,8 @@ import {
   UNSAFE_CARRIER_REVIEW_REASONS,
 } from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import { Shop } from '@/modules/shop/entities';
-import { ShopStatus } from '@/modules/shop/enums';
+import { Shop, ShopMember } from '@/modules/shop/entities';
+import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 import { WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
@@ -33,6 +40,25 @@ import {
 import { Order, OrderEvent } from './entities';
 import type { OrderListInput, RejectOrderInput } from './schemas/order.schema';
 
+export async function assertShopOrderManager(
+  manager: EntityManager,
+  userId: string,
+  shopId: string,
+  lock = false,
+): Promise<void> {
+  const member = await manager.findOne(ShopMember, {
+    where: {
+      shopId,
+      userId,
+      memberRole: ShopMemberRole.OWNER,
+    },
+    lock: lock ? { mode: 'pessimistic_read' } : undefined,
+  });
+  if (!member) {
+    throw new ForbiddenException('Shop order management access required');
+  }
+}
+
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger(OrderService.name);
@@ -40,8 +66,10 @@ export class OrderService {
   constructor(
     private readonly db: DataSource,
     private readonly walletService: WalletService,
+    @Inject(forwardRef(() => CodPolicy))
     private readonly codPolicy: CodPolicy,
     private readonly outboxService: OutboxService,
+    private readonly coinService: CoinService,
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {
@@ -342,7 +370,7 @@ export class OrderService {
         UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason));
     if (codReturnIsUnverified)
       throw new ConflictException('Verified uncollected COD return required');
-    await new CoinService().releaseOrderCoins(manager, order, 'SELLER', now);
+    await this.coinService.releaseOrderCoins(manager, order, 'SELLER', now);
     order.stockReleaseReviewIds = await this.releaseStock(
       manager,
       order,
@@ -398,7 +426,7 @@ export class OrderService {
       const buyerCancellation =
         reason === ORDER_CANCELLATION_REASON.BUYER_CANCELLED ||
         reason === ORDER_CANCELLATION_REASON.BUYER_CANCEL_APPROVED;
-      await new CoinService().releaseOrderCoins(
+      await this.coinService.releaseOrderCoins(
         manager,
         order,
         buyerCancellation ? 'BUYER_CHANGE' : 'SELLER',

@@ -6,14 +6,14 @@ import { DataSource } from 'typeorm';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 
-import { Shop } from '../../entities';
+import { Shop } from '../entities';
 import {
   IDENTITY_RENEWAL_POLICY,
   SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
-} from '../constants/shop-application.constant';
-import { ShopApplication } from '../entities';
-import { shopAllowsIdentitySales } from './identity-sale.policy';
+  shopAllowsIdentitySales,
+} from './constants/shop-application.constant';
+import { ShopApplication } from './entities';
 
 const { VIETNAM_OFFSET_MS, DAY_MS, GRACE_DAYS, BATCH_SIZE } =
   IDENTITY_RENEWAL_POLICY;

@@ -6,14 +6,12 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { AuthProvider } from '@/modules/auth/enums';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';
 import { DisputeAppeal } from '@/modules/dispute/entities/dispute-appeal.entity';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
-import { OrderAccess } from '@/modules/order/order.access';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
@@ -26,24 +24,15 @@ describe('1-time 2-business-day appeal and finalization (PostgreSQL)', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    const orderAccess = new OrderAccess();
-    const access = new DisputeAccess(orderAccess);
     const outbox = new OutboxService();
-    const refunds = new DisputeRefundService(
-      database.dataSource,
-      access,
-      outbox,
-    );
+    const refunds = new DisputeRefundService(database.dataSource, outbox);
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
-      access,
-      orderAccess,
       refunds,
     );
     service = new DisputeAdjudicationService(
       database.dataSource,
-      access,
       refunds,
       returns,
       outbox,

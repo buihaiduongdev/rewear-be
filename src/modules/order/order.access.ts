@@ -1,33 +1,18 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
-import { EntityManager, EntityNotFoundError } from 'typeorm';
+import type { EntityManager } from 'typeorm';
 
-import { ShopMember } from '@/modules/shop/entities';
-import { ShopMemberRole } from '@/modules/shop/enums';
+import { assertShopOrderManager } from './order.service';
 
+// Compatibility provider kept for frozen `chat` module.
 @Injectable()
 export class OrderAccess {
-  async assertManage(
+  assertManage(
     manager: EntityManager,
     userId: string,
     shopId: string,
     lock = false,
   ): Promise<void> {
-    // The current Shop module has no configurable permission resolver yet.
-    // Do not grant every STAFF access merely because they belong to the Shop.
-    try {
-      await manager.findOneOrFail(ShopMember, {
-        where: {
-          shopId,
-          userId,
-          memberRole: ShopMemberRole.OWNER,
-        },
-        lock: lock ? { mode: 'pessimistic_read' } : undefined,
-      });
-    } catch (error) {
-      if (error instanceof EntityNotFoundError)
-        throw new ForbiddenException('Shop order management access required');
-      throw error;
-    }
+    return assertShopOrderManager(manager, userId, shopId, lock);
   }
 }

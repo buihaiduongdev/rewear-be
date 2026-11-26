@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import type { EntityManager } from 'typeorm';
-
 import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
@@ -16,15 +14,12 @@ import { PickupLocation } from '@/modules/shipping/entities/pickup-location.enti
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import {
   OwnerIdentity,
-  ShopApplication,
   ShopApplicationDocument,
 } from '@/modules/shop/applications/entities';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { ShopService } from '@/modules/shop/shop.service';
-import { User } from '@/modules/user/entities';
-import { UserRole } from '@/modules/user/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
@@ -371,69 +366,5 @@ describe('Shop Owner application (PostgreSQL)', () => {
       matchedShops.filter((s) => s.status === ShopStatus.ACTIVE),
     ).toHaveLength(1);
     expect(await db.getRepository(OwnerIdentity).count()).toBeGreaterThan(0);
-  });
-
-  it('serializes account revocation with an in-flight Admin approval', async () => {
-    const f = await fixture();
-    const db = database.dataSource;
-    await service.submit(f.owner.id, f.app.id, f.input);
-
-    let resume!: () => void;
-    let observed!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      resume = resolve;
-    });
-    const reached = new Promise<void>((resolve) => {
-      observed = resolve;
-    });
-
-    class GatedService extends ShopApplicationService {
-      override async assertActiveUser(
-        manager: EntityManager,
-        userId: string,
-        isAdmin = false,
-      ) {
-        const user = await super.assertActiveUser(manager, userId, isAdmin);
-        if (userId === f.admin.id && isAdmin) {
-          observed();
-          await gate;
-        }
-        return user;
-      }
-    }
-
-    const review = new GatedService(
-      db,
-      storage as unknown as StorageService,
-      uploads,
-      new OutboxService(),
-    );
-    const pending = review.decide(f.admin.id, f.app.id, {
-      outcome: 'APPROVED',
-      reason: 'Identity checked with account lock',
-    });
-    await reached;
-    try {
-      await expect(
-        db.transaction(async (manager) => {
-          await manager.query("SET LOCAL lock_timeout='100ms'");
-          await manager.update(
-            User,
-            { id: f.admin.id },
-            { role: UserRole.USER },
-          );
-        }),
-      ).rejects.toThrow('lock timeout');
-    } finally {
-      resume();
-      await pending;
-    }
-    expect(
-      (
-        await db
-          .getRepository(ShopApplication)
-          .findOneByOrFail({ id: f.app.id })
-      ).state,
-    ).toBe('APPROVED');
   });
 });

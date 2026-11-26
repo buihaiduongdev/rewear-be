@@ -2,9 +2,9 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager } from 'typeorm';
 
-import { requiresFulfillmentReview } from '@/modules/cod-reconciliation/policies/cod-funding.policy';
+import { requiresFulfillmentReview } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
-import { orderRefundDebit } from '@/modules/dispute/dispute-refund-accounting';
+import { orderRefundDebit } from '@/modules/dispute/dispute-refund.service';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
@@ -19,13 +19,37 @@ import {
 } from './constants/order.constant';
 import { Order, OrderDeliveryVerification, OrderEvent } from './entities';
 import { OrderFundingService } from './order-funding.service';
-import { isSettlementWindowDue } from './policies/order-settlement.policy';
 import {
   type VerifyDeliveryInput,
   verifyDeliverySchema,
 } from './schemas/order.schema';
 
 const receiptStates = [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
+
+export function isSettlementWindowDue(
+  order: Pick<Order, 'deliveryVerifiedAt' | 'disputeDeadlineAt'>,
+  verification: Pick<
+    OrderDeliveryVerification,
+    'deliveredAt' | 'disputeDeadlineAt'
+  > | null,
+  now: Date,
+): boolean {
+  if (!verification) return false;
+  const deliveryMatches =
+    order.deliveryVerifiedAt?.getTime() === verification.deliveredAt.getTime();
+  const deadlineMatches =
+    order.disputeDeadlineAt?.getTime() ===
+    verification.disputeDeadlineAt.getTime();
+  const hasFullWindow =
+    verification.disputeDeadlineAt.getTime() ===
+    verification.deliveredAt.getTime() + ORDER_POLICY.DISPUTE_WINDOW_MS;
+  return (
+    deliveryMatches &&
+    deadlineMatches &&
+    hasFullWindow &&
+    verification.disputeDeadlineAt <= now
+  );
+}
 
 @Injectable()
 export class OrderSettlementService {
@@ -34,7 +58,7 @@ export class OrderSettlementService {
 
   constructor(
     private readonly db: DataSource,
-    private readonly funding: OrderFundingService,
+    private readonly orderFundingService: OrderFundingService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -189,7 +213,11 @@ export class OrderSettlementService {
           null,
         );
       }
-      const credit = await this.funding.heldCredit(manager, order, shipment);
+      const credit = await this.orderFundingService.heldCredit(
+        manager,
+        order,
+        shipment,
+      );
       if (!credit) return null;
       if (!windowDue || verification?.mode !== credit.mode) return null;
       const refundDebit = await orderRefundDebit(

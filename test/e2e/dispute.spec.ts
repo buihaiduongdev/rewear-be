@@ -14,6 +14,7 @@ import { TransformInterceptor } from '@/common/interceptors/transform.intercepto
 import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { Order } from '@/modules/order/entities';
@@ -157,20 +158,18 @@ describe('Dispute FEAT-09 end-to-end HTTP lifecycle', () => {
       codAmount: order.total,
       providerStatus: 'delivered',
     });
-    await new CodReconciliationService(db).recordCollection(
-      admin.id,
-      order.id,
-      {
-        requestId: randomUUID(),
-        mode: 'EVIDENCE',
-        waybillCode: shipment.orderCode!,
-        collectedAmount: order.total,
-        approvedCarrierFee: 0,
-        collectedAt: deliveredAt.toISOString(),
-        reason: 'Verified COD collection',
-        evidence: 'Signed carrier proof',
-      },
-    );
+    await new CodReconciliationService(
+      db,
+      new CoinService(db),
+    ).recordCollection(admin.id, order.id, {
+      mode: 'EVIDENCE',
+      waybillCode: shipment.orderCode!,
+      collectedAmount: order.total,
+      approvedCarrierFee: 0,
+      collectedAt: deliveredAt.toISOString(),
+      reason: 'Verified COD collection',
+      evidence: 'Signed carrier proof',
+    });
     await db.getRepository(OrderDeliveryVerification).save({
       orderId: order.id,
       deliveredAt,

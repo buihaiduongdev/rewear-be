@@ -8,18 +8,16 @@ import { CoinAccount, CoinPurchaseReward } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
-import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
-import { OrderAccess } from '@/modules/order/order.access';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
@@ -38,20 +36,15 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    const orderAccess = new OrderAccess();
-    const access = new DisputeAccess(orderAccess);
     const outbox = new OutboxService();
-    refunds = new DisputeRefundService(database.dataSource, access, outbox);
+    refunds = new DisputeRefundService(database.dataSource, outbox);
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
-      access,
-      orderAccess,
       refunds,
     );
     adjudication = new DisputeAdjudicationService(
       database.dataSource,
-      access,
       refunds,
       returns,
       outbox,
@@ -77,20 +70,18 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       providerStatus: 'delivered',
     });
     await db.getRepository(Order).update(f.order.id, { status: 'delivered' });
-    await new CodReconciliationService(db).recordCollection(
-      f.admin.id,
-      f.order.id,
-      {
-        requestId: randomUUID(),
-        mode,
-        waybillCode: shipment.orderCode!,
-        collectedAmount: f.order.total,
-        approvedCarrierFee: 0,
-        collectedAt: f.order.deliveryObservedAt!.toISOString(),
-        reason: 'Verified COD',
-        evidence: 'Matched signed collection statement',
-      },
-    );
+    await new CodReconciliationService(
+      db,
+      new CoinService(db),
+    ).recordCollection(f.admin.id, f.order.id, {
+      mode,
+      waybillCode: shipment.orderCode!,
+      collectedAmount: f.order.total,
+      approvedCarrierFee: 0,
+      collectedAt: f.order.deliveryObservedAt!.toISOString(),
+      reason: 'Verified COD',
+      evidence: 'Matched signed collection statement',
+    });
     await db.getRepository(Order).update(f.order.id, { status: 'dispute' });
     const decision = await adjudication.decide(f.admin.id, f.issue.id, {
       outcome: 'UPHOLD_CLAIM',
@@ -189,20 +180,18 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
         codAmount: ord.total,
         providerStatus: 'delivered',
       });
-      await new CodReconciliationService(f.db).recordCollection(
-        f.admin.id,
-        ord.id,
-        {
-          requestId: randomUUID(),
-          mode: 'EVIDENCE',
-          waybillCode: ship.orderCode!,
-          collectedAmount: ord.total,
-          approvedCarrierFee: 0,
-          collectedAt: collectedAt.toISOString(),
-          reason: 'Verified COD',
-          evidence: 'Signed proof',
-        },
-      );
+      await new CodReconciliationService(
+        f.db,
+        new CoinService(f.db),
+      ).recordCollection(f.admin.id, ord.id, {
+        mode: 'EVIDENCE',
+        waybillCode: ship.orderCode!,
+        collectedAmount: ord.total,
+        approvedCarrierFee: 0,
+        collectedAt: collectedAt.toISOString(),
+        reason: 'Verified COD',
+        evidence: 'Signed proof',
+      });
       await f.db.getRepository(Order).update(ord.id, { status: 'dispute' });
       const c = await f.db.getRepository(DisputeCase).save({
         orderId: ord.id,
@@ -312,8 +301,10 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
     const f = await fundedCodFixture('EVIDENCE', 40000);
     await adjudication.refreshIssue(f.issue.id);
 
-    await new CodReconciliationService(f.db).recordRemittance(f.admin.id, {
-      requestId: randomUUID(),
+    await new CodReconciliationService(
+      f.db,
+      new CoinService(f.db),
+    ).recordRemittance(f.admin.id, {
       reference: randomUUID(),
       mode: 'EVIDENCE',
       netAmount: f.order.total,
@@ -443,8 +434,10 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       paidOutDebt: 60000,
     });
 
-    await new CodReconciliationService(f.db).recordRemittance(f.admin.id, {
-      requestId: randomUUID(),
+    await new CodReconciliationService(
+      f.db,
+      new CoinService(f.db),
+    ).recordRemittance(f.admin.id, {
       reference: randomUUID(),
       mode: 'EVIDENCE',
       netAmount: f.order.total,

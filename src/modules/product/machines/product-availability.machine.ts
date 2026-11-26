@@ -3,7 +3,7 @@ import { createActor, setup } from 'xstate';
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { ShopStatus } from '@/modules/shop/enums';
 
 export interface ProductAvailabilityContext {

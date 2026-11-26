@@ -9,7 +9,7 @@ import { OrderModule } from '@/modules/order/order.module';
 
 import { DisputeAdjudicationService } from './dispute-adjudication.service';
 import { DisputeRefundService } from './dispute-refund.service';
-import { DisputeAccess } from './dispute.access';
+import { DisputeReturnService } from './dispute-return.service';
 import { DisputeController } from './dispute.controller';
 import { DisputeService } from './dispute.service';
 import { DisputeWorker } from './dispute.worker';
@@ -20,8 +20,7 @@ import { DisputeEvidence } from './entities/dispute-evidence.entity';
 import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeMessage } from './entities/dispute-message.entity';
 import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
-import { DisputeReturn } from './returns/entities/dispute-return.entity';
-import { DisputeReturnService } from './returns/return.service';
+import { DisputeReturn } from './entities/dispute-return.entity';
 
 @Module({
   imports: [
@@ -41,7 +40,6 @@ import { DisputeReturnService } from './returns/return.service';
   ],
   controllers: [DisputeController],
   providers: [
-    DisputeAccess,
     DisputeService,
     DisputeAdjudicationService,
     DisputeRefundService,
@@ -50,6 +48,6 @@ import { DisputeReturnService } from './returns/return.service';
     GhnShipmentClient,
     GhnSandboxAdapter,
   ],
-  exports: [DisputeAccess, DisputeService],
+  exports: [DisputeService],
 })
 export class DisputeModule {}

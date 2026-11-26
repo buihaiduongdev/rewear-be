@@ -1,4 +1,11 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
@@ -11,6 +18,7 @@ import type {
   ShopApplicationKind,
   ShopApplicationState,
 } from '../schemas/shop-application.schema';
+import { ShopApplicationDocument } from './shop-application-document.entity';
 
 @Entity('shop_applications')
 @Index('UQ_initial_shop_application', ['shopId'], {
@@ -50,6 +58,9 @@ export class ShopApplication extends BaseEntity {
   @ManyToOne(() => ShopBankAccount, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'bankAccountId' })
   bankAccount: ShopBankAccount | null;
+
+  @OneToMany(() => ShopApplicationDocument, (doc) => doc.application)
+  documents: ShopApplicationDocument[];
 
   @Column('varchar', { length: 20, nullable: true })
   documentType: IdentityDocumentType | null;

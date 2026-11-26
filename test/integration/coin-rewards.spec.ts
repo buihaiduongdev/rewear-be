@@ -10,7 +10,7 @@ import {
   CoinPurchaseReward,
 } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
-import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
+import { refundFunding } from '@/modules/dispute/dispute-refund.service';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
@@ -101,20 +101,18 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       codAmount: f.order.total,
       providerStatus: 'delivered',
     });
-    await new CodReconciliationService(db).recordCollection(
-      f.admin.id,
-      f.order.id,
-      {
-        requestId: randomUUID(),
-        mode,
-        waybillCode: shipment.orderCode!,
-        collectedAmount: f.order.total,
-        approvedCarrierFee: 0,
-        collectedAt: deliveredAt.toISOString(),
-        reason: 'Matched collection',
-        evidence: 'Signed collection statement',
-      },
-    );
+    await new CodReconciliationService(
+      db,
+      new CoinService(db),
+    ).recordCollection(f.admin.id, f.order.id, {
+      mode,
+      waybillCode: shipment.orderCode!,
+      collectedAmount: f.order.total,
+      approvedCarrierFee: 0,
+      collectedAt: deliveredAt.toISOString(),
+      reason: 'Matched collection',
+      evidence: 'Signed collection statement',
+    });
     return {
       ...f,
       db,
@@ -129,9 +127,8 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     expect(await f.service.evaluate(f.order.id)).toMatchObject({
       entitlement: 450,
     });
-    const finance = new CodReconciliationService(f.db);
+    const finance = new CodReconciliationService(f.db, new CoinService(f.db));
     await finance.recordRemittance(f.admin.id, {
-      requestId: randomUUID(),
       reference: randomUUID(),
       mode: 'EVIDENCE',
       netAmount: f.order.total,

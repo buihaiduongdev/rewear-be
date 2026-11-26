@@ -4,13 +4,11 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { StorageService } from '@/infrastructure/storage';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';
 import { DisputeService } from '@/modules/dispute/dispute.service';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
-import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { OrderAccess } from '@/modules/order/order.access';
 import { WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -23,32 +21,21 @@ describe('Admin adjudication and 3-5 business day SLA (PostgreSQL)', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    const orderAccess = new OrderAccess();
-    const access = new DisputeAccess(orderAccess);
     const outbox = new OutboxService();
-    const refunds = new DisputeRefundService(
-      database.dataSource,
-      access,
-      outbox,
-    );
+    const refunds = new DisputeRefundService(database.dataSource, outbox);
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
-      access,
-      orderAccess,
       refunds,
     );
     adjudication = new DisputeAdjudicationService(
       database.dataSource,
-      access,
       refunds,
       returns,
       outbox,
     );
     disputes = new DisputeService(
       database.dataSource,
-      access,
-      orderAccess,
       {} as StorageService,
       {} as MediaService,
       outbox,

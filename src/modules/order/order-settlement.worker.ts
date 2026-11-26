@@ -9,14 +9,16 @@ export class OrderSettlementWorker {
   private readonly logger = new Logger(OrderSettlementWorker.name);
   private running = false;
 
-  constructor(private readonly settlement: OrderSettlementService) {}
+  constructor(
+    private readonly orderSettlementService: OrderSettlementService,
+  ) {}
 
   @Interval(ORDER_POLICY.WORKER_INTERVAL_MS)
   async run() {
     if (this.running) return;
     this.running = true;
     try {
-      await this.settlement.settleDue();
+      await this.orderSettlementService.settleDue();
     } catch {
       this.logger.error('Order settlement scan failed; retry required');
     } finally {

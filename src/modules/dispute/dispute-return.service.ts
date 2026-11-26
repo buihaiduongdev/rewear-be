@@ -12,36 +12,35 @@ import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipmen
 import { shipmentPayloadSchema } from '@/infrastructure/shipping/schemas/ghn-shipment.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { Order } from '@/modules/order/entities';
-import { OrderAccess } from '@/modules/order/order.access';
+import { assertShopOrderManager } from '@/modules/order/order.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import {
   DISPUTE_DECISION_OUTCOME,
   DISPUTE_ISSUE_STATE,
   DISPUTE_POLICY,
-} from '../constants/dispute.constant';
-import { DisputeRefundService } from '../dispute-refund.service';
-import { DisputeAccess, restoreDisputeCaseIfClear } from '../dispute.access';
-import { DisputeCase } from '../entities/dispute-case.entity';
-import { DisputeDecision } from '../entities/dispute-decision.entity';
-import { DisputeIssue } from '../entities/dispute-issue.entity';
+  RETURN_BOOKING_INSTRUCTIONS,
+  RETURN_POLICY,
+  RETURN_STATE,
+} from './constants/dispute.constant';
+import { DisputeRefundService } from './dispute-refund.service';
+import {
+  assertDisputeParty,
+  restoreDisputeCaseIfClear,
+} from './dispute.service';
+import { DisputeCase } from './entities/dispute-case.entity';
+import { DisputeDecision } from './entities/dispute-decision.entity';
+import { DisputeIssue } from './entities/dispute-issue.entity';
+import { DisputeReturn } from './entities/dispute-return.entity';
 import type {
   ReturnCarrierStatusInput,
   ReturnLabelInput,
   ReturnParcelInput,
-} from '../schemas/dispute.schema';
+} from './schemas/dispute.schema';
 import {
   returnCarrierStatusSchema,
   returnLabelInputSchema,
-} from '../schemas/dispute.schema';
-import {
-  RETURN_BOOKING_INSTRUCTIONS,
-  RETURN_POLICY,
-  RETURN_STATE,
-} from './constants/return.constant';
-import { DisputeReturn } from './entities/dispute-return.entity';
+} from './schemas/dispute.schema';
 
 export function reverseReturnPayload(
   forward: Record<string, unknown>,
@@ -126,24 +125,14 @@ export class DisputeReturnService {
 
   constructor(
     private readonly db: DataSource,
-    private readonly carrier: GhnShipmentClient,
-    private readonly access: DisputeAccess,
-    private readonly orders: OrderAccess,
-    private readonly refunds: DisputeRefundService,
+    private readonly ghnShipmentClient: GhnShipmentClient,
+    private readonly disputeRefundService: DisputeRefundService,
   ) {}
 
   private async lockOrderAndReturn(manager: EntityManager, id: string) {
-    const meta = await manager
-      .createQueryBuilder(DisputeReturn, 'r')
-      .where('r.id = :id', { id })
-      .select('r.orderId', 'orderId')
-      .getRawOne<{ orderId: string }>();
-    if (!meta) {
-      await manager.findOneByOrFail(DisputeReturn, { id });
-      throw new ConflictException('Return record missing');
-    }
+    const existing = await manager.findOneByOrFail(DisputeReturn, { id });
     await manager.findOneOrFail(Order, {
-      where: { id: meta.orderId },
+      where: { id: existing.orderId },
       lock: { mode: 'pessimistic_write' },
     });
     return manager.findOneOrFail(DisputeReturn, {
@@ -188,19 +177,13 @@ export class DisputeReturnService {
   async read(userId: string, id: string, admin = false) {
     const manager = this.db.manager;
     const row = await manager.findOneByOrFail(DisputeReturn, { id });
-    if (admin) {
-      await manager.findOneByOrFail(User, {
-        id: userId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
-    } else {
-      await this.access.assertParty(manager, userId, row.orderId);
+    if (!admin) {
+      await assertDisputeParty(manager, userId, row.orderId);
     }
     return row;
   }
 
-  async createLabel(adminId: string, id: string, input: ReturnLabelInput) {
+  async createLabel(_adminId: string, id: string, input: ReturnLabelInput) {
     const data = returnLabelInputSchema.parse(input);
     let bookedCode = data.waybillCode;
     let mode = data.mode;
@@ -208,11 +191,6 @@ export class DisputeReturnService {
     if (!bookedCode && data.parcel) {
       const target = await this.db.manager.findOneByOrFail(DisputeReturn, {
         id,
-      });
-      await this.db.manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
       });
       if (target.state !== RETURN_STATE.WAITING_LABEL) {
         throw new ConflictException('Return is not waiting for label');
@@ -231,7 +209,7 @@ export class DisputeReturnService {
       ) {
         throw new ServiceUnavailableException('GHN_BOOKING_UNAVAILABLE');
       }
-      const created = await this.carrier.create(
+      const created = await this.ghnShipmentClient.create(
         reverseReturnPayload(forward.payload, target.id, data.parcel),
         accountId,
       );
@@ -240,11 +218,6 @@ export class DisputeReturnService {
     }
 
     return this.db.transaction(async (manager) => {
-      await manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -266,18 +239,14 @@ export class DisputeReturnService {
     });
   }
 
-  async recordHandover(userId: string, id: string) {
+  async recordHandover(userId: string, id: string, admin = false) {
     return this.db.transaction(async (manager) => {
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
       const row = await this.lockOrderAndReturn(manager, id);
-      const user = await manager.findOneByOrFail(User, {
-        id: userId,
-        status: UserStatus.ACTIVE,
-      });
-      if (user.role !== UserRole.ADMIN && row.buyerId !== userId) {
+      if (!admin && row.buyerId !== userId) {
         throw new ForbiddenException(
           'Only buyer or Admin can record return handover',
         );
@@ -297,17 +266,12 @@ export class DisputeReturnService {
   }
 
   async updateCarrierStatus(
-    adminId: string,
+    _adminId: string,
     id: string,
     input: ReturnCarrierStatusInput,
   ) {
     const data = returnCarrierStatusSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      await manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -340,7 +304,11 @@ export class DisputeReturnService {
       row.readyAt = now;
       row.state = RETURN_STATE.READY;
       await manager.save(row);
-      await this.refunds.executeInTransaction(manager, row.decisionId, now);
+      await this.disputeRefundService.executeInTransaction(
+        manager,
+        row.decisionId,
+        now,
+      );
       return row;
     });
   }
@@ -352,7 +320,7 @@ export class DisputeReturnService {
       );
       const now = new Date(clock);
       const row = await this.lockOrderAndReturn(manager, id);
-      await this.orders.assertManage(manager, userId, row.shopId);
+      await assertShopOrderManager(manager, userId, row.shopId);
       if (row.state === RETURN_STATE.READY) return row;
       if (
         (row.state !== RETURN_STATE.IN_TRANSIT &&
@@ -370,7 +338,11 @@ export class DisputeReturnService {
       row.readyAt = now;
       row.state = RETURN_STATE.READY;
       await manager.save(row);
-      await this.refunds.executeInTransaction(manager, row.decisionId, now);
+      await this.disputeRefundService.executeInTransaction(
+        manager,
+        row.decisionId,
+        now,
+      );
       return row;
     });
   }

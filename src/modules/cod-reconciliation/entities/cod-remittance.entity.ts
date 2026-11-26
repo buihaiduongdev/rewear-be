@@ -1,17 +1,14 @@
-import { Check, Column, Entity, Index } from 'typeorm';
+import { Check, Column, Entity, Index, OneToMany } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
 import type { ReconciliationMode } from '../schemas/cod-reconciliation.schema';
+import { CodRemittanceAllocation } from './cod-remittance-allocation.entity';
 
 @Entity('cod_remittances')
-@Index(['requestId'], { unique: true })
 @Index(['mode', 'reference'], { unique: true })
 @Check('CHK_cod_remittance_nonnegative', '"netAmount" >= 0')
 export class CodRemittance extends BaseEntity {
-  @Column('uuid')
-  requestId: string;
-
   @Column({ type: 'varchar', length: 16 })
   mode: ReconciliationMode;
 
@@ -33,6 +30,9 @@ export class CodRemittance extends BaseEntity {
   @Column('text')
   evidence: string;
 
-  @Column({ type: 'varchar', length: 64 })
-  requestFingerprint: string;
+  @OneToMany(
+    () => CodRemittanceAllocation,
+    (allocation) => allocation.remittance,
+  )
+  allocations: CodRemittanceAllocation[];
 }

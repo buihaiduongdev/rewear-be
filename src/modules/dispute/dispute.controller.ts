@@ -19,8 +19,8 @@ import { UserRole } from '@/modules/user/enums';
 
 import { DisputeAdjudicationService } from './dispute-adjudication.service';
 import { DisputeRefundService } from './dispute-refund.service';
+import { DisputeReturnService } from './dispute-return.service';
 import { DisputeService } from './dispute.service';
-import { DisputeReturnService } from './returns/return.service';
 import type {
   DisputeAppealInput,
   DisputeDecisionInput,
@@ -61,10 +61,10 @@ import {
 @Controller()
 export class DisputeController {
   constructor(
-    private readonly disputes: DisputeService,
-    private readonly adjudication: DisputeAdjudicationService,
-    private readonly refunds: DisputeRefundService,
-    private readonly returns: DisputeReturnService,
+    private readonly disputeService: DisputeService,
+    private readonly disputeAdjudicationService: DisputeAdjudicationService,
+    private readonly disputeRefundService: DisputeRefundService,
+    private readonly disputeReturnService: DisputeReturnService,
   ) {}
 
   @Post('orders/:id/dispute-evidence')
@@ -75,7 +75,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeUploadSchema }) input: DisputeUploadInput,
   ) {
-    return this.disputes.attachEvidence(user.id, id, input);
+    return this.disputeService.attachEvidence(user.id, id, input);
   }
 
   @Get('dispute-evidence/:id/download')
@@ -84,14 +84,14 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.disputes.downloadEvidence(user.id, id);
+    return this.disputeService.downloadEvidence(user.id, id);
   }
 
   @Get('admin/dispute-evidence/:id/download')
   @Roles(UserRole.ADMIN)
   @Serialize(disputeDownloadSchema)
   adminDownload(@Param('id', { schema: uuidSchema }) id: string) {
-    return this.disputes.adminDownloadEvidence(id);
+    return this.disputeService.adminDownloadEvidence(id);
   }
 
   @Post('orders/:id/dispute/issues')
@@ -102,7 +102,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: openDisputeIssueSchema }) input: OpenDisputeIssueInput,
   ) {
-    return this.disputes.openIssue(user.id, id, input);
+    return this.disputeService.openIssue(user.id, id, input);
   }
 
   @Post('dispute-issues/:id/replies')
@@ -113,7 +113,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeReplySchema }) input: DisputeReplyInput,
   ) {
-    return this.disputes.reply(user.id, id, input);
+    return this.disputeService.reply(user.id, id, input);
   }
 
   @Get('orders/:id/dispute')
@@ -123,7 +123,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.disputes.byOrder(user.id, id, input.offset);
+    return this.disputeService.byOrder(user.id, id, input.offset);
   }
 
   @Get('disputes/mine')
@@ -132,7 +132,7 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.disputes.buyerList(user.id, input.offset);
+    return this.disputeService.buyerList(user.id, input.offset);
   }
 
   @Get('shops/:shopId/disputes')
@@ -142,14 +142,14 @@ export class DisputeController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.disputes.shopList(user.id, shopId, input.offset);
+    return this.disputeService.shopList(user.id, shopId, input.offset);
   }
 
   @Get('admin/disputes')
   @Roles(UserRole.ADMIN)
   @Serialize(z.array(disputeCaseViewSchema))
   adminList(@Query({ schema: disputeListSchema }) input: { offset: number }) {
-    return this.disputes.adminList(input.offset);
+    return this.disputeService.adminList(input.offset);
   }
 
   @Get('admin/disputes/:id')
@@ -159,7 +159,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Query({ schema: disputeListSchema }) input: { offset: number },
   ) {
-    return this.disputes.adminDetail(id, input.offset);
+    return this.disputeService.adminDetail(id, input.offset);
   }
 
   @Post('admin/dispute-issues/:id/extend')
@@ -171,7 +171,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeExtensionSchema }) input: { reason: string },
   ) {
-    return this.adjudication.extend(user.id, id, input);
+    return this.disputeAdjudicationService.extend(user.id, id, input);
   }
 
   @Post('admin/dispute-issues/:id/decision')
@@ -183,7 +183,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeDecisionInputSchema }) input: DisputeDecisionInput,
   ) {
-    return this.adjudication.decide(user.id, id, input);
+    return this.disputeAdjudicationService.decide(user.id, id, input);
   }
 
   @Post('dispute-decisions/:id/appeals')
@@ -194,7 +194,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeAppealInputSchema }) input: DisputeAppealInput,
   ) {
-    return this.adjudication.submitAppeal(user.id, id, input);
+    return this.disputeAdjudicationService.submitAppeal(user.id, id, input);
   }
 
   @Post('admin/dispute-decisions/:id/appeal-decision')
@@ -206,7 +206,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: disputeDecisionInputSchema }) input: DisputeDecisionInput,
   ) {
-    return this.adjudication.concludeAppeal(user.id, id, input);
+    return this.disputeAdjudicationService.concludeAppeal(user.id, id, input);
   }
 
   @Get('dispute-decisions/:id/refund')
@@ -215,7 +215,11 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.refunds.view(user.id, id, user.role === UserRole.ADMIN);
+    return this.disputeRefundService.view(
+      user.id,
+      id,
+      user.role === UserRole.ADMIN,
+    );
   }
 
   @Post('admin/dispute-decisions/:id/refund')
@@ -223,7 +227,7 @@ export class DisputeController {
   @HttpCode(200)
   @Serialize(refundCreditViewSchema.nullable())
   executeRefund(@Param('id', { schema: uuidSchema }) id: string) {
-    return this.refunds.execute(id);
+    return this.disputeRefundService.execute(id);
   }
 
   @Get('dispute-returns/:id')
@@ -232,7 +236,11 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.returns.read(user.id, id, user.role === UserRole.ADMIN);
+    return this.disputeReturnService.read(
+      user.id,
+      id,
+      user.role === UserRole.ADMIN,
+    );
   }
 
   @Post('admin/dispute-returns/:id/label')
@@ -244,7 +252,7 @@ export class DisputeController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: returnLabelInputSchema }) input: ReturnLabelInput,
   ) {
-    return this.returns.createLabel(user.id, id, input);
+    return this.disputeReturnService.createLabel(user.id, id, input);
   }
 
   @Post('dispute-returns/:id/handover')
@@ -254,7 +262,11 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.returns.recordHandover(user.id, id);
+    return this.disputeReturnService.recordHandover(
+      user.id,
+      id,
+      user.role === UserRole.ADMIN,
+    );
   }
 
   @Post('admin/dispute-returns/:id/status')
@@ -267,7 +279,7 @@ export class DisputeController {
     @Body({ schema: returnCarrierStatusSchema })
     input: ReturnCarrierStatusInput,
   ) {
-    return this.returns.updateCarrierStatus(user.id, id, input);
+    return this.disputeReturnService.updateCarrierStatus(user.id, id, input);
   }
 
   @Post('dispute-returns/:id/confirm-receipt')
@@ -277,6 +289,6 @@ export class DisputeController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.returns.confirmReceipt(user.id, id);
+    return this.disputeReturnService.confirmReceipt(user.id, id);
   }
 }

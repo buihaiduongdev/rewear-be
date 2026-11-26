@@ -1,31 +1,172 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, Not } from 'typeorm';
 
-import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
+import { reconciliationMoney } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+import {
+  COD_RECONCILIATION_STATUS,
+  RECONCILIATION_MODE,
+  RECONCILIATION_REVIEW_REASON,
+  SHOP_LEDGER_TYPE,
+} from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
+import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
-import { WalletAccount } from '@/modules/wallet/entities';
+import { resolveOrderHeldCredit } from '@/modules/order/order-funding.service';
+import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { walletBalanceSchema } from '@/modules/wallet/schemas/wallet.schema';
 
 import {
   DISPUTE_DECISION_OUTCOME,
   DISPUTE_ISSUE_STATE,
   DISPUTE_POLICY,
+  RETURN_STATE,
 } from './constants/dispute.constant';
-import { refundAllocation } from './dispute-refund-accounting';
-import { refundFunding } from './dispute-refund-funding';
-import { DisputeAccess, restoreDisputeCaseIfClear } from './dispute.access';
+import {
+  assertDisputeParty,
+  restoreDisputeCaseIfClear,
+} from './dispute.service';
 import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
-import { RETURN_STATE } from './returns/constants/return.constant';
-import { DisputeReturn } from './returns/entities/dispute-return.entity';
+import { DisputeReturn } from './entities/dispute-return.entity';
+
+export function refundAllocation(
+  price: number,
+  entitlement: number,
+  basisPoints: number,
+) {
+  const amountsValid =
+    [price, entitlement, basisPoints].every(Number.isSafeInteger) &&
+    price > 0 &&
+    entitlement > 0 &&
+    entitlement <= price &&
+    basisPoints >= 0 &&
+    basisPoints <= BASIS_POINTS_SCALE;
+  if (!amountsValid) throw new ConflictException('Invalid refund allocation');
+  const fee = (remaining: number) =>
+    Number(
+      (BigInt(remaining) * BigInt(basisPoints)) / BigInt(BASIS_POINTS_SCALE),
+    );
+  const commissionReversed = fee(price) - fee(price - entitlement);
+  return {
+    amount: entitlement,
+    commissionReversed,
+    sellerDebit: entitlement - commissionReversed,
+  };
+}
+
+export async function orderRefundDebit(
+  manager: EntityManager,
+  orderId: string,
+  shopId: string,
+  mode: ReconciliationMode,
+) {
+  const rows = await manager.find(DisputeRefundCredit, {
+    where: { orderId, shopId },
+  });
+  if (rows.some((row) => row.mode !== mode)) {
+    throw new ConflictException('Refund and settlement source modes disagree');
+  }
+  return rows.reduce((sum, row) => sum + row.sellerDebit, 0);
+}
+
+export async function shopRefundDeductions(
+  manager: EntityManager,
+  shopId: string,
+  mode: ReconciliationMode,
+) {
+  const [row] = await manager.query(
+    `
+    SELECT COALESCE(SUM(CASE WHEN entry.id IS NOT NULL THEN refund."sellerDebit" ELSE 0 END),0) AS funded,
+      COALESCE(SUM(CASE WHEN release.id IS NOT NULL THEN refund."sellerDebit" ELSE 0 END),0) AS settled,
+      COALESCE(SUM(CASE WHEN entry.id IS NULL AND (collection.status = ANY($3::varchar[]) OR (collection.status=$4 AND collection."reviewReason"=$5)) THEN refund."sellerDebit" ELSE 0 END),0) AS receivable
+    FROM dispute_refund_credits refund
+    LEFT JOIN shop_ledger_entries entry ON entry."orderId"=refund."orderId" AND entry."shopId"=refund."shopId" AND entry.mode=refund.mode AND entry.type<>$6
+    LEFT JOIN shop_settlements release ON release."orderId"=refund."orderId" AND release."shopId"=refund."shopId" AND release.mode=refund.mode
+    LEFT JOIN cod_collections collection ON collection."orderId"=refund."orderId" AND collection."shopId"=refund."shopId" AND collection.mode=refund.mode
+    WHERE refund."shopId"=$1 AND refund.mode=$2`,
+    [
+      shopId,
+      mode,
+      [COD_RECONCILIATION_STATUS.AWAITING, COD_RECONCILIATION_STATUS.PARTIAL],
+      COD_RECONCILIATION_STATUS.REVIEW,
+      RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW,
+      SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
+    ],
+  );
+  return {
+    funded: Number(row.funded),
+    settled: Number(row.settled),
+    receivable: Number(row.receivable),
+  };
+}
+
+export async function refundFunding(
+  manager: EntityManager,
+  order: Order,
+  now: Date,
+) {
+  if (await manager.existsBy(WalletCredit, { orderId: order.id })) return null;
+  const shipment = await manager.findOneBy(Shipment, { orderId: order.id });
+  if (!shipment) return null;
+  const money = reconciliationMoney(order);
+  if (
+    order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS ||
+    order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
+  ) {
+    const credit = await resolveOrderHeldCredit(manager, order, shipment);
+    return credit ? { mode: credit.mode } : null;
+  }
+  if (order.paymentMethod !== ORDER_PAYMENT_METHOD.COD) return null;
+  const collection = await manager.findOneBy(CodCollection, {
+    orderId: order.id,
+  });
+  if (!collection) return null;
+  if (!(await verifiedOrderCoinDebit(manager, order, collection.mode))) {
+    return null;
+  }
+  const reviewAcceptable =
+    collection.reviewReason === null ||
+    collection.reviewReason ===
+      RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
+  const proofMatches =
+    collection.collectedAmount === order.total &&
+    collection.expectedAmount === order.total &&
+    collection.shopId === order.shopId &&
+    collection.shipmentId === shipment.id &&
+    collection.waybillCode === shipment.orderCode &&
+    collection.gross === money.gross &&
+    collection.commission === money.commission &&
+    collection.sellerNet === money.sellerNet &&
+    collection.collectedAt <= now &&
+    Object.values(RECONCILIATION_MODE).includes(collection.mode) &&
+    reviewAcceptable;
+  if (!proofMatches) return null;
+  const credit = await manager.findOneBy(ShopLedgerEntry, {
+    orderId: order.id,
+    type: Not(SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT),
+  });
+  const creditMatches =
+    credit?.mode === collection.mode &&
+    credit.amount === money.sellerNet &&
+    credit.shopId === order.shopId &&
+    credit.type === SHOP_LEDGER_TYPE.COD_FUNDED_HELD &&
+    credit.collectionId === collection.id &&
+    collection.cashReceived + collection.feeDeducted === order.total;
+  if (credit && !creditMatches) return null;
+  return { mode: collection.mode };
+}
 
 @Injectable()
 export class DisputeRefundService {
@@ -34,30 +175,19 @@ export class DisputeRefundService {
 
   constructor(
     private readonly db: DataSource,
-    private readonly access: DisputeAccess,
     private readonly outboxService: OutboxService,
   ) {}
 
   async view(userId: string, decisionId: string, admin = false) {
     const manager = this.db.manager;
-    const decision = await manager.findOneByOrFail(DisputeDecision, {
-      id: decisionId,
+    const decision = await manager.findOneOrFail(DisputeDecision, {
+      where: { id: decisionId },
+      relations: { issue: { case: { order: true } } },
     });
-    const issue = await manager.findOneByOrFail(DisputeIssue, {
-      id: decision.issueId,
-    });
-    const row = await manager.findOneByOrFail(DisputeCase, {
-      id: issue.caseId,
-    });
-    const order = await manager.findOneByOrFail(Order, { id: row.orderId });
-    if (admin) {
-      await manager.findOneByOrFail(User, {
-        id: userId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
-    } else {
-      await this.access.assertParty(manager, userId, row.orderId, order);
+    const { issue } = decision;
+    const { order } = issue.case;
+    if (!admin) {
+      await assertDisputeParty(manager, userId, order.id, order);
     }
     const entitlement = decision.finalRefundAmount ?? decision.refundAmount;
     const approved = entitlement
@@ -67,8 +197,10 @@ export class DisputeRefundService {
           order.commissionBasisPoints,
         )
       : null;
-    const returnCase = await manager.findOneBy(DisputeReturn, { decisionId });
-    const credit = await manager.findOneBy(DisputeRefundCredit, { decisionId });
+    const [returnCase, credit] = await Promise.all([
+      manager.findOneBy(DisputeReturn, { decisionId }),
+      manager.findOneBy(DisputeRefundCredit, { decisionId }),
+    ]);
     return {
       decisionId,
       issueStatus: issue.status,

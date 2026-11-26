@@ -20,9 +20,11 @@ import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
 import { User } from '@/modules/user/entities';
 
-import { SHOP_APPLICATION_STATE } from './applications/constants/shop-application.constant';
+import {
+  publicIdentitySaleState,
+  SHOP_APPLICATION_STATE,
+} from './applications/constants/shop-application.constant';
 import { ShopApplication } from './applications/entities';
-import { publicIdentitySaleState } from './applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from './entities';
 import { ShopInvitation } from './entities/shop-invitation.entity';
 import { ShopMemberRole, ShopStatus } from './enums';
@@ -42,8 +44,8 @@ export class ShopService {
     private readonly shopMemberRepository: Repository<ShopMember>,
     private readonly dataSource: DataSource,
     private readonly shopRoleService: ShopRoleService,
-    private readonly uploads: MediaService,
-    private readonly storage: StorageService,
+    private readonly mediaService: MediaService,
+    private readonly storageService: StorageService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -52,7 +54,7 @@ export class ShopService {
       ...shop,
       logoUrl:
         shop.logoMedia && !shop.logoMedia.retiredAt
-          ? this.storage.getPublicUrl(shop.logoMedia.storageKey)
+          ? this.storageService.getPublicUrl(shop.logoMedia.storageKey)
           : null,
     };
   }
@@ -80,7 +82,7 @@ export class ShopService {
   create(userId: string, input: CreateShopInput) {
     return this.dataSource.transaction(async (manager) => {
       const logo = input.logoMediaId
-        ? await this.uploads.verifyMedia(
+        ? await this.mediaService.verifyMedia(
             manager,
             userId,
             input.logoMediaId,
@@ -153,7 +155,7 @@ export class ShopService {
         input.logoMediaId && input.logoMediaId === shop.logoMediaId
           ? await manager.findOneByOrFail(Media, { id: input.logoMediaId })
           : input.logoMediaId
-            ? await this.uploads.verifyMedia(
+            ? await this.mediaService.verifyMedia(
                 manager,
                 currentUserId,
                 input.logoMediaId,

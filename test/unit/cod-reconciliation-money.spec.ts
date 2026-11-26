@@ -1,4 +1,4 @@
-import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
+import { reconciliationMoney } from '@/modules/cod-reconciliation/cod-reconciliation.service';
 
 describe('COD reconciliation money snapshot', () => {
   it('accepts the extra rounding coin allocated from a globally capped multi-Shop checkout', () => {

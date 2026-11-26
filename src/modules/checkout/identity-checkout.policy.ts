@@ -5,7 +5,7 @@ import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.const
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';

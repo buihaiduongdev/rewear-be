@@ -15,6 +15,7 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
@@ -33,6 +34,7 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
+import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
@@ -58,8 +60,17 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
     const outbox = new OutboxService();
-    cod = new CodService(db, pricing, policy, outbox);
-    orders = new OrderService(db, new WalletService(db), policy, outbox);
+    const coins = new CoinService(db);
+    orders = new OrderService(db, new WalletService(db), policy, outbox, coins);
+    cod = new CodService(
+      db,
+      pricing,
+      policy,
+      outbox,
+      coins,
+      orders,
+      new ShopFinanceService(db),
+    );
   });
   afterAll(async () => database?.destroy());
 

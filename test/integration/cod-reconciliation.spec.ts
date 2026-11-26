@@ -13,6 +13,7 @@ import {
   RemittanceInput,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -35,7 +36,10 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
   const adminId = randomUUID();
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new CodReconciliationService(database.dataSource);
+    service = new CodReconciliationService(
+      database.dataSource,
+      new CoinService(database.dataSource),
+    );
     finance = new ShopFinanceService(database.dataSource);
   });
   afterAll(async () => database?.destroy());
@@ -92,7 +96,6 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
       pickedObservedAt: new Date(Date.now() - 4000000),
     });
     const input: CollectionInput = {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       waybillCode: shipment.orderCode!,
       collectedAmount: 230000,
@@ -110,7 +113,6 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     mode: RemittanceInput['mode'] = 'EVIDENCE',
   ): RemittanceInput {
     return {
-      requestId: randomUUID(),
       reference: randomUUID(),
       mode,
       netAmount: cashAmount,
@@ -253,24 +255,13 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     expect(simulated.held).toBe(194000);
     expect(simulated.available).toBe(0);
   });
-  it('preserves immutable collection replay but rejects changed payloads or reused collection request IDs', async () => {
-    const a = await fixture(),
-      b = await fixture();
-    const row = await service.recordCollection(adminId, a.order.id, a.input);
-    await a.db.getRepository(Order).update(a.order.id, { status: 'cancelled' });
-    expect(
-      (await service.recordCollection(adminId, a.order.id, a.input)).id,
-    ).toBe(row.id);
+  it('rejects duplicate collection recording for the same order', async () => {
+    const a = await fixture();
+    await service.recordCollection(adminId, a.order.id, a.input);
     await expect(
       service.recordCollection(adminId, a.order.id, {
         ...a.input,
         collectedAmount: 1,
-      }),
-    ).rejects.toThrow('already');
-    await expect(
-      service.recordCollection(adminId, b.order.id, {
-        ...b.input,
-        requestId: a.input.requestId,
       }),
     ).rejects.toThrow('already');
   });
@@ -416,7 +407,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
     expect(
       await a.db
         .getRepository(CodRemittance)
-        .countBy({ requestId: data.requestId }),
+        .countBy({ mode: data.mode, reference: data.reference.toUpperCase() }),
     ).toBe(0);
     expect((await service.detail(a.order.id)).collection.cashReceived).toBe(0);
   });
@@ -467,6 +458,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
         new WalletService(f.db),
         new CodPolicy(f.db),
         outbox,
+        new CoinService(f.db),
       ),
       carrier as unknown as GhnShipmentClient,
       outbox,

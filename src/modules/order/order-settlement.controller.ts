@@ -20,7 +20,9 @@ import {
 @AuthenticatedAccess()
 @Controller()
 export class OrderSettlementController {
-  constructor(private readonly settlement: OrderSettlementService) {}
+  constructor(
+    private readonly orderSettlementService: OrderSettlementService,
+  ) {}
 
   @Post('orders/:id/confirm-receipt')
   @HttpCode(200)
@@ -30,7 +32,7 @@ export class OrderSettlementController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.settlement.confirmReceipt(user.id, id);
+    return this.orderSettlementService.confirmReceipt(user.id, id);
   }
 
   @Post('admin/orders/:id/delivery-verification')
@@ -42,6 +44,6 @@ export class OrderSettlementController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: verifyDeliverySchema }) input: VerifyDeliveryInput,
   ) {
-    return this.settlement.verifyDelivery(user.id, id, input);
+    return this.orderSettlementService.verifyDelivery(user.id, id, input);
   }
 }

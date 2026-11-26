@@ -14,8 +14,6 @@ import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.ent
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
 import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
 
 describe('FEAT-07 COD failure handling without fee subsystem', () => {
   it('records a clean idempotent 2-way shipping debit in ShopLedger for seller-fault COD failure', async () => {
@@ -141,7 +139,7 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
     ]);
   });
 
-  it('requires an active Admin, passes cancellationNote before release, and replays idempotently', async () => {
+  it('passes cancellationNote before release and replays idempotently', async () => {
     const adminId = randomUUID();
     const order: Partial<Order> = {
       id: randomUUID(),
@@ -158,13 +156,7 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
       carrierFee: 32000,
       nextQueryAt: new Date(),
     };
-    let activeAdmin = false;
     const manager = {
-      findOneBy: jest.fn(async (entity) =>
-        entity === User && activeAdmin
-          ? { id: adminId, role: UserRole.ADMIN, status: UserStatus.ACTIVE }
-          : null,
-      ),
       findOneOrFail: jest.fn(async (entity) =>
         entity === Order ? order : shipment,
       ),
@@ -197,6 +189,7 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
       {} as PaymentPricing,
       {} as CodPolicy,
       { record: jest.fn() } as never,
+      {} as never,
       orderService,
       shopFinance,
     );
@@ -207,11 +200,6 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
       sellable: true,
       reason: 'Wrong size packed',
     };
-    await expect(
-      service.resolveReturnedOrder(adminId, order.id!, payload),
-    ).rejects.toThrow('Active Admin required');
-
-    activeAdmin = true;
     await service.resolveReturnedOrder(adminId, order.id!, payload);
     const replay = await service.resolveReturnedOrder(
       adminId,

@@ -4,8 +4,10 @@ import { EntityManager } from 'typeorm';
 
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constant';
-import { RETURN_STATE } from '@/modules/dispute/returns/constants/return.constant';
+import {
+  OPEN_DISPUTE_STATES,
+  RETURN_STATE,
+} from '@/modules/dispute/constants/dispute.constant';
 
 import { ShopLedgerEntry } from './entities/shop-ledger.entity';
 import {

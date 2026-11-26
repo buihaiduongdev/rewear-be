@@ -22,7 +22,7 @@ import {
   financeListSchema,
   type ReconciliationMode,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { shopRefundDeductions } from '@/modules/dispute/dispute-refund-accounting';
+import { shopRefundDeductions } from '@/modules/dispute/dispute-refund.service';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { Order } from '@/modules/order/entities';
 import { ShopMember } from '@/modules/shop/entities';

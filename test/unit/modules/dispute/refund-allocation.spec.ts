@@ -1,4 +1,4 @@
-import { refundAllocation } from '@/modules/dispute/dispute-refund-accounting';
+import { refundAllocation } from '@/modules/dispute/dispute-refund.service';
 
 describe('Item refund allocation', () => {
   it('computes full item refund and commission reversal accurately', () => {

@@ -1,8 +1,8 @@
 import {
   ConflictException,
-  ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
-  Optional,
 } from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
@@ -33,11 +33,10 @@ import {
 } from '@/modules/product/enums';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
 import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
@@ -55,11 +54,14 @@ import {
 export class CodService {
   constructor(
     private readonly db: DataSource,
-    private readonly pricing: PaymentPricing,
-    private readonly policy: CodPolicy,
+    private readonly paymentPricing: PaymentPricing,
+    private readonly codPolicy: CodPolicy,
     private readonly outboxService: OutboxService,
-    @Optional() private readonly orderService?: OrderService,
-    @Optional() private readonly shopFinanceService?: ShopFinanceService,
+    private readonly coinService: CoinService,
+    @Inject(forwardRef(() => OrderService))
+    private readonly orderService: OrderService,
+    @Inject(forwardRef(() => ShopFinanceService))
+    private readonly shopFinanceService: ShopFinanceService,
   ) {}
 
   async place(
@@ -77,7 +79,7 @@ export class CodService {
     }
     let quote: Awaited<ReturnType<PaymentPricing['quote']>>;
     try {
-      quote = await this.pricing.quote(buyerId, checkoutId);
+      quote = await this.paymentPricing.quote(buyerId, checkoutId);
     } catch (error) {
       const replay = await this.db.getRepository(Order).find({
         where: { buyerId, checkoutId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
@@ -133,7 +135,11 @@ export class CodService {
         throw new ConflictException(
           'Resolve the previous payment before choosing COD',
         );
-      const snapshots = await this.pricing.snapshot(manager, checkout, quote);
+      const snapshots = await this.paymentPricing.snapshot(
+        manager,
+        checkout,
+        quote,
+      );
       this.assertExpectedTotal(
         snapshots.map((order) => ({
           total: order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
@@ -145,7 +151,7 @@ export class CodService {
         checkout,
         snapshots,
       );
-      await this.policy.assertCanPlace(manager, buyerId, ids.length, now);
+      await this.codPolicy.assertCanPlace(manager, buyerId, ids.length, now);
       const orders = await this.createOrders(
         manager,
         buyerId,
@@ -153,7 +159,7 @@ export class CodService {
         snapshots,
         now,
       );
-      await new CoinService().commitCodCoins(manager, checkout.id, orders, now);
+      await this.coinService.commitCodCoins(manager, checkout.id, orders, now);
       checkout.status = CHECKOUT_STATUS.COD_PLACED;
       await manager.save(checkout);
       const cart = await manager.findOneBy(Cart, { userId: buyerId });
@@ -169,15 +175,7 @@ export class CodService {
     input: ResolveCodReturnInput,
   ) {
     const data = resolveCodReturnSchema.parse(input);
-    if (!this.orderService || !this.shopFinanceService)
-      throw new ConflictException('COD return dependencies unavailable');
     return this.db.transaction(async (manager) => {
-      const admin = await manager.findOneBy(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
-      if (!admin) throw new ForbiddenException('Active Admin required');
       const order = await manager.findOneOrFail(Order, {
         where: { id: orderId, paymentMethod: ORDER_PAYMENT_METHOD.COD },
         lock: { mode: 'pessimistic_write' },
@@ -197,7 +195,7 @@ export class CodService {
       );
       const now = new Date(clock);
       order.cancellationNote = data.reason;
-      await this.orderService!.releaseCodReturnedVerified(
+      await this.orderService.releaseCodReturnedVerified(
         manager,
         order,
         now,
@@ -205,7 +203,7 @@ export class CodService {
         adminId,
       );
       if (data.fault === COD_FAULT_PARTY.SELLER) {
-        await this.shopFinanceService!.recordCodShippingDebit(
+        await this.shopFinanceService.recordCodShippingDebit(
           manager,
           order,
           shipment.carrierFee ?? order.shippingFee,
@@ -213,7 +211,7 @@ export class CodService {
           adminId,
         );
       } else {
-        await this.policy.recordFailedDelivery(manager, order, now);
+        await this.codPolicy.recordFailedDelivery(manager, order, now);
       }
       return order;
     });

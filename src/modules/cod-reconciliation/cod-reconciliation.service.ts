@@ -1,19 +1,28 @@
-import { createHash } from 'node:crypto';
-
 import { ConflictException, Injectable } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, Not, QueryFailedError } from 'typeorm';
 
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
+import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import { CoinService } from '@/modules/coins/core/coin.service';
-import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
+import {
+  ORDER_CANCEL_STATE,
+  ORDER_PAYMENT_METHOD,
+  ORDER_STATUS,
+} from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
+import type { OrderState } from '@/modules/order/schemas/order.schema';
+import {
+  SHIPMENT_STATE,
+  UNSAFE_CARRIER_REVIEW_REASONS,
+} from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 
-import { RECONCILIATION_REVIEW_REASON } from './constants/cod-reconciliation.constant';
 import {
   COD_RECONCILIATION_STATUS,
+  RECONCILIATION_REVIEW_REASON,
   SHOP_LEDGER_TYPE,
 } from './constants/cod-reconciliation.constant';
 import {
@@ -21,9 +30,6 @@ import {
   CodRemittance,
   CodRemittanceAllocation,
 } from './entities';
-import { requiresFulfillmentReview } from './policies/cod-funding.policy';
-import { reconciliationMoney } from './policies/cod-reconciliation-money.policy';
-import { orderFundingFingerprint } from './policies/order-fingerprint.policy';
 import type {
   CollectionContext,
   CollectionInput,
@@ -36,27 +42,83 @@ import type {
 } from './schemas/cod-reconciliation.schema';
 import {
   collectionInputSchema,
+  reconciliationMoneySchema,
   remittanceInputSchema,
 } from './schemas/cod-reconciliation.schema';
 
-const fingerprint = (value: unknown) =>
-  createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const DELIVERED_ORDER_STATES: readonly OrderState[] = [
+  ORDER_STATUS.DELIVERED,
+  ORDER_STATUS.DISPUTE,
+  ORDER_STATUS.COMPLETED,
+];
 
 const isUniqueViolation = (error: unknown) =>
   error instanceof QueryFailedError &&
   (error as QueryFailedError & { driverError?: { code?: string } }).driverError
     ?.code === '23505';
 
+export function requiresFulfillmentReview(
+  order: Order,
+  shipment: Shipment,
+  _now?: Date,
+): boolean {
+  const isDeliveryVerified =
+    DELIVERED_ORDER_STATES.includes(order.status) &&
+    Boolean(order.deliveryObservedAt) &&
+    shipment.providerStatus === GHN_SHIPMENT_STATUS.DELIVERED;
+
+  const isShipmentCancelled = shipment.state === SHIPMENT_STATE.CANCELLED;
+  const hasReturnInProgress = Boolean(
+    shipment.returnRequestedAt || order.carrierReturnedAt,
+  );
+  const isCancellationUnresolved = Boolean(
+    order.cancelState && order.cancelState !== ORDER_CANCEL_STATE.CLOSED,
+  );
+  const hasUnsafeCarrierData = Boolean(
+    shipment.reviewReason &&
+    UNSAFE_CARRIER_REVIEW_REASONS.includes(shipment.reviewReason),
+  );
+
+  return (
+    !isDeliveryVerified ||
+    isShipmentCancelled ||
+    hasReturnInProgress ||
+    isCancellationUnresolved ||
+    order.handoverReviewRequired ||
+    hasUnsafeCarrierData
+  );
+}
+
+export function reconciliationMoney(input: unknown) {
+  const parsed = reconciliationMoneySchema.safeParse(input);
+  if (!parsed.success) throw new ConflictException('Invalid order money');
+  const order = parsed.data;
+  const commission = Number(
+    order.items.reduce(
+      (sum, item) =>
+        sum +
+        (BigInt(item.price) * BigInt(order.commissionBasisPoints)) /
+          BigInt(BASIS_POINTS_SCALE),
+      0n,
+    ),
+  );
+  return {
+    gross: order.subtotal,
+    commission,
+    sellerNet: order.subtotal - commission,
+  };
+}
+
 @Injectable()
 export class CodReconciliationService {
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly coinService: CoinService,
+  ) {}
 
   private async now(manager: EntityManager) {
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
-  }
-  private orderFingerprint(order: Order, shipment: Shipment) {
-    return orderFundingFingerprint(order, shipment);
   }
 
   async recordCollection(
@@ -65,33 +127,21 @@ export class CodReconciliationService {
     input: CollectionInput,
   ) {
     const data = collectionInputSchema.parse(input);
-    const requestFingerprint = fingerprint({ orderId, ...data });
     return this.db.transaction(async (manager) => {
       await manager.findOne(Order, {
         where: { id: orderId },
         lock: { mode: 'pessimistic_write' },
       });
-      const existing = await this.findCollectionReplay(
-        manager,
-        orderId,
-        data.requestId,
-        requestFingerprint,
-      );
-      if (existing) return existing;
+      if (await manager.existsBy(CodCollection, { orderId })) {
+        throw new ConflictException('Collection already recorded for order');
+      }
       const context = await this.loadCollectionContext(manager, orderId, data);
-      return this.createCollection(
-        manager,
-        adminId,
-        context,
-        data,
-        requestFingerprint,
-      );
+      return this.createCollection(manager, adminId, context, data);
     });
   }
 
   async recordRemittance(adminId: string, input: RemittanceInput) {
     const data = remittanceInputSchema.parse(input);
-    const requestFingerprint = fingerprint(data);
     return this.db.transaction(async (manager) => {
       const uniqueOrderIds = [
         ...new Set(data.allocations.map((a) => a.orderId)),
@@ -108,17 +158,18 @@ export class CodReconciliationService {
           lock: { mode: 'pessimistic_write' },
         });
       }
-      const existing = await this.findRemittanceReplay(
-        manager,
-        data,
-        requestFingerprint,
-      );
-      if (existing) return this.remittanceView(manager, existing);
+      if (
+        await manager.existsBy(CodRemittance, {
+          mode: data.mode,
+          reference: data.reference,
+        })
+      ) {
+        throw new ConflictException('Remittance reference already recorded');
+      }
       const now = await this.now(manager);
       const receivedAt = new Date(data.receivedAt);
-      const isFutureReceipt = receivedAt > now;
-      if (isFutureReceipt) throw new ConflictException('Invalid receipt time');
-      const allocations = await this.loadValidatedAllocations(
+      if (receivedAt > now) throw new ConflictException('Invalid receipt time');
+      const validated = await this.loadValidatedAllocations(
         manager,
         data,
         receivedAt,
@@ -128,10 +179,15 @@ export class CodReconciliationService {
         adminId,
         data,
         receivedAt,
-        requestFingerprint,
       );
-      await this.applyAllocations(manager, batch, allocations, now, adminId);
-      return this.remittanceView(manager, batch);
+      const allocations = await this.applyAllocations(
+        manager,
+        batch,
+        validated,
+        now,
+        adminId,
+      );
+      return { ...batch, allocations };
     });
   }
 
@@ -146,17 +202,15 @@ export class CodReconciliationService {
       id: row.shipmentId,
     });
     row.reviewReason = this.fundingReviewReason(row, order, shipment, now);
-    const hasReviewReason = Boolean(row.reviewReason);
     const grossReceived = row.cashReceived + row.feeDeducted;
-    const isFullyReceived = grossReceived === row.expectedAmount;
-    if (hasReviewReason) row.status = COD_RECONCILIATION_STATUS.REVIEW;
-    else if (isFullyReceived)
+    if (row.reviewReason) row.status = COD_RECONCILIATION_STATUS.REVIEW;
+    else if (grossReceived === row.expectedAmount)
       await this.markFundedHeld(manager, row, now, adminId);
     else {
-      const hasPartialReceipt = grossReceived > 0;
-      row.status = hasPartialReceipt
-        ? COD_RECONCILIATION_STATUS.PARTIAL
-        : COD_RECONCILIATION_STATUS.AWAITING;
+      row.status =
+        grossReceived > 0
+          ? COD_RECONCILIATION_STATUS.PARTIAL
+          : COD_RECONCILIATION_STATUS.AWAITING;
     }
     await manager.save(row);
   }
@@ -167,22 +221,11 @@ export class CodReconciliationService {
     shipment: Shipment,
     now: Date,
   ): ReconciliationReviewReason | null {
-    const hasShortCollection = row.collectedAmount < row.expectedAmount;
-    if (hasShortCollection)
+    if (row.collectedAmount < row.expectedAmount)
       return RECONCILIATION_REVIEW_REASON.SHORT_COLLECTION;
-    const hasExcessCollection = row.collectedAmount > row.expectedAmount;
-    if (hasExcessCollection)
+    if (row.collectedAmount > row.expectedAmount)
       return RECONCILIATION_REVIEW_REASON.EXCESS_COLLECTION;
-    const hasChangedSnapshot =
-      this.orderFingerprint(order, shipment) !== row.orderFingerprint;
-    if (hasChangedSnapshot)
-      return RECONCILIATION_REVIEW_REASON.ORDER_SNAPSHOT_CHANGED;
-    const needsFulfillmentReview = requiresFulfillmentReview(
-      order,
-      shipment,
-      now,
-    );
-    if (needsFulfillmentReview)
+    if (requiresFulfillmentReview(order, shipment, now))
       return RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW;
     return null;
   }
@@ -210,6 +253,7 @@ export class CodReconciliationService {
       return row;
     });
   }
+
   async list(input: FinanceListInput = {}) {
     return this.db.getRepository(CodCollection).find({
       where: input.mode ? { mode: input.mode } : {},
@@ -218,15 +262,7 @@ export class CodReconciliationService {
       skip: input.offset ?? 0,
     });
   }
-  private async remittanceView(manager: EntityManager, row: CodRemittance) {
-    return {
-      ...row,
-      allocations: await manager.find(CodRemittanceAllocation, {
-        where: { remittanceId: row.id },
-        order: { orderId: 'ASC' },
-      }),
-    };
-  }
+
   async detail(orderId: string, input: Pick<FinanceListInput, 'offset'> = {}) {
     const manager = this.db.manager;
     const collection = await manager.findOneByOrFail(CodCollection, {
@@ -238,39 +274,25 @@ export class CodReconciliationService {
       take: 100,
       skip: input.offset ?? 0,
     });
-    const remittances = allocations.length
+    const remittanceIds = [
+      ...new Set(allocations.map((row) => row.remittanceId)),
+    ];
+    const remittances = remittanceIds.length
       ? await manager.find(CodRemittance, {
-          where: { id: In(allocations.map((row) => row.remittanceId)) },
+          where: { id: In(remittanceIds) },
+          relations: { allocations: true },
           order: { receivedAt: 'ASC', id: 'ASC' },
         })
       : [];
     return {
       collection,
-      remittances: await Promise.all(
-        remittances.map((row) => this.remittanceView(manager, row)),
-      ),
+      remittances: remittances.map((remittance) => ({
+        ...remittance,
+        allocations: [...remittance.allocations].sort((a, b) =>
+          a.orderId.localeCompare(b.orderId),
+        ),
+      })),
     };
-  }
-
-  private async findCollectionReplay(
-    manager: EntityManager,
-    orderId: string,
-    requestId: string,
-    requestFingerprint: string,
-  ) {
-    const existing = await manager.findOneBy(CodCollection, [
-      { orderId },
-      { requestId },
-    ]);
-    if (!existing) return null;
-    const isSameOrder = existing.orderId === orderId;
-    const isSamePayload = existing.requestFingerprint === requestFingerprint;
-    const isMatchingReplay = isSameOrder && isSamePayload;
-    if (!isMatchingReplay)
-      throw new ConflictException(
-        'Collection already recorded with another request or payload',
-      );
-    return existing;
   }
 
   private async loadCollectionContext(
@@ -292,8 +314,7 @@ export class CodReconciliationService {
     const hasMatchingWaybill =
       Boolean(shipment.orderCode) && shipment.orderCode === data.waybillCode;
     const hasMatchingAmount = shipment.codAmount === order.total;
-    const isMatchingShipment = hasMatchingWaybill && hasMatchingAmount;
-    if (!isMatchingShipment)
+    if (!hasMatchingWaybill || !hasMatchingAmount)
       throw new ConflictException('COD waybill and expected amount must match');
     return { order, shipment };
   }
@@ -303,20 +324,16 @@ export class CodReconciliationService {
     adminId: string,
     context: CollectionContext,
     data: CollectionInput,
-    requestFingerprint: string,
   ) {
     const { order, shipment } = context;
     const now = await this.now(manager);
     const collectedAt = new Date(data.collectedAt);
-    const isInvalidCollectionTime =
-      collectedAt > now || collectedAt < order.createdAt;
-    if (isInvalidCollectionTime)
+    if (collectedAt > now || collectedAt < order.createdAt)
       throw new ConflictException('Invalid collection time');
     const money = reconciliationMoney(order);
     if (data.collectedAmount === order.total && (order.coinDiscount ?? 0) > 0)
-      await new CoinService().consumeOrderCoins(manager, order, data.mode, now);
-    const isInvalidExpectedAmount = order.total <= 0;
-    if (isInvalidExpectedAmount)
+      await this.coinService.consumeOrderCoins(manager, order, data.mode, now);
+    if (order.total <= 0)
       throw new ConflictException('COD expected amount must be positive');
     let row: CodCollection;
     try {
@@ -331,8 +348,6 @@ export class CodReconciliationService {
           expectedAmount: order.total,
           ...money,
           collectedAt,
-          requestFingerprint,
-          orderFingerprint: this.orderFingerprint(order, shipment),
           status: COD_RECONCILIATION_STATUS.AWAITING,
           cashReceived: 0,
           feeDeducted: 0,
@@ -342,32 +357,12 @@ export class CodReconciliationService {
       );
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw new ConflictException(
-          'Collection already recorded with another request or payload',
-        );
+        throw new ConflictException('Collection already recorded for order');
       }
       throw error;
     }
     await this.updateProjection(manager, row, now, adminId);
     return row;
-  }
-
-  private async findRemittanceReplay(
-    manager: EntityManager,
-    data: RemittanceInput,
-    requestFingerprint: string,
-  ) {
-    const existing = await manager.findOneBy(CodRemittance, [
-      { requestId: data.requestId },
-      { mode: data.mode, reference: data.reference },
-    ]);
-    if (!existing) return null;
-    const isSamePayload = existing.requestFingerprint === requestFingerprint;
-    if (!isSamePayload)
-      throw new ConflictException(
-        'Remittance already recorded with another request or payload',
-      );
-    return existing;
   }
 
   private async loadValidatedAllocations(
@@ -410,21 +405,15 @@ export class CodReconciliationService {
     mode: ReconciliationMode,
     receivedAt: Date,
   ): void {
-    const isDifferentMode = row.mode !== mode;
-    if (isDifferentMode)
+    if (row.mode !== mode)
       throw new ConflictException('Cannot mix reconciliation mode');
-    const receiptPrecedesCollection = receivedAt < row.collectedAt;
-    if (receiptPrecedesCollection)
+    if (receivedAt < row.collectedAt)
       throw new ConflictException('Receipt precedes collection');
-    const totalFeeDeducted = row.feeDeducted + allocation.feeDeducted;
-    const exceedsApprovedFee = totalFeeDeducted > row.approvedCarrierFee;
-    if (exceedsApprovedFee)
+    if (row.feeDeducted + allocation.feeDeducted > row.approvedCarrierFee)
       throw new ConflictException('Carrier fee deduction exceeds approved fee');
     const grossAlreadyReceived = row.cashReceived + row.feeDeducted;
     const allocatedGrossAmount = allocation.cashAmount + allocation.feeDeducted;
-    const exceedsVerifiedCollection =
-      grossAlreadyReceived + allocatedGrossAmount > row.collectedAmount;
-    if (exceedsVerifiedCollection)
+    if (grossAlreadyReceived + allocatedGrossAmount > row.collectedAmount)
       throw new ConflictException('Receipt exceeds verified collection');
   }
 
@@ -433,13 +422,11 @@ export class CodReconciliationService {
     adminId: string,
     data: RemittanceInput,
     receivedAt: Date,
-    requestFingerprint: string,
   ) {
     try {
       return await manager.save(
         CodRemittance,
         manager.create(CodRemittance, {
-          requestId: data.requestId,
           mode: data.mode,
           reference: data.reference,
           netAmount: data.netAmount,
@@ -447,14 +434,11 @@ export class CodReconciliationService {
           reason: data.reason,
           evidence: data.evidence,
           actorId: adminId,
-          requestFingerprint,
         }),
       );
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw new ConflictException(
-          'Remittance already recorded with another request or payload',
-        );
+        throw new ConflictException('Remittance reference already recorded');
       }
       throw error;
     }
@@ -466,9 +450,10 @@ export class CodReconciliationService {
     validated: ValidatedRemittanceAllocation[],
     now: Date,
     adminId: string,
-  ): Promise<void> {
+  ): Promise<CodRemittanceAllocation[]> {
+    const savedAllocations: CodRemittanceAllocation[] = [];
     for (const { collection, allocation } of validated) {
-      await manager.save(
+      const saved = await manager.save(
         CodRemittanceAllocation,
         manager.create(CodRemittanceAllocation, {
           remittanceId: batch.id,
@@ -478,10 +463,12 @@ export class CodReconciliationService {
           feeDeducted: allocation.feeDeducted,
         }),
       );
+      savedAllocations.push(saved);
       collection.cashReceived += allocation.cashAmount;
       collection.feeDeducted += allocation.feeDeducted;
       await this.updateProjection(manager, collection, now, adminId);
     }
+    return savedAllocations.sort((a, b) => a.orderId.localeCompare(b.orderId));
   }
 
   private async markFundedHeld(
@@ -509,15 +496,11 @@ export class CodReconciliationService {
         }),
       );
     }
-    const isMatchingCollection = entry.collectionId === row.id;
-    const isMatchingShop = entry.shopId === row.shopId;
-    const isMatchingMode = entry.mode === row.mode;
-    const isMatchingAmount = entry.amount === row.sellerNet;
     const isMatchingCredit =
-      isMatchingCollection &&
-      isMatchingShop &&
-      isMatchingMode &&
-      isMatchingAmount;
+      entry.collectionId === row.id &&
+      entry.shopId === row.shopId &&
+      entry.mode === row.mode &&
+      entry.amount === row.sellerNet;
     if (!isMatchingCredit)
       throw new ConflictException('Shop subledger requires reconciliation');
     row.status = COD_RECONCILIATION_STATUS.FUNDED_HELD;

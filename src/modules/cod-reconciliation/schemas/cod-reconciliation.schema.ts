@@ -1,5 +1,6 @@
 import z from 'zod';
 
+import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
 import { vndAmountSchema } from '@/common/schemas/money.schema';
 import { trimmedTextSchema } from '@/common/schemas/request.schema';
@@ -24,7 +25,7 @@ export type ShopLedgerType =
   (typeof SHOP_LEDGER_TYPE)[keyof typeof SHOP_LEDGER_TYPE];
 
 export const vndSchema = vndAmountSchema;
-const requestIdSchema = z.uuid().transform((value) => value.toLowerCase());
+const normalizedUuidSchema = z.uuid().transform((value) => value.toLowerCase());
 const instantSchema = z.iso
   .datetime({ offset: true })
   .transform((value) => new Date(value).toISOString());
@@ -32,8 +33,38 @@ const proofSchema = {
   reason: trimmedTextSchema.min(1).max(1000),
   evidence: trimmedTextSchema.min(1).max(4000),
 };
+
+export const reconciliationMoneySchema = z
+  .object({
+    subtotal: vndSchema,
+    shippingFee: vndSchema,
+    total: vndSchema,
+    coinDiscount: vndSchema.default(0),
+    commissionBasisPoints: z.number().int().min(0).max(BASIS_POINTS_SCALE),
+    items: z
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          price: vndSchema,
+          coinDiscount: vndSchema.default(0),
+        }),
+      )
+      .max(100),
+  })
+  .refine(
+    (order) =>
+      order.subtotal + order.shippingFee === order.total + order.coinDiscount &&
+      order.coinDiscount <= Math.ceil(order.subtotal / 10) &&
+      order.items.every((item) => item.coinDiscount <= item.price) &&
+      order.items.reduce((sum, item) => sum + item.coinDiscount, 0) ===
+        order.coinDiscount &&
+      order.items.reduce((sum, item) => sum + item.price, 0) ===
+        order.subtotal &&
+      new Set(order.items.map((item) => item.productId)).size ===
+        order.items.length,
+  );
+
 export const collectionInputSchema = z.strictObject({
-  requestId: requestIdSchema,
   mode: z.enum(RECONCILIATION_MODE),
   waybillCode: trimmedTextSchema.min(1).max(50),
   collectedAmount: vndSchema,
@@ -41,9 +72,9 @@ export const collectionInputSchema = z.strictObject({
   collectedAt: instantSchema,
   ...proofSchema,
 });
+
 export const remittanceInputSchema = z
   .strictObject({
-    requestId: requestIdSchema,
     mode: z.enum(RECONCILIATION_MODE),
     reference: trimmedTextSchema
       .min(1)
@@ -56,7 +87,7 @@ export const remittanceInputSchema = z
       .array(
         z
           .strictObject({
-            orderId: requestIdSchema,
+            orderId: normalizedUuidSchema,
             cashAmount: vndSchema,
             feeDeducted: vndSchema,
           })
@@ -94,11 +125,13 @@ export const remittanceInputSchema = z
       a.orderId.localeCompare(b.orderId),
     ),
   }));
+
 export const financeListSchema = z.strictObject({
   mode: z.enum(RECONCILIATION_MODE).optional(),
   offset: z.coerce.number().int().min(0).max(100000).optional(),
 });
 export const financeHistorySchema = financeListSchema.pick({ offset: true });
+
 export const collectionViewSchema = z.object({
   id: z.uuid(),
   orderId: z.uuid(),
@@ -119,13 +152,14 @@ export const collectionViewSchema = z.object({
   fundedAt: dateTimeSchema.nullable(),
   createdAt: dateTimeSchema,
 });
+
 export const adminCollectionViewSchema = collectionViewSchema.extend({
-  requestId: z.uuid(),
   waybillCode: z.string(),
   actorId: z.uuid(),
   reason: z.string(),
   evidence: z.string(),
 });
+
 export const allocationViewSchema = z.object({
   id: z.uuid(),
   orderId: z.uuid(),
@@ -133,9 +167,9 @@ export const allocationViewSchema = z.object({
   cashAmount: vndSchema,
   feeDeducted: vndSchema,
 });
+
 export const remittanceViewSchema = z.object({
   id: z.uuid(),
-  requestId: z.uuid(),
   mode: z.enum(RECONCILIATION_MODE),
   reference: z.string(),
   netAmount: vndSchema,
@@ -145,6 +179,7 @@ export const remittanceViewSchema = z.object({
   evidence: z.string(),
   allocations: z.array(allocationViewSchema),
 });
+
 export const adminReconciliationDetailSchema = z.object({
   collection: adminCollectionViewSchema,
   remittances: z.array(remittanceViewSchema),

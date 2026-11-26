@@ -6,13 +6,15 @@ import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
-import { IDENTITY_RENEWAL_POLICY } from '@/modules/shop/applications/constants/shop-application.constant';
+import {
+  IDENTITY_RENEWAL_POLICY,
+  shopAllowsIdentitySales,
+} from '@/modules/shop/applications/constants/shop-application.constant';
 import {
   ShopApplication,
   ShopApplicationDocument,
 } from '@/modules/shop/applications/entities';
-import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/identity-renewal.worker';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { IdentityRenewalWorker } from '@/modules/shop/applications/identity-renewal.worker';
 import { ShopApplicationService } from '@/modules/shop/applications/shop-application.service';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';

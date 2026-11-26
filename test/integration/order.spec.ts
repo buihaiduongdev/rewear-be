@@ -13,6 +13,7 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { Category } from '@/modules/category/entities';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { CoinService } from '@/modules/coins/core/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -41,6 +42,7 @@ describe('paid order acceptance with PostgreSQL', () => {
       new WalletService(database.dataSource),
       new CodPolicy(database.dataSource),
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
   });
   afterAll(async () => database?.destroy());

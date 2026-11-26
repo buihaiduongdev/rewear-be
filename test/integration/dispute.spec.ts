@@ -4,7 +4,6 @@ import ms from 'ms';
 
 import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
 import { DisputeService } from '@/modules/dispute/dispute.service';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
@@ -18,7 +17,6 @@ import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
-import { OrderAccess } from '@/modules/order/order.access';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
@@ -34,12 +32,8 @@ describe('Dispute 72h intake, evidence, and holds (PostgreSQL)', () => {
 
   beforeAll(async () => {
     database = await createTestDatabase();
-    const orderAccess = new OrderAccess();
-    const access = new DisputeAccess(orderAccess);
     service = new DisputeService(
       database.dataSource,
-      access,
-      orderAccess,
       {} as StorageService,
       {} as MediaService,
       new OutboxService(),

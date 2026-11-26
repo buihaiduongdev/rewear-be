@@ -15,8 +15,8 @@ import {
   DISPUTE_PARTY,
   DISPUTE_POLICY,
   DISPUTE_RESPONSIBILITY,
+  RETURN_STATE,
 } from '../constants/dispute.constant';
-import { RETURN_STATE } from '../returns/constants/return.constant';
 
 export const disputeCaseStateSchema = z.enum(DISPUTE_CASE_STATE);
 export const disputeIssueStateSchema = z.enum(DISPUTE_ISSUE_STATE);
