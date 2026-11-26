@@ -1382,4 +1382,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi tính năng FEAT-10, kiểm tra ranh giới xác thực quyền sở hữu đơn hàng theo hội thoại, xác minh tài liệu OpenAPI/Swagger và kiểm thử toàn bộ luồng trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); unit test module chat pass 2/2 suites (9/9 tests) và toàn bộ bộ unit test pass 62/62 suites (344/344 tests); kiểm tra tài liệu Swagger UI thực tế và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `feat/chat-order-card`, commit `1fb8ede`.
+- **Minh chứng:** PR #80; branch `feat/chat-order-card`, commit `1fb8ede`.
