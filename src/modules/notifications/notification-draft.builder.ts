@@ -2,18 +2,21 @@ import { match } from 'ts-pattern';
 import type { EntityManager } from 'typeorm';
 
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
+import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
+import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import {
   EVENT_TYPES,
   type TEventType,
 } from '@/modules/event/constants/event-type.constant';
 import type { TOutboxEventPayloadMap } from '@/modules/event/types/outbox-event.type';
 import { ORDER_EVENT_ACTION } from '@/modules/order/constants/order.constant';
+import { ShopMember } from '@/modules/shop/entities';
+import { ShopMemberRole } from '@/modules/shop/enums';
+import { User } from '@/modules/user/entities';
+import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { NOTIFICATION_MESSAGES } from './constants/notification-messages.constant';
-import {
-  resolveAdminRecipients,
-  resolveShopRecipients,
-} from './notification-recipients';
 
 export type TDomainEventJobData<K extends TEventType = TEventType> = {
   [E in K]: {
@@ -33,6 +36,59 @@ export type TNotificationDraft = {
   entityId: string;
   sendEmail?: boolean;
 };
+
+async function resolveShopRecipients(
+  manager: EntityManager,
+  shopId: string,
+  permission: string,
+): Promise<string[]> {
+  const qb = manager
+    .getRepository(ShopMember)
+    .createQueryBuilder('member')
+    .select('DISTINCT member.userId', 'userId')
+    .where('member.shopId = :shopId', { shopId });
+
+  if (permission === SHOP_PERMISSIONS.SHOP_OWNER) {
+    qb.andWhere('member.memberRole = :ownerRole', {
+      ownerRole: ShopMemberRole.OWNER,
+    });
+  } else {
+    qb.leftJoin(
+      ShopMemberRoleAssignment,
+      'assignment',
+      'assignment.memberId = member.id',
+    )
+      .leftJoin(
+        ShopRole,
+        'role',
+        'role.id = assignment.roleId AND role.shopId = :shopId',
+        { shopId },
+      )
+      .leftJoin(
+        ShopRolePermission,
+        'rp',
+        'rp.roleId = role.id AND rp.permissionKey = :permission',
+        { permission },
+      )
+      .andWhere(
+        '(member.memberRole = :ownerRole OR rp.permissionKey IS NOT NULL)',
+        { ownerRole: ShopMemberRole.OWNER },
+      );
+  }
+
+  const rows = await qb.getRawMany<{ userId: string }>();
+  return rows.map((row) => row.userId);
+}
+
+async function resolveAdminRecipients(
+  manager: EntityManager,
+): Promise<string[]> {
+  const admins = await manager.find(User, {
+    where: { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+    select: { id: true },
+  });
+  return admins.map((u) => u.id);
+}
 
 export async function buildNotificationDrafts(
   manager: EntityManager,
