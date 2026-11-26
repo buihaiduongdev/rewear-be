@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities/base.entity';
+import { Order } from '@/modules/order/entities';
 import { Product } from '@/modules/product/entities';
 import { User } from '@/modules/user/entities';
 
@@ -32,4 +33,11 @@ export class ChatMessage extends BaseEntity {
   @ManyToOne(() => Product, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'productId' })
   product?: Product | null;
+
+  @Column('uuid', { nullable: true })
+  orderId: string | null;
+
+  @ManyToOne(() => Order, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'orderId' })
+  order?: Order | null;
 }
