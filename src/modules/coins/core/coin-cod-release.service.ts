@@ -18,9 +18,8 @@ import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { CoinService } from './coin.service';
-import { CoinCodReleaseAudit } from './entities/coin-cod-release.entity';
-import { CoinOrderDebit } from './entities/coin.entity';
-import type { CoinReleaseCause } from './types/coin.type';
+import { CoinCodReleaseAudit, CoinOrderDebit } from './entities';
+import type { CoinReleaseCause } from './schemas/coin.schema';
 
 @Injectable()
 export class CoinCodReleaseService {
@@ -34,7 +33,6 @@ export class CoinCodReleaseService {
     input: { requestId: string; cause: CoinReleaseCause; evidence: string },
   ) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       if (
         !(await manager.existsBy(User, {
           id: actorId,

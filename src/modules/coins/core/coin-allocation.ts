@@ -1,4 +1,4 @@
-import type { AllocatableLot } from './types/coin.type';
+import type { AllocatableLot } from './schemas/coin.schema';
 
 export function allocateLots(
   lots: AllocatableLot[],

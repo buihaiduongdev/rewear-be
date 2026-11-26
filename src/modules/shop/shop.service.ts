@@ -115,7 +115,6 @@ export class ShopService {
 
   async update(shopId: string, currentUserId: string, input: UpdateShopInput) {
     return this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const repository = manager.getRepository(Shop);
       const shop = await repository.findOneByOrFail({ id: shopId });
       if (

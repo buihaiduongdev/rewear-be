@@ -5,10 +5,7 @@ import { CoinsModule } from '../coins.module';
 import { CoinRewardController } from './coin-reward.controller';
 import { CoinRewardService } from './coin-reward.service';
 import { CoinRewardWorker } from './coin-reward.worker';
-import {
-  CoinPurchaseReward,
-  CoinRewardAdjustmentNotice,
-} from './entities/coin-reward.entity';
+import { CoinPurchaseReward, CoinRewardAdjustmentNotice } from './entities';
 
 @Module({
   imports: [

@@ -9,7 +9,7 @@ import {
   IDENTITY_RENEWAL_REASON,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
-import type { ShopApplication } from '../entities/shop-application.entity';
+import type { ShopApplication } from '../entities';
 import { claimVerifiedOwnerDocument } from '../policies/identity-document-claim.policy';
 import { validateApplicantIdentity } from '../policies/shop-application.policy';
 import { applicationDecisionSchema } from '../schemas/shop-application.schema';

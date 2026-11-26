@@ -9,17 +9,13 @@ import { DataSource, EntityManager } from 'typeorm';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import {
-  CoinGrant,
-  CoinMovement,
-  CoinRecovery,
-} from '../core/entities/coin.entity';
+import { CoinGrant, CoinMovement, CoinRecovery } from '../core/entities';
 import { CoinProgramService } from './coin-program.service';
-import { CoinProgram, CoinProgramAudit } from './entities/coin-program.entity';
+import { CoinProgram, CoinProgramAudit } from './entities';
 import type {
   CoinProgramRecipient,
   CreateCoinProgram,
-} from './types/coin-program.type';
+} from './schemas/coin-program.schema';
 
 @Injectable()
 export class CoinProgramApiService {
@@ -44,7 +40,6 @@ export class CoinProgramApiService {
     action: (manager: EntityManager, now: Date) => Promise<T>,
   ) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await this.admin(manager, actorId);
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       return action(manager, new Date(now));
@@ -129,42 +124,41 @@ export class CoinProgramApiService {
   }
 
   async report(actorId: string, id: string) {
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      await this.admin(manager, actorId);
-      const program = await manager.findOneByOrFail(CoinProgram, { id });
-      const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-      const roots = await manager.findBy(CoinGrant, {
-        source: 'PROGRAM',
-        sourceId: id,
-      });
-      const rootIds = roots.map((lot) => lot.id);
-      const descendants = rootIds.length
-        ? await manager
-            .createQueryBuilder(CoinGrant, 'grant')
-            .where('grant.rootGrantId IN (:...ids)', { ids: rootIds })
-            .getMany()
-        : [];
-      const lots = [...roots, ...descendants];
-      return {
-        program,
-        issued: program.issued,
-        spent: lots.reduce((sum, lot) => sum + lot.spent, 0),
-        recovered: lots.reduce((sum, lot) => sum + lot.recovered, 0),
-        held: lots.reduce((sum, lot) => sum + lot.held, 0),
-        expired: lots.reduce(
-          (sum, lot) =>
-            sum +
-            (lot.expiresAt && lot.expiresAt <= new Date(now)
-              ? lot.amount -
-                lot.spent -
-                lot.recovered -
-                lot.held -
-                lot.transferred
-              : 0),
-          0,
-        ),
-      };
+    const manager = this.db.manager;
+    await this.admin(manager, actorId);
+    const program = await manager.findOneByOrFail(CoinProgram, { id });
+    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
+    const roots = await manager.findBy(CoinGrant, {
+      source: 'PROGRAM',
+      sourceId: id,
     });
+    const rootIds = roots.map((lot) => lot.id);
+    const descendants = rootIds.length
+      ? await manager
+          .createQueryBuilder(CoinGrant, 'grant')
+          .where('grant.rootGrantId IN (:...ids)', { ids: rootIds })
+          .getMany()
+      : [];
+    const lots = [...roots, ...descendants];
+    return {
+      program,
+      issued: program.issued,
+      spent: lots.reduce((sum, lot) => sum + lot.spent, 0),
+      recovered: lots.reduce((sum, lot) => sum + lot.recovered, 0),
+      held: lots.reduce((sum, lot) => sum + lot.held, 0),
+      expired: lots.reduce(
+        (sum, lot) =>
+          sum +
+          (lot.expiresAt && lot.expiresAt <= new Date(now)
+            ? lot.amount -
+              lot.spent -
+              lot.recovered -
+              lot.held -
+              lot.transferred
+            : 0),
+        0,
+      ),
+    };
   }
 
   async balance(buyerId: string) {

@@ -14,7 +14,7 @@ import {
   ShopApplication,
   ShopApplicationDocument,
   ShopApplicationRevision,
-} from './entities/shop-application.entity';
+} from './entities';
 import {
   applicationFingerprint,
   buildApplicationSnapshot,

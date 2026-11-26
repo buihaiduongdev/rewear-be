@@ -12,16 +12,17 @@ import {
   SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
-import {
-  ShopApplication,
-  ShopApplicationRevision,
-} from '../entities/shop-application.entity';
+import { ShopApplication, ShopApplicationRevision } from '../entities';
 import {
   applicationFingerprint,
   editableApplication,
   pendingApplicationShop,
   validateApplicantIdentity,
 } from '../policies/shop-application.policy';
+import {
+  createIdentityRenewalSchema,
+  submitIdentityRenewalSchema,
+} from '../schemas/shop-application.schema';
 import { ShopApplicationReadService } from '../shop-application-read.service';
 import {
   applicationClock,
@@ -32,10 +33,6 @@ import {
 import { applicationEvent } from '../shop-application.lifecycle';
 import { identityGraceDeadline } from './identity-sale.policy';
 import { renewalDocuments } from './renewal-documents.policy';
-import {
-  createIdentityRenewalSchema,
-  submitIdentityRenewalSchema,
-} from './renewal.schema';
 
 @Injectable()
 export class OwnerIdentityRenewalService {

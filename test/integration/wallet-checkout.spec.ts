@@ -17,10 +17,7 @@ import {
   RECONCILIATION_MODE,
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import {
-  CoinGrant,
-  CoinOrderDebit,
-} from '@/modules/coins/core/entities/coin.entity';
+import { CoinGrant, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities/order.entity';

@@ -9,7 +9,7 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 import { UserStatus } from '@/modules/user/enums';
 
-import { CoinRewardAdjustmentNotice } from './entities/coin-reward.entity';
+import { CoinRewardAdjustmentNotice } from './entities';
 
 const noticeQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),

@@ -2,7 +2,7 @@ import { Column, Entity, Index } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 
-import type { CoinReleaseCause } from '../types/coin.type';
+import type { CoinReleaseCause } from '../schemas/coin.schema';
 
 @Entity('coin_cod_release_audits')
 @Index(['orderId', 'requestId'], { unique: true })

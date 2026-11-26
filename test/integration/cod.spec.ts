@@ -19,7 +19,7 @@ import {
   CoinGrant,
   CoinOrderDebit,
   CoinReservation,
-} from '@/modules/coins/core/entities/coin.entity';
+} from '@/modules/coins/core/entities';
 import { Order } from '@/modules/order/entities/order.entity';
 import { OrderService } from '@/modules/order/order.service';
 import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';

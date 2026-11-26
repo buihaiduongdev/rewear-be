@@ -6,10 +6,12 @@ import {
   CoinOrderDebit,
   CoinRecovery,
   CoinReservation,
-} from '@/modules/coins/core/entities/coin.entity';
+} from '@/modules/coins/core/entities';
 import { CoinProgramService } from '@/modules/coins/programs/coin-program.service';
-import { CoinProgramMistake } from '@/modules/coins/programs/entities/coin-program.entity';
-import { CoinProgram } from '@/modules/coins/programs/entities/coin-program.entity';
+import {
+  CoinProgram,
+  CoinProgramMistake,
+} from '@/modules/coins/programs/entities';
 
 import { createTestDatabase, TestDatabase } from '../support/database';
 

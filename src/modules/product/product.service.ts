@@ -58,15 +58,13 @@ export class ProductService {
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
-    return this.dataSource.transaction('REPEATABLE READ', (manager) => {
-      const queryBuilder = this.createProductQueryBuilder(manager)
-        .where('product.status = :status', { status: ProductStatus.ACTIVE })
-        .andWhere('category.isActive = true')
-        .andWhere('shop.status = :shopStatus', {
-          shopStatus: ShopStatus.ACTIVE,
-        });
-      return this.paginateProducts(queryBuilder, query, manager);
-    });
+    const queryBuilder = this.createProductQueryBuilder()
+      .where('product.status = :status', { status: ProductStatus.ACTIVE })
+      .andWhere('category.isActive = true')
+      .andWhere('shop.status = :shopStatus', {
+        shopStatus: ShopStatus.ACTIVE,
+      });
+    return this.paginateProducts(queryBuilder, query);
   }
 
   async findMine(
@@ -100,20 +98,18 @@ export class ProductService {
   }
 
   async findOne(id: string): Promise<ProductView> {
-    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
-      const product = await this.createProductQueryBuilder(manager)
-        .where('product.id = :id AND product.status = :status', {
-          id,
-          status: ProductStatus.ACTIVE,
-        })
-        .andWhere('category.isActive = true')
-        .andWhere('shop.status = :shopStatus', {
-          shopStatus: ShopStatus.ACTIVE,
-        })
-        .getOneOrFail();
-      const [view] = await this.loadMedia([product], manager);
-      return view;
-    });
+    const product = await this.createProductQueryBuilder()
+      .where('product.id = :id AND product.status = :status', {
+        id,
+        status: ProductStatus.ACTIVE,
+      })
+      .andWhere('category.isActive = true')
+      .andWhere('shop.status = :shopStatus', {
+        shopStatus: ShopStatus.ACTIVE,
+      })
+      .getOneOrFail();
+    const [view] = await this.loadMedia([product]);
+    return view;
   }
 
   async create(
@@ -122,7 +118,6 @@ export class ProductService {
   ): Promise<ProductView> {
     if (input.categoryId) await this.assertActiveCategory(input.categoryId);
     const product = await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       await this.assertActiveShop(input.shopId, manager);
       return manager.getRepository(Product).save(
         manager.getRepository(Product).create({
@@ -184,7 +179,6 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       this.assertEditable(product);
       if (input.categoryId)
@@ -283,7 +277,6 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (
         ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(product.status)
@@ -302,7 +295,6 @@ export class ProductService {
 
   async submit(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
@@ -334,7 +326,6 @@ export class ProductService {
 
   async cancelSubmission(id: string, shopId?: string): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id, shopId);
       if (product.status !== ProductStatus.PENDING_REVIEW) {
         throw new ConflictException(
@@ -358,7 +349,6 @@ export class ProductService {
     input: ModerateProductInput,
   ): Promise<ProductView> {
     await this.dataSource.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const product = await this.lockProduct(manager, id);
       const moderation = await manager.findOneByOrFail(ProductModeration, {
         productId: id,
@@ -510,20 +500,18 @@ export class ProductService {
     });
   }
 
-  findPublishedMedia(product: Product): Promise<ProductMedia[]> {
-    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
-      await this.createProductQueryBuilder(manager)
-        .where('product.id = :id AND product.status = :status', {
-          id: product.id,
-          status: ProductStatus.ACTIVE,
-        })
-        .andWhere('category.isActive = true')
-        .andWhere('shop.status = :shopStatus', {
-          shopStatus: ShopStatus.ACTIVE,
-        })
-        .getOneOrFail();
-      return this.getMedia(manager, product.id);
-    });
+  async findPublishedMedia(product: Product): Promise<ProductMedia[]> {
+    await this.createProductQueryBuilder()
+      .where('product.id = :id AND product.status = :status', {
+        id: product.id,
+        status: ProductStatus.ACTIVE,
+      })
+      .andWhere('category.isActive = true')
+      .andWhere('shop.status = :shopStatus', {
+        shopStatus: ShopStatus.ACTIVE,
+      })
+      .getOneOrFail();
+    return this.getMedia(this.dataSource.manager, product.id);
   }
 
   private async loadMedia(

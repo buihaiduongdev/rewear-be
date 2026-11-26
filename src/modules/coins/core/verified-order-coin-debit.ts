@@ -3,11 +3,7 @@ import type { EntityManager } from 'typeorm';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import type { Order } from '@/modules/order/entities/order.entity';
 
-import {
-  CoinGrant,
-  CoinOrderDebit,
-  CoinReservation,
-} from './entities/coin.entity';
+import { CoinGrant, CoinOrderDebit, CoinReservation } from './entities';
 
 /** An order field alone never authorizes platform subsidy. Require persisted spend evidence. */
 export async function verifiedOrderCoinDebit(

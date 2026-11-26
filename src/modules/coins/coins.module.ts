@@ -3,15 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CoinCodReleaseService } from './core/coin-cod-release.service';
 import { CoinService } from './core/coin.service';
-import { CoinCodReleaseAudit } from './core/entities/coin-cod-release.entity';
 import {
+  CoinCodReleaseAudit,
   CoinGrant,
   CoinMovement,
   CoinOrderDebit,
   CoinRecovery,
   CoinReservation,
   CoinSelection,
-} from './core/entities/coin.entity';
+} from './core/entities';
 import { CoinProgramApiService } from './programs/coin-program-api.service';
 import { CoinProgramController } from './programs/coin-program.controller';
 import { CoinProgramService } from './programs/coin-program.service';
@@ -20,7 +20,7 @@ import {
   CoinProgramAudit,
   CoinProgramBatch,
   CoinProgramMistake,
-} from './programs/entities/coin-program.entity';
+} from './programs/entities';
 
 @Global()
 @Module({

@@ -20,7 +20,7 @@ import {
   SHOP_APPLICATION_KIND,
   SHOP_APPLICATION_STATE,
 } from '../constants/shop-application.constant';
-import { ShopApplication } from '../entities/shop-application.entity';
+import { ShopApplication } from '../entities';
 import {
   identityGraceDeadline,
   shopAllowsIdentitySales,
@@ -54,7 +54,6 @@ export class IdentityRenewalWorker implements OnModuleInit, OnModuleDestroy {
   }
   async run() {
     await this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );

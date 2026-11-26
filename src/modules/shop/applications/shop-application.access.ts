@@ -13,14 +13,10 @@ import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { ShopMember } from '../entities';
 import { ShopMemberRole } from '../enums';
-import {
-  ShopApplication,
-  ShopApplicationCommand,
-} from './entities/shop-application.entity';
+import { ShopApplication, ShopApplicationCommand } from './entities';
 import { applicationFingerprint } from './policies/shop-application.policy';
 
 export async function applicationClock(manager: EntityManager) {
-  await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
   return new Date(now);
 }

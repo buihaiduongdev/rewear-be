@@ -185,8 +185,60 @@ export const applicationPageSchema = z.object({
   offset: z.number().int(),
 });
 export const applicationDocumentViewSchema = documentView;
+export const createIdentityRenewalSchema = applicationCreateSchema;
+export const submitIdentityRenewalSchema = z.strictObject({
+  requestId: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+  identity: applicantIdentitySchema,
+  documentIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(SHOP_APPLICATION_POLICY.MAX_DOCUMENTS)
+    .refine((ids) => new Set(ids).size === ids.length),
+});
+
 export const applicationDownloadViewSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
   expiresAt: dateTimeSchema,
 });
+
+export type ShopApplicationKind =
+  (typeof SHOP_APPLICATION_KIND)[keyof typeof SHOP_APPLICATION_KIND];
+export type ShopApplicationState =
+  (typeof SHOP_APPLICATION_STATE)[keyof typeof SHOP_APPLICATION_STATE];
+export type IdentityDocumentType =
+  (typeof IDENTITY_DOCUMENT_TYPE)[keyof typeof IDENTITY_DOCUMENT_TYPE];
+export type IdentityDocumentSlot =
+  (typeof IDENTITY_DOCUMENT_SLOT)[keyof typeof IDENTITY_DOCUMENT_SLOT];
+export type ApplicantIdentity = z.output<typeof applicantIdentitySchema>;
+export type ShopApplicationSnapshot = {
+  identity: ApplicantIdentity;
+  shop: {
+    id: string;
+    name: string;
+    description: string | null;
+    logoUrl: string;
+  };
+  pickup: {
+    id: string;
+    contactName: string;
+    phone: string;
+    addressLine1: string;
+    countryCode: string;
+    provinceId: number;
+    districtId: number;
+    districtName: string;
+    provinceName: string;
+    wardCode: string;
+    wardName: string;
+  } | null;
+  bank: {
+    id: string;
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+    confirmedBy: string;
+  } | null;
+  documents: { id: string; slot: IdentityDocumentSlot }[];
+};

@@ -6,7 +6,7 @@ import { Notification } from '@/modules/notifications/entities';
 import {
   ShopApplication,
   ShopApplicationDocument,
-} from '@/modules/shop/applications/entities/shop-application.entity';
+} from '@/modules/shop/applications/entities';
 import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/identity-renewal.worker';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { OwnerIdentityRenewalService } from '@/modules/shop/applications/renewal/owner-identity-renewal.service';

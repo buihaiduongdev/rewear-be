@@ -12,11 +12,11 @@ import {
   ShopApplicationCommand,
   ShopApplicationDocument,
   ShopApplicationRevision,
-} from './entities/shop-application.entity';
-import { ShopApplicationMediaService } from './media/shop-application-media.service';
+} from './entities';
 import { IdentityRenewalWorker } from './renewal/identity-renewal.worker';
 import { OwnerIdentityRenewalService } from './renewal/owner-identity-renewal.service';
 import { ShopApplicationAdminService } from './shop-application-admin.service';
+import { ShopApplicationMediaService } from './shop-application-media.service';
 import { ShopApplicationReadService } from './shop-application-read.service';
 import { ShopApplicationAccess } from './shop-application.access';
 import { ShopApplicationController } from './shop-application.controller';

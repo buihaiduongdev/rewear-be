@@ -6,7 +6,7 @@ import {
   OwnerIdentity,
   OwnerIdentityDocument,
   ShopApplication,
-} from '../entities/shop-application.entity';
+} from '../entities';
 import {
   identityFingerprint,
   normalizeIdentityName,

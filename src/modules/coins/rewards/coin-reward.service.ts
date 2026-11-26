@@ -16,7 +16,7 @@ import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement
 
 import { CoinService } from '../core/coin.service';
 import { adjustPurchaseReward } from './adjust-purchase-reward';
-import { CoinPurchaseReward } from './entities/coin-reward.entity';
+import { CoinPurchaseReward } from './entities';
 import { purchaseRewardAmount } from './policies/purchase-reward.policy';
 
 @Injectable()
@@ -30,12 +30,14 @@ export class CoinRewardService {
 
   async evaluate(orderId: string) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
       const [{ now: timestamp }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(timestamp);
-      const order = await manager.findOneByOrFail(Order, { id: orderId });
+      const order = await manager.findOneOrFail(Order, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       const prior = await manager.findOneBy(CoinPurchaseReward, { orderId });
       if (prior) return adjustPurchaseReward(manager, order, now);
       const verification = await manager.findOneBy(OrderDeliveryVerification, {

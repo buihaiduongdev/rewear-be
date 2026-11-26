@@ -5,7 +5,7 @@ import { EntityManager, In } from 'typeorm';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import { Order } from '@/modules/order/entities/order.entity';
 
-import { CoinProgramMistake } from '../programs/entities/coin-program.entity';
+import { CoinProgramMistake } from '../programs/entities';
 import { allocateLots } from './coin-allocation';
 import {
   COIN_POLICY,
@@ -20,12 +20,12 @@ import {
   CoinRecovery,
   CoinReservation,
   CoinSelection,
-} from './entities/coin.entity';
+} from './entities';
 import type {
   CoinCheckout,
   CoinOrder,
   CoinReleaseCause,
-} from './types/coin.type';
+} from './schemas/coin.schema';
 
 @Injectable()
 export class CoinService {

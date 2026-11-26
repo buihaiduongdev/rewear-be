@@ -1254,3 +1254,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100%; toàn bộ bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện `ChatService.resolveProduct` ban đầu thiếu kiểm tra `ProductModeration.APPROVED`, `ChatMediaService.loadPrivateMediaLink` chưa lọc hội thoại khi media gửi ở nhiều cuộc trò chuyện, và một số `pg_advisory_xact_lock` còn sót lại ở `notifications`/`ratings`/`reports`; đã khắc phục toàn bộ.
 - **Minh chứng:** PR #69; branch `buihaiduongdev/refactor-wave-1`.
+
+### 2026-11-25 — Tinh gọn nhóm module nghiệp vụ Wave 2
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn 4 module nghiệp vụ Wave 2 (`product`, `shipping`, `shop` kèm `shop/applications`, `coins`) theo chuẩn mỗi bảng một entity, gộp các khai báo type rời rạc về lớp schema, gom logic thông báo và loại bỏ khóa/transaction đọc dư thừa.
+- **Prompt chính:** Tiếp tục Wave 2 trên nhóm module sản phẩm, vận chuyển, cửa hàng (gồm hồ sơ đăng ký cửa hàng) và xu thưởng: bỏ transaction đọc `REPEATABLE READ` và khóa advisory toàn cục dư thừa (vẫn giữ khóa cô lập theo cửa hàng và khóa chống race ở luồng thưởng xu), tách các entity gộp thành từng tệp riêng và gộp các thư mục `types` nhỏ vào `schemas`.
+- **Đầu ra AI được sử dụng:** Bỏ `REPEATABLE READ` chỉ đọc và khóa toàn cục dư thừa ở `product`, `shipping`, `shop`, `shop/applications` và `coins` (giữ khóa theo `shopId` ở điểm lấy hàng và chuyển worker thưởng xu sang khóa dòng `Order` bằng `pessimistic_write` thay vì khóa advisory toàn cục); tách các bảng gộp trong `shop/applications` và `coins` thành mỗi thực thể một tệp kèm barrel export; gộp toàn bộ `types/` (bao gồm `coins/core/types/`) vào `schemas/`, gom thông báo vào `notifications/sources/` và cập nhật đồng bộ bộ kiểm thử liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Kiểm tra rà soát khóa bảo vệ theo từng đơn hàng khi thưởng xu chạy đồng thời, loại bỏ phần trùng lặp khi gộp schema xu thưởng và chuẩn hóa lại PR theo quy chuẩn nhóm.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy đầy đủ trên GitHub Actions CI.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Gộp trùng hai khai báo kiểu khi hợp nhất schema xu thưởng, bỏ sót thư mục `coins/core/types/` và từng dùng khóa advisory toàn cục ở worker thưởng xu; đã thay bằng khóa dòng `pessimistic_write` trên `Order`, hợp nhất nốt `coins/core/schemas/` và chuẩn hóa lại tài liệu PR/AI log.
+- **Minh chứng:** PR #70; branch `buihaiduongdev/refactor-wave-2`.
