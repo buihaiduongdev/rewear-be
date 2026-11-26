@@ -185,15 +185,13 @@ export class ProductService {
       this.assertEditable(product);
       if (input.categoryId)
         await this.assertActiveCategory(input.categoryId, manager);
+      const isPublished = [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
+        product.status,
+      );
       const contentChanged = this.applyContentChanges(product, input);
       let priceChanged = false;
       if (input.price !== undefined && product.price !== input.price) {
-        const publishedPriceIsInvalid =
-          [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-            product.status,
-          ) &&
-          (!input.price || input.price <= 0);
-        if (publishedPriceIsInvalid) {
+        if (isPublished && (!input.price || input.price <= 0)) {
           throw new BadRequestException(
             'A published product must have a positive price',
           );
@@ -201,16 +199,25 @@ export class ProductService {
         product.price = input.price;
         priceChanged = true;
       }
-      // Editing content moves the product back to draft.
-      const requiresContentReview =
-        contentChanged ||
-        (priceChanged &&
-          ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-            product.status,
-          ));
-      if (requiresContentReview) {
-        await this.markContentChanged(manager, product);
-      } else if (priceChanged) await manager.save(Product, product);
+      if (!contentChanged && !priceChanged) return;
+      // Any content or price edit on a published listing hides it for admin re-approval.
+      if (isPublished) {
+        const missingRequired =
+          !product.title ||
+          !product.categoryId ||
+          !product.condition ||
+          !product.description?.trim() ||
+          !product.price ||
+          product.price <= 0;
+        if (missingRequired) {
+          throw new BadRequestException(
+            'Title, category, condition, description and a positive price are required',
+          );
+        }
+        await this.queueForReview(manager, product);
+        return;
+      }
+      await this.markContentChanged(manager, product);
     });
     return this.findManagedProduct(id);
   }
@@ -304,29 +311,36 @@ export class ProductService {
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      const moderation = await manager.findOneBy(ProductModeration, {
-        productId: id,
-      });
-      if (moderation) {
-        moderation.version += 1;
-        moderation.status = ProductModerationStatus.PENDING;
-        moderation.reason = null;
-        await manager.save(ProductModeration, moderation);
-      } else {
-        await manager.save(
-          ProductModeration,
-          manager.create(ProductModeration, {
-            productId: id,
-            version: 1,
-            status: ProductModerationStatus.PENDING,
-            reason: null,
-          }),
-        );
-      }
-      product.status = ProductStatus.PENDING_REVIEW;
-      await manager.save(Product, product);
+      await this.queueForReview(manager, product);
     });
     return this.findManagedProduct(id);
+  }
+
+  private async queueForReview(
+    manager: EntityManager,
+    product: Product,
+  ): Promise<void> {
+    const moderation = await manager.findOneBy(ProductModeration, {
+      productId: product.id,
+    });
+    if (moderation) {
+      moderation.version += 1;
+      moderation.status = ProductModerationStatus.PENDING;
+      moderation.reason = null;
+      await manager.save(ProductModeration, moderation);
+    } else {
+      await manager.save(
+        ProductModeration,
+        manager.create(ProductModeration, {
+          productId: product.id,
+          version: 1,
+          status: ProductModerationStatus.PENDING,
+          reason: null,
+        }),
+      );
+    }
+    product.status = ProductStatus.PENDING_REVIEW;
+    await manager.save(Product, product);
   }
 
   async cancelSubmission(id: string, shopId?: string): Promise<ProductView> {
