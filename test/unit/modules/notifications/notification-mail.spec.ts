@@ -29,13 +29,15 @@ describe('Notification email transport', () => {
     const job = randomUUID();
     await mail.sendNotificationEmail(
       'buyer@test.local',
-      { title: 'Đơn hàng mới', body: 'Mở Rewear để xem.' },
+      { title: 'New order', body: 'Open Rewear to view.' },
       job,
     );
     const message = mockSendMail.mock.calls[0][0];
-    expect(message.subject).toBe('Đơn hàng mới - RE.WEAR');
+    expect(message.subject).toBe('New order - RE.WEAR');
     expect(message.messageId).toContain(job);
-    expect(message.text).toContain('https://rewear.test/notifications');
+    expect(message.text).toContain(
+      'Sign in to Rewear to view details: https://rewear.test/notifications',
+    );
     expect(message).not.toHaveProperty('html');
   });
   it('does not mark rejected email as delivered', async () => {
@@ -46,7 +48,7 @@ describe('Notification email transport', () => {
     await expect(
       mail.sendNotificationEmail(
         'buyer@test.local',
-        { title: 'Lời mời', body: 'Mở Rewear.' },
+        { title: 'Shop invitation', body: 'Open Rewear.' },
         randomUUID(),
       ),
     ).rejects.toThrow('Notification email not accepted');

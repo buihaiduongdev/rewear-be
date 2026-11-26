@@ -155,8 +155,8 @@ export class NotificationEventProcessor extends WorkerHost {
         return recipients.map((recipientId) => ({
           recipientId,
           type: EVENT_TYPES.ORDER_CREATED,
-          title: 'Đơn hàng mới',
-          body: 'Đơn hàng đã được tạo. Mở đơn hàng để xem thông tin và thời hạn xác nhận.',
+          title: 'New order',
+          body: 'Your order has been created. Open the order to view details and confirmation deadline.',
           entityType: 'order',
           entityId: payload.orderId,
           sendEmail: true,
@@ -186,8 +186,8 @@ export class NotificationEventProcessor extends WorkerHost {
         return recipients.map((recipientId) => ({
           recipientId,
           type: EVENT_TYPES.ORDER_UPDATED,
-          title: 'Cập nhật đơn hàng',
-          body: 'Đơn hàng có cập nhật trạng thái. Mở đơn hàng để xem tình trạng hiện tại và việc cần xử lý.',
+          title: 'Order update',
+          body: 'Your order status has been updated. Open the order to view its current status and next steps.',
           entityType: 'order',
           entityId: payload.orderId,
         }));
@@ -200,8 +200,8 @@ export class NotificationEventProcessor extends WorkerHost {
           {
             recipientId: payload.applicantId,
             type: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
-            title: 'Cập nhật hồ sơ Shop',
-            body: 'Hồ sơ Shop đã có cập nhật. Mở hồ sơ sau đăng nhập để xem trạng thái và hướng xử lý.',
+            title: 'Shop application update',
+            body: 'Your shop application has an update. Sign in to review the status and next steps.',
             entityType: 'shop_application',
             entityId: payload.applicationId,
             sendEmail: payload.sendEmail,
@@ -214,8 +214,8 @@ export class NotificationEventProcessor extends WorkerHost {
           drafts.push({
             recipientId: adminId,
             type: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
-            title: 'Cập nhật xét duyệt Shop',
-            body: 'Hồ sơ Shop có cập nhật cần theo dõi trong hàng đợi xét duyệt.',
+            title: 'Shop review update',
+            body: 'A shop application has an update in the review queue.',
             entityType: 'shop_application',
             entityId: payload.applicationId,
           });
@@ -232,9 +232,9 @@ export class NotificationEventProcessor extends WorkerHost {
             type: EVENT_TYPES.SHOP_IDENTITY_RENEWAL,
             title:
               payload.stage === 'paused'
-                ? 'Shop tạm dừng giao dịch mới'
-                : 'Giấy tờ định danh sắp hết thời gian ân hạn',
-            body: 'Mở hồ sơ Shop sau đăng nhập để cập nhật giấy tờ định danh. Đơn hàng cũ vẫn được xử lý bình thường.',
+                ? 'Shop new orders paused'
+                : 'Identity document grace period ending soon',
+            body: 'Sign in and open your shop profile to update your identity documents. Existing orders continue as normal.',
             entityType: 'shop_application',
             entityId: payload.applicationId,
             sendEmail: true,
@@ -253,8 +253,8 @@ export class NotificationEventProcessor extends WorkerHost {
         return recipients.map((recipientId) => ({
           recipientId,
           type: EVENT_TYPES.PRODUCT_REVIEW_DECIDED,
-          title: 'Kết quả duyệt tin đăng',
-          body: 'Tin đăng của Shop đã có kết quả xét duyệt. Mở quản lý sản phẩm để xem kết quả.',
+          title: 'Listing review result',
+          body: 'Your shop listing has been reviewed. Open product management to view the result.',
           entityType: 'product',
           entityId: payload.productId,
           sendEmail: true,
@@ -268,8 +268,8 @@ export class NotificationEventProcessor extends WorkerHost {
           {
             recipientId: payload.userId,
             type: EVENT_TYPES.SHOP_INVITATION_CREATED,
-            title: 'Lời mời tham gia Shop',
-            body: 'Bạn nhận được lời mời tham gia Shop. Mở Rewear để xem vai trò và thời hạn lời mời.',
+            title: 'Shop invitation',
+            body: 'You have been invited to join a shop. Open Rewear to view your role and invitation expiry.',
             entityType: 'shop_invitation',
             entityId: payload.invitationId,
             sendEmail: true,
@@ -284,8 +284,8 @@ export class NotificationEventProcessor extends WorkerHost {
           {
             recipientId: payload.buyerId,
             type: EVENT_TYPES.DISPUTE_UPDATED,
-            title: 'Cập nhật khiếu nại',
-            body: 'Hồ sơ khiếu nại có cập nhật. Mở đơn hàng để xem nội dung và thời hạn xử lý.',
+            title: 'Dispute update',
+            body: 'Your dispute case has an update. Open the order to view details and response deadlines.',
             entityType: 'order',
             entityId: payload.orderId,
             sendEmail: payload.sendEmail,
@@ -300,8 +300,8 @@ export class NotificationEventProcessor extends WorkerHost {
           drafts.push({
             recipientId: ownerId,
             type: EVENT_TYPES.DISPUTE_UPDATED,
-            title: 'Cập nhật khiếu nại',
-            body: 'Hồ sơ khiếu nại của đơn hàng có cập nhật. Mở đơn hàng để xem và xử lý.',
+            title: 'Dispute update',
+            body: 'An order dispute has an update. Open the order to view and respond.',
             entityType: 'order',
             entityId: payload.orderId,
             sendEmail: payload.sendEmail,
@@ -313,8 +313,8 @@ export class NotificationEventProcessor extends WorkerHost {
             drafts.push({
               recipientId: adminId,
               type: EVENT_TYPES.DISPUTE_UPDATED,
-              title: 'Cập nhật khiếu nại cần phân xử',
-              body: 'Hồ sơ khiếu nại có cập nhật cần Admin xem xét.',
+              title: 'Dispute needs adjudication',
+              body: 'A dispute case has an update requiring admin review.',
               entityType: 'dispute_case',
               entityId: payload.disputeCaseId,
             });
@@ -339,8 +339,8 @@ export class NotificationEventProcessor extends WorkerHost {
           .map((recipientId) => ({
             recipientId,
             type: EVENT_TYPES.CHAT_MESSAGE_CREATED,
-            title: 'Tin nhắn mới',
-            body: 'Bạn có tin nhắn mới trong hội thoại Buyer–Shop. Mở hội thoại để xem nội dung.',
+            title: 'New message',
+            body: 'You have a new message in your Buyer–Shop conversation. Open the chat to read it.',
             entityType: 'chat_conversation',
             entityId: payload.conversationId,
           }));
@@ -354,8 +354,8 @@ export class NotificationEventProcessor extends WorkerHost {
         return recipients.map((recipientId) => ({
           recipientId,
           type: EVENT_TYPES.VIOLATION_REPORT_UPDATED,
-          title: 'Cập nhật báo cáo vi phạm',
-          body: 'Báo cáo vi phạm đã có cập nhật. Mở báo cáo để xem tình trạng và kết quả xử lý.',
+          title: 'Violation report update',
+          body: 'A violation report has an update. Open the report to view its status and outcome.',
           entityType: 'violation_report',
           entityId: payload.reportId,
         }));
@@ -372,8 +372,8 @@ export class NotificationEventProcessor extends WorkerHost {
         return owners.map((recipientId) => ({
           recipientId,
           type: EVENT_TYPES.SHOP_DEACTIVATED_FOR_REPORT,
-          title: 'Cập nhật kiểm duyệt Shop',
-          body: 'Shop đã được Admin ngừng nhận giao dịch mới sau khi xác minh vi phạm. Liên hệ hỗ trợ để làm rõ quyết định.',
+          title: 'Shop moderation update',
+          body: 'Your shop has been paused from new orders after a verified violation report. Contact support for details.',
           entityType: 'shop',
           entityId: payload.shopId,
         }));

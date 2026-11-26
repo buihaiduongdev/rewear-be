@@ -58,7 +58,7 @@ export class MailService {
       to: email,
       messageId: `<rewear-notification-${jobId}@notifications.rewear>`,
       subject: `${notice.title} - RE.WEAR`,
-      text: `${notice.body}\n\nĐăng nhập Rewear để xem chi tiết: ${url.toString()}`,
+      text: `${notice.body}\n\nSign in to Rewear to view details: ${url.toString()}`,
     });
     if (!result.accepted?.length || result.rejected?.length)
       throw new Error('Notification email not accepted');
