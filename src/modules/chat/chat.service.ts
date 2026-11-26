@@ -40,36 +40,38 @@ export class ChatService {
     private readonly storage: StorageService,
   ) {}
 
-  open(buyerId: string, shopId: string) {
-    return this.db.transaction(async (manager) => {
-      let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
-      if (!row) {
-        await this.assertActiveShop(manager, shopId);
-        if (await manager.existsBy(ShopMember, { userId: buyerId, shopId })) {
-          throw new BadRequestException(
-            'Shop members cannot open a buyer conversation with their own Shop',
-          );
-        }
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(ChatConversation)
-          .values({
-            buyerId,
-            shopId,
-            buyerLastReadAt: null,
-            shopLastReadAt: null,
-            lastMessageAt: null,
-          })
-          .orIgnore()
-          .execute();
-        row = await manager.findOneByOrFail(ChatConversation, {
-          buyerId,
-          shopId,
-        });
-      }
-      return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
+  async open(buyerId: string, shopId: string) {
+    const manager = this.db.manager;
+    let row = await manager.findOne(ChatConversation, {
+      where: { buyerId, shopId },
+      relations: { buyer: true, shop: true },
     });
+    if (!row) {
+      const [shopActive, isOwnShop] = await Promise.all([
+        manager.existsBy(Shop, { id: shopId, status: ShopStatus.ACTIVE }),
+        manager.existsBy(ShopMember, { userId: buyerId, shopId }),
+      ]);
+      if (!shopActive) {
+        throw new ForbiddenException('Shop is not accepting new chat messages');
+      }
+      if (isOwnShop) {
+        throw new BadRequestException(
+          'Shop members cannot open a buyer conversation with their own Shop',
+        );
+      }
+      await manager
+        .createQueryBuilder()
+        .insert()
+        .into(ChatConversation)
+        .values({ buyerId, shopId })
+        .orIgnore()
+        .execute();
+      row = await manager.findOneOrFail(ChatConversation, {
+        where: { buyerId, shopId },
+        relations: { buyer: true, shop: true },
+      });
+    }
+    return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
   }
 
   async detail(userId: string, id: string) {
@@ -312,13 +314,6 @@ export class ChatService {
     )
       return CHAT_SIDE.SHOP;
     throw new ForbiddenException('Chat access denied');
-  }
-
-  private async assertActiveShop(manager: EntityManager, shopId: string) {
-    if (
-      !(await manager.existsBy(Shop, { id: shopId, status: ShopStatus.ACTIVE }))
-    )
-      throw new ForbiddenException('Shop is not accepting new chat messages');
   }
 
   private async unreadCounts(
