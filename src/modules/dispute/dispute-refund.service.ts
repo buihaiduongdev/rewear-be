@@ -35,6 +35,7 @@ export class DisputeRefundService {
   constructor(
     private readonly db: DataSource,
     private readonly access: DisputeAccess,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   async view(userId: string, decisionId: string, admin = false) {
@@ -188,7 +189,7 @@ export class DisputeRefundService {
 
     issue.status = DISPUTE_ISSUE_STATE.RESOLVED_REFUND;
     await manager.save(issue);
-    await new OutboxService().record(manager, {
+    await this.outboxService.record(manager, {
       eventType: EVENT_TYPES.DISPUTE_UPDATED,
       resourceId: meta.caseId,
       payload: {

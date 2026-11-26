@@ -41,6 +41,7 @@ export class OrderService {
     private readonly db: DataSource,
     private readonly walletService: WalletService,
     private readonly codPolicy: CodPolicy,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {
@@ -117,7 +118,7 @@ export class OrderService {
           createdAt: now,
         }),
       );
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.ORDER_UPDATED,
         resourceId: order.id,
         payload: {
@@ -280,7 +281,7 @@ export class OrderService {
           createdAt: now,
         }),
       );
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.ORDER_UPDATED,
         resourceId: order.id,
         payload: {
@@ -365,7 +366,7 @@ export class OrderService {
         createdAt: now,
       }),
     );
-    await new OutboxService().record(manager, {
+    await this.outboxService.record(manager, {
       eventType: EVENT_TYPES.ORDER_UPDATED,
       resourceId: order.id,
       payload: {
@@ -427,7 +428,7 @@ export class OrderService {
         createdAt: now,
       }),
     );
-    await new OutboxService().record(manager, {
+    await this.outboxService.record(manager, {
       eventType: EVENT_TYPES.ORDER_UPDATED,
       resourceId: order.id,
       payload: {

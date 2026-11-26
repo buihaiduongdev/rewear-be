@@ -89,6 +89,7 @@ export class ShopApplicationService {
     private readonly db: DataSource,
     private readonly storage: StorageService,
     private readonly media: MediaService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   async assertActiveUser(
@@ -325,7 +326,7 @@ export class ShopApplicationService {
             adminNote: null,
           }),
         );
-        await new OutboxService().record(manager, {
+        await this.outboxService.record(manager, {
           eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
           resourceId: row.id,
           payload: {
@@ -387,7 +388,7 @@ export class ShopApplicationService {
             adminNote: null,
           }),
         );
-        await new OutboxService().record(manager, {
+        await this.outboxService.record(manager, {
           eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
           resourceId: row.id,
           payload: {
@@ -432,7 +433,7 @@ export class ShopApplicationService {
         adminNote: null,
       });
       await manager.save(ShopApplication, row);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
         resourceId: row.id,
         payload: {
@@ -473,7 +474,7 @@ export class ShopApplicationService {
         adminNote: null,
       });
       await manager.save(ShopApplication, row);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
         resourceId: row.id,
         payload: {
@@ -552,7 +553,7 @@ export class ShopApplicationService {
         adminNote: data.adminNote || null,
       });
       await manager.save(ShopApplication, row);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.SHOP_APPLICATION_DECIDED,
         resourceId: row.id,
         payload: {

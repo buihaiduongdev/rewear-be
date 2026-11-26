@@ -172,6 +172,7 @@ export async function applyReportMeasure(
   manager: EntityManager,
   row: ViolationReport,
   input: ResolveReportInput,
+  outboxService: OutboxService = new OutboxService(),
 ): Promise<Record<string, unknown>> {
   if (input.action === REPORT_MEASURE.NONE) return { changed: false };
   if (input.action === REPORT_MEASURE.SUSPEND_PRODUCT) {
@@ -190,7 +191,7 @@ export async function applyReportMeasure(
       },
     );
     if (effect.changed)
-      await new OutboxService().record(manager, {
+      await outboxService.record(manager, {
         eventType: EVENT_TYPES.PRODUCT_REVIEW_DECIDED,
         resourceId: effect.product.id,
         payload: {
@@ -220,7 +221,7 @@ export async function applyReportMeasure(
   const changed = before !== shop.status;
   if (changed) {
     await manager.save(shop);
-    await new OutboxService().record(manager, {
+    await outboxService.record(manager, {
       eventType: EVENT_TYPES.SHOP_DEACTIVATED_FOR_REPORT,
       resourceId: shop.id,
       payload: {

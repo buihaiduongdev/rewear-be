@@ -35,6 +35,7 @@ export class OrderSettlementService {
   constructor(
     private readonly db: DataSource,
     private readonly funding: OrderFundingService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   private async now(manager: EntityManager) {
@@ -270,7 +271,7 @@ export class OrderSettlementService {
       select: { id: true, buyerId: true, shopId: true },
     });
     if (order) {
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.ORDER_UPDATED,
         resourceId: order.id,
         payload: {

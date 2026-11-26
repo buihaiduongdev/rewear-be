@@ -91,6 +91,7 @@ export class WalletCheckoutService {
   constructor(
     private readonly db: DataSource,
     private readonly pricing: PaymentPricing,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   private async now(manager: EntityManager) {
@@ -406,7 +407,7 @@ export class WalletCheckoutService {
           createdAt: now,
         }),
       );
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.ORDER_CREATED,
         resourceId: order.id,
         payload: {

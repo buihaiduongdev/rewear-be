@@ -70,6 +70,7 @@ export class PaymentService {
     private readonly db: DataSource,
     @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
     private readonly pricing: PaymentPricing,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   private gateway() {
@@ -614,7 +615,7 @@ export class PaymentService {
         createdAt: now,
       }),
     );
-    await new OutboxService().record(manager, {
+    await this.outboxService.record(manager, {
       eventType: EVENT_TYPES.ORDER_CREATED,
       resourceId: order.id,
       payload: {

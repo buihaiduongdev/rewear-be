@@ -93,6 +93,7 @@ export class DisputeAdjudicationService {
     private readonly access: DisputeAccess,
     private readonly refunds: DisputeRefundService,
     private readonly returns: DisputeReturnService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   private async lockOrderAndIssue(manager: EntityManager, issueId: string) {
@@ -274,7 +275,7 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.AWAITING_APPEAL;
       await manager.save(issue);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.DISPUTE_UPDATED,
         resourceId: row.id,
         payload: {
@@ -357,7 +358,7 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.APPEAL_REVIEW;
       await manager.save(issue);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.DISPUTE_UPDATED,
         resourceId: row.id,
         payload: {
@@ -428,7 +429,7 @@ export class DisputeAdjudicationService {
       decision.finalReason = data.reason;
       decision.finalActorId = adminId;
       await manager.save(decision);
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.DISPUTE_UPDATED,
         resourceId: row.id,
         payload: {

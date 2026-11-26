@@ -52,6 +52,7 @@ export class DisputeService {
     private readonly orders: OrderAccess,
     private readonly storage: StorageService,
     private readonly media: MediaService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   async openIssue(
@@ -148,7 +149,7 @@ export class DisputeService {
           createdAt: now,
         }),
       );
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.DISPUTE_UPDATED,
         resourceId: row.id,
         payload: {

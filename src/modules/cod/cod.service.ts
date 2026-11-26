@@ -59,6 +59,7 @@ export class CodService {
     private readonly policy: CodPolicy,
     @Optional() private readonly orderService?: OrderService,
     @Optional() private readonly shopFinanceService?: ShopFinanceService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   async place(
@@ -351,7 +352,7 @@ export class CodService {
           createdAt: now,
         }),
       );
-      await new OutboxService().record(manager, {
+      await this.outboxService.record(manager, {
         eventType: EVENT_TYPES.ORDER_CREATED,
         resourceId: order.id,
         payload: {
