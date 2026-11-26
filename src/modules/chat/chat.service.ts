@@ -15,7 +15,6 @@ import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
 
 import { CHAT_SIDE } from './constants/chat.constant';
 import { ChatConversation, ChatMessage } from './entities';
@@ -83,7 +82,12 @@ export class ChatService {
       userId,
       id,
     );
-    return this.conversationView(this.db.manager, row, userId, side);
+    const unreadMap = await this.unreadCounts(
+      this.db.manager,
+      [row.id],
+      userId,
+    );
+    return this.conversationView(row, side, unreadMap.get(row.id) ?? 0);
   }
 
   async list(userId: string, input: ChatPageInput) {
@@ -124,15 +128,11 @@ export class ChatService {
       userId,
     );
 
-    const items = await Promise.all(
-      rows.map((row) =>
-        this.conversationView(
-          manager,
-          row,
-          userId,
-          row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP,
-          unreadMap.get(row.id) ?? 0,
-        ),
+    const items = rows.map((row) =>
+      this.conversationView(
+        row,
+        row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP,
+        unreadMap.get(row.id) ?? 0,
       ),
     );
     return { items, total, ...input };
@@ -230,7 +230,7 @@ export class ChatService {
         row.shopLastReadAt = now;
       }
       await manager.save(row);
-      return this.conversationView(manager, row, userId, side);
+      return this.conversationView(row, side, 0);
     });
   }
 
@@ -267,7 +267,10 @@ export class ChatService {
     userId: string,
     id: string,
   ) {
-    const row = await manager.findOneByOrFail(ChatConversation, { id });
+    const row = await manager.findOneOrFail(ChatConversation, {
+      where: { id },
+      relations: { buyer: true, shop: true },
+    });
     if (row.buyerId === userId) return { row, side: CHAT_SIDE.BUYER };
     if (
       await this.authorization.hasPermission(
@@ -307,29 +310,19 @@ export class ChatService {
     return new Map(rows.map((r) => [r.conversationId, Number(r.cnt)]));
   }
 
-  private async conversationView(
-    manager: EntityManager,
+  private conversationView(
     row: ChatConversation,
-    userId: string,
     side: ChatSide,
-    unreadCount?: number,
+    unreadCount: number,
   ) {
-    const buyer =
-      row.buyer ?? (await manager.findOneByOrFail(User, { id: row.buyerId }));
-    const shop =
-      row.shop ?? (await manager.findOneByOrFail(Shop, { id: row.shopId }));
-    const count =
-      unreadCount ??
-      (await this.unreadCounts(manager, [row.id], userId)).get(row.id) ??
-      0;
     return {
       id: row.id,
       buyerId: row.buyerId,
-      buyerName: buyer.fullName,
+      buyerName: row.buyer.fullName,
       shopId: row.shopId,
-      shopName: shop.name,
+      shopName: row.shop.name,
       side,
-      unreadCount: count,
+      unreadCount,
       lastMessageAt: row.lastMessageAt,
     };
   }
