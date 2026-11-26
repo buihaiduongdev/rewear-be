@@ -49,8 +49,8 @@ export class ChatService {
     private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
     private readonly outboxService: OutboxService,
-    private readonly storage?: StorageService,
-    private readonly dispute?: DisputeAccess,
+    private readonly storage: StorageService,
+    private readonly dispute: DisputeAccess,
   ) {}
 
   open(buyerId: string, shopId: string) {
@@ -268,7 +268,7 @@ export class ChatService {
       userId,
       link.message.conversationId,
     );
-    return this.storage!.createDownloadUrl(link.media.storageKey);
+    return this.storage.createDownloadUrl(link.media.storageKey);
   }
 
   async importEvidence(
@@ -309,7 +309,7 @@ export class ChatService {
           'Chat evidence order must belong to this buyer and Shop',
         );
       }
-      await this.dispute!.assertParty(manager, userId, orderId);
+      await this.dispute.assertParty(manager, userId, orderId);
 
       const media = link.media;
       const input = disputeUploadSchema.parse({ mediaId, tags });
@@ -331,7 +331,7 @@ export class ChatService {
         return this.evidenceView(existing);
       }
 
-      await this.dispute!.assertUploadAllowed(manager, userId, orderId, now);
+      await this.dispute.assertUploadAllowed(manager, userId, orderId, now);
       if (
         (await manager.countBy(DisputeEvidence, {
           orderId,

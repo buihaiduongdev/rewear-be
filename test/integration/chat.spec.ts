@@ -32,6 +32,8 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       new AuthorizationService(database.dataSource),
       {} as never,
       new OutboxService(),
+      {} as never,
+      {} as never,
     );
   });
   afterAll(async () => database?.destroy());
