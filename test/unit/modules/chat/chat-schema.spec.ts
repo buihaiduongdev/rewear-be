@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import z from 'zod';
 
 import * as schemas from '@/modules/chat/schemas/chat.schema';
@@ -20,7 +18,7 @@ describe('Chat contracts', () => {
     ).toBe(false);
     expect(
       schemas.sendChatSchema.safeParse({
-        productId: randomUUID(),
+        text: 'Hello',
       }).success,
     ).toBe(true);
   });

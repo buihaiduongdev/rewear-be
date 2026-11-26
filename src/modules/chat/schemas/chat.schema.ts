@@ -27,11 +27,10 @@ export const sendChatSchema = z
       .max(CHAT_POLICY.MAX_MEDIA)
       .default([])
       .refine((ids) => new Set(ids).size === ids.length, 'Duplicate media'),
-    productId: z.uuid().optional(),
   })
   .refine(
-    (input) => !!input.text || input.mediaIds.length > 0 || !!input.productId,
-    'Message must contain text, media or a product',
+    (input) => !!input.text || input.mediaIds.length > 0,
+    'Message must contain text or media',
   );
 export const chatPageSchema = z.object({
   limit: z.coerce
@@ -59,14 +58,6 @@ export const chatMessageViewSchema = z.object({
       sizeBytes: z.number().int(),
     }),
   ),
-  product: z
-    .object({
-      id: z.uuid(),
-      title: z.string(),
-      price: z.number().nullable(),
-      status: z.string(),
-    })
-    .nullable(),
   createdAt: dateTimeSchema,
 });
 export const chatConversationViewSchema = z.object({

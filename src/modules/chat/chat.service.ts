@@ -13,8 +13,6 @@ import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { Product } from '@/modules/product/entities';
-import { ProductStatus } from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -148,7 +146,6 @@ export class ChatService {
     await this.loadConversation(manager, userId, id);
     const [rows, total] = await manager
       .createQueryBuilder(ChatMessage, 'message')
-      .leftJoinAndSelect('message.product', 'product')
       .where('message.conversationId = :id', { id })
       .orderBy('message.createdAt', 'DESC')
       .addOrderBy('message.id', 'DESC')
@@ -186,27 +183,12 @@ export class ChatService {
         }
       }
 
-      const product = parsed.productId
-        ? await manager.findOneBy(Product, {
-            id: parsed.productId,
-            shopId: row.shopId,
-            status: ProductStatus.ACTIVE,
-          })
-        : null;
-      if (parsed.productId && !product) {
-        throw new BadRequestException(
-          'Product must be an active listing of this Shop',
-        );
-      }
-
       const message = await manager.save(
         ChatMessage,
         manager.create(ChatMessage, {
           conversationId: id,
           senderId: userId,
           text: parsed.text ?? null,
-          productId: product?.id ?? null,
-          product,
         }),
       );
 
@@ -369,14 +351,6 @@ export class ChatService {
       conversationId: row.conversationId,
       senderId: row.senderId,
       text: row.text,
-      product: row.product
-        ? {
-            id: row.product.id,
-            title: row.product.title ?? '',
-            price: row.product.price,
-            status: row.product.status,
-          }
-        : null,
       createdAt: row.createdAt,
       media: links
         .filter((link) => link.messageId === row.id)
