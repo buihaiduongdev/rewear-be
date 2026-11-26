@@ -3,12 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { DataSource } from 'typeorm';
 
-import {
-  NOTIFICATION_KIND,
-  NOTIFICATION_TARGET,
-} from '@/modules/notifications/constants/notification.constant';
-import { publishNotification } from '@/modules/notifications/publish-notification';
-import { personalRecipient } from '@/modules/notifications/sources/notification-recipients';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 
 import { Shop } from '../../entities';
 import {
@@ -27,7 +23,10 @@ export class IdentityRenewalWorker {
   private readonly logger = new Logger(IdentityRenewalWorker.name);
   private running = false;
 
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly outboxService: OutboxService = new OutboxService(),
+  ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   async run(now?: Date) {
@@ -84,19 +83,20 @@ export class IdentityRenewalWorker {
         .andWhere('shop."identityExpiresOn" < :today', { today })
         .andWhere(
           `NOT EXISTS (
-            SELECT 1 FROM notification_events ne
-            WHERE ne.key = (
-              'identity-renewal:' || shop.id::text || ':' ||
-              to_char(shop."identityExpiresOn", 'YYYY-MM-DD') || ':' ||
-              CASE
-                WHEN shop."identityManualRestriction" = true
-                  OR shop."identityExpiresOn" <= :pausedCutoff
-                THEN 'paused'
-                ELSE 'grace'
-              END
-            )
+            SELECT 1 FROM outbox_events oe
+            WHERE oe.event_type = :eventType
+              AND oe.payload->>'dedupKey' = (
+                'identity-renewal:' || shop.id::text || ':' ||
+                to_char(shop."identityExpiresOn", 'YYYY-MM-DD') || ':' ||
+                CASE
+                  WHEN shop."identityManualRestriction" = true
+                    OR shop."identityExpiresOn" <= :pausedCutoff
+                  THEN 'paused'
+                  ELSE 'grace'
+                END
+              )
           )`,
-          { pausedCutoff },
+          { eventType: EVENT_TYPES.SHOP_IDENTITY_RENEWAL, pausedCutoff },
         )
         .orderBy('shop."identityExpiresOn"', 'ASC')
         .addOrderBy('shop.id', 'ASC')
@@ -112,18 +112,17 @@ export class IdentityRenewalWorker {
       for (const row of rows) {
         const paused = !shopAllowsIdentitySales(row, now);
         const stage = paused ? 'paused' : 'grace';
-        await publishNotification(manager, {
-          key: `identity-renewal:${row.shopId}:${row.identityExpiresOn}:${stage}`,
-          kind: NOTIFICATION_KIND.SHOP_APPLICATION,
-          targetType: NOTIFICATION_TARGET.SHOP_APPLICATION,
-          sourceId: row.applicationId,
-          title: paused
-            ? 'Shop tạm dừng giao dịch mới'
-            : 'Giấy tờ định danh sắp hết thời gian ân hạn',
-          body: 'Mở hồ sơ Shop sau đăng nhập để cập nhật giấy tờ định danh. Đơn hàng cũ vẫn được xử lý bình thường.',
-          mode: null,
-          email: true,
-          recipients: [personalRecipient(row.applicantId)],
+        await this.outboxService.record(manager, {
+          eventType: EVENT_TYPES.SHOP_IDENTITY_RENEWAL,
+          resourceId: row.applicationId,
+          payload: {
+            applicationId: row.applicationId,
+            shopId: row.shopId,
+            applicantId: row.applicantId,
+            identityExpiresOn: row.identityExpiresOn,
+            stage,
+            dedupKey: `identity-renewal:${row.shopId}:${row.identityExpiresOn}:${stage}`,
+          },
         });
       }
     });

@@ -53,6 +53,10 @@ const deps = {
   ...(await load('../src/common/constants/money.constant.ts')),
   ...(await load('../src/modules/order/constants/order.constant.ts')),
   ...(await load('../src/modules/wallet/constants/wallet.constant.ts')),
+  ...(await load('../src/modules/event/constants/event-type.constant.ts')),
+  OutboxService: class {
+    record() {}
+  },
   Checkout,
   Product,
   Shop,

@@ -108,15 +108,6 @@ export const ratingVersionSchema = z.object({
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
-export const ratingNoticeSchema = z.object({
-  id: z.uuid(),
-  ratingId: z.uuid(),
-  shopId: z.uuid(),
-  revision: z.number().int(),
-  kind: z.string(),
-  createdAt: dateTimeSchema,
-  updatedAt: dateTimeSchema,
-});
 export const ratingMediaViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.string(),

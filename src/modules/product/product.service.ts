@@ -20,9 +20,10 @@ import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { Category } from '@/modules/category/entities';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
-import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -55,6 +56,7 @@ export class ProductService {
     private readonly dataSource: DataSource,
     private readonly authorizationService: AuthorizationService,
     private readonly storage: StorageService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
@@ -379,7 +381,17 @@ export class ProductService {
         input.decision === 'REJECT' ? input.reason!.trim() : null;
       await manager.save(ProductModeration, moderation);
       await manager.save(Product, product);
-      await notifyProductReview(manager, product, moderation);
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.PRODUCT_REVIEW_DECIDED,
+        resourceId: product.id,
+        payload: {
+          productId: product.id,
+          shopId: product.shopId,
+          moderationId: moderation.id,
+          version: moderation.version,
+          status: moderation.status,
+        },
+      });
     });
     return this.findManagedProduct(id);
   }

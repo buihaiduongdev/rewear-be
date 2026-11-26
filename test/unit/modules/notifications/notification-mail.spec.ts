@@ -21,7 +21,7 @@ describe('Notification email transport', () => {
     },
   } as unknown as ConfigService);
   beforeEach(() => mockSendMail.mockReset());
-  it('labels simulation, uses text and an authenticated generic destination with stable message id', async () => {
+  it('uses text and an authenticated generic destination with stable message id', async () => {
     mockSendMail.mockResolvedValue({
       accepted: ['buyer@test.local'],
       rejected: [],
@@ -29,11 +29,11 @@ describe('Notification email transport', () => {
     const job = randomUUID();
     await mail.sendNotificationEmail(
       'buyer@test.local',
-      { title: 'Đơn hàng mới', body: 'Mở Rewear để xem.', mode: 'SIMULATION' },
+      { title: 'Đơn hàng mới', body: 'Mở Rewear để xem.' },
       job,
     );
     const message = mockSendMail.mock.calls[0][0];
-    expect(message.subject).toContain('[MÔ PHỎNG]');
+    expect(message.subject).toBe('Đơn hàng mới - RE.WEAR');
     expect(message.messageId).toContain(job);
     expect(message.text).toContain('https://rewear.test/notifications');
     expect(message).not.toHaveProperty('html');
@@ -46,7 +46,7 @@ describe('Notification email transport', () => {
     await expect(
       mail.sendNotificationEmail(
         'buyer@test.local',
-        { title: 'Lời mời', body: 'Mở Rewear.', mode: null },
+        { title: 'Lời mời', body: 'Mở Rewear.' },
         randomUUID(),
       ),
     ).rejects.toThrow('Notification email not accepted');

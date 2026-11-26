@@ -7,6 +7,8 @@ import { OPEN_DISPUTE_STATES } from '@/modules/dispute/constants/dispute.constan
 import { orderRefundDebit } from '@/modules/dispute/dispute-refund-accounting';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 
@@ -253,7 +255,7 @@ export class OrderSettlementService {
     now: Date,
     actorId: string | null,
   ) {
-    await manager.save(
+    const event = await manager.save(
       OrderEvent,
       manager.create(OrderEvent, {
         orderId,
@@ -263,5 +265,22 @@ export class OrderSettlementService {
         createdAt: now,
       }),
     );
+    const order = await manager.findOne(Order, {
+      where: { id: orderId },
+      select: { id: true, buyerId: true, shopId: true },
+    });
+    if (order) {
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.ORDER_UPDATED,
+        resourceId: order.id,
+        payload: {
+          orderId: order.id,
+          orderEventId: event.id,
+          buyerId: order.buyerId,
+          shopId: order.shopId,
+          action: event.action,
+        },
+      });
+    }
   }
 }

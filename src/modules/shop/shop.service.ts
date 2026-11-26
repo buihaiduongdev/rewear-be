@@ -13,6 +13,8 @@ import { StorageService } from '@/infrastructure/storage';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
@@ -42,6 +44,7 @@ export class ShopService {
     private readonly shopRoleService: ShopRoleService,
     private readonly uploads: MediaService,
     private readonly storage: StorageService,
+    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   private toView(shop: Shop) {
@@ -298,6 +301,15 @@ export class ShopService {
           expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
         }),
       );
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.SHOP_INVITATION_CREATED,
+        resourceId: invitation.id,
+        payload: {
+          invitationId: invitation.id,
+          shopId,
+          userId,
+        },
+      });
       return invitation;
     });
   }

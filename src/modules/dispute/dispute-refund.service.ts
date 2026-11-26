@@ -4,7 +4,8 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
-import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
@@ -187,17 +188,19 @@ export class DisputeRefundService {
 
     issue.status = DISPUTE_ISSUE_STATE.RESOLVED_REFUND;
     await manager.save(issue);
-    await notifyDispute(
-      manager,
-      {
-        id: meta.caseId,
+    await new OutboxService().record(manager, {
+      eventType: EVENT_TYPES.DISPUTE_UPDATED,
+      resourceId: meta.caseId,
+      payload: {
+        disputeCaseId: meta.caseId,
         orderId: order.id,
         buyerId: order.buyerId,
         shopId: order.shopId,
+        event: `refunded:${credit.id}`,
+        includeAdmins: false,
+        sendEmail: true,
       },
-      `refunded:${credit.id}`,
-      { email: true, mode: funding.mode },
-    );
+    });
     await restoreDisputeCaseIfClear(manager, issue.caseId);
     return credit;
   }

@@ -9,7 +9,6 @@ import {
   ShopRating,
   ShopRatingMedia,
   ShopRatingModerationAudit,
-  ShopRatingNotice,
   ShopRatingVersion,
 } from './entities';
 import { RatingMediaService } from './rating-media.service';
@@ -24,7 +23,6 @@ import { RatingsService } from './ratings.service';
     TypeOrmModule.forFeature([
       ShopRating,
       ShopRatingVersion,
-      ShopRatingNotice,
       ShopRatingModerationAudit,
       ShopRatingMedia,
     ]),

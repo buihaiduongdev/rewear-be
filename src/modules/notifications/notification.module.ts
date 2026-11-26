@@ -1,39 +1,36 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AuthorizationModule } from '@/modules/authorization/authorization.module';
+import { QUEUE_NAMES } from '@/infrastructure/queue/queue.constants';
+import { EventDelivery } from '@/modules/event/entities/event-delivery.entity';
+import { EventModule } from '@/modules/event/event.module';
 import { MailModule } from '@/modules/mail/mail.module';
 
-import {
-  Notification,
-  NotificationCheckpoint,
-  NotificationEmailJob,
-  NotificationEvent,
-} from './entities';
-import { NotificationEmailService } from './notification-email.service';
-import { NotificationProjector } from './notification-projector.service';
+import { Notification } from './entities/notification.entity';
+import { NotificationEmailProcessor } from './notification-email.processor';
+import { NotificationEventProcessor } from './notification-event.processor';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
-import { NotificationWorker } from './notification.worker';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Notification,
-      NotificationCheckpoint,
-      NotificationEmailJob,
-      NotificationEvent,
-    ]),
-    AuthorizationModule,
+    EventModule,
     MailModule,
+    TypeOrmModule.forFeature([Notification, EventDelivery]),
+    BullModule.registerQueue({ name: QUEUE_NAMES.EMAIL_NOTIFICATIONS }),
   ],
   controllers: [NotificationController],
   providers: [
     NotificationService,
-    NotificationEmailService,
-    NotificationProjector,
-    NotificationWorker,
+    NotificationEventProcessor,
+    NotificationEmailProcessor,
   ],
-  exports: [NotificationService, NotificationProjector],
+  exports: [
+    NotificationService,
+    NotificationEventProcessor,
+    NotificationEmailProcessor,
+    TypeOrmModule,
+  ],
 })
 export class NotificationModule {}

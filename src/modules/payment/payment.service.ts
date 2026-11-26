@@ -25,6 +25,8 @@ import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant'
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinService } from '@/modules/coins/core/coin.service';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -612,6 +614,15 @@ export class PaymentService {
         createdAt: now,
       }),
     );
+    await new OutboxService().record(manager, {
+      eventType: EVENT_TYPES.ORDER_CREATED,
+      resourceId: order.id,
+      payload: {
+        orderId: order.id,
+        buyerId: order.buyerId,
+        shopId: order.shopId,
+      },
+    });
     await manager.update(
       Product,
       {

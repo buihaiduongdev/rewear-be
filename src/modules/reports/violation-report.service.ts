@@ -9,7 +9,8 @@ import {
 
 import { DataSource, type EntityManager } from 'typeorm';
 
-import { notifyViolationReport } from '@/modules/notifications/sources/violation-report.notification';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
@@ -144,7 +145,16 @@ export class ViolationReportService {
         effect,
       }),
     );
-    await notifyViolationReport(manager, row, action);
+    await new OutboxService().record(manager, {
+      eventType: EVENT_TYPES.VIOLATION_REPORT_UPDATED,
+      resourceId: row.id,
+      payload: {
+        reportId: row.id,
+        reporterId: row.reporterId,
+        version: row.version,
+        action,
+      },
+    });
   }
 
   create(userId: string, input: CreateReportInput) {

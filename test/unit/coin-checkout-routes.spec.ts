@@ -48,6 +48,7 @@ describe('coin checkout payment routes', () => {
       existsBy: jest.fn(async () => false),
       save: jest.fn(async (...args: unknown[]) => args[args.length - 1]),
       create: jest.fn((_entity: unknown, value: unknown) => value),
+      insert: jest.fn(async () => ({})),
       update: jest.fn(async () => ({})),
     };
   }

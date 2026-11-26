@@ -12,6 +12,8 @@ import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CoinService } from '@/modules/coins/core/coin.service';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import {
   ORDER_CANCELLATION_REASON,
   ORDER_EVENT_ACTION,
@@ -349,6 +351,15 @@ export class CodService {
           createdAt: now,
         }),
       );
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.ORDER_CREATED,
+        resourceId: order.id,
+        payload: {
+          orderId: order.id,
+          buyerId: order.buyerId,
+          shopId: order.shopId,
+        },
+      });
       await manager.update(
         Product,
         {

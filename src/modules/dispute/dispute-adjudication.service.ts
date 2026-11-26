@@ -2,7 +2,8 @@ import { ConflictException, Injectable, Logger } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, Not } from 'typeorm';
 
-import { notifyDispute } from '@/modules/notifications/sources/dispute.notification';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
@@ -273,8 +274,18 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.AWAITING_APPEAL;
       await manager.save(issue);
-      await notifyDispute(manager, row, `decided:${decision.id}`, {
-        email: true,
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.DISPUTE_UPDATED,
+        resourceId: row.id,
+        payload: {
+          disputeCaseId: row.id,
+          orderId: row.orderId,
+          buyerId: row.buyerId,
+          shopId: row.shopId,
+          event: `decided:${decision.id}`,
+          includeAdmins: false,
+          sendEmail: true,
+        },
       });
       return decision;
     });
@@ -346,8 +357,18 @@ export class DisputeAdjudicationService {
       );
       issue.status = DISPUTE_ISSUE_STATE.APPEAL_REVIEW;
       await manager.save(issue);
-      await notifyDispute(manager, row, `appeal:${appeal.id}`, {
-        includeAdmins: true,
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.DISPUTE_UPDATED,
+        resourceId: row.id,
+        payload: {
+          disputeCaseId: row.id,
+          orderId: row.orderId,
+          buyerId: row.buyerId,
+          shopId: row.shopId,
+          event: `appeal:${appeal.id}`,
+          includeAdmins: true,
+          sendEmail: false,
+        },
       });
       return appeal;
     });
@@ -407,8 +428,18 @@ export class DisputeAdjudicationService {
       decision.finalReason = data.reason;
       decision.finalActorId = adminId;
       await manager.save(decision);
-      await notifyDispute(manager, row, `concluded:${decision.id}`, {
-        email: true,
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.DISPUTE_UPDATED,
+        resourceId: row.id,
+        payload: {
+          disputeCaseId: row.id,
+          orderId: row.orderId,
+          buyerId: row.buyerId,
+          shopId: row.shopId,
+          event: `concluded:${decision.id}`,
+          includeAdmins: false,
+          sendEmail: true,
+        },
       });
 
       await this.applyFinalOutcome(manager, decision, issue, row, now);

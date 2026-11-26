@@ -7,6 +7,7 @@ import {
   TCorsConfig,
   TDatabaseConfig,
   TMailConfig,
+  TRedisConfig,
   TStorageConfig,
 } from './schemas';
 
@@ -20,6 +21,7 @@ export class ConfigService {
         cors: TCorsConfig;
         database: TDatabaseConfig;
         mail: TMailConfig;
+        redis: TRedisConfig;
         storage: TStorageConfig;
       },
       true
@@ -44,6 +46,10 @@ export class ConfigService {
 
   get mail(): TMailConfig {
     return this.configService.get('mail', { infer: true });
+  }
+
+  get redis(): TRedisConfig {
+    return this.configService.get('redis', { infer: true });
   }
 
   get storage(): TStorageConfig {

@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggingMiddleware, RequestIdMiddleware } from './common/middlewares';
 import { createRequestValidationPipe } from './common/validation';
 import { DatabaseModule } from './database';
+import { QueueModule } from './infrastructure/queue/queue.module';
 import { AdministrativeDivisionModule } from './modules/administrative-division';
 import { AuthModule } from './modules/auth';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
@@ -18,6 +19,7 @@ import { CodModule } from './modules/cod/cod.module';
 import { CoinsModule } from './modules/coins/coins.module';
 import { ConfigModule, ConfigService } from './modules/config';
 import { DisputeModule } from './modules/dispute/dispute.module';
+import { EventModule } from './modules/event/event.module';
 import { MediaModule } from './modules/media';
 import { NotificationModule } from './modules/notifications/notification.module';
 import { OrderModule } from './modules/order/order.module';
@@ -39,6 +41,8 @@ import { WishlistModule } from './modules/wishlist';
     ...(process.env.NODE_ENV === 'test' ? [] : [ScheduleModule.forRoot()]),
     ConfigModule,
     DatabaseModule,
+    QueueModule,
+    EventModule,
     AdministrativeDivisionModule,
     CategoryModule,
     CartModule,

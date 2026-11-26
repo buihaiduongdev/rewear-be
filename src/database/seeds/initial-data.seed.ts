@@ -30,9 +30,10 @@ import { sendChatSchema } from '@/modules/chat/schemas/chat.schema';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
-import { notifyChatMessage } from '@/modules/notifications/sources/chat-message.notification';
 import {
   ORDER_EVENT_ACTION,
   ORDER_PAYMENT_METHOD,
@@ -344,7 +345,17 @@ export async function runInitialDataSeed(manager: EntityManager) {
       text: payload.text,
       productId: null,
     });
-    await notifyChatMessage(manager, conversation, message);
+    await new OutboxService().record(manager, {
+      eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,
+      resourceId: conversation.id,
+      payload: {
+        messageId: message.id,
+        conversationId: conversation.id,
+        buyerId: conversation.buyerId,
+        shopId: conversation.shopId,
+        senderId: message.senderId,
+      },
+    });
     conversations.push(conversation);
   }
 

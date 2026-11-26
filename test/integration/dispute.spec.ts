@@ -10,8 +10,9 @@ import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeMessage } from '@/modules/dispute/entities/dispute-message.entity';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { MediaService } from '@/modules/media/media.service';
-import { Notification } from '@/modules/notifications/entities';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -157,10 +158,9 @@ describe('Dispute 72h intake, evidence, and holds (PostgreSQL)', () => {
       await f.db.getRepository(DisputeCase).countBy({ orderId: f.order.id }),
     ).toBe(1);
     expect(
-      await f.db.getRepository(Notification).countBy({
-        kind: 'DISPUTE',
-        sourceId: f.order.id,
-        recipientId: f.buyer.id,
+      await f.db.getRepository(OutboxEvent).countBy({
+        eventType: EVENT_TYPES.DISPUTE_UPDATED,
+        resourceId: first.caseId,
       }),
     ).toBe(1);
     expect(

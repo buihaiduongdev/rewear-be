@@ -1,50 +1,71 @@
-import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  type MessageEvent,
+  Param,
+  Patch,
+  Sse,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
+import {
+  ApiPaginationQuery,
+  Paginate,
+  type PaginateQuery,
+} from 'nestjs-paginate';
+import type { Observable } from 'rxjs';
 
 import { CurrentUser, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
+import { NOTIFICATION_PAGINATION_CONFIG } from './constants/notification-pagination.config';
 import { NotificationService } from './notification.service';
 import {
-  notificationPageSchema,
-  notificationQuerySchema,
-  notificationViewSchema,
-  unreadCountSchema,
+  markAllReadResponseSchema,
+  notificationResponseSchema,
+  paginatedNotificationResponseSchema,
+  unreadCountResponseSchema,
 } from './schemas/notification.schema';
-import type { NotificationQuery } from './schemas/notification.schema';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
 @AuthenticatedAccess()
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly service: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) {}
+
+  @ApiPaginationQuery(NOTIFICATION_PAGINATION_CONFIG)
+  @Serialize(paginatedNotificationResponseSchema)
   @Get()
-  @Serialize(notificationPageSchema)
-  list(
-    @CurrentUser() user: User,
-    @Query({ schema: notificationQuerySchema }) query: NotificationQuery,
-  ) {
-    return this.service.list(user.id, query);
+  findAll(@CurrentUser() user: User, @Paginate() query: PaginateQuery) {
+    return this.notificationService.findAll(user.id, query);
   }
+
+  @Sse('stream')
+  stream(@CurrentUser() user: User): Observable<MessageEvent> {
+    return this.notificationService.subscribe(user.id);
+  }
+
+  @Serialize(unreadCountResponseSchema)
   @Get('unread-count')
-  @Serialize(unreadCountSchema)
-  unread(@CurrentUser() user: User) {
-    return this.service.unread(user.id);
+  getUnreadCount(@CurrentUser() user: User) {
+    return this.notificationService.getUnreadCount(user.id);
   }
+
+  @Serialize(markAllReadResponseSchema)
   @Patch('read-all')
-  @Serialize(unreadCountSchema)
-  readAll(@CurrentUser() user: User) {
-    return this.service.readAll(user.id);
+  markAllAsRead(@CurrentUser() user: User) {
+    return this.notificationService.markAllAsRead(user.id);
   }
+
+  @Serialize(notificationResponseSchema)
   @Patch(':id/read')
-  @Serialize(notificationViewSchema)
-  read(
+  markAsRead(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.service.read(user.id, id);
+    return this.notificationService.markAsRead(user.id, id);
   }
 }

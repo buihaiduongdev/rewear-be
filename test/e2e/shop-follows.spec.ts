@@ -15,7 +15,6 @@ import { Category } from '@/modules/category/entities';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { MailService } from '@/modules/mail/mail.service';
-import { NotificationWorker } from '@/modules/notifications/notification.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -40,7 +39,6 @@ describe('Follow Shop HTTP', () => {
     await database.destroy();
     let builder = Test.createTestingModule({ imports: [AppModule] });
     for (const worker of [
-      NotificationWorker,
       OrderWorker,
       OrderSettlementWorker,
       ShipmentWorker,

@@ -14,7 +14,6 @@ import { TransformInterceptor } from '@/common/interceptors/transform.intercepto
 import { StorageService } from '@/infrastructure/storage';
 import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
-import { NotificationWorker } from '@/modules/notifications/notification.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
@@ -57,7 +56,6 @@ describe('Violation reports HTTP', () => {
     await database.destroy();
     let builder = Test.createTestingModule({ imports: [AppModule] });
     for (const worker of [
-      NotificationWorker,
       OrderWorker,
       OrderSettlementWorker,
       ShipmentWorker,

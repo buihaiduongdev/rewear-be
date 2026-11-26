@@ -8,6 +8,7 @@ import {
   corsConfig,
   databaseConfig,
   mailConfig,
+  redisConfig,
   storageConfig,
 } from './configs';
 
@@ -24,6 +25,7 @@ import {
         corsConfig,
         databaseConfig,
         mailConfig,
+        redisConfig,
         storageConfig,
       ],
     }),

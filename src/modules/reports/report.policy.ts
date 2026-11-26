@@ -7,8 +7,8 @@ import {
 import { type EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
-import { notifyProductReview } from '@/modules/notifications/sources/product-review.notification';
-import { notifyShopDeactivatedForReport } from '@/modules/notifications/sources/violation-report.notification';
+import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -190,7 +190,17 @@ export async function applyReportMeasure(
       },
     );
     if (effect.changed)
-      await notifyProductReview(manager, effect.product, effect.moderation);
+      await new OutboxService().record(manager, {
+        eventType: EVENT_TYPES.PRODUCT_REVIEW_DECIDED,
+        resourceId: effect.product.id,
+        payload: {
+          productId: effect.product.id,
+          shopId: effect.product.shopId,
+          moderationId: effect.moderation.id,
+          version: effect.moderation.version,
+          status: effect.moderation.status,
+        },
+      });
     return {
       targetId: row.targetId,
       before: effect.before,
@@ -210,7 +220,15 @@ export async function applyReportMeasure(
   const changed = before !== shop.status;
   if (changed) {
     await manager.save(shop);
-    await notifyShopDeactivatedForReport(manager, row, shop.id);
+    await new OutboxService().record(manager, {
+      eventType: EVENT_TYPES.SHOP_DEACTIVATED_FOR_REPORT,
+      resourceId: shop.id,
+      payload: {
+        reportId: row.id,
+        shopId: shop.id,
+        version: row.version,
+      },
+    });
   }
   return { targetId: shop.id, before, after: shop.status, changed };
 }
