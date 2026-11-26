@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
@@ -22,8 +22,6 @@ class OrderEvent {}
 class WalletCheckoutHold {}
 class FeePaymentCapture {}
 class ExcessCapture {}
-// Coin accounting is exercised against PostgreSQL in coin-core/wallet-checkout.
-// These isolated provider-state tests have no coin selection.
 class CoinService {
   async consumeCheckoutCoins(_manager, _checkoutId, orders) {
     assert.equal(
@@ -34,14 +32,21 @@ class CoinService {
 }
 class ApplicationError extends Error {}
 const In = (values) => ({ values });
+const generatePayosOrderCode = () => Date.now() * 1000 + randomInt(1000);
+const isIncludedInAggregateTransId = (aggregateId, providerTransId) =>
+  Boolean(
+    aggregateId &&
+      providerTransId &&
+      aggregateId.startsWith('plink:') &&
+      aggregateId.slice('plink:'.length).split('+').includes(providerTransId),
+  );
 const deps = {
   ms,
   randomUUID,
+  generatePayosOrderCode,
+  isIncludedInAggregateTransId,
   In,
   ...policy,
-  ...(await load(
-    '../src/modules/shop/applications/renewal/identity-sale.policy.ts',
-  )),
   ...(await load(
     '../src/modules/shop/applications/renewal/identity-sale.policy.ts',
   )),
@@ -69,6 +74,7 @@ const deps = {
   ProductStatus: { HELD: 'HELD', SOLD: 'SOLD' },
   ShopStatus: { ACTIVE: 'ACTIVE' },
   ConflictException: ApplicationError,
+  NotFoundException: ApplicationError,
   UnauthorizedException: ApplicationError,
   ServiceUnavailableException: ApplicationError,
 };
@@ -77,12 +83,10 @@ const original = await readFile(
   new URL('../src/modules/payment/payment.service.ts', import.meta.url),
   'utf8',
 );
-// Erase framework imports/decorators only; execute the production service body.
-// This is an isolated service test with fake persistence, not PostgreSQL evidence.
 const transformed = original
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '')
-  .replace(/@Inject\(MOMO_CLIENT\)/g, '');
+  .replace(/@Inject\(PAYOS_CLIENT\)/g, '');
 const { PaymentService } = await import(
   `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(deps).join(', ')} } = globalThis.__paymentServiceTestDependencies;\n${stripTypeScriptTypes(transformed, { mode: 'transform' })}\n//# sourceURL=payment-service-under-test.js`).toString('base64')}`
 );
@@ -178,12 +182,14 @@ function setup() {
   ];
   let createCalls = 0;
   const client = {
-    create: async (input) => {
+    createPaymentLink: async (input) => {
       createCalls++;
       return {
-        ...input,
-        resultCode: 0,
-        payUrl: 'https://test-payment.momo.vn/pay',
+        orderCode: input.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'PENDING',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
       };
     },
   };
@@ -194,7 +200,18 @@ function setup() {
   return { service, rows, checkout, client, calls: () => createCalls };
 }
 
-test('identity restriction prevents new MoMo requests and refunds an inflight captured payment', async () => {
+const paid = (attemptOrOrderCode, transId = 'FT24001', amount = 230000) => ({
+  orderCode:
+    typeof attemptOrOrderCode === 'object'
+      ? Number(attemptOrOrderCode.providerOrderCode)
+      : attemptOrOrderCode,
+  status: 'PAID',
+  amount,
+  amountPaid: amount,
+  providerTransId: transId,
+});
+
+test('identity restriction prevents new PayOS requests and refunds an inflight captured payment', async () => {
   const blocked = setup();
   blocked.rows(Shop)[0].identityManualRestriction = true;
   await assert.rejects(
@@ -204,35 +221,25 @@ test('identity restriction prevents new MoMo requests and refunds an inflight ca
   assert.equal(blocked.calls(), 0);
   for (const condition of ['restricted', 'review-required']) {
     const f = setup();
-    const attempt = await f.service.create('buyer', 'checkout', {
-      requestId: 'request',
-    });
+    await f.service.create('buyer', 'checkout', { requestId: 'request' });
+    const attempt = f.rows(PaymentAttempt)[0];
     if (condition === 'restricted')
       f.rows(Shop)[0].identityManualRestriction = true;
     else f.checkout.identityReviewRequired = true;
-    await f.service.applyResult(attempt.id, paid(attempt.id));
+    await f.service.applyResult(attempt.id, paid(attempt));
     assert.equal(f.rows(Order).length, 0);
     assert.equal(f.rows(PaymentRefund).length, 1);
     assert.equal(f.rows(Product)[0].status, 'HELD');
   }
 });
-const paid = (id, transId = 12345, amount = 230000) => ({
-  partnerCode: 'TEST',
-  orderId: id,
-  requestId: id,
-  amount,
-  transId,
-  resultCode: 0,
-});
 
 test('a recovery capture cannot fund a checkout payment', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', {
-    requestId: 'request',
-  });
-  f.rows(ExcessCapture).push({ providerTransId: '12345' });
+  await f.service.create('buyer', 'checkout', { requestId: 'request' });
+  const attempt = f.rows(PaymentAttempt)[0];
+  f.rows(ExcessCapture).push({ providerTransId: 'FT24001' });
   await assert.rejects(
-    f.service.applyResult(attempt.id, paid(attempt.id)),
+    f.service.applyResult(attempt.id, paid(attempt)),
     /belongs to wallet recovery/,
   );
   assert.equal(f.rows(Order).length, 0);
@@ -255,16 +262,15 @@ test('same client request, including concurrent calls, creates only one provider
 
 test('duplicate settlement is monotonic, creates one pending order, and reserves 24 hours', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', {
-    requestId: 'request',
-  });
+  await f.service.create('buyer', 'checkout', { requestId: 'request' });
+  const attempt = f.rows(PaymentAttempt)[0];
   await Promise.all([
-    f.service.applyResult(attempt.id, paid(attempt.id)),
-    f.service.applyResult(attempt.id, paid(attempt.id)),
+    f.service.applyResult(attempt.id, paid(attempt)),
+    f.service.applyResult(attempt.id, paid(attempt)),
   ]);
   await f.service.applyResult(attempt.id, {
-    ...paid(attempt.id),
-    resultCode: 1006,
+    ...paid(attempt),
+    status: 'CANCELLED',
   });
   assert.equal(f.rows(Order).length, 1);
   assert.equal(f.checkout.status, 'PAID');
@@ -272,14 +278,17 @@ test('duplicate settlement is monotonic, creates one pending order, and reserves
   assert.equal(f.rows(Order)[0].sellerConfirmBy.getTime(), 86401000);
 });
 
-test('create response arriving after IPN never overwrites settlement', async () => {
+test('create response arriving after webhook never overwrites settlement', async () => {
   const f = setup();
-  f.client.create = async (input) => {
-    await f.service.applyResult(input.orderId, paid(input.orderId));
+  f.client.createPaymentLink = async (input) => {
+    const attempt = f.rows(PaymentAttempt)[0];
+    await f.service.applyResult(attempt.id, paid(input.orderCode));
     return {
-      ...input,
-      resultCode: 0,
-      payUrl: 'https://test-payment.momo.vn/pay',
+      orderCode: input.orderCode,
+      paymentLinkId: 'plink-1',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+      qrCode: 'qr',
     };
   };
   assert.equal(
@@ -289,36 +298,15 @@ test('create response arriving after IPN never overwrites settlement', async () 
   );
 });
 
-test('an early pending query during create does not discard its eventual valid payUrl', async () => {
-  const f = setup();
-  f.client.create = async (input) => {
-    await f.service.applyResult(input.orderId, {
-      ...paid(input.orderId),
-      resultCode: 1000,
-    });
-    return {
-      ...input,
-      resultCode: 0,
-      payUrl: 'https://test-payment.momo.vn/pay',
-    };
-  };
-  const result = await f.service.create('buyer', 'checkout', {
-    requestId: 'request',
-  });
-  assert.equal(result.state, 'PENDING');
-  assert.equal(result.payUrl, 'https://test-payment.momo.vn/pay');
-});
-
 test('cancelled/expired and wrong amounts persist refunds without reviving or selling stock', async () => {
   for (const change of ['CANCELLED', 'EXPIRED', 'wrong-amount']) {
     const f = setup();
-    const attempt = await f.service.create('buyer', 'checkout', {
-      requestId: 'request',
-    });
+    await f.service.create('buyer', 'checkout', { requestId: 'request' });
+    const attempt = f.rows(PaymentAttempt)[0];
     if (change !== 'wrong-amount') f.checkout.status = change;
     await f.service.applyResult(
       attempt.id,
-      paid(attempt.id, 12345, change === 'wrong-amount' ? 220000 : 230000),
+      paid(attempt, 'FT24001', change === 'wrong-amount' ? 220000 : 230000),
     );
     assert.equal(f.rows(Order).length, 0);
     assert.equal(f.rows(Product)[0].status, 'HELD');
@@ -326,35 +314,91 @@ test('cancelled/expired and wrong amounts persist refunds without reviving or se
   }
 });
 
-test('a second actual capture has its own durable refund, repeated notification does not duplicate it', async () => {
+test('a second actual capture has its own durable refund, repeated webhook does not duplicate it', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', {
-    requestId: 'request',
-  });
-  await f.service.applyResult(attempt.id, paid(attempt.id));
-  await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
-  await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
+  await f.service.create('buyer', 'checkout', { requestId: 'request' });
+  const attempt = f.rows(PaymentAttempt)[0];
+  await f.service.applyResult(attempt.id, paid(attempt));
+  await f.service.applyResult(attempt.id, paid(attempt, 'FT24002'));
+  await f.service.applyResult(attempt.id, paid(attempt, 'FT24002'));
   assert.equal(f.rows(Order).length, 1);
   assert.equal(f.rows(PaymentRefund).length, 1);
-  assert.equal(f.rows(PaymentRefund)[0].providerTransId, '54321');
+  assert.equal(f.rows(PaymentRefund)[0].providerTransId, 'FT24002');
 });
 
 test('a new capture after a previous refund reopens the outstanding refund state', async () => {
   const f = setup();
-  const attempt = await f.service.create('buyer', 'checkout', {
-    requestId: 'request',
-  });
+  await f.service.create('buyer', 'checkout', { requestId: 'request' });
+  const attempt = f.rows(PaymentAttempt)[0];
   f.checkout.status = 'CANCELLED';
-  await f.service.applyResult(attempt.id, paid(attempt.id));
-  f.rows(PaymentAttempt)[0].state = 'REFUNDED';
+  await f.service.applyResult(attempt.id, paid(attempt));
+  attempt.state = 'REFUNDED';
   f.rows(PaymentRefund)[0].state = 'COMPLETED';
-  await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
+  await f.service.applyResult(attempt.id, paid(attempt, 'FT24002'));
   assert.equal(f.rows(PaymentRefund).length, 2);
-  assert.equal(f.rows(PaymentAttempt)[0].state, 'REFUND_REQUIRED');
-  f.rows(PaymentAttempt)[0].state = 'REFUNDED';
+  assert.equal(attempt.state, 'REFUND_REQUIRED');
+  attempt.state = 'REFUNDED';
   f.rows(PaymentRefund).forEach((refund) => {
     refund.state = 'COMPLETED';
   });
-  await f.service.applyResult(attempt.id, paid(attempt.id, 54321));
-  assert.equal(f.rows(PaymentAttempt)[0].state, 'REFUNDED');
+  await f.service.applyResult(attempt.id, paid(attempt, 'FT24002'));
+  assert.equal(attempt.state, 'REFUNDED');
+});
+
+test('multi-transfer settled or expired links deduplicate delayed per-transfer webhooks without double refunds', async () => {
+  const settled = setup();
+  await settled.service.create('buyer', 'checkout', { requestId: 'req-settled' });
+  const a1 = settled.rows(PaymentAttempt)[0];
+  await settled.service.applyResult(a1.id, {
+    orderCode: Number(a1.providerOrderCode),
+    status: 'PAID',
+    amount: a1.amount,
+    amountPaid: a1.amount,
+    providerTransId: 'plink:FT1+FT2',
+    transactions: [
+      { providerTransId: 'FT1', amount: 100000 },
+      { providerTransId: 'FT2', amount: a1.amount - 100000 },
+    ],
+  });
+  await settled.service.applyResult(a1.id, {
+    orderCode: Number(a1.providerOrderCode),
+    status: 'PAID',
+    amount: 100000,
+    amountPaid: 100000,
+    providerTransId: 'FT1',
+  });
+  assert.equal(settled.rows(Order).length, 1);
+  assert.equal(settled.rows(PaymentRefund).length, 0);
+
+  const expired = setup();
+  await expired.service.create('buyer', 'checkout', { requestId: 'req-expired' });
+  const a2 = expired.rows(PaymentAttempt)[0];
+  await expired.service.applyResult(a2.id, {
+    orderCode: Number(a2.providerOrderCode),
+    status: 'EXPIRED',
+    amount: a2.amount,
+    amountPaid: 7000,
+    providerTransId: 'plink:FT1+FT2',
+    transactions: [
+      { providerTransId: 'FT1', amount: 3000 },
+      { providerTransId: 'FT2', amount: 4000 },
+    ],
+  });
+  await expired.service.applyResult(a2.id, {
+    orderCode: Number(a2.providerOrderCode),
+    status: 'PAID',
+    amount: 3000,
+    amountPaid: 3000,
+    providerTransId: 'FT1',
+  });
+  assert.equal(expired.rows(PaymentRefund).length, 2);
+  assert.deepEqual(
+    expired
+      .rows(PaymentRefund)
+      .map((r) => ({ id: r.providerTransId, amount: r.amount })),
+    [
+      { id: 'FT1', amount: 3000 },
+      { id: 'FT2', amount: 4000 },
+    ],
+  );
 });

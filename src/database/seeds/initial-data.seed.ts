@@ -39,8 +39,8 @@ import {
   ORDER_POLICY,
   ORDER_STATUS,
 } from '@/modules/order/constants';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductCondition,

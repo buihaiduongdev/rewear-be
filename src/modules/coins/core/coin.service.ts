@@ -2,8 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { EntityManager, In } from 'typeorm';
 
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
-import { Order } from '@/modules/order/entities/order.entity';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { Order } from '@/modules/order/entities';
 
 import { CoinProgramMistake } from '../programs/entities';
 import { allocateLots } from './coin-allocation';

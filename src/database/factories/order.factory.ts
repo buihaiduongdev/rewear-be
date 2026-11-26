@@ -1,6 +1,6 @@
 import type { DeepPartial } from 'typeorm';
 
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 
 import { BaseFactory } from './base.factory';
 

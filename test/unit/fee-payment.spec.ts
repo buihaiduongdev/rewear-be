@@ -1,12 +1,14 @@
 import type { DataSource } from 'typeorm';
 
 import type {
-  MomoNotification,
-  MomoSandboxClient,
-} from '@/infrastructure/payment/momo-sandbox.client';
-import { allocateFeeCapture } from '@/modules/fees/payments/fee-payment.policy';
-import { hasOverlappingFeeAttempt } from '@/modules/fees/payments/fee-payment.policy';
-import { feeRefundPublicView } from '@/modules/fees/payments/fee-payment.policy';
+  PayosClient,
+  PayosWebhookResult,
+} from '@/infrastructure/payment/payos.client';
+import {
+  allocateFeeCapture,
+  feeRefundPublicView,
+  hasOverlappingFeeAttempt,
+} from '@/modules/fees/payments/fee-payment.policy';
 import { FeePaymentService } from '@/modules/fees/payments/fee-payment.service';
 
 describe('fee capture allocation', () => {
@@ -45,48 +47,59 @@ it('blocks any unknown overlapping target regardless of who started it', () => {
   ).toBe(false);
 });
 
-describe('fee IPN merchant references', () => {
-  const db = { transaction: jest.fn() };
-  const gateway = { verifyIpn: jest.fn() };
+describe('fee PayOS webhook merchant references', () => {
+  const db = {
+    transaction: jest.fn(),
+    getRepository: jest.fn(() => ({ findOneBy: jest.fn(async () => null) })),
+  };
+  const gateway = { verifyWebhook: jest.fn() };
   const service = new FeePaymentService(
     db as unknown as DataSource,
-    gateway as unknown as MomoSandboxClient,
+    gateway as unknown as PayosClient,
   );
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => jest.clearAllMocks());
+
   it('rejects invalid signatures as unauthorized before database work', async () => {
-    gateway.verifyIpn.mockImplementation(() => {
-      throw new Error('secret-bearing transport detail');
-    });
-    await expect(service.ipn({} as MomoNotification)).rejects.toMatchObject({
+    gateway.verifyWebhook.mockRejectedValue(
+      new Error('secret-bearing transport detail'),
+    );
+    await expect(service.webhook({})).rejects.toMatchObject({
       status: 401,
       message: 'Invalid fee payment signature',
     });
     expect(db.transaction).not.toHaveBeenCalled();
   });
-  it.each([
-    {
-      orderId: 'a',
-      requestId: 'b',
-      orderInfo: 'Rewear fee a',
-      orderType: 'momo_wallet',
-    },
-    {
-      orderId: 'a',
-      requestId: 'a',
-      orderInfo: 'Checkout a',
-      orderType: 'momo_wallet',
-    },
-    {
-      orderId: 'a',
-      requestId: 'a',
-      orderInfo: 'Rewear fee a',
-      orderType: 'other',
-    },
-  ])('rejects a signed foreign merchant reference %#', async (reference) => {
-    gateway.verifyIpn.mockReturnValue(reference);
-    await expect(
-      service.ipn(reference as MomoNotification),
-    ).rejects.toMatchObject({ status: 401 });
+
+  it('ignores test ping webhooks cleanly without hitting fee records', async () => {
+    gateway.verifyWebhook.mockResolvedValue({
+      orderCode: 123,
+      amount: 2000,
+      code: '00',
+      desc: 'success',
+      reference: 'TF2302042130',
+      paymentLinkId: 'plink',
+      description: 'Ma giao dich thu nghiem',
+      isTestPing: true,
+    } satisfies PayosWebhookResult);
+    await expect(service.webhook({})).resolves.toBeUndefined();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown merchant orderCode references cleanly', async () => {
+    gateway.verifyWebhook.mockResolvedValue({
+      orderCode: 999999,
+      amount: 5000,
+      code: '00',
+      desc: 'success',
+      reference: 'FT24001',
+      paymentLinkId: 'plink',
+      description: 'RW FEE TEST',
+      isTestPing: false,
+    } satisfies PayosWebhookResult);
+    await expect(service.webhook({})).rejects.toMatchObject({
+      status: 401,
+      message: 'Invalid fee payment reference',
+    });
     expect(db.transaction).not.toHaveBeenCalled();
   });
 });

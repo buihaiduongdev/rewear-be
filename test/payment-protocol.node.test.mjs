@@ -1,205 +1,202 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
-const source = await readFile(
-  new URL(
-    '../src/infrastructure/payment/momo-sandbox.client.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
+const require = createRequire(import.meta.url);
+const payosUrl = pathToFileURL(require.resolve('@payos/node')).href;
+const source = (
+  await readFile(
+    new URL('../src/infrastructure/payment/payos.client.ts', import.meta.url),
+    'utf8',
+  )
+).replace("from '@payos/node'", `from '${payosUrl}'`);
 const api = await import(
   `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`
 );
+
 const config = {
-  partnerCode: 'TEST',
-  accessKey: 'access',
-  secretKey: 'secret',
-  ipnUrl: 'https://merchant.test/api/payments/momo/ipn',
-  redirectUrl: 'https://merchant.test/payment',
+  clientId: 'client-id',
+  apiKey: 'api-key',
+  checksumKey: 'checksum-key',
+  returnUrl: 'https://merchant.test/payment-result',
+  cancelUrl: 'https://merchant.test/payment-cancel',
   timeoutMs: 30000,
 };
-const sign = (raw) => createHmac('sha256', 'secret').update(raw).digest('hex');
-const ipn = {
-  partnerCode: 'TEST',
-  orderId: 'attempt-1',
-  requestId: 'request-1',
-  amount: 230000,
-  orderInfo: 'Rewear checkout',
-  orderType: 'momo_wallet',
-  transId: 123456,
-  resultCode: 0,
-  message: 'Successful.',
-  payType: 'qr',
-  responseTime: 1700000000000,
-  extraData: '',
-};
-const signedIpn = () => ({
-  ...ipn,
-  signature: sign(
-    'accessKey=access&amount=230000&extraData=&message=Successful.&orderId=attempt-1&orderInfo=Rewear checkout&orderType=momo_wallet&partnerCode=TEST&payType=qr&requestId=request-1&responseTime=1700000000000&resultCode=0&transId=123456',
-  ),
+
+test('generatePayosOrderCode returns positive safe integers', () => {
+  const code = api.generatePayosOrderCode();
+  assert.ok(Number.isSafeInteger(code) && code > 0);
 });
 
-test('verifies the documented IPN field order, rejects tampering and malformed signatures', () => {
-  const client = new api.MomoSandboxClient(config);
-  assert.equal(client.verifyIpn(signedIpn()).amount, 230000);
-  assert.throws(() => client.verifyIpn({ ...signedIpn(), amount: 1 }));
-  assert.throws(() =>
-    client.verifyIpn({ ...signedIpn(), partnerCode: 'OTHER' }),
-  );
-  assert.throws(() => client.verifyIpn({ ...signedIpn(), signature: 'x' }));
-  assert.throws(() =>
-    client.verifyIpn({ ...signedIpn(), transId: Number.MAX_SAFE_INTEGER + 1 }),
-  );
-});
-
-test('create uses sandbox, captureWallet, server URLs, exact signature and does not mean paid', async () => {
-  let body;
-  const response = {
-    partnerCode: 'TEST',
-    orderId: 'attempt-1',
-    requestId: 'request-1',
-    amount: 230000,
-    responseTime: 1700000000000,
-    message: 'Successful.',
-    resultCode: 0,
-    payUrl: 'https://test-payment.momo.vn/v2/gateway/pay?t=test',
+test('createPaymentLink enforces server return/cancel URLs, trims description, and checks checkoutUrl', async () => {
+  let sent;
+  const sdk = {
+    paymentRequests: {
+      create: async (payload) => {
+        sent = payload;
+        return {
+          orderCode: payload.orderCode,
+          paymentLinkId: 'plink-1',
+          status: 'PENDING',
+          checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+          qrCode: '000201...',
+        };
+      },
+    },
+    webhooks: {},
   };
-  response.signature = sign(
-    `accessKey=access&amount=230000&message=Successful.&orderId=attempt-1&partnerCode=TEST&payUrl=${response.payUrl}&requestId=request-1&responseTime=1700000000000&resultCode=0`,
-  );
-  const client = new api.MomoSandboxClient(config, async (url, options) => {
-    assert.equal(url, 'https://test-payment.momo.vn/v2/gateway/api/create');
-    body = JSON.parse(options.body);
-    return new Response(JSON.stringify(response));
-  });
-  const result = await client.create({
-    orderId: 'attempt-1',
-    requestId: 'request-1',
+  const client = new api.PayosClient(config, sdk);
+  const result = await client.createPaymentLink({
+    orderCode: 1700000000123,
     amount: 230000,
-    orderInfo: 'Rewear checkout',
+    description: 'Rewear order #1234567890 extra text trimmed',
+    expiredAt: 1700000600,
   });
-  assert.equal(body.autoCapture, true);
-  assert.equal(body.requestType, 'captureWallet');
-  assert.equal(
-    body.signature,
-    sign(
-      'accessKey=access&amount=230000&extraData=&ipnUrl=https://merchant.test/api/payments/momo/ipn&orderId=attempt-1&orderInfo=Rewear checkout&partnerCode=TEST&redirectUrl=https://merchant.test/payment&requestId=request-1&requestType=captureWallet',
-    ),
-  );
-  assert.equal(result.payUrl, response.payUrl);
-  assert.equal(result.orderId, 'attempt-1');
+  assert.equal(sent.returnUrl, config.returnUrl);
+  assert.equal(sent.cancelUrl, config.cancelUrl);
+  assert.equal(sent.description.length, 25);
+  assert.equal(result.checkoutUrl, 'https://pay.payos.vn/web/plink-1');
+  assert.equal(result.status, 'PENDING');
 });
 
-test('transport errors remain unknown and expose no response body or credentials', async () => {
-  const client = new api.MomoSandboxClient(
+test('getPaymentLink extracts bank reference as providerTransId and sanitizes SDK errors', async () => {
+  const failing = new api.PayosClient(
     config,
-    async () => new Response('secret sensitive error', { status: 500 }),
+    {
+      paymentRequests: {
+        get: async () => {
+          throw new Error('secret api-key failure');
+        },
+      },
+      webhooks: {},
+    },
   );
   await assert.rejects(
-    client.query('attempt-1', 'query-1'),
+    failing.getPaymentLink(1700000000123),
     (error) =>
-      error instanceof api.MomoTransportError &&
+      error instanceof api.PayosTransportError &&
       !error.message.includes('secret'),
   );
-});
 
-test('query validates merchant and reference and signs its own unique request', async () => {
-  const client = new api.MomoSandboxClient(config, async (_url, options) => {
-    const body = JSON.parse(options.body);
-    assert.equal(
-      body.signature,
-      sign(
-        'accessKey=access&orderId=attempt-1&partnerCode=TEST&requestId=query-1',
-      ),
-    );
-    return Response.json({
-      ...ipn,
-      requestId: 'query-1',
-      orderId: 'different',
-    });
-  });
-  await assert.rejects(client.query('attempt-1', 'query-1'));
-});
-
-test('amount limits and configuration fail closed before any network call', async () => {
-  let calls = 0;
-  const client = new api.MomoSandboxClient(config, async () => {
-    calls++;
-    throw Error('unexpected');
-  });
-  for (const amount of [999, 50000001, 1000.1, NaN])
-    await assert.rejects(
-      client.create({
-        orderId: 'a',
-        requestId: 'b',
-        amount,
-        orderInfo: 'test',
-      }),
-    );
-  assert.equal(calls, 0);
-  assert.throws(() => new api.MomoSandboxClient({ ...config, secretKey: '' }));
-  assert.throws(
-    () => new api.MomoSandboxClient({ ...config, timeoutMs: 1000 }),
-  );
-});
-
-test('refund uses a separate stable reference, original capture ID and documented signature', async () => {
-  const client = new api.MomoSandboxClient(config, async (url, options) => {
-    assert.equal(url, 'https://test-payment.momo.vn/v2/gateway/api/refund');
-    const body = JSON.parse(options.body);
-    assert.equal(body.transId, 123456);
-    assert.equal(
-      body.signature,
-      sign(
-        'accessKey=access&amount=230000&description=Rewear payment reversal&orderId=refund-1&partnerCode=TEST&requestId=refund-1&transId=123456',
-      ),
-    );
-    return Response.json({
-      partnerCode: 'TEST',
-      orderId: 'refund-1',
-      requestId: 'refund-1',
-      amount: 230000,
-      transId: 999999,
-      resultCode: 0,
-    });
-  });
-  assert.equal(
-    (
-      await client.refund({
-        orderId: 'refund-1',
-        requestId: 'refund-1',
+  const paid = new api.PayosClient(config, {
+    paymentRequests: {
+      get: async () => ({
+        id: 'plink-1',
+        orderCode: 1700000000123,
         amount: 230000,
-        transId: 123456,
-      })
-    ).resultCode,
-    0,
+        amountPaid: 230000,
+        amountRemaining: 0,
+        status: 'PAID',
+        transactions: [{ reference: 'FT240012345' }],
+      }),
+    },
+    webhooks: {},
+  });
+  const info = await paid.getPaymentLink(1700000000123);
+  assert.equal(info.status, 'PAID');
+  assert.equal(info.providerTransId, 'FT240012345');
+
+  const multi = new api.PayosClient(config, {
+    paymentRequests: {
+      get: async () => ({
+        id: 'plink-2',
+        orderCode: 1700000000124,
+        amount: 230000,
+        amountPaid: 230000,
+        amountRemaining: 0,
+        status: 'PAID',
+        transactions: [
+          { reference: 'FT1', amount: 100000 },
+          { reference: 'FT2', amount: 130000 },
+        ],
+      }),
+    },
+    webhooks: {},
+  });
+  const multiInfo = await multi.getPaymentLink(1700000000124);
+  assert.equal(multiInfo.providerTransId, 'plink:FT1+FT2');
+  assert.deepEqual(multiInfo.transactions, [
+    { providerTransId: 'FT1', amount: 100000 },
+    { providerTransId: 'FT2', amount: 130000 },
+  ]);
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT1'),
+    true,
+  );
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT2'),
+    true,
+  );
+  assert.equal(
+    api.isIncludedInAggregateTransId(multiInfo.providerTransId, 'FT3'),
+    false,
   );
 });
 
-test('refund query success alone is insufficient without a matching successful refund entry', async () => {
-  for (const entry of [
-    [],
-    [{ orderId: 'other', amount: 230000, resultCode: 0 }],
-    [{ orderId: 'refund-1', amount: 230000, resultCode: 7000 }],
-    [{ orderId: 'refund-1', amount: 220000, resultCode: 0 }],
-  ]) {
-    const client = new api.MomoSandboxClient(config, async () =>
-      Response.json({
-        partnerCode: 'TEST',
-        orderId: 'refund-1',
-        requestId: 'query-1',
-        resultCode: 0,
-        refundTrans: entry,
+test('verifyWebhook detects test ping and rejects invalid payloads or tampered fields', async () => {
+  const client = new api.PayosClient(config, {
+    paymentRequests: {},
+    webhooks: {
+      verify: async (payload) => {
+        if (payload.signature !== 'valid') throw new Error('Invalid checksum');
+        return payload.data;
+      },
+    },
+  });
+  for (const description of ['Ma giao dich thu nghiem', 'VQRIO123']) {
+    const ping = await client.verifyWebhook({
+      code: '00',
+      desc: 'success',
+      signature: 'valid',
+      data: {
+        orderCode: 123,
+        amount: 2000,
+        description,
+        reference: 'TF2302042130',
+        paymentLinkId: '123',
+        code: '00',
+        desc: 'success',
+      },
+    });
+    assert.equal(ping.isTestPing, true);
+  }
+
+  await assert.rejects(
+    client.verifyWebhook({ signature: 'bad', data: {} }),
+    /Invalid PayOS webhook/,
+  );
+  await assert.rejects(
+    client.verifyWebhook({
+      signature: 'valid',
+      data: { orderCode: -1, amount: 2000, reference: 'FT1' },
+    }),
+    /Invalid PayOS webhook/,
+  );
+});
+
+test('amount limits and configuration fail closed before any SDK call', async () => {
+  let calls = 0;
+  const client = new api.PayosClient(config, {
+    paymentRequests: {
+      create: async () => {
+        calls++;
+        throw Error('unexpected');
+      },
+    },
+    webhooks: {},
+  });
+  for (const amount of [1999, 500000001, 2000.5, NaN]) {
+    await assert.rejects(
+      client.createPaymentLink({
+        orderCode: 1700000000123,
+        amount,
+        description: 'Test',
       }),
-    );
-    assert.equal(
-      await client.queryRefund('refund-1', 'query-1', 230000),
-      false,
     );
   }
+  assert.equal(calls, 0);
+  assert.throws(() => new api.PayosClient({ ...config, checksumKey: '' }));
+  assert.throws(() => new api.PayosClient({ ...config, timeoutMs: 1000 }));
 });

@@ -20,8 +20,8 @@ import { Checkout } from './entities/checkout.entity';
 import { pruneIdentityCheckout } from './identity-checkout.policy';
 import { identityQuoteFingerprint } from './identity-quote.policy';
 import { quoteReasonSchema } from './schemas/shipping-quote.schema';
+import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
 import { quoteInputs } from './shipping-quote.inputs';
-import type { ShippingQuoteResult } from './types/shipping-quote.type';
 
 @Injectable()
 export class ShippingQuoteService {

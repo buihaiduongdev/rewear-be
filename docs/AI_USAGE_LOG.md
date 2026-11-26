@@ -1266,3 +1266,15 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy đầy đủ trên GitHub Actions CI.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Gộp trùng hai khai báo kiểu khi hợp nhất schema xu thưởng, bỏ sót thư mục `coins/core/types/` và từng dùng khóa advisory toàn cục ở worker thưởng xu; đã thay bằng khóa dòng `pessimistic_write` trên `Order`, hợp nhất nốt `coins/core/schemas/` và chuẩn hóa lại tài liệu PR/AI log.
 - **Minh chứng:** PR #70; branch `buihaiduongdev/refactor-wave-2`.
+
+### 2026-11-25 — Tinh gọn nhóm module giao dịch - thanh toán Wave 3 và chuyển cổng thanh toán sang PayOS
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Neon)
+- **Mục đích và phạm vi:** Chuyển toàn bộ cổng thanh toán trực tuyến từ MoMo Sandbox sang PayOS (dùng `@payos/node`) đồng thời rà soát, tinh gọn 9 module giao dịch cốt lõi của Wave 3 (`payment`, `checkout`, `order`, `cod`, `cod-reconciliation`, `shipment`, `shop-finance`, `wallet`, `fees`).
+- **Prompt chính:** Tiếp tục Wave 3: thay thế luồng thanh toán và webhook từ MoMo Sandbox sang PayOS do sandbox MoMo trục trặc, giữ nguyên khóa tuần tự hóa cho các giao dịch ghi tài chính/đơn hàng, bỏ `REPEATABLE READ` chỉ đọc dư thừa, tách 13 file gộp nhiều entity thành từng bảng riêng và gộp các thư mục `types` vào `schemas`.
+- **Đầu ra AI được sử dụng:** Chuyển đổi thanh toán đơn hàng, thanh toán phí và hoàn thu hồi ví sang PayOS (`@payos/node` v2) với xác thực chữ ký webhook (bao gồm nhận diện ping thử nghiệm `orderCode === 123`), thiết lập `expiredAt` đầy đủ, xử lý chuyển khoản thiếu/hết hạn (`amountPaid > 0`) về hàng đợi hoàn tiền thủ công và tổng hợp `providerTransId` khi có nhiều giao dịch; bỏ `REPEATABLE READ` chỉ đọc ở `order`, `cod`, `cod-reconciliation`, `shop-finance`, `wallet`, `fees`; giữ `pg_advisory_xact_lock` cho luồng giao dịch chéo sổ cái và thay khóa toàn cục bằng khóa dòng/`ON CONFLICT` ở `PaymentWorker.refund`, `CodPolicyService.resolve` và `FeeDisclosureService`; tách 13 file gộp nhiều entity về chuẩn 1 bảng/file kèm barrel export và gộp `types/` vào `schemas/`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Quyết định chuyển sang PayOS, rà soát khôi phục khóa ghi tài chính cốt lõi, xử lý các tình huống biên PayOS (ping xác thực webhook, chuyển khoản thiếu, nhiều giao dịch trên cùng link), điều chỉnh test ngưỡng tối thiểu 2.000 VND và chuẩn hóa tài liệu.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); bộ kiểm thử tích hợp/E2E chạy trên GitHub Actions CI.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện AI từng bỏ nhầm khóa ghi tài chính cốt lõi, kiểm tra ping webhook PayOS quá chặt theo chuỗi mô tả cũ (chặn `VQRIO123`), bỏ sót `expiredAt` ở link phí/thu hồi ví và xử lý thiếu trường hợp chuyển khoản một phần khi link hết hạn; đã khắc phục toàn bộ trước khi đẩy lên CI.
+- **Minh chứng:** PR #71; branch `buihaiduongdev/refactor-wave-3`.

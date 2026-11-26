@@ -6,7 +6,7 @@ import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_REVIEW_REASON,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { DisputeRefundCredit } from './entities/dispute-refund.entity';
 

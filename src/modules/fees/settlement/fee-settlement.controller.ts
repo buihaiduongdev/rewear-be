@@ -18,7 +18,7 @@ import {
 import type {
   FeeCarrierRefundInput,
   FeeWalletPaymentInput,
-} from './types/fee-settlement.type';
+} from './schemas/fee-settlement.schema';
 
 @ApiTags('Fee settlement')
 @ApiBearerAuth()

@@ -7,12 +7,9 @@ import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { Category } from '@/modules/category/entities';
-import {
-  CodBuyerCancellation,
-  CodRestriction,
-} from '@/modules/cod/entities/cod.entity';
+import { CodBuyerCancellation, CodRestriction } from '@/modules/cod/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
@@ -27,7 +24,7 @@ import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';
@@ -326,7 +323,7 @@ describe('returned COD stock inspection (PostgreSQL)', () => {
     ).rejects.toThrow('Shop permission denied');
   });
   it('denies missing return evidence and non-COD orders without changing stock', async () => {
-    for (const change of ['order-return', 'shipment-return', 'momo']) {
+    for (const change of ['order-return', 'shipment-return', 'payos']) {
       const f = await fixture();
       if (change === 'order-return')
         await f.db
@@ -336,10 +333,10 @@ describe('returned COD stock inspection (PostgreSQL)', () => {
         await f.db
           .getRepository(Shipment)
           .update(f.shipment.id, { providerStatus: 'returning' });
-      if (change === 'momo')
+      if (change === 'payos')
         await f.db
           .getRepository(Order)
-          .update(f.order.id, { paymentMethod: 'MOMO' });
+          .update(f.order.id, { paymentMethod: 'PAYOS' });
       await expect(
         service.inspect(f.owner.id, f.shop.id, f.order.id, input),
       ).rejects.toThrow('Verified uncollected COD return required');

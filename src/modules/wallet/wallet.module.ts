@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { WalletCheckoutModule } from './checkout/wallet-checkout.module';
-import { WalletAccount, WalletCredit } from './entities/wallet.entity';
+import { WalletAccount, WalletCredit } from './entities';
 import { WalletExcessModule } from './excess/wallet-excess.module';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';

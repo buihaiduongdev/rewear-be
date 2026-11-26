@@ -2,9 +2,9 @@ import { ConflictException } from '@nestjs/common';
 
 import { EntityManager } from 'typeorm';
 
-import { WalletAccount } from '../entities/wallet.entity';
+import { WalletAccount } from '../entities';
 import { WALLET_HOLD_STATE } from './constants/wallet-checkout.constant';
-import { WalletCheckoutHold } from './entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from './entities';
 import { walletPoolFields } from './policies/wallet-checkout.policy';
 
 export async function releaseWalletHold(

@@ -9,7 +9,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
 import { ReturnShippingCharge } from '@/modules/dispute/returns/entities/return-exception.entity';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
 import { SHIPMENT_STATE } from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
@@ -34,7 +34,7 @@ import {
   FeeDecision,
   FeeNotice,
   FeeRefund,
-} from './entities/fee.entity';
+} from './entities';
 import { feeOutstanding, queueFeeCorrections } from './fee-accounting';
 import {
   buyerFeeDisposition,
@@ -50,7 +50,7 @@ import type {
   FeeAssessmentInput,
   FeeCorrectionInput,
   FeeObjectionInput,
-} from './types/fee.type';
+} from './schemas/fee.schema';
 
 @Injectable()
 export class FeeService {
@@ -195,7 +195,7 @@ export class FeeService {
       fee.status = buyerFeeDisposition(
         data.amount,
         funds.spendable,
-        FEE_POLICY.MOMO_MINIMUM,
+        FEE_POLICY.PAYOS_MINIMUM,
       );
       if (fee.status === FEE_STATUS.ABSORBED) fee.payableAmount = 0;
     }
@@ -270,7 +270,7 @@ export class FeeService {
       });
       let total = 0;
       for (const row of rows) total += await feeOutstanding(manager, row.id);
-      if (total < FEE_POLICY.MOMO_MINIMUM) return;
+      if (total < FEE_POLICY.PAYOS_MINIMUM) return;
       for (const row of rows.filter((row) => !row.dueAt))
         await this.notify(manager, row, now);
       const refreshed = await manager.findOneByOrFail(FeeAssessment, {
@@ -466,7 +466,7 @@ export class FeeService {
   ) {
     if (fee.party !== FEE_PARTY.BUYER) return;
     const remaining = await feeOutstanding(manager, fee.id);
-    if (remaining <= 0 || remaining >= FEE_POLICY.MOMO_MINIMUM) return;
+    if (remaining <= 0 || remaining >= FEE_POLICY.PAYOS_MINIMUM) return;
     const funds = await verifiedWalletFunds(manager, fee.buyerId, fee.mode);
     if (funds.spendable >= remaining) return;
     await queueFeeCorrections(manager, fee, fee.payableAmount - remaining, now);

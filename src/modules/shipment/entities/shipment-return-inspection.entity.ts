@@ -1,10 +1,10 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { User } from '@/modules/user/entities';
 
-import type { ReturnInspectionInput } from '../types/shipment.type';
+import type { ReturnInspectionInput } from '../schemas/shipment.schema';
 
 @Entity('shipment_return_inspections')
 @Index(['orderId'], { unique: true })

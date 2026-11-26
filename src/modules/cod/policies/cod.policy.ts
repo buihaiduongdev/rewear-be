@@ -6,7 +6,7 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 
 import {
@@ -21,7 +21,7 @@ import {
   COD_REPEAT_BLOCK_MS,
   COD_RESTRICTION_CAUSE,
 } from '../constants/cod.constant';
-import { CodBuyerCancellation, CodRestriction } from '../entities/cod.entity';
+import { CodBuyerCancellation, CodRestriction } from '../entities';
 
 @Injectable()
 export class CodPolicy {
@@ -171,8 +171,10 @@ export class CodPolicy {
 
   async resolve(adminId: string, id: string, { reason }: RejectOrderInput) {
     return this.db.transaction(async (manager) => {
-      await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
-      const row = await manager.findOneByOrFail(CodRestriction, { id });
+      const row = await manager.findOneOrFail(CodRestriction, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (row.resolvedAt) return row;
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       row.resolvedAt = new Date(now);

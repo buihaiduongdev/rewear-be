@@ -11,39 +11,38 @@ import {
 
 import { DataSource, EntityManager, In, LessThanOrEqual } from 'typeorm';
 
+import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import {
-  type MomoNotification,
-  type MomoResult,
-  MomoSandboxClient,
-} from '@/infrastructure/payment/momo-sandbox.client';
+  generatePayosOrderCode,
+  isIncludedInAggregateTransId,
+  PayosClient,
+  type PayosPaymentResult,
+  type PayosWebhookResult,
+} from '@/infrastructure/payment/payos.client';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { PAYMENT_PROVIDER_OUTCOME } from '@/modules/payment/constants/payment.constant';
 import {
   PAYMENT_MAX_AMOUNT,
   PAYMENT_MIN_AMOUNT,
-  PAYMENT_PROVIDER_SUCCESS_CODE,
-  PAYMENT_REFUND_PENDING_CODES,
+  PAYMENT_PROVIDER_OUTCOME,
+  PAYOS_STATUS,
 } from '@/modules/payment/constants/payment.constant';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
+import { PAYOS_CLIENT } from '@/modules/payment/payment.config';
 import { providerOutcome } from '@/modules/payment/policies/payment.policy';
 import { ShopMember } from '@/modules/shop/entities/shop-member.entity';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
-import { ExcessCapture } from '@/modules/wallet/excess/entities/excess.entity';
+import { ExcessCapture } from '@/modules/wallet/excess/entities';
 
 import {
   FEE_COLLECTION_METHOD,
   FEE_PARTY,
   FEE_STATUS,
 } from '../constants/fee.constant';
-import { FeeAssessment, FeeRefund } from '../entities/fee.entity';
+import { FeeAssessment, FeeRefund } from '../entities';
 import { feeOutstanding, recordFeeCollection } from '../fee-accounting';
 import {
-  FEE_MOMO_CLIENT,
   FEE_PAYMENT_EVENT,
   FEE_PAYMENT_INFO_PREFIX,
   FEE_PAYMENT_LEASE_MS,
@@ -51,11 +50,7 @@ import {
   FEE_PAYMENT_STATE,
   FEE_PROVIDER_REFUND_STATE,
 } from './constants/fee-payment.constant';
-import {
-  FeePayment,
-  FeePaymentCapture,
-  FeeProviderRefund,
-} from './entities/fee-payment.entity';
+import { FeePayment, FeePaymentCapture, FeeProviderRefund } from './entities';
 import {
   allocateFeeCapture,
   feeRefundPublicView,
@@ -64,25 +59,28 @@ import {
 import {
   type CreateFeePaymentInput,
   createFeePaymentSchema,
+  type FeeTarget,
 } from './schemas/fee-payment.schema';
-import type { FeeTarget } from './types/fee-payment.type';
 
 @Injectable()
 export class FeePaymentService {
   constructor(
     private readonly db: DataSource,
-    @Inject(FEE_MOMO_CLIENT) private readonly client: MomoSandboxClient | null,
+    @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
   ) {}
+
   private gateway() {
     if (!this.client)
-      throw new ServiceUnavailableException('MoMo Sandbox is disabled');
+      throw new ServiceUnavailableException('PayOS gateway is disabled');
     return this.client;
   }
-  private async lock(manager: EntityManager) {
+
+  private async now(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
     const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
     return new Date(now);
   }
+
   private async authorize(
     manager: EntityManager,
     userId: string,
@@ -107,6 +105,7 @@ export class FeePaymentService {
       return;
     throw new NotFoundException('Fee not found');
   }
+
   async create(userId: string, input: CreateFeePaymentInput) {
     input = createFeePaymentSchema.parse(input);
     const gateway = this.gateway();
@@ -115,28 +114,33 @@ export class FeePaymentService {
     );
     if (prepared.send) {
       try {
-        const result = await gateway.create({
-          orderId: prepared.payment.id,
-          requestId: prepared.payment.id,
+        const result = await gateway.createPaymentLink({
+          orderCode: Number(prepared.payment.providerOrderCode),
           amount: prepared.payment.amount,
-          orderInfo: FEE_PAYMENT_INFO_PREFIX + prepared.payment.id,
+          description:
+            FEE_PAYMENT_INFO_PREFIX +
+            prepared.payment.id.slice(0, 8).toUpperCase(),
+          expiredAt: Math.floor(
+            prepared.payment.targetDeadline.getTime() / 1000,
+          ),
         });
         await this.db.transaction(async (manager) => {
-          await this.lock(manager);
-          const payment = await manager.findOneByOrFail(FeePayment, {
-            id: prepared.payment.id,
+          const payment = await manager.findOneOrFail(FeePayment, {
+            where: { id: prepared.payment.id },
+            lock: { mode: 'pessimistic_write' },
           });
           if (payment.state === FEE_PAYMENT_STATE.SUCCEEDED) return;
+          const outcome = providerOutcome(result.status);
           payment.state =
-            providerOutcome(result.resultCode) === PAYMENT_PROVIDER_OUTCOME.PAID
+            result.status === PAYOS_STATUS.PENDING ||
+            outcome === PAYMENT_PROVIDER_OUTCOME.PAID
               ? FEE_PAYMENT_STATE.PENDING
-              : providerOutcome(result.resultCode) ===
-                  PAYMENT_PROVIDER_OUTCOME.FAILED
+              : outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
                 ? FEE_PAYMENT_STATE.FAILED
                 : FEE_PAYMENT_STATE.UNKNOWN;
           payment.payUrl =
             payment.state === FEE_PAYMENT_STATE.PENDING
-              ? (result.payUrl ?? null)
+              ? (result.checkoutUrl ?? null)
               : null;
           await manager.save(payment);
         });
@@ -151,12 +155,13 @@ export class FeePaymentService {
     }
     return this.view(userId, prepared.payment.id);
   }
+
   private async prepare(
     manager: EntityManager,
     userId: string,
     input: CreateFeePaymentInput,
   ) {
-    const now = await this.lock(manager);
+    const now = await this.now(manager);
     const feeIds = [...new Set(input.feeIds)].sort();
     const fingerprint = JSON.stringify({
       feeIds,
@@ -203,7 +208,7 @@ export class FeePaymentService {
         !fee.notifiedAt ||
         !fee.dueAt
       )
-        throw new ConflictException('Fee is not payable through Sandbox');
+        throw new ConflictException('Fee is not payable through PayOS');
       if (
         fees.length > 1 &&
         (fee.party !== FEE_PARTY.SHOP || fee.shopId !== fees[0].shopId)
@@ -229,6 +234,7 @@ export class FeePaymentService {
     const payment = manager.create(FeePayment, {
       userId,
       requestId: input.requestId,
+      providerOrderCode: String(generatePayosOrderCode()),
       fingerprint,
       amount: input.amount,
       targets,
@@ -243,6 +249,7 @@ export class FeePaymentService {
     await manager.save(payment);
     return { payment, send: true };
   }
+
   async view(userId: string, id: string) {
     const payment = await this.db
       .getRepository(FeePayment)
@@ -276,36 +283,61 @@ export class FeePaymentService {
       refunds: refunds.map(feeRefundPublicView),
     };
   }
-  async handles(id: string) {
-    return this.db.getRepository(FeePayment).existsBy({ id });
+
+  async handlesOrderCode(providerOrderCode: string) {
+    return this.db.getRepository(FeePayment).existsBy({ providerOrderCode });
   }
-  async ipn(input: MomoNotification) {
-    let result: MomoNotification;
+
+  async webhook(input: unknown) {
+    let verified: PayosWebhookResult;
     try {
-      result = this.gateway().verifyIpn(input);
+      verified = await this.gateway().verifyWebhook(input);
     } catch {
       throw new UnauthorizedException('Invalid fee payment signature');
     }
-    if (
-      result.orderType !== 'momo_wallet' ||
-      result.requestId !== result.orderId ||
-      result.orderInfo !== FEE_PAYMENT_INFO_PREFIX + result.orderId
-    )
-      throw new UnauthorizedException('Invalid fee payment reference');
-    await this.apply(result);
+    if (verified.isTestPing) return;
+    await this.applyWebhook(verified);
   }
-  private async apply(result: MomoResult) {
+
+  async applyWebhook(verified: PayosWebhookResult) {
+    if (verified.isTestPing) return;
+    const payment = await this.db.getRepository(FeePayment).findOneBy({
+      providerOrderCode: String(verified.orderCode),
+    });
+    if (!payment)
+      throw new UnauthorizedException('Invalid fee payment reference');
+    await this.apply(payment.id, {
+      orderCode: verified.orderCode,
+      status: verified.code === '00' ? PAYOS_STATUS.PAID : PAYOS_STATUS.PENDING,
+      amount: verified.amount,
+      amountPaid: verified.amount,
+      providerTransId: verified.reference || null,
+    });
+  }
+
+  private async apply(id: string, result: PayosPaymentResult) {
     await this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const payment = await manager.findOneByOrFail(FeePayment, {
-        id: result.orderId,
+      const now = await this.now(manager);
+      const payment = await manager.findOne(FeePayment, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
       });
-      if (result.requestId !== payment.id)
+      if (!payment) throw new NotFoundException('Fee payment not found');
+      if (
+        payment.providerOrderCode &&
+        Number(payment.providerOrderCode) !== result.orderCode
+      )
         throw new UnauthorizedException('Invalid fee request');
-      if (result.resultCode !== PAYMENT_PROVIDER_SUCCESS_CODE) {
+      const outcome = providerOutcome(result.status);
+      const partialCaptured =
+        result.amountPaid > 0 &&
+        (outcome === PAYMENT_PROVIDER_OUTCOME.FAILED ||
+          (result.status === PAYOS_STATUS.UNDERPAID &&
+            now > payment.targetDeadline));
+      if (outcome !== PAYMENT_PROVIDER_OUTCOME.PAID && !partialCaptured) {
         if (
           payment.state !== FEE_PAYMENT_STATE.SUCCEEDED &&
-          providerOutcome(result.resultCode) === PAYMENT_PROVIDER_OUTCOME.FAILED
+          outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
         ) {
           payment.state = FEE_PAYMENT_STATE.FAILED;
           payment.nextQueryAt = new Date(
@@ -315,43 +347,91 @@ export class FeePaymentService {
         }
         return;
       }
-      if (!Number.isSafeInteger(result.transId) || result.transId <= 0)
-        throw new ConflictException('Invalid capture');
-      if (
-        (await manager.existsBy(ExcessCapture, {
-          providerTransId: String(result.transId),
-        })) ||
-        (await manager.existsBy(PaymentAttempt, {
-          providerTransId: String(result.transId),
-        })) ||
-        (await manager.existsBy(PaymentRefund, {
-          providerTransId: String(result.transId),
-        }))
-      )
-        throw new ConflictException(
-          'Capture already belongs to a checkout payment',
-        );
-      const existing = await manager.findOneBy(FeePaymentCapture, {
-        providerTransId: String(result.transId),
-      });
-      if (existing) {
-        if (
-          existing.paymentId !== payment.id ||
-          existing.amount !== result.amount
-        )
-          throw new ConflictException('Capture reference reused');
-        return;
-      }
-      const capture = manager.create(FeePaymentCapture, {
+      const existingCaptures = await manager.findBy(FeePaymentCapture, {
         paymentId: payment.id,
-        providerTransId: String(result.transId),
-        amount: result.amount,
-        allocatedAmount: 0,
       });
-      await manager.save(capture);
-      await this.allocateCapture(manager, payment, capture, now);
+      const isMultiRefund =
+        (partialCaptured || result.amountPaid !== payment.amount) &&
+        Boolean(result.transactions && result.transactions.length > 1);
+      const capturesToRecord = isMultiRefund
+        ? result.transactions!
+        : [
+            {
+              providerTransId: result.providerTransId?.trim() || '',
+              amount: result.amountPaid,
+            },
+          ];
+      for (const entry of capturesToRecord) {
+        const providerTransId = entry.providerTransId.trim();
+        if (
+          !providerTransId ||
+          !Number.isSafeInteger(entry.amount) ||
+          entry.amount <= 0 ||
+          entry.amount > MAX_VND_AMOUNT
+        )
+          throw new ConflictException('Invalid capture');
+        if (
+          existingCaptures.some((c) =>
+            isIncludedInAggregateTransId(c.providerTransId, providerTransId),
+          )
+        ) {
+          continue;
+        }
+        if (
+          (await manager.existsBy(ExcessCapture, { providerTransId })) ||
+          (await manager.existsBy(PaymentAttempt, { providerTransId })) ||
+          (await manager.existsBy(PaymentRefund, { providerTransId }))
+        )
+          throw new ConflictException(
+            'Capture already belongs to another payment source',
+          );
+        const existing = await manager.findOneBy(FeePaymentCapture, {
+          providerTransId,
+        });
+        if (existing) {
+          if (
+            existing.paymentId !== payment.id ||
+            existing.amount !== entry.amount
+          )
+            throw new ConflictException('Capture reference reused');
+          continue;
+        }
+        const capture = manager.create(FeePaymentCapture, {
+          paymentId: payment.id,
+          providerTransId,
+          amount: entry.amount,
+          allocatedAmount: 0,
+        });
+        await manager.save(capture);
+        if (partialCaptured || isMultiRefund) {
+          await this.queueRefund(
+            manager,
+            capture.id,
+            capture.amount,
+            null,
+            now,
+          );
+        } else {
+          await this.allocateCapture(manager, payment, capture, now);
+        }
+      }
+      if (partialCaptured && payment.state !== FEE_PAYMENT_STATE.SUCCEEDED) {
+        payment.state = FEE_PAYMENT_STATE.FAILED;
+        payment.nextQueryAt = new Date(
+          now.getTime() + FEE_PAYMENT_POLICY.FAILURE_QUERY_DELAY_MS,
+        );
+        await manager.save(payment);
+      } else if (
+        isMultiRefund &&
+        payment.state !== FEE_PAYMENT_STATE.SUCCEEDED
+      ) {
+        payment.state = FEE_PAYMENT_STATE.SUCCEEDED;
+        payment.paidAt ??= now;
+        await manager.save(payment);
+      }
     });
   }
+
   private async allocateCapture(
     manager: EntityManager,
     payment: FeePayment,
@@ -386,7 +466,7 @@ export class FeePaymentService {
           {
             feeId: payment.targets[index].feeId,
             mode: RECONCILIATION_MODE.SIMULATION,
-            method: FEE_COLLECTION_METHOD.MOMO,
+            method: FEE_COLLECTION_METHOD.PAYOS,
             sourceId: capture.id,
             amount: allocation.allocations[index],
           },
@@ -401,12 +481,18 @@ export class FeePaymentService {
     payment.paidAt ??= now;
     await manager.save(payment);
   }
+
   async queryAttempt(id: string) {
     const gateway = this.gateway();
-    const payment = await this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const payment = await manager.findOneByOrFail(FeePayment, { id });
+    const orderCode = await this.db.transaction(async (manager) => {
+      const now = await this.now(manager);
+      const payment = await manager.findOne(FeePayment, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (
+        !payment ||
+        !payment.providerOrderCode ||
         payment.state === FEE_PAYMENT_STATE.SUCCEEDED ||
         payment.nextQueryAt > now
       )
@@ -418,15 +504,16 @@ export class FeePaymentService {
             : FEE_PAYMENT_LEASE_MS),
       );
       await manager.save(payment);
-      return payment;
+      return Number(payment.providerOrderCode);
     });
-    if (!payment) return;
+    if (!orderCode) return;
     try {
-      await this.apply(await gateway.query(id, id));
+      await this.apply(id, await gateway.getPaymentLink(orderCode));
     } catch {
       /* Persisted query lease preserves uncertainty. */
     }
   }
+
   private async queueRefund(
     manager: EntityManager,
     captureId: string,
@@ -442,32 +529,29 @@ export class FeePaymentService {
         amount,
         feeRefundId,
         requestId: randomUUID(),
-        state: unsupported
-          ? FEE_PROVIDER_REFUND_STATE.REVIEW
-          : FEE_PAYMENT_STATE.PENDING,
+        state: FEE_PROVIDER_REFUND_STATE.REVIEW,
         nextQueryAt: now,
-        alertedAt: unsupported ? now : null,
-        responseDueAt: unsupported
-          ? new Date(
-              now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
-            )
-          : null,
+        alertedAt: now,
+        responseDueAt: new Date(
+          now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
+        ),
         history: [
           {
             at: now.toISOString(),
             state: unsupported
               ? FEE_PAYMENT_EVENT.PROVIDER_REFUND_LIMIT
-              : FEE_PAYMENT_STATE.PENDING,
+              : FEE_PAYMENT_EVENT.ADMIN_RESPONSE_REQUIRED,
           },
         ],
       }),
     );
   }
+
   async runRefunds() {
     await this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
+      const now = await this.now(manager);
       const corrections = await manager.findBy(FeeRefund, {
-        method: FEE_COLLECTION_METHOD.MOMO,
+        method: FEE_COLLECTION_METHOD.PAYOS,
         state: In([FEE_PAYMENT_STATE.PENDING, FEE_PAYMENT_STATE.UNKNOWN]),
       });
       for (const correction of corrections) {
@@ -514,21 +598,22 @@ export class FeePaymentService {
     });
     for (const job of jobs) await this.refund(job.id);
   }
-  private async leaseRefund(id: string) {
-    return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
-      const refund = await manager.findOneByOrFail(FeeProviderRefund, { id });
+
+  async refund(id: string) {
+    this.gateway();
+    await this.db.transaction(async (manager) => {
+      const now = await this.now(manager);
+      const refund = await manager.findOne(FeeProviderRefund, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (
+        !refund ||
         refund.state === FEE_PAYMENT_STATE.SUCCEEDED ||
         refund.nextQueryAt > now
       )
-        return null;
-      if (
-        !refund.alertedAt &&
-        (refund.state === FEE_PROVIDER_REFUND_STATE.REVIEW ||
-          now.getTime() - refund.createdAt.getTime() >=
-            FEE_PAYMENT_POLICY.REFUND_ALERT_AFTER_MS)
-      ) {
+        return;
+      if (!refund.alertedAt) {
         refund.alertedAt = now;
         refund.responseDueAt = new Date(
           now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
@@ -538,90 +623,20 @@ export class FeePaymentService {
           state: FEE_PAYMENT_EVENT.ADMIN_RESPONSE_REQUIRED,
         });
       }
-      if (refund.state === FEE_PROVIDER_REFUND_STATE.REVIEW) {
-        refund.nextQueryAt = new Date(
-          now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
-        );
-        await manager.save(refund);
-        if (refund.feeRefundId)
-          await manager.update(
-            FeeRefund,
-            { id: refund.feeRefundId },
-            { state: FEE_PROVIDER_REFUND_STATE.REVIEW },
-          );
-        return null;
-      }
-      const submit = refund.state === FEE_PAYMENT_STATE.PENDING;
-      refund.state = FEE_PAYMENT_STATE.UNKNOWN;
-      refund.nextQueryAt = new Date(now.getTime() + FEE_PAYMENT_LEASE_MS);
+      refund.state = FEE_PROVIDER_REFUND_STATE.REVIEW;
+      refund.nextQueryAt = new Date(
+        now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
+      );
       await manager.save(refund);
-      return {
-        refund,
-        submit,
-        capture: await manager.findOneByOrFail(FeePaymentCapture, {
-          id: refund.captureId,
-        }),
-      };
+      if (refund.feeRefundId)
+        await manager.update(
+          FeeRefund,
+          { id: refund.feeRefundId },
+          { state: FEE_PROVIDER_REFUND_STATE.REVIEW },
+        );
     });
   }
-  async refund(id: string) {
-    const gateway = this.gateway();
-    const job = await this.leaseRefund(id);
-    if (!job) return;
-    try {
-      let failed = false;
-      if (job.submit) {
-        const result = await gateway.refund({
-          orderId: job.refund.id,
-          requestId: job.refund.requestId,
-          amount: job.refund.amount,
-          transId: Number(job.capture.providerTransId),
-        });
-        failed = ![
-          PAYMENT_PROVIDER_SUCCESS_CODE,
-          ...PAYMENT_REFUND_PENDING_CODES,
-        ].includes(result.resultCode);
-      }
-      // A submission response alone never confirms a source refund.
-      const completed =
-        !failed &&
-        (await gateway.queryRefund(
-          job.refund.id,
-          job.refund.requestId,
-          job.refund.amount,
-        ));
-      await this.db.transaction(async (manager) => {
-        const now = await this.lock(manager);
-        const refund = await manager.findOneByOrFail(FeeProviderRefund, { id });
-        if (refund.state === FEE_PAYMENT_STATE.SUCCEEDED) return;
-        refund.state = completed
-          ? FEE_PAYMENT_STATE.SUCCEEDED
-          : failed
-            ? FEE_PROVIDER_REFUND_STATE.REVIEW
-            : FEE_PAYMENT_STATE.UNKNOWN;
-        refund.history.push({ at: now.toISOString(), state: refund.state });
-        if (failed && !refund.alertedAt) {
-          refund.alertedAt = now;
-          refund.responseDueAt = new Date(
-            now.getTime() + FEE_PAYMENT_POLICY.ADMIN_RESPONSE_WINDOW_MS,
-          );
-        }
-        await manager.save(refund);
-        if (refund.feeRefundId)
-          await manager.update(
-            FeeRefund,
-            { id: refund.feeRefundId },
-            {
-              state: refund.state,
-              completedAt: completed ? now : null,
-              providerReference: completed ? job.capture.providerTransId : null,
-            },
-          );
-      });
-    } catch {
-      /* Never submit again after an ambiguous response. */
-    }
-  }
+
   async pendingRefunds(userId: string) {
     const admin = await this.db.getRepository(User).findOneBy({
       id: userId,
@@ -664,6 +679,7 @@ export class FeePaymentService {
       }),
     );
   }
+
   async respondToRefund(userId: string, id: string, message: string) {
     const admin = await this.db.getRepository(User).findOneBy({
       id: userId,
@@ -672,7 +688,7 @@ export class FeePaymentService {
     });
     if (!admin) throw new UnauthorizedException();
     return this.db.transaction(async (manager) => {
-      const now = await this.lock(manager);
+      const now = await this.now(manager);
       const user = await manager.findOneBy(User, {
         id: userId,
         status: UserStatus.ACTIVE,
@@ -696,6 +712,7 @@ export class FeePaymentService {
       };
     });
   }
+
   async run() {
     if (!this.client) return;
     const attempts = await this.db.getRepository(FeePayment).find({

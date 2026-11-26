@@ -20,12 +20,12 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import type {
   OrderCancelState,
   OrderState,
-} from '@/modules/order/types/order.type';
+} from '@/modules/order/schemas/order.schema';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 
@@ -36,7 +36,7 @@ import {
   SHIPMENT_STATE,
 } from './constants/shipment.constant';
 import { Shipment } from './entities/shipment.entity';
-import type { ShipmentCreateInput } from './types/shipment.type';
+import type { ShipmentCreateInput } from './schemas/shipment.schema';
 
 const incidentStatuses = new Set<string>(GHN_INCIDENT_STATUSES);
 const inTransit = new Set<string>(GHN_IN_TRANSIT_STATUSES);

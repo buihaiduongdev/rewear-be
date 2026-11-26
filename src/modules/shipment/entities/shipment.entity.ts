@@ -2,9 +2,9 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import type { CarrierQuoteInput } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 
-import type { ShipmentState } from '../types/shipment.type';
+import type { ShipmentState } from '../schemas/shipment.schema';
 
 @Entity('shipments')
 @Index(['orderId'], { unique: true })

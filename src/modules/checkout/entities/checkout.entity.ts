@@ -1,7 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import type { FeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure.schema';
 import { User } from '@/modules/user/entities';
 
@@ -9,7 +9,7 @@ import type {
   CheckoutAddress,
   CheckoutState,
   RemovedCheckoutItem,
-} from '../types/checkout.type';
+} from '../schemas/checkout.schema';
 
 @Entity('checkouts')
 @Index('UQ_checkout_buyer_request', ['buyerId', 'requestId'], { unique: true })

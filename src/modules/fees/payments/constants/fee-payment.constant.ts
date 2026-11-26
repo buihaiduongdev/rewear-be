@@ -1,5 +1,4 @@
-export const FEE_MOMO_CLIENT = Symbol('FEE_MOMO_CLIENT');
-export const FEE_PAYMENT_INFO_PREFIX = 'Rewear fee ';
+export const FEE_PAYMENT_INFO_PREFIX = 'RW FEE ';
 export const FEE_PAYMENT_STATE = {
   CREATING: 'CREATING',
   PENDING: 'PENDING',

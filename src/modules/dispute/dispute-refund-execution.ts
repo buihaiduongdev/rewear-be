@@ -4,9 +4,9 @@ import { EntityManager } from 'typeorm';
 
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { encumberedOrderSettlement } from '@/modules/shop-finance/payout-sources';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount } from '@/modules/wallet/entities';
 import { EXCESS_SOURCE } from '@/modules/wallet/excess/constants/excess.constant';
 import { offsetExcessRefund } from '@/modules/wallet/excess/policies/excess-accounting.policy';
 import { walletBalanceSchema } from '@/modules/wallet/schemas/wallet.schema';

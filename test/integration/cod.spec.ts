@@ -5,7 +5,7 @@ import { ProductFactory } from '@/database/factories/product.factory';
 import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import { PayosClient } from '@/infrastructure/payment/payos.client';
 import { GhnSandboxAdapter } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
@@ -20,10 +20,10 @@ import {
   CoinOrderDebit,
   CoinReservation,
 } from '@/modules/coins/core/entities';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
-import { PaymentRefund } from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
+import { PaymentRefund } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -336,7 +336,7 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     ).toBe(fourth.checkout.id);
   });
 
-  it('blocks COD while an earlier MoMo attempt is unresolved', async () => {
+  it('blocks COD while an earlier PayOS attempt is unresolved', async () => {
     const f = await fixture();
     await f.db.getRepository(PaymentAttempt).save({
       checkoutId: f.checkout.id,
@@ -417,29 +417,37 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     ).rejects.toThrow('COD limit reached');
   });
 
-  it('refunds late MoMo capture after switching a failed attempt to COD without touching COD stock', async () => {
+  it('refunds late PayOS capture after switching a failed attempt to COD without touching COD stock', async () => {
     const f = await fixture();
     const pricing = new PaymentPricing(
       new ShippingQuoteService(f.db, carrier as unknown as GhnSandboxAdapter),
     );
     const gateway = {
-      create: async () => ({ resultCode: 1006 }),
-    } as unknown as MomoSandboxClient;
+      createPaymentLink: async (input: { orderCode: number }) => ({
+        orderCode: input.orderCode,
+        paymentLinkId: 'plink-1',
+        status: 'CANCELLED',
+        checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+        qrCode: 'qr',
+      }),
+    } as unknown as PayosClient;
     const payments = new PaymentService(f.db, gateway, pricing);
     const failed = await payments.create(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),
     });
     expect(failed.state).toBe('FAILED');
+    const savedAttempt = await f.db
+      .getRepository(PaymentAttempt)
+      .findOneByOrFail({ id: failed.id });
     const [order] = await cod.place(f.buyer.id, f.checkout.id, {
       expectedTotal: 230000,
     });
     await payments.applyResult(failed.id, {
-      partnerCode: 'TEST',
-      orderId: failed.id,
-      requestId: failed.id,
+      orderCode: Number(savedAttempt.providerOrderCode),
+      status: 'PAID',
       amount: 230000,
-      transId: 987654321,
-      resultCode: 0,
+      amountPaid: 230000,
+      providerTransId: 'FT987654321',
     });
     expect(
       await f.db.getRepository(PaymentRefund).countBy({ paymentId: failed.id }),

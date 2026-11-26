@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { Order } from '@/modules/order/entities/order.entity';
+import type { Order } from '@/modules/order/entities';
 import type { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 export function orderFundingFingerprint(order: Order, shipment: Shipment) {

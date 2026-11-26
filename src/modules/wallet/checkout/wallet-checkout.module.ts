@@ -3,10 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { PaymentModule } from '@/modules/payment/payment.module';
 
-import {
-  WalletCheckoutHold,
-  WalletDebit,
-} from './entities/wallet-checkout.entity';
+import { WalletCheckoutHold, WalletDebit } from './entities';
 import { WalletCheckoutController } from './wallet-checkout.controller';
 import { WalletCheckoutService } from './wallet-checkout.service';
 

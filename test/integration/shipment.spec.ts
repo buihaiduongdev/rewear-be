@@ -8,7 +8,7 @@ import { UserFactory } from '@/database/factories/user.factory';
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {

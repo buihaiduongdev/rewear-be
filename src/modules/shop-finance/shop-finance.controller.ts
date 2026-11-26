@@ -6,7 +6,7 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { RequirePermission } from '@/modules/authorization/decorators/permission.decorator';
 import { financeListSchema } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type { FinanceListInput } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { FinanceListInput } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { User } from '@/modules/user/entities';
 
 import { shopFinanceViewSchema } from './schemas/shop-finance.schema';

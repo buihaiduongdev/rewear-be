@@ -1,8 +1,8 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import { Shop } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 

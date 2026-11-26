@@ -22,31 +22,29 @@ import {
   PAYOUT_POLICY,
   PAYOUT_STATUS,
 } from './constants/payout.constant';
-import { ShopBankAccount } from './entities/shop-bank-account.entity';
 import {
+  ShopBankAccount,
   ShopPayout,
   ShopPayoutAllocation,
   ShopPayoutEvent,
   ShopPayoutRisk,
-} from './entities/shop-payout.entity';
+} from './entities';
 import {
   allocatePayout,
   assertExactTransfer,
   canReleasePayout,
 } from './payout-policy';
 import {
+  type BankAccountInput,
   bankAccountInputSchema,
   bankReviewSchema,
   payoutFailureSchema,
+  type PayoutRequestInput,
   payoutRequestSchema,
+  type PayoutStatus,
+  type PayoutSuccessInput,
   payoutSuccessSchema,
 } from './schemas/payout.schema';
-import type {
-  BankAccountInput,
-  PayoutRequestInput,
-  PayoutSuccessInput,
-} from './schemas/payout.schema';
-import type { PayoutStatus } from './types/payout.type';
 
 @Injectable()
 export class ShopPayoutService {

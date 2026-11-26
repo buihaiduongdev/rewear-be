@@ -10,8 +10,8 @@ import {
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement.policy';
 
 import { CoinService } from '../core/coin.service';

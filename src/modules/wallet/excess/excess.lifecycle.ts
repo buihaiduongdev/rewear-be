@@ -10,7 +10,7 @@ import {
   personalRecipient,
 } from '@/modules/notifications/sources/notification-recipients';
 
-import { ExcessAudit, WalletExcess } from './entities/excess.entity';
+import { ExcessAudit, WalletExcess } from './entities';
 
 export async function excessEvent(
   manager: EntityManager,

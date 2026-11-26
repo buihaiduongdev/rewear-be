@@ -32,7 +32,7 @@ import type {
   CollectionInput,
   FinanceListInput,
   RemittanceInput,
-} from './types/cod-reconciliation.type';
+} from './schemas/cod-reconciliation.schema';
 
 @ApiTags('COD reconciliation')
 @ApiBearerAuth()

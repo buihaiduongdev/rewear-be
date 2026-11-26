@@ -20,7 +20,7 @@ import type {
   FeeAssessmentInput,
   FeeCorrectionInput,
   FeeObjectionInput,
-} from './types/fee.type';
+} from './schemas/fee.schema';
 
 @ApiTags('Fees')
 @ApiBearerAuth()

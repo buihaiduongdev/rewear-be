@@ -9,3 +9,5 @@ export const verifyDeliverySchema = z.strictObject({
   reason: trimmedTextSchema.min(1).max(1000),
   evidence: trimmedTextSchema.min(1).max(2000),
 });
+
+export type VerifyDeliveryInput = z.output<typeof verifyDeliverySchema>;

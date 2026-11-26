@@ -1,7 +1,7 @@
 import { EntityManager, In } from 'typeorm';
 
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 
 import {
   DISPUTE_ACTION,

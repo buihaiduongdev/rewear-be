@@ -9,15 +9,17 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 
 import { SHIPMENT_REVIEW_REASON } from './constants/shipment.constant';
 import { UNSAFE_CARRIER_REVIEW_REASONS } from './constants/shipment.constant';
 import { ShipmentReturnInspection } from './entities/shipment-return-inspection.entity';
 import { Shipment } from './entities/shipment.entity';
-import { returnInspectionSchema } from './schemas/return-inspection.schema';
-import type { ReturnInspectionInput } from './types/shipment.type';
+import {
+  type ReturnInspectionInput,
+  returnInspectionSchema,
+} from './schemas/return-inspection.schema';
 
 @Injectable()
 export class ShipmentReturnInspectionService {

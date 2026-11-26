@@ -6,7 +6,7 @@ import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenti
 import { User } from '@/modules/user/entities';
 
 import { walletQuerySchema, walletViewSchema } from './schemas/wallet.schema';
-import type { WalletQueryInput } from './types/wallet.type';
+import type { WalletQueryInput } from './schemas/wallet.schema';
 import { WalletService } from './wallet.service';
 
 @ApiTags('Wallet')

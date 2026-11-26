@@ -5,13 +5,13 @@ import {
   FeeAssessment,
   FeeCollection,
   FeeRefund,
-} from '@/modules/fees/entities/fee.entity';
+} from '@/modules/fees/entities';
 import { feeOutstanding } from '@/modules/fees/fee-accounting';
 import { FeeService } from '@/modules/fees/fee.service';
 import {
   FeeOffsetAllocation,
   FeeWalletDebit,
-} from '@/modules/fees/settlement/entities/fee-settlement.entity';
+} from '@/modules/fees/settlement/entities';
 import { assertFeeCodEligibility } from '@/modules/fees/settlement/fee-cod-gate';
 import { settleShopFees } from '@/modules/fees/settlement/fee-offset';
 import { feeMoneyLock } from '@/modules/fees/settlement/fee-settlement.access';
@@ -25,10 +25,7 @@ import {
 } from '@/modules/shop-finance/payout-sources';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import { ShopPayoutService } from '@/modules/shop-finance/payouts/shop-payout.service';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { verifiedWalletFunds } from '@/modules/wallet/verified-wallet-funds';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';

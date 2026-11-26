@@ -16,14 +16,14 @@ import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { NotificationWorker } from '@/modules/notifications/notification.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
+import { PAYOS_CLIENT } from '@/modules/payment/payment.config';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import type { User } from '@/modules/user/entities';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
-import { EXCESS_MOMO_CLIENT } from '@/modules/wallet/excess/constants/excess.constant';
-import { ExcessCollection } from '@/modules/wallet/excess/entities/excess.entity';
+  ExcessCollection,
+  ExcessPayment,
+} from '@/modules/wallet/excess/entities';
 import { WalletExcessWorker } from '@/modules/wallet/excess/wallet-excess.worker';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
@@ -38,13 +38,25 @@ describe('Wallet recovery HTTP', () => {
   let id: string;
   let version: number;
   const client = {
-    create: jest.fn(async () => ({
-      resultCode: 0,
-      payUrl: 'https://test.local/pay',
+    createPaymentLink: jest.fn(async (input) => ({
+      orderCode: input.orderCode,
+      paymentLinkId: 'plink-1',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+      qrCode: 'qr',
     })),
-    verifyIpn: jest.fn((x) => {
+    verifyWebhook: jest.fn(async (x) => {
       if (x.signature !== 'a'.repeat(64)) throw new Error('Invalid signature');
-      return x;
+      return {
+        orderCode: x.data.orderCode,
+        amount: x.data.amount,
+        code: x.code,
+        desc: x.desc,
+        reference: x.data.reference,
+        paymentLinkId: x.data.paymentLinkId ?? 'plink-1',
+        description: x.data.description,
+        isTestPing: false,
+      };
     }),
   };
   beforeAll(async () => {
@@ -62,7 +74,7 @@ describe('Wallet recovery HTTP', () => {
     ])
       builder = builder.overrideProvider(worker).useValue({});
     const module = await builder
-      .overrideProvider(EXCESS_MOMO_CLIENT)
+      .overrideProvider(PAYOS_CLIENT)
       .useValue(client)
       .compile();
     app = module.createNestApplication();
@@ -138,10 +150,13 @@ describe('Wallet recovery HTTP', () => {
   it('routes only verified recovery callbacks and resolves inflight money through original-source refund', async () => {
     const server = app.getHttpServer();
     const payment = await request(server)
-      .post('/api/wallet/recoveries/payments/momo')
+      .post('/api/wallet/recoveries/payments/payos')
       .auth(token(f.buyer), { type: 'bearer' })
       .send({ requestId: randomUUID(), excessIds: [id], amount: 40000 })
       .expect(200);
+    const savedPayment = await db
+      .getRepository(ExcessPayment)
+      .findOneByOrFail({ id: payment.body.data.id });
     const object = await request(server)
       .post(`/api/wallet/recoveries/${id}/objections`)
       .auth(token(f.buyer), { type: 'bearer' })
@@ -153,28 +168,24 @@ describe('Wallet recovery HTTP', () => {
       .expect(200);
     version = object.body.data.version;
     const payload = {
-      partnerCode: 'test',
-      orderId: payment.body.data.id,
-      requestId: payment.body.data.id,
-      amount: 40000,
-      transId: 123456789,
-      resultCode: 0,
-      responseTime: Date.now(),
-      message: 'success',
-      orderInfo: 'Rewear wallet recovery ' + payment.body.data.id,
-      orderType: 'momo_wallet',
-      payType: 'qr',
-      extraData: '',
+      code: '00',
+      desc: 'success',
+      data: {
+        orderCode: Number(savedPayment.providerOrderCode),
+        amount: 40000,
+        description: 'RW REC ' + payment.body.data.id.slice(0, 8),
+        reference: 'FT240012345',
+      },
       signature: 'b'.repeat(64),
     };
     await request(server)
-      .post('/api/payments/momo/ipn')
+      .post('/api/payments/payos/webhook')
       .send(payload)
       .expect(401);
     await request(server)
-      .post('/api/payments/momo/ipn')
+      .post('/api/payments/payos/webhook')
       .send({ ...payload, signature: 'a'.repeat(64) })
-      .expect(204);
+      .expect(200);
     expect(
       await db.getRepository(ExcessCollection).countBy({ excessId: id }),
     ).toBe(0);
@@ -201,6 +212,6 @@ describe('Wallet recovery HTTP', () => {
       '/api/wallet/recoveries/admin/{id}/corrections',
     );
     expect(doc.paths).toHaveProperty('/api/wallet/recoveries/{id}/objections');
-    expect(doc.paths).toHaveProperty('/api/wallet/recoveries/payments/momo');
+    expect(doc.paths).toHaveProperty('/api/wallet/recoveries/payments/payos');
   });
 });

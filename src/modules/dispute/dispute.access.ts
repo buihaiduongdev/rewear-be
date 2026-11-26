@@ -6,8 +6,8 @@ import {
   ORDER_POLICY,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import { OrderAccess } from '@/modules/order/order.access';
 
 import {

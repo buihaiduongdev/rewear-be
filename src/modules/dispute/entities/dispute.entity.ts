@@ -2,8 +2,8 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import { Media } from '@/modules/media/entities';
-import { Order } from '@/modules/order/entities/order.entity';
-import type { OrderState } from '@/modules/order/types/order.type';
+import { Order } from '@/modules/order/entities';
+import type { OrderState } from '@/modules/order/schemas/order.schema';
 
 import type {
   DisputeAction,

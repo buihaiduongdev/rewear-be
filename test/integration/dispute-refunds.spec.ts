@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { MAX_SAFE_BALANCE } from '@/common/constants/money.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import { CoinGrant } from '@/modules/coins/core/entities';
 import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
@@ -22,24 +22,21 @@ import {
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
+import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import { Order } from '@/modules/order/entities/order.entity';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
-import {
-  PaymentAttempt,
-  PaymentRefund,
-} from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt, PaymentRefund } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import {
   ShopPayout,
   ShopPayoutAllocation,
-} from '@/modules/shop-finance/payouts/entities/shop-payout.entity';
+} from '@/modules/shop-finance/payouts/entities';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount } from '@/modules/wallet/entities';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';
@@ -554,7 +551,7 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
         .findOneByOrFail({ orderId: f.order.id }),
     ).toMatchObject({ amount: 100001, advanceAmount: 50001 });
   });
-  async function momoFixture() {
+  async function payosFixture() {
     const f = await fixture();
     const checkout = await f.db.getRepository(Checkout).save({
       buyerId: f.buyer.id,
@@ -589,13 +586,13 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
     await f.db.getRepository(Order).update(f.order.id, {
       paymentId: payment.id,
       checkoutId: checkout.id,
-      paymentMethod: 'MOMO',
+      paymentMethod: 'PAYOS',
     });
     await f.db.getRepository(Shipment).update(f.shipment.id, { codAmount: 0 });
     return { ...f, payment };
   }
-  it('refunds verified MoMo Sandbox only into simulation balance', async () => {
-    const f = await momoFixture();
+  it('refunds verified PayOS only into simulation balance', async () => {
+    const f = await payosFixture();
     expect(await service.refresh(f.final.id)).toMatchObject({
       status: 'SUCCEEDED',
       mode: 'SIMULATION',
@@ -607,7 +604,7 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
     ).toMatchObject({ balance: 0, simulationBalance: 100001 });
   });
   it('blocks an original-capture refund but does not confuse a duplicate-capture provider refund with it', async () => {
-    const blocked = await momoFixture();
+    const blocked = await payosFixture();
     await blocked.db.getRepository(PaymentRefund).save({
       paymentId: blocked.payment.id,
       providerTransId: blocked.payment.providerTransId!,
@@ -620,7 +617,7 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
       status: 'PENDING',
       blockedReason: 'PAYMENT_UNVERIFIED',
     });
-    const valid = await momoFixture();
+    const valid = await payosFixture();
     await valid.db.getRepository(PaymentRefund).save({
       paymentId: valid.payment.id,
       providerTransId: randomUUID(),
@@ -640,7 +637,7 @@ describe('Final dispute refund execution (PostgreSQL)', () => {
       shopId: f.shop.id,
       collectionId: null,
       mode: 'SIMULATION',
-      type: 'MOMO_FUNDED_HELD',
+      type: 'PAYOS_FUNDED_HELD',
       amount: 97001,
       actorId: f.admin.id,
     });

@@ -12,15 +12,13 @@ import {
   COD_RECONCILIATION_STATUS,
   RECONCILIATION_MODE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import {
   collectionViewSchema,
+  type FinanceListInput,
   financeListSchema,
+  type ReconciliationMode,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import type {
-  FinanceListInput,
-  ReconciliationMode,
-} from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
 import { shopRefundDeductions } from '@/modules/dispute/dispute-refund-accounting';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund.entity';
 import { CARRIER_RECEIPT_KIND } from '@/modules/dispute/returns/constants/return-exception.constant';
@@ -29,7 +27,7 @@ import {
   ReturnShippingCharge,
 } from '@/modules/dispute/returns/entities/return-exception.entity';
 import { FEE_PARTY } from '@/modules/fees/constants/fee.constant';
-import { FeeAssessment } from '@/modules/fees/entities/fee.entity';
+import { FeeAssessment } from '@/modules/fees/entities';
 import { feeOutstanding } from '@/modules/fees/fee-accounting';
 import { returnFeeOutstanding } from '@/modules/fees/settlement/fee-return-bridge';
 import { ShopMember } from '@/modules/shop/entities';
@@ -45,23 +43,22 @@ export class ShopFinanceService {
   async view(userId: string, shopId: string, input: FinanceListInput) {
     const data = financeListSchema.parse(input);
     const mode = data.mode ?? RECONCILIATION_MODE.EVIDENCE;
-    return this.db.transaction('REPEATABLE READ', async (manager) => {
-      const owner = await manager.existsBy(ShopMember, {
-        shopId,
-        userId,
-        memberRole: ShopMemberRole.OWNER,
-      });
-      if (!owner)
-        throw new ForbiddenException('Shop finance Owner access required');
-      const totals = await this.readTotals(manager, shopId, mode);
-      const history = await this.readHistory(
-        manager,
-        shopId,
-        mode,
-        data.offset ?? 0,
-      );
-      return { shopId, mode, ...totals, ...history };
+    const manager = this.db.manager;
+    const owner = await manager.existsBy(ShopMember, {
+      shopId,
+      userId,
+      memberRole: ShopMemberRole.OWNER,
     });
+    if (!owner)
+      throw new ForbiddenException('Shop finance Owner access required');
+    const totals = await this.readTotals(manager, shopId, mode);
+    const history = await this.readHistory(
+      manager,
+      shopId,
+      mode,
+      data.offset ?? 0,
+    );
+    return { shopId, mode, ...totals, ...history };
   }
 
   private async readTotals(

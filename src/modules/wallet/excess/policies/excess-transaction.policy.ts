@@ -12,7 +12,7 @@ import type { EntityManager } from 'typeorm';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { ExcessCommand, WalletExcess } from '../entities/excess.entity';
+import { ExcessCommand, WalletExcess } from '../entities';
 
 export async function excessClock(manager: EntityManager) {
   await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');

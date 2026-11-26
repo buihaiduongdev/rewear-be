@@ -26,14 +26,14 @@ import {
   shipmentCreateSchema,
   shipmentViewSchema,
 } from './schemas/shipment.schema';
-import { ShipmentCancellationService } from './shipment-cancellation.service';
-import { ShipmentReturnInspectionService } from './shipment-return-inspection.service';
-import { ShipmentService } from './shipment.service';
-import type { ReturnInspectionInput } from './types/shipment.type';
+import type { ReturnInspectionInput } from './schemas/shipment.schema';
 import type {
   CancellationDecision,
   ShipmentCreateInput,
-} from './types/shipment.type';
+} from './schemas/shipment.schema';
+import { ShipmentCancellationService } from './shipment-cancellation.service';
+import { ShipmentReturnInspectionService } from './shipment-return-inspection.service';
+import { ShipmentService } from './shipment.service';
 
 @ApiTags('Shipments')
 @ApiBearerAuth()

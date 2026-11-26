@@ -7,7 +7,7 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 
 import { FULFILLMENT_POLICY } from './constants/fulfillment.constant';
@@ -19,8 +19,10 @@ import {
 } from './constants/shipment.constant';
 import { CarrierIncident } from './entities/carrier-incident.entity';
 import { Shipment } from './entities/shipment.entity';
-import type { CarrierIncidentDecision } from './types/shipment.type';
-import type { FulfillmentListInput } from './types/shipment.type';
+import type {
+  CarrierIncidentDecision,
+  FulfillmentListInput,
+} from './schemas/shipment.schema';
 import { fulfillmentDeadline } from './utils/fulfillment-calendar';
 
 @Injectable()

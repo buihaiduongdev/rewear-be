@@ -2,6 +2,7 @@ import z from 'zod';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
+import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { feeDisclosureSchema } from '@/modules/fees/disclosure/fee-disclosure.schema';
@@ -10,6 +11,38 @@ import {
   CHECKOUT_MAX_ITEMS,
   CHECKOUT_STATUS,
 } from '../constants/checkout.constant';
+
+export type CheckoutState =
+  (typeof CHECKOUT_STATUS)[keyof typeof CHECKOUT_STATUS];
+
+export type CheckoutAddress = {
+  recipientName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  countryCode: string;
+  provinceId: number;
+  provinceName: string;
+  districtId: number;
+  districtName: string;
+  wardCode: string;
+  wardName: string;
+  postalCode: string | null;
+  deliveryInstructions: string | null;
+};
+
+export type CheckoutItem = {
+  coinDiscount?: number;
+  shippingPackage: ResolvedShippingPackage | null;
+  productId: string;
+  title: string;
+  price: number;
+  size: string | null;
+  condition: string;
+  coverUrl: string | null;
+};
+
+export type RemovedCheckoutItem = { productId: string; reason: string };
 
 export const createCheckoutSchema = z
   .strictObject({
@@ -87,7 +120,7 @@ export const checkoutSchema = z.object({
   paymentReady: z.literal(false),
 });
 
-export type { CreateCheckoutInput } from '../types/checkout.type';
+export type CreateCheckoutInput = z.output<typeof createCheckoutSchema>;
 
 export const selectCheckoutCoinsSchema = z.strictObject({
   requestId: z.uuid(),

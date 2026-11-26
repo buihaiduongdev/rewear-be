@@ -3,7 +3,7 @@ import { ConflictException } from '@nestjs/common';
 import { EntityManager, In, LessThan } from 'typeorm';
 
 import { FEE_PARTY, FEE_STATUS } from '../constants/fee.constant';
-import { FeeAssessment } from '../entities/fee.entity';
+import { FeeAssessment } from '../entities';
 import { feeOutstanding } from '../fee-accounting';
 
 /** Fee restrictions are evaluated independently of anti-abuse or identity restrictions. */

@@ -12,7 +12,7 @@ import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
-import { FeeAssessment } from '@/modules/fees/entities/fee.entity';
+import { FeeAssessment } from '@/modules/fees/entities';
 import { FeeWorker } from '@/modules/fees/fee.worker';
 import { FeePaymentWorker } from '@/modules/fees/payments/fee-payment.worker';
 import { FeeSettlementWorker } from '@/modules/fees/settlement/fee-settlement.worker';
@@ -21,10 +21,7 @@ import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { ShopPayoutWorker } from '@/modules/shop-finance/payouts/shop-payout.worker';
 import { User } from '@/modules/user/entities';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
@@ -161,7 +158,7 @@ describe('Fee HTTP privacy, source payments and documented contracts', () => {
     expect(paid.body.data.collections).toHaveLength(1);
     expect(JSON.stringify(paid.body)).not.toContain('SECRET');
   });
-  it('generates OpenAPI with fee policies, invoices, wallet/MoMo settlement and correction routes', () => {
+  it('generates OpenAPI with fee policies, invoices, wallet/PayOS settlement and correction routes', () => {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder().build(),
@@ -169,7 +166,7 @@ describe('Fee HTTP privacy, source payments and documented contracts', () => {
     expect(
       document.paths['/api/fees/{id}/payments/wallet']?.post,
     ).toBeDefined();
-    expect(document.paths['/api/fee-payments/momo']?.post).toBeDefined();
+    expect(document.paths['/api/fee-payments/payos']?.post).toBeDefined();
     expect(document.paths['/api/fees/{id}/corrections']?.post).toBeDefined();
     expect(document.paths['/api/admin/fee-policies']?.post).toBeDefined();
   });

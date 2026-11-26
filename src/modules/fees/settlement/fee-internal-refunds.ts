@@ -4,7 +4,7 @@ import { EntityManager } from 'typeorm';
 
 import { safeBalanceSchema } from '@/common/schemas/money.schema';
 import { walletPoolFields } from '@/modules/wallet/checkout/policies/wallet-checkout.policy';
-import { WalletAccount } from '@/modules/wallet/entities/wallet.entity';
+import { WalletAccount } from '@/modules/wallet/entities';
 import { EXCESS_SOURCE } from '@/modules/wallet/excess/constants/excess.constant';
 import { offsetExcessRefund } from '@/modules/wallet/excess/policies/excess-accounting.policy';
 
@@ -13,15 +13,8 @@ import {
   FEE_PARTY,
   FEE_REFUND_STATE,
 } from '../constants/fee.constant';
-import {
-  FeeAssessment,
-  FeeCollection,
-  FeeRefund,
-} from '../entities/fee.entity';
-import {
-  FeeOffsetAllocation,
-  FeeWalletDebit,
-} from './entities/fee-settlement.entity';
+import { FeeAssessment, FeeCollection, FeeRefund } from '../entities';
+import { FeeOffsetAllocation, FeeWalletDebit } from './entities';
 
 export async function settleInternalFeeRefund(
   manager: EntityManager,

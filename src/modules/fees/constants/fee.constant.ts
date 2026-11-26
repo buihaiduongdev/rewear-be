@@ -14,7 +14,7 @@ export const FEE_STATUS = {
 } as const;
 export const FEE_COLLECTION_METHOD = {
   WALLET: 'WALLET',
-  MOMO: 'MOMO',
+  PAYOS: 'PAYOS',
   SHOP_OFFSET: 'SHOP_OFFSET',
   CARRIER_NETTING: 'CARRIER_NETTING',
 } as const;
@@ -27,7 +27,7 @@ export const FEE_REFUND_STATE = {
 export const FEE_POLICY = {
   BUYER_WINDOW_MS: 72 * 60 * 60 * 1000,
   SHOP_WINDOW_MS: 7 * 24 * 60 * 60 * 1000,
-  MOMO_MINIMUM: 1000,
+  PAYOS_MINIMUM: 2000,
 } as const;
 
 export const FEE_ACTION = {

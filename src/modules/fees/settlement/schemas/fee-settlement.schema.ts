@@ -26,3 +26,6 @@ export const feeCarrierRefundViewSchema = z.object({
   state: z.string(),
   amount: vndAmountSchema.positive(),
 });
+
+export type FeeWalletPaymentInput = z.infer<typeof feeWalletPaymentSchema>;
+export type FeeCarrierRefundInput = z.infer<typeof feeCarrierRefundSchema>;

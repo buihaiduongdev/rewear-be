@@ -8,7 +8,7 @@ import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order, OrderEvent } from '@/modules/order/entities/order.entity';
+import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import type { RejectOrderInput } from '@/modules/order/schemas/order.schema';
 
@@ -18,7 +18,7 @@ import {
   SHIPMENT_STATE,
 } from './constants/shipment.constant';
 import { Shipment } from './entities/shipment.entity';
-import type { CancellationDecision } from './types/shipment.type';
+import type { CancellationDecision } from './schemas/shipment.schema';
 
 @Injectable()
 export class ShipmentCancellationService {

@@ -9,13 +9,13 @@ import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
 import {
+  FeePolicy,
+  FeePolicyShopAcceptance,
+} from '@/modules/fees/disclosure/entities';
+import {
   snapshotFeeDisclosure,
   verifyFeeDisclosure,
 } from '@/modules/fees/disclosure/fee-disclosure';
-import {
-  FeePolicy,
-  FeePolicyShopAcceptance,
-} from '@/modules/fees/disclosure/fee-disclosure.entity';
 import { FeeDisclosureService } from '@/modules/fees/disclosure/fee-disclosure.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {

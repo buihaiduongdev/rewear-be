@@ -20,13 +20,13 @@ import {
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
 import type { DisputeAppealInput } from '@/modules/dispute/types/dispute-appeal.type';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
-import { FulfillmentCalendar } from '@/modules/shipment/entities/late-handover.entity';
+import { FulfillmentCalendar } from '@/modules/shipment/entities';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
-import { WalletCredit } from '@/modules/wallet/entities/wallet.entity';
+import { WalletCredit } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';

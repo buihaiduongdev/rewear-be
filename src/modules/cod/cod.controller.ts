@@ -21,7 +21,7 @@ import {
   codRestrictionsSchema,
   placeCodSchema,
 } from './schemas/cod.schema';
-import type { CancelCodInput, PlaceCodInput } from './types/cod.type';
+import type { CancelCodInput, PlaceCodInput } from './schemas/cod.schema';
 
 @ApiTags('COD')
 @ApiBearerAuth()

@@ -19,7 +19,7 @@ import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
 import { ShopPayoutWorker } from '@/modules/shop-finance/payouts/shop-payout.worker';
 import { User } from '@/modules/user/entities';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';

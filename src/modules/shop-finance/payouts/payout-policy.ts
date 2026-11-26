@@ -5,7 +5,7 @@ import type {
   PayoutSource,
   PayoutStatus,
   RecipientSnapshot,
-} from './types/payout.type';
+} from './schemas/payout.schema';
 
 export function allocatePayout(
   sources: PayoutSource[],

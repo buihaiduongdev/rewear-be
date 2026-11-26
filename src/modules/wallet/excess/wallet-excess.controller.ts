@@ -55,7 +55,7 @@ export class WalletExcessController {
   ) {
     return this.recovery.list(user.id, input);
   }
-  @Post('payments/momo')
+  @Post('payments/payos')
   @HttpCode(200)
   @Serialize(excessPaymentViewSchema)
   pay(

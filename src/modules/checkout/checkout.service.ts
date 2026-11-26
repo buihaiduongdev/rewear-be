@@ -23,21 +23,23 @@ import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import { snapshotFeeDisclosure } from '@/modules/fees/disclosure/fee-disclosure';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
 
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
 import { pruneIdentityCheckout } from './identity-checkout.policy';
-import type { SelectCheckoutCoinsInput } from './schemas/checkout.schema';
-import type { CreateCheckoutInput } from './types/checkout.type';
-import type { CheckoutAddress } from './types/checkout.type';
+import type {
+  CheckoutAddress,
+  CreateCheckoutInput,
+  SelectCheckoutCoinsInput,
+} from './schemas/checkout.schema';
 
 @Injectable()
 export class CheckoutService implements OnModuleInit, OnModuleDestroy {
@@ -71,8 +73,6 @@ export class CheckoutService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  // A short transaction-wide advisory lock serializes reservation lifecycle writes.
-  // It is shared across app processes; no transaction stays open during the hold.
   private async lock(manager: EntityManager) {
     await manager.query('SELECT pg_advisory_xact_lock(782143, 1)');
   }

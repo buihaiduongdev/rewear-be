@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { CheckoutOrder } from './entities/checkout-order.entity';
 import type { Checkout } from './entities/checkout.entity';
-import type { ShippingQuoteResult } from './types/shipping-quote.type';
+import type { ShippingQuoteResult } from './schemas/shipping-quote.schema';
 
 export function identityQuoteFingerprint(
   checkout: Checkout,

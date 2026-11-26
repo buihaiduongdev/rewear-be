@@ -1,7 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import { Order } from './order.entity';
 

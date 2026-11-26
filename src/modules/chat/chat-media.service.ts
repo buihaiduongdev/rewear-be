@@ -14,7 +14,7 @@ import {
   disputeFileSchema,
   disputeUploadSchema,
 } from '@/modules/dispute/schemas/dispute.schema';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { ShopMember } from '@/modules/shop/entities';
 
 import { ChatService } from './chat.service';

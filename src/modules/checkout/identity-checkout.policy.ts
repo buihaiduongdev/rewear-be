@@ -2,12 +2,12 @@ import { type EntityManager, In } from 'typeorm';
 
 import { CoinService } from '@/modules/coins/core/coin.service';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/checkout/constants/wallet-checkout.constant';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities/wallet-checkout.entity';
+import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { releaseWalletHold } from '@/modules/wallet/checkout/release-wallet-hold';
 
 import {

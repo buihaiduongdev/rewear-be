@@ -8,23 +8,27 @@ import {
 import { DataSource, In } from 'typeorm';
 import z from 'zod';
 
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
+import {
+  generatePayosOrderCode,
+  PayosClient,
+} from '@/infrastructure/payment/payos.client';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import {
   PAYMENT_MAX_AMOUNT,
   PAYMENT_MIN_AMOUNT,
   PAYMENT_PROVIDER_OUTCOME,
+  PAYOS_STATUS,
 } from '@/modules/payment/constants/payment.constant';
+import { PAYOS_CLIENT } from '@/modules/payment/payment.config';
 import { providerOutcome } from '@/modules/payment/policies/payment.policy';
 
 import {
-  EXCESS_MOMO_CLIENT,
   EXCESS_PAYMENT_PREFIX,
   EXCESS_PAYMENT_STATE,
   EXCESS_POLICY,
   EXCESS_REVIEW,
 } from '../constants/excess.constant';
-import { ExcessPayment } from '../entities/excess.entity';
+import { ExcessPayment } from '../entities';
 import { excessTotals } from '../policies/excess-accounting.policy';
 import {
   excessAccess,
@@ -38,14 +42,15 @@ import { excessPaySchema } from '../schemas/excess.schema';
 export class ExcessAttemptService {
   constructor(
     private readonly db: DataSource,
-    @Inject(EXCESS_MOMO_CLIENT)
-    private readonly client: MomoSandboxClient | null,
+    @Inject(PAYOS_CLIENT)
+    private readonly client: PayosClient | null,
   ) {}
+
   async create(actorId: string, input: z.input<typeof excessPaySchema>) {
     const data = excessPaySchema.parse(input);
     const gateway = this.client;
     if (!gateway)
-      throw new ServiceUnavailableException('MoMo Sandbox is disabled');
+      throw new ServiceUnavailableException('PayOS gateway is disabled');
     const prepared = await this.db.transaction(async (manager) => {
       const now = await excessClock(manager);
       await excessActor(manager, actorId);
@@ -63,7 +68,9 @@ export class ExcessAttemptService {
         return { row: prior, send: false };
       }
       if (data.amount < PAYMENT_MIN_AMOUNT || data.amount > PAYMENT_MAX_AMOUNT)
-        throw new ConflictException('Recovery total outside MoMo amount range');
+        throw new ConflictException(
+          'Recovery total outside PayOS amount range',
+        );
       const pending = await manager.findBy(ExcessPayment, {
         buyerId: actorId,
         state: In([
@@ -86,7 +93,7 @@ export class ExcessAttemptService {
           row.reviewState === EXCESS_REVIEW.OPEN ||
           amount <= 0;
         if (unavailable)
-          throw new ConflictException('Recovery not payable through Sandbox');
+          throw new ConflictException('Recovery not payable through PayOS');
         targets.push({ excessId: id, amount });
       }
       if (targets.reduce((n, t) => n + t.amount, 0) !== data.amount)
@@ -96,6 +103,7 @@ export class ExcessAttemptService {
         manager.create(ExcessPayment, {
           buyerId: actorId,
           requestId: data.requestId,
+          providerOrderCode: String(generatePayosOrderCode()),
           fingerprint,
           targets,
           amount: data.amount,
@@ -109,23 +117,28 @@ export class ExcessAttemptService {
     if (prepared.send) await this.send(prepared.row, gateway);
     return prepared.row.id;
   }
-  private async send(payment: ExcessPayment, gateway: MomoSandboxClient) {
+
+  private async send(payment: ExcessPayment, gateway: PayosClient) {
     try {
-      const result = await gateway.create({
-        orderId: payment.id,
-        requestId: payment.id,
+      const result = await gateway.createPaymentLink({
+        orderCode: Number(payment.providerOrderCode),
         amount: payment.amount,
-        orderInfo: EXCESS_PAYMENT_PREFIX + payment.id,
+        description:
+          EXCESS_PAYMENT_PREFIX + payment.id.slice(0, 8).toUpperCase(),
+        expiredAt: Math.floor(
+          (payment.createdAt.getTime() + EXCESS_POLICY.LINK_TTL_MS) / 1000,
+        ),
       });
       await this.db.transaction(async (manager) => {
-        await excessClock(manager);
-        const row = await manager.findOneByOrFail(ExcessPayment, {
-          id: payment.id,
+        const row = await manager.findOneOrFail(ExcessPayment, {
+          where: { id: payment.id },
+          lock: { mode: 'pessimistic_write' },
         });
         // A concurrent callback/query has stronger evidence than create response.
         if (row.state !== EXCESS_PAYMENT_STATE.CREATING) return;
-        const outcome = providerOutcome(result.resultCode);
+        const outcome = providerOutcome(result.status);
         row.state =
+          result.status === PAYOS_STATUS.PENDING ||
           outcome === PAYMENT_PROVIDER_OUTCOME.PAID
             ? EXCESS_PAYMENT_STATE.PENDING
             : outcome === PAYMENT_PROVIDER_OUTCOME.FAILED
@@ -133,7 +146,7 @@ export class ExcessAttemptService {
               : EXCESS_PAYMENT_STATE.UNKNOWN;
         row.payUrl =
           row.state === EXCESS_PAYMENT_STATE.PENDING
-            ? (result.payUrl ?? null)
+            ? (result.checkoutUrl ?? null)
             : null;
         await manager.save(row);
       });

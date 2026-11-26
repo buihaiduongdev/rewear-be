@@ -7,7 +7,7 @@ import {
 } from '@/modules/dispute/returns/entities/return-exception.entity';
 
 import { FEE_COLLECTION_METHOD, FEE_PARTY } from '../constants/fee.constant';
-import { FeeAssessment, FeeCollection } from '../entities/fee.entity';
+import { FeeAssessment, FeeCollection } from '../entities';
 import { feeOutstanding, queueFeeCorrections } from '../fee-accounting';
 import { FeeService } from '../fee.service';
 

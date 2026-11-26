@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 
 import { EntityManager, In } from 'typeorm';
 
-import { FeePolicy, FeePolicyShopAcceptance } from './fee-disclosure.entity';
+import { FeePolicy, FeePolicyShopAcceptance } from './entities';
 import {
   type FeeDisclosure,
   feeDisclosureSchema,

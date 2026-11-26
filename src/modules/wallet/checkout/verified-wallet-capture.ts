@@ -4,13 +4,10 @@ import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant'
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { ORDER_POLICY } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 
 import { WALLET_HOLD_STATE } from './constants/wallet-checkout.constant';
-import {
-  WalletCheckoutHold,
-  WalletDebit,
-} from './entities/wallet-checkout.entity';
+import { WalletCheckoutHold, WalletDebit } from './entities';
 
 export async function verifiedWalletCapture(
   manager: EntityManager,

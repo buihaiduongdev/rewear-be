@@ -1,4 +1,4 @@
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import type {
   RETURN_EVIDENCE_KIND,

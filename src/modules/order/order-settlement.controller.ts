@@ -9,8 +9,8 @@ import { UserRole } from '@/modules/user/enums';
 
 import { OrderSettlementService } from './order-settlement.service';
 import { verifyDeliverySchema } from './schemas/order-settlement.schema';
+import type { VerifyDeliveryInput } from './schemas/order-settlement.schema';
 import { acceptOrderSchema, orderSchema } from './schemas/order.schema';
-import type { VerifyDeliveryInput } from './types/order-settlement.type';
 
 @ApiTags('Order receipt and settlement')
 @ApiBearerAuth()

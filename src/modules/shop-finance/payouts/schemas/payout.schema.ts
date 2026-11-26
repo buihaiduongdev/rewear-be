@@ -3,8 +3,24 @@ import z from 'zod';
 import { dateTimeSchema } from '@/common/schemas';
 import { vndAmountSchema } from '@/common/schemas/money.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
+import { PAYOUT_SOURCE_KIND } from '../../constants/payout-source.constant';
 import { BANK_VERIFICATION, PAYOUT_STATUS } from '../constants/payout.constant';
+
+export type PayoutStatus = (typeof PAYOUT_STATUS)[keyof typeof PAYOUT_STATUS];
+export type RecipientSnapshot = {
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+};
+export type PayoutSource = {
+  kind: (typeof PAYOUT_SOURCE_KIND)[keyof typeof PAYOUT_SOURCE_KIND];
+  sourceId: string;
+  orderId: string;
+  amount: number;
+  mode: ReconciliationMode;
+};
 
 const text = z.string().trim().min(1).max(2000);
 export const recipientSchema = z

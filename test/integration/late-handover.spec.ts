@@ -4,12 +4,9 @@ import { ShopMemberFactory } from '@/database/factories/shop-member.factory';
 import { ShopFactory } from '@/database/factories/shop.factory';
 import { UserFactory } from '@/database/factories/user.factory';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
-import {
-  FulfillmentCalendar,
-  HandoverCase,
-} from '@/modules/shipment/entities/late-handover.entity';
+import { FulfillmentCalendar, HandoverCase } from '@/modules/shipment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { LateHandoverService } from '@/modules/shipment/late-handover.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';

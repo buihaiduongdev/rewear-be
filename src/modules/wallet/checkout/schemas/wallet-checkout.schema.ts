@@ -6,6 +6,9 @@ import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-
 
 import { WALLET_HOLD_STATE } from '../constants/wallet-checkout.constant';
 
+export type WalletHoldState =
+  (typeof WALLET_HOLD_STATE)[keyof typeof WALLET_HOLD_STATE];
+
 export const reserveWalletCheckoutSchema = z.object({
   requestId: z.uuid(),
   expectedTotal: z.number().int().positive().max(MAX_VND_AMOUNT),

@@ -6,8 +6,8 @@ import {
   DisputeCase,
   DisputeIssue,
 } from '@/modules/dispute/entities/dispute.entity';
-import { Order } from '@/modules/order/entities/order.entity';
-import { PaymentAttempt } from '@/modules/payment/entities/payment.entity';
+import { Order } from '@/modules/order/entities';
+import { PaymentAttempt } from '@/modules/payment/entities';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import {
@@ -17,11 +17,8 @@ import {
 import {
   ShopPayout,
   ShopPayoutAllocation,
-} from '@/modules/shop-finance/payouts/entities/shop-payout.entity';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
+} from '@/modules/shop-finance/payouts/entities';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { verifiedWalletFunds } from '@/modules/wallet/verified-wallet-funds';
 import { WalletService } from '@/modules/wallet/wallet.service';
 
@@ -69,7 +66,7 @@ describe('Wallet and payout source accounting (PostgreSQL)', () => {
         },
       ],
     });
-    Object.assign(f.order, { paymentMethod: 'MOMO' });
+    Object.assign(f.order, { paymentMethod: 'PAYOS' });
     f.order.paymentId = payment.id;
     f.order.checkoutId = checkout.id;
     await db.getRepository(Order).save(f.order);

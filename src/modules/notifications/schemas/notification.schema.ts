@@ -1,7 +1,7 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas/date-time.schema';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
 import {
   EMAIL_STATE,

@@ -10,7 +10,7 @@ export const COD_RECONCILIATION_STATUS = {
 } as const;
 export const SHOP_LEDGER_TYPE = {
   COD_FUNDED_HELD: 'COD_FUNDED_HELD',
-  MOMO_FUNDED_HELD: 'MOMO_FUNDED_HELD',
+  PAYOS_FUNDED_HELD: 'PAYOS_FUNDED_HELD',
   WALLET_FUNDED_HELD: 'WALLET_FUNDED_HELD',
 } as const;
 export const RECONCILIATION_REVIEW_REASON = {
@@ -23,4 +23,4 @@ export const RECONCILIATION_REVIEW_REASON = {
 export type {
   ReconciliationMode,
   CodReconciliationStatus,
-} from '../types/cod-reconciliation.type';
+} from '../schemas/cod-reconciliation.schema';

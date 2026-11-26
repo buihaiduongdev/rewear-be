@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { EntityManager } from 'typeorm';
 
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/types/cod-reconciliation.type';
+import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
 import { allocatePayout } from '@/modules/shop-finance/payouts/payout-policy';
 
@@ -11,9 +11,9 @@ import {
   FEE_PARTY,
   FEE_STATUS,
 } from '../constants/fee.constant';
-import { FeeAssessment } from '../entities/fee.entity';
+import { FeeAssessment } from '../entities';
 import { feeOutstanding, recordFeeCollection } from '../fee-accounting';
-import { FeeOffsetAllocation } from './entities/fee-settlement.entity';
+import { FeeOffsetAllocation } from './entities';
 
 /** Shared commerce lock protects these allocations and competing payout/payment writes. */
 export async function settleShopFees(

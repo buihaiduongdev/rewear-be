@@ -1,17 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { MomoSandboxClient } from '@/infrastructure/payment/momo-sandbox.client';
-import {
-  WalletAccount,
-  WalletCredit,
-} from '@/modules/wallet/entities/wallet.entity';
+import { PayosClient } from '@/infrastructure/payment/payos.client';
+import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import {
   ExcessCapture,
   ExcessPayment,
   ExcessProviderRefund,
   WalletExcess,
-} from '@/modules/wallet/excess/entities/excess.entity';
-import { ExcessReturn } from '@/modules/wallet/excess/entities/excess.entity';
+} from '@/modules/wallet/excess/entities';
+import { ExcessReturn } from '@/modules/wallet/excess/entities';
 import { ExcessOperationsService } from '@/modules/wallet/excess/excess-operations.service';
 import { ExcessAttemptService } from '@/modules/wallet/excess/payments/excess-attempt.service';
 import { ExcessPaymentService } from '@/modules/wallet/excess/payments/excess-payment.service';
@@ -22,33 +19,34 @@ import { WalletExcessService } from '@/modules/wallet/excess/wallet-excess.servi
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
 
-describe('Wallet recovery MoMo (PostgreSQL)', () => {
+describe('Wallet recovery PayOS (PostgreSQL)', () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let recovery: WalletExcessService;
   let payments: ExcessPaymentService;
   const gateway = {
-    create: jest.fn(async () => ({
-      resultCode: 0,
-      payUrl: 'https://test.local/pay',
+    createPaymentLink: jest.fn(async (input) => ({
+      orderCode: input.orderCode,
+      paymentLinkId: 'plink-1',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.payos.vn/web/plink-1',
+      qrCode: 'qr',
     })),
-    verifyIpn: jest.fn((x) => x),
-    query: jest.fn(),
-    refund: jest.fn(async () => ({ resultCode: 0 })),
-    queryRefund: jest.fn(async () => true),
+    verifyWebhook: jest.fn(async (x) => x),
+    getPaymentLink: jest.fn(),
   };
   beforeAll(async () => {
     database = await createTestDatabase();
     recovery = new WalletExcessService(database.dataSource);
     payments = new ExcessPaymentService(
       database.dataSource,
-      gateway as unknown as MomoSandboxClient,
+      gateway as unknown as PayosClient,
       new ExcessAttemptService(
         database.dataSource,
-        gateway as unknown as MomoSandboxClient,
+        gateway as unknown as PayosClient,
       ),
       new ExcessRefundService(
         database.dataSource,
-        gateway as unknown as MomoSandboxClient,
+        gateway as unknown as PayosClient,
       ),
     );
   });
@@ -81,18 +79,22 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       excessIds: [row.id],
       amount: 40000,
     });
+    const saved = await db
+      .getRepository(ExcessPayment)
+      .findOneByOrFail({ id: payment.id });
     const result = {
-      orderId: payment.id,
-      requestId: payment.id,
-      orderInfo: 'Rewear wallet recovery ' + payment.id,
-      orderType: 'momo_wallet',
-      resultCode: 0,
+      orderCode: Number(saved.providerOrderCode),
       amount: 40000,
-      transId: Math.floor(Math.random() * 1000000000) + 1,
+      code: '00',
+      desc: 'success',
+      reference: `FT${Math.floor(Math.random() * 1000000000) + 1}`,
+      paymentLinkId: 'plink-1',
+      description: 'RW REC ' + payment.id.slice(0, 8),
+      isTestPing: false,
     };
     return { ...f, row, payment, result };
   }
-  it('holds inflight capture while objected and refunds original MoMo when objection cancels liability', async () => {
+  it('holds inflight capture while objected and escalates refund when objection cancels liability', async () => {
     const f = await fixture();
     const db = database.dataSource;
     const open = await recovery.object(f.buyer.id, f.row.id, {
@@ -100,8 +102,8 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       reason: 'Decision amount is incorrect',
       evidence: 'Original document supports full refund',
     });
-    await payments.ipn(f.result as never);
-    await payments.ipn(f.result as never);
+    await payments.webhook(f.result);
+    await payments.webhook(f.result);
     const held = await recovery.find(f.buyer.id, f.row.id);
     expect(held.reserved).toBe(40000);
     expect(held.collected).toBe(0);
@@ -121,7 +123,7 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       .getRepository(ExcessProviderRefund)
       .findOneByOrFail({ captureId: capture.id });
     expect(refund.amount).toBe(40000);
-    expect(refund.state).toBe('SUCCEEDED');
+    expect(refund.state).toBe('REVIEW');
     expect((await recovery.find(f.buyer.id, f.row.id)).reserved).toBe(0);
   });
   it('refunds capture exceeding liability after a new refund offset, without collecting twice', async () => {
@@ -138,11 +140,10 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       .getRepository(WalletAccount)
       .update({ userId: f.buyer.id }, { simulationBalance: 25000 });
     await db.transaction(async (m) => {
-      await m.query('SELECT pg_advisory_xact_lock(782143,1)');
       await offsetExcessRefund(m, 'CANCELLATION', source.id);
       await offsetExcessRefund(m, 'CANCELLATION', source.id);
     });
-    await payments.ipn(f.result as never);
+    await payments.webhook(f.result);
     const current = await recovery.find(f.buyer.id, f.row.id);
     expect(current.collected).toBe(40000);
     expect(current.outstanding).toBe(0);
@@ -174,10 +175,10 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       1,
     );
   });
-  it('returns a corrected MoMo collection to MoMo and excludes completed refunds from Admin queue', async () => {
+  it('marks a corrected PayOS collection return as PAYOS and escalates refund for operational review', async () => {
     const f = await fixture();
     const db = database.dataSource;
-    await payments.ipn(f.result as never);
+    await payments.webhook(f.result);
     const open = await recovery.object(f.buyer.id, f.row.id, {
       requestId: randomUUID(),
       reason: 'Payment was not owed',
@@ -193,37 +194,25 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
     const returns = await db
       .getRepository(ExcessReturn)
       .findBy({ excessId: f.row.id });
-    expect(returns[0].method).toBe('MOMO');
+    expect(returns[0].method).toBe('PAYOS');
     await payments.run();
-    expect(
-      (
-        await db
-          .getRepository(ExcessReturn)
-          .findOneByOrFail({ id: returns[0].id })
-      ).state,
-    ).toBe('SUCCEEDED');
-    expect(
-      (
-        await db
-          .getRepository(WalletAccount)
-          .findOneByOrFail({ userId: f.buyer.id })
-      ).simulationBalance,
-    ).toBe(0);
     const ops = new ExcessOperationsService(db);
     const queue = await ops.refundQueue(f.admin.id);
     expect(queue.every((r) => r.state !== 'SUCCEEDED')).toBe(true);
-    const prior = f.result.transId;
-    await payments.ipn({ ...f.result, transId: prior + 1 } as never);
+    await payments.webhook({
+      ...f.result,
+      reference: f.result.reference + '_DUP',
+    });
     const duplicates = await db
       .getRepository(ExcessCapture)
       .findBy({ paymentId: f.payment.id });
     expect(duplicates).toHaveLength(2);
     expect((await recovery.find(f.buyer.id, f.row.id)).collected).toBe(40000);
   });
-  it('preserves unknown refunds without resubmission and alerts after the pending threshold', async () => {
+  it('escalates excess refunds to REVIEW once and alerts admin immediately', async () => {
     const f = await fixture();
     const db = database.dataSource;
-    await payments.ipn({ ...f.result, amount: 41000 } as never);
+    await payments.webhook({ ...f.result, amount: 41000 });
     const capture = await db
       .getRepository(ExcessCapture)
       .findOneByOrFail({ paymentId: f.payment.id });
@@ -231,31 +220,15 @@ describe('Wallet recovery MoMo (PostgreSQL)', () => {
       .getRepository(ExcessProviderRefund)
       .findOneByOrFail({ captureId: capture.id });
     expect(refund.amount).toBe(41000);
-    const client = {
-      refund: jest.fn(async () => {
-        throw new Error('HTTP timeout');
-      }),
-      queryRefund: jest.fn(async () => false),
-    };
     const refunds = new ExcessRefundService(
       db,
-      client as unknown as MomoSandboxClient,
+      gateway as unknown as PayosClient,
     );
     await refunds.refund(refund.id);
-    await db.getRepository(ExcessProviderRefund).update(
-      { id: refund.id },
-      {
-        nextQueryAt: new Date(0),
-        createdAt: new Date(Date.now() - 31 * 60000),
-      },
-    );
-    await refunds.refund(refund.id);
-    expect(client.refund).toHaveBeenCalledTimes(1);
-    expect(client.queryRefund).toHaveBeenCalledTimes(1);
     const pending = await db
       .getRepository(ExcessProviderRefund)
       .findOneByOrFail({ id: refund.id });
-    expect(pending.state).toBe('UNKNOWN');
+    expect(pending.state).toBe('REVIEW');
     expect(pending.alertedAt).toBeInstanceOf(Date);
     expect(pending.responseDueAt).toBeInstanceOf(Date);
   });

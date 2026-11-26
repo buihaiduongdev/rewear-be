@@ -7,13 +7,13 @@ import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-recon
 import {
   CodCollection,
   CodRemittance,
-} from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+} from '@/modules/cod-reconciliation/entities';
 import {
   CollectionInput,
   RemittanceInput,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { ShipmentService } from '@/modules/shipment/shipment.service';

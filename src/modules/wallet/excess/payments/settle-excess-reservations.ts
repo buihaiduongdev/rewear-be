@@ -1,7 +1,7 @@
 import { EntityManager } from 'typeorm';
 
 import { EXCESS_REVIEW } from '../constants/excess.constant';
-import { ExcessCapture, WalletExcess } from '../entities/excess.entity';
+import { ExcessCapture, WalletExcess } from '../entities';
 import { excessTotals } from '../policies/excess-accounting.policy';
 import {
   collectExcessCapture,

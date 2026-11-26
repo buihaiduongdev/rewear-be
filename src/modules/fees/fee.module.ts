@@ -7,7 +7,7 @@ import {
   FeeDecision,
   FeeNotice,
   FeeRefund,
-} from './entities/fee.entity';
+} from './entities';
 import { FeeController } from './fee.controller';
 import { FeeService } from './fee.service';
 import { FeeWorker } from './fee.worker';

@@ -21,7 +21,7 @@ import {
   ExcessPayment,
   ExcessProviderRefund,
   WalletExcess,
-} from '../entities/excess.entity';
+} from '../entities';
 import { excessEvent } from '../excess.lifecycle';
 import { excessTotals } from '../policies/excess-accounting.policy';
 
@@ -71,7 +71,7 @@ export async function collectExcessCapture(
       excessId: row.id,
       buyerId: row.buyerId,
       mode: row.mode,
-      method: EXCESS_METHOD.MOMO,
+      method: EXCESS_METHOD.PAYOS,
       sourceId: capture.id,
       amount,
     }),
@@ -81,7 +81,7 @@ export async function collectExcessCapture(
     row,
     null,
     EXCESS_EVENT.CAPTURED,
-    'Verified MoMo recovery payment',
+    'Verified PayOS recovery payment',
     { amount },
   );
 }

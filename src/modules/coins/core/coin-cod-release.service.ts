@@ -7,12 +7,12 @@ import {
 import { DataSource } from 'typeorm';
 
 import { GHN_RETURN_STATUSES } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
-import { CodCollection } from '@/modules/cod-reconciliation/entities/cod-reconciliation.entity';
+import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import {
   ORDER_PAYMENT_METHOD,
   ORDER_STATUS,
 } from '@/modules/order/constants/order.constant';
-import { Order } from '@/modules/order/entities/order.entity';
+import { Order } from '@/modules/order/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
