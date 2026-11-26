@@ -1359,4 +1359,4 @@
 - **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu 6 tiêu chí tinh gọn và xác nhận giữ nguyên các ràng buộc khóa dòng, chỉ mục duy nhất cùng 12 phân hệ đã chốt ổn định; rà soát kết quả kiểm thử thanh toán cốt lõi, unit test và build trước khi mở PR.
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:payment:core` pass 20/20 tests; `pnpm test:unit` pass 61/61 suites (338/338 tests, trong đó 13 suites / 56 tests thuộc 4 phân hệ tài chính - thanh toán); `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
-- **Minh chứng:** Branch `refactor/clean-finance-payment-modules`, commit `d5bb63d`.
+- **Minh chứng:** PR #79; branch `refactor/clean-finance-payment-modules`, commit `d5bb63d`.
