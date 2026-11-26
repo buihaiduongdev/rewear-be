@@ -98,6 +98,7 @@ describe('ShopService', () => {
     { initializeDefaultRoles: jest.fn() } as never,
     uploads as never,
     { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+    { record: jest.fn() } as never,
   );
 
   beforeEach(() => {

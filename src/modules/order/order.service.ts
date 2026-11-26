@@ -41,7 +41,7 @@ export class OrderService {
     private readonly db: DataSource,
     private readonly walletService: WalletService,
     private readonly codPolicy: CodPolicy,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   buyerList(buyerId: string, input: OrderListInput) {

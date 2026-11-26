@@ -191,10 +191,15 @@ function setup() {
       };
     },
   };
-  const service = new PaymentService(db, client, {
-    quote: async () => ({}),
-    snapshot: async () => snapshot,
-  });
+  const service = new PaymentService(
+    db,
+    client,
+    {
+      quote: async () => ({}),
+      snapshot: async () => snapshot,
+    },
+    { record: async () => undefined },
+  );
   return { service, rows, checkout, client, calls: () => createCalls };
 }
 

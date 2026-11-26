@@ -10,6 +10,7 @@ import { ChatService } from '@/modules/chat/chat.service';
 import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -30,6 +31,7 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       database.dataSource,
       new AuthorizationService(database.dataSource),
       {} as never,
+      new OutboxService(),
     );
   });
   afterAll(async () => database?.destroy());

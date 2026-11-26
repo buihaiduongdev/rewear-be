@@ -70,7 +70,7 @@ export class PaymentService {
     private readonly db: DataSource,
     @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
     private readonly pricing: PaymentPricing,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private gateway() {

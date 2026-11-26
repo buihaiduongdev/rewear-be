@@ -196,6 +196,7 @@ describe('FEAT-07 COD failure handling without fee subsystem', () => {
       } as unknown as DataSource,
       {} as PaymentPricing,
       {} as CodPolicy,
+      { record: jest.fn() } as never,
       orderService,
       shopFinance,
     );

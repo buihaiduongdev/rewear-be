@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AuthProvider } from '@/modules/auth/enums';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
 import { IDENTITY_RENEWAL_POLICY } from '@/modules/shop/applications/constants/shop-application.constant';
@@ -31,6 +32,7 @@ describe('Owner document renewal (PostgreSQL)', () => {
       database.dataSource,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
       {} as never,
+      new OutboxService(),
     );
   });
 
@@ -144,7 +146,7 @@ describe('Owner document renewal (PostgreSQL)', () => {
 
   it('persists one safe expiry notice per stage and advances past already-notified batches without starvation', async () => {
     const db = database.dataSource;
-    const worker = new IdentityRenewalWorker(db);
+    const worker = new IdentityRenewalWorker(db, new OutboxService());
     const total = IDENTITY_RENEWAL_POLICY.BATCH_SIZE + 2;
     const owners: User[] = [];
 

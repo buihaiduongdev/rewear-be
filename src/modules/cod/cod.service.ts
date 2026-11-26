@@ -57,9 +57,9 @@ export class CodService {
     private readonly db: DataSource,
     private readonly pricing: PaymentPricing,
     private readonly policy: CodPolicy,
+    private readonly outboxService: OutboxService,
     @Optional() private readonly orderService?: OrderService,
     @Optional() private readonly shopFinanceService?: ShopFinanceService,
-    private readonly outboxService: OutboxService = new OutboxService(),
   ) {}
 
   async place(

@@ -44,7 +44,7 @@ export class ShopService {
     private readonly shopRoleService: ShopRoleService,
     private readonly uploads: MediaService,
     private readonly storage: StorageService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private toView(shop: Shop) {

@@ -7,6 +7,7 @@ import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-p
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Category } from '@/modules/category/entities';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
@@ -88,6 +89,7 @@ describe('Shop permissions', () => {
       new ShopRoleService(db),
       {} as never,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      new OutboxService(),
     );
     const defaults = await roles.list(shop.id);
     const staffRole = defaults.find(({ name }) => name === 'STAFF')!;
@@ -141,6 +143,7 @@ describe('Shop permissions', () => {
       db,
       authorization,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      new OutboxService(),
     );
     const product = await products.create(staff.id, {
       shopId: shop.id,
@@ -198,6 +201,7 @@ describe('Shop permissions', () => {
       new ShopRoleService(db),
       {} as never,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      new OutboxService(),
     );
     const otherRole = (await new ShopRoleService(db).list(seed.shops[1].id))[0];
     await expect(
@@ -236,6 +240,7 @@ describe('Shop permissions', () => {
       new ShopRoleService(db),
       {} as never,
       { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      new OutboxService(),
     );
     const role = await roles.create(shop.id, {
       name: 'Temporary',

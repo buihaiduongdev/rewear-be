@@ -35,7 +35,7 @@ export class OrderSettlementService {
   constructor(
     private readonly db: DataSource,
     private readonly funding: OrderFundingService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private async now(manager: EntityManager) {

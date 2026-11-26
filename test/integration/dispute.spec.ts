@@ -12,6 +12,7 @@ import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeMessage } from '@/modules/dispute/entities/dispute-message.entity';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
@@ -41,6 +42,7 @@ describe('Dispute 72h intake, evidence, and holds (PostgreSQL)', () => {
       orderAccess,
       {} as StorageService,
       {} as MediaService,
+      new OutboxService(),
     );
   });
 
@@ -220,7 +222,11 @@ describe('Dispute 72h intake, evidence, and holds (PostgreSQL)', () => {
     await f.db.getRepository(Order).update(f.order.id, { status: 'completed' });
     const funding = new OrderFundingService();
     const spy = jest.spyOn(funding, 'heldCredit');
-    await new OrderSettlementService(f.db, funding).settleOrder(f.order.id);
+    await new OrderSettlementService(
+      f.db,
+      funding,
+      new OutboxService(),
+    ).settleOrder(f.order.id);
     expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { CodService } from '@/modules/cod/cod.service';
 import type { CodPolicy } from '@/modules/cod/policies/cod.policy';
 import { CoinService } from '@/modules/coins/core/coin.service';
+import type { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import type { PaymentPricing } from '@/modules/payment/payment.pricing';
@@ -126,6 +127,7 @@ describe('coin checkout payment routes', () => {
       {} as DataSource,
       null,
       pricing as unknown as PaymentPricing,
+      { record: jest.fn() } as unknown as OutboxService,
     );
     await expect(
       (service as any).prepareAttempt(
@@ -147,6 +149,7 @@ describe('coin checkout payment routes', () => {
       {} as DataSource,
       null,
       pricing as unknown as PaymentPricing,
+      { record: jest.fn() } as unknown as OutboxService,
     );
     await expect(
       (service as any).prepareAttempt(
@@ -174,6 +177,7 @@ describe('coin checkout payment routes', () => {
       {} as DataSource,
       {} as PaymentPricing,
       {} as CodPolicy,
+      { record: jest.fn() } as unknown as OutboxService,
     );
     const orders = await (service as any).createOrders(
       manager,
@@ -203,6 +207,7 @@ describe('coin checkout payment routes', () => {
     const service = new WalletCheckoutService(
       {} as DataSource,
       {} as PaymentPricing,
+      { record: jest.fn() } as unknown as OutboxService,
     );
     await (service as any).createOrders(
       manager,

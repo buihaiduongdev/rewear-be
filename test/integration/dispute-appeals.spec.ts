@@ -11,6 +11,7 @@ import { DisputeAppeal } from '@/modules/dispute/entities/dispute-appeal.entity'
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderAccess } from '@/modules/order/order.access';
 import { User } from '@/modules/user/entities';
@@ -27,7 +28,12 @@ describe('1-time 2-business-day appeal and finalization (PostgreSQL)', () => {
     database = await createTestDatabase();
     const orderAccess = new OrderAccess();
     const access = new DisputeAccess(orderAccess);
-    const refunds = new DisputeRefundService(database.dataSource, access);
+    const outbox = new OutboxService();
+    const refunds = new DisputeRefundService(
+      database.dataSource,
+      access,
+      outbox,
+    );
     const returns = new DisputeReturnService(
       database.dataSource,
       {} as GhnShipmentClient,
@@ -40,6 +46,7 @@ describe('1-time 2-business-day appeal and finalization (PostgreSQL)', () => {
       access,
       refunds,
       returns,
+      outbox,
     );
   });
 

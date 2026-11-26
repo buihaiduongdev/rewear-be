@@ -89,7 +89,7 @@ export class ShopApplicationService {
     private readonly db: DataSource,
     private readonly storage: StorageService,
     private readonly media: MediaService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   async assertActiveUser(

@@ -25,7 +25,7 @@ export class IdentityRenewalWorker {
 
   constructor(
     private readonly db: DataSource,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)

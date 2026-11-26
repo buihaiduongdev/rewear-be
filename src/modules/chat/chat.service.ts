@@ -39,7 +39,7 @@ export class ChatService {
     private readonly db: DataSource,
     private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   open(buyerId: string, shopId: string) {

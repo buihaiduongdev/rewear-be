@@ -6,6 +6,7 @@ import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { ShopRoleService } from '@/modules/authorization/shop-role.service';
 import { Category } from '@/modules/category/entities';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Media } from '@/modules/media/entities';
 import { MediaType } from '@/modules/media/enums';
 import { MediaService } from '@/modules/media/media.service';
@@ -69,10 +70,12 @@ describe('Shop Owner application (PostgreSQL)', () => {
         },
       } as never,
     );
+    const outbox = new OutboxService();
     service = new ShopApplicationService(
       db,
       storage as unknown as StorageService,
       uploads,
+      outbox,
     );
     shops = new ShopService(
       db.getRepository(Shop),
@@ -81,6 +84,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       new ShopRoleService(db),
       uploads,
       storage as unknown as StorageService,
+      outbox,
     );
   });
 
@@ -257,6 +261,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db,
       new AuthorizationService(db),
       storage as never,
+      new OutboxService(),
     );
     await expect(
       products.create(f.buyer.id, { shopId: pending.id }),
@@ -401,6 +406,7 @@ describe('Shop Owner application (PostgreSQL)', () => {
       db,
       storage as unknown as StorageService,
       uploads,
+      new OutboxService(),
     );
     const pending = review.decide(f.admin.id, f.app.id, {
       outcome: 'APPROVED',

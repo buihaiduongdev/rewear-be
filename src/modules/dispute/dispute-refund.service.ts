@@ -35,7 +35,7 @@ export class DisputeRefundService {
   constructor(
     private readonly db: DataSource,
     private readonly access: DisputeAccess,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   async view(userId: string, decisionId: string, admin = false) {

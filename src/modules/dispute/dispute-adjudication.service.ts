@@ -93,7 +93,7 @@ export class DisputeAdjudicationService {
     private readonly access: DisputeAccess,
     private readonly refunds: DisputeRefundService,
     private readonly returns: DisputeReturnService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private async lockOrderAndIssue(manager: EntityManager, issueId: string) {

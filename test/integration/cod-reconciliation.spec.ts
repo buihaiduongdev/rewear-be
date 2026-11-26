@@ -13,6 +13,7 @@ import {
   RemittanceInput,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
@@ -458,10 +459,17 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
         transferredAt: null,
       }),
     };
+    const outbox = new OutboxService();
     const shipments = new ShipmentService(
       f.db,
-      new OrderService(f.db, new WalletService(f.db), new CodPolicy(f.db)),
+      new OrderService(
+        f.db,
+        new WalletService(f.db),
+        new CodPolicy(f.db),
+        outbox,
+      ),
       carrier as unknown as GhnShipmentClient,
+      outbox,
     );
     await shipments.reconcile(f.shipment.id);
     expect(

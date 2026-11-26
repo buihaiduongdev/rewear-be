@@ -19,6 +19,7 @@ import {
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinAccount, CoinOrderDebit } from '@/modules/coins/core/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
+import { OutboxService } from '@/modules/event/outbox.service';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -63,6 +64,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
           carrier as unknown as GhnSandboxAdapter,
         ),
       ),
+      new OutboxService(),
     );
   });
   afterAll(async () => database?.destroy());
@@ -275,6 +277,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       db,
       client as unknown as PayosClient,
       pricing,
+      new OutboxService(),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),
@@ -461,6 +464,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       first.db,
       client as unknown as PayosClient,
       pricing,
+      new OutboxService(),
     );
     const attempt = await payos.create(first.buyer.id, first.checkout.id, {
       requestId: randomUUID(),
@@ -507,6 +511,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       f.db,
       client as unknown as PayosClient,
       pricing,
+      new OutboxService(),
     );
     await expect(
       payos.create(f.buyer.id, f.checkout.id, { requestId: randomUUID() }),
@@ -556,11 +561,12 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
     );
     await expect(
-      new PaymentService(db, client as unknown as PayosClient, pricing).create(
-        buyer.id,
-        checkout.id,
-        { requestId: randomUUID() },
-      ),
+      new PaymentService(
+        db,
+        client as unknown as PayosClient,
+        pricing,
+        new OutboxService(),
+      ).create(buyer.id, checkout.id, { requestId: randomUUID() }),
     ).rejects.toThrow('outside PayOS limits');
     expect(
       await db.getRepository(Checkout).findOneByOrFail({ id: checkout.id }),
@@ -723,6 +729,7 @@ describe('Wallet full checkout (PostgreSQL)', () => {
       new PaymentPricing(
         new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
       ),
+      new OutboxService(),
     );
     const attempt = await payos.create(buyer.id, checkout.id, {
       requestId: randomUUID(),

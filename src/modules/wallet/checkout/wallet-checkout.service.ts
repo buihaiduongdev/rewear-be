@@ -91,7 +91,7 @@ export class WalletCheckoutService {
   constructor(
     private readonly db: DataSource,
     private readonly pricing: PaymentPricing,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private async now(manager: EntityManager) {

@@ -56,7 +56,7 @@ export class ProductService {
     private readonly dataSource: DataSource,
     private readonly authorizationService: AuthorizationService,
     private readonly storage: StorageService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {

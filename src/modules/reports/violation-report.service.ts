@@ -49,7 +49,7 @@ import {
 export class ViolationReportService {
   constructor(
     private readonly db: DataSource,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private fingerprint(input: unknown) {

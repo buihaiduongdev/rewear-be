@@ -52,7 +52,7 @@ export class DisputeService {
     private readonly orders: OrderAccess,
     private readonly storage: StorageService,
     private readonly media: MediaService,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   async openIssue(

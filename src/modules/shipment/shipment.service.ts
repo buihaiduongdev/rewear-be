@@ -68,7 +68,7 @@ export class ShipmentService {
     private readonly db: DataSource,
     private readonly orderService: OrderService,
     private readonly carrier: GhnShipmentClient,
-    private readonly outboxService: OutboxService = new OutboxService(),
+    private readonly outboxService: OutboxService,
   ) {}
 
   private async now(manager: EntityManager) {
