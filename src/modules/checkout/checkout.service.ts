@@ -20,7 +20,7 @@ import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 import { WalletCheckoutHold } from '@/modules/wallet/entities';
-import { releaseWalletHold } from '@/modules/wallet/wallet-checkout.service';
+import { releaseWalletHold } from '@/modules/wallet/wallet-hold.helper';
 
 import {
   CHECKOUT_HOLD_SECONDS,

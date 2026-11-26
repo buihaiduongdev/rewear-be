@@ -10,8 +10,6 @@ import { MAX_VND_AMOUNT } from '@/common/constants/money.constant';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
@@ -36,6 +34,9 @@ import { WALLET_HOLD_STATE } from './constants/wallet.constant';
 import { WalletAccount, WalletCheckoutHold, WalletDebit } from './entities';
 import { walletBalanceSchema } from './schemas/wallet.schema';
 import type { ReserveWalletCheckoutInput } from './schemas/wallet.schema';
+import { releaseWalletHold, walletPoolFields } from './wallet-hold.helper';
+
+export { releaseWalletHold, walletPoolFields };
 
 export function walletCheckoutTotal(
   orders: { subtotal: number; shippingFee: number; coinDiscount?: number }[],
@@ -57,36 +58,6 @@ export function walletCheckoutTotal(
       'Wallet total changed; review the shipping quote',
     );
   return total;
-}
-
-export function walletPoolFields(
-  mode: ReconciliationMode,
-): ['balance' | 'simulationBalance', 'heldBalance' | 'simulationHeldBalance'] {
-  return mode === RECONCILIATION_MODE.SIMULATION
-    ? ['simulationBalance', 'simulationHeldBalance']
-    : ['balance', 'heldBalance'];
-}
-
-export async function releaseWalletHold(
-  manager: EntityManager,
-  hold: WalletCheckoutHold,
-  now: Date,
-  state: typeof WALLET_HOLD_STATE.RELEASED | typeof WALLET_HOLD_STATE.EXPIRED,
-) {
-  if (hold.state !== WALLET_HOLD_STATE.HELD) return;
-  const account = await manager.findOneOrFail(WalletAccount, {
-    where: { userId: hold.buyerId },
-    lock: { mode: 'pessimistic_write' },
-  });
-  const [available, held] = walletPoolFields(hold.mode);
-  if (account[held] < hold.amount)
-    throw new ConflictException('Wallet held balance requires reconciliation');
-  account[held] -= hold.amount;
-  account[available] += hold.amount;
-  await manager.save(account);
-  hold.state = state;
-  hold.releasedAt = now;
-  await manager.save(hold);
 }
 
 export async function verifiedWalletCapture(
