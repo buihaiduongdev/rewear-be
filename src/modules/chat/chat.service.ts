@@ -74,7 +74,7 @@ export class ChatService {
         shopId,
       });
     }
-    return { id: row.id };
+    return row;
   }
 
   async detail(userId: string, id: string) {

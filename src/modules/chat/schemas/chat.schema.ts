@@ -19,7 +19,14 @@ const pageOf = <T extends z.ZodType>(item: T) =>
   });
 
 export const openChatSchema = z.strictObject({ shopId: z.uuid() });
-export const chatOpenViewSchema = z.object({ id: z.uuid() });
+export const chatOpenViewSchema = z.object({
+  id: z.uuid(),
+  buyerId: z.uuid(),
+  shopId: z.uuid(),
+  lastMessageAt: dateTimeSchema.nullable(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+});
 export const sendChatSchema = z
   .strictObject({
     text: z.string().trim().min(1).max(CHAT_POLICY.TEXT_LENGTH).optional(),
