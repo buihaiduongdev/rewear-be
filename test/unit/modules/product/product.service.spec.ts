@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 
+import { paginate } from 'nestjs-paginate';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
+import z from 'zod';
 
 import { Category } from '@/modules/category/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
@@ -13,9 +15,20 @@ import { ProductService } from '@/modules/product/product.service';
 import {
   createProductSchema,
   moderateProductSchema,
+  optionalProvinceIdSchema,
+  suggestDescriptionResponseSchema,
+  suggestDescriptionSchema,
   updateProductStatusSchema,
 } from '@/modules/product/schemas';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { Shop, ShopMember } from '@/modules/shop/entities';
+
+jest.mock('nestjs-paginate', () => ({
+  ...jest.requireActual<typeof import('nestjs-paginate')>('nestjs-paginate'),
+  paginate: jest.fn(),
+}));
+
+const mockedPaginate = paginate as jest.MockedFunction<typeof paginate>;
 
 describe('Product lifecycle boundaries', () => {
   const service = new ProductService(
@@ -208,5 +221,89 @@ describe('ProductService.update re-moderation', () => {
 
     expect(product.status).toBe(ProductStatus.ACTIVE);
     expect(manager.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProductService.findAll shop region filter', () => {
+  beforeEach(() => {
+    mockedPaginate.mockReset();
+    mockedPaginate.mockResolvedValue({
+      data: [],
+      meta: {} as never,
+      links: {} as never,
+    });
+  });
+
+  const createQueryBuilderMock = () => ({
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+  });
+
+  it('joins PickupLocation when provinceId is provided without extra queries', async () => {
+    const qb = createQueryBuilderMock();
+    const productRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    } as unknown as Repository<Product>;
+
+    const service = new ProductService(
+      productRepo,
+      {} as Repository<Category>,
+      {} as Repository<Shop>,
+      {} as Repository<ShopMember>,
+      { manager: {} } as DataSource,
+      {} as never,
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      { record: jest.fn() } as never,
+    );
+
+    await service.findAll({ path: '/api/products' }, 202);
+
+    expect(qb.innerJoin).toHaveBeenCalledWith(
+      PickupLocation,
+      'pickupLocation',
+      'pickupLocation.shopId = product.shopId AND pickupLocation.provinceId = :provinceId',
+      { provinceId: 202 },
+    );
+    expect(mockedPaginate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not join PickupLocation when provinceId is omitted', async () => {
+    const qb = createQueryBuilderMock();
+    const productRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    } as unknown as Repository<Product>;
+
+    const service = new ProductService(
+      productRepo,
+      {} as Repository<Category>,
+      {} as Repository<Shop>,
+      {} as Repository<ShopMember>,
+      { manager: {} } as DataSource,
+      {} as never,
+      { getPublicUrl: (key: string) => `https://public.test/${key}` } as never,
+      { record: jest.fn() } as never,
+    );
+
+    await service.findAll({ path: '/api/products' });
+
+    expect(qb.innerJoin).not.toHaveBeenCalled();
+  });
+
+  it('validates optionalProvinceIdSchema and exports JSON-schema-compatible OpenAPI schemas', () => {
+    expect(optionalProvinceIdSchema.parse(undefined)).toBeUndefined();
+    expect(optionalProvinceIdSchema.parse('202')).toBe(202);
+    expect(optionalProvinceIdSchema.safeParse('0').success).toBe(false);
+    expect(optionalProvinceIdSchema.safeParse('-5').success).toBe(false);
+    expect(optionalProvinceIdSchema.safeParse('abc').success).toBe(false);
+
+    for (const schema of [
+      optionalProvinceIdSchema,
+      suggestDescriptionSchema,
+      suggestDescriptionResponseSchema,
+    ]) {
+      expect(() => z.toJSONSchema(schema, { io: 'input' })).not.toThrow();
+    }
   });
 });

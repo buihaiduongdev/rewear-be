@@ -24,6 +24,7 @@ import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -59,13 +60,26 @@ export class ProductService {
     private readonly outboxService: OutboxService,
   ) {}
 
-  findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
+  findAll(
+    query: PaginateQuery,
+    provinceId?: number,
+  ): Promise<Paginated<ProductView>> {
     const queryBuilder = this.createProductQueryBuilder()
       .where('product.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('category.isActive = true')
       .andWhere('shop.status = :shopStatus', {
         shopStatus: ShopStatus.ACTIVE,
       });
+
+    if (provinceId !== undefined) {
+      queryBuilder.innerJoin(
+        PickupLocation,
+        'pickupLocation',
+        'pickupLocation.shopId = product.shopId AND pickupLocation.provinceId = :provinceId',
+        { provinceId },
+      );
+    }
+
     return this.paginateProducts(queryBuilder, query);
   }
 

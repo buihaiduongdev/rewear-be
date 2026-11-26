@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -32,6 +33,7 @@ import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
 import { Product } from './entities';
+import { GeminiService } from './gemini.service';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import { ProductService } from './product.service';
 import {
@@ -39,32 +41,56 @@ import {
   productListSchema,
   productModerationSchema,
   productSchema,
+  suggestDescriptionResponseSchema,
   suspendProductSchema,
 } from './schemas';
 import {
   createProductSchema,
+  optionalProvinceIdSchema,
+  suggestDescriptionSchema,
   updateProductSchema,
   updateProductStatusSchema,
 } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
   ModerateProductInput,
+  SuggestDescriptionInput,
   SuspendProductInput,
   UpdateProductInput,
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
+import type { SuggestDescriptionResponse } from './schemas/product.schema';
 
 @ApiTags('Products')
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly geminiService: GeminiService,
+  ) {}
 
   @Get()
   @PublicAccess()
   @Serialize(productListSchema)
   @ApiPaginationQuery(PRODUCT_PAGINATION_CONFIG)
-  findAll(@Paginate() query: PaginateQuery): Promise<Paginated<Product>> {
-    return this.productService.findAll(query);
+  findAll(
+    @Paginate() query: PaginateQuery,
+    @Query('provinceId', { schema: optionalProvinceIdSchema })
+    provinceId?: number,
+  ): Promise<Paginated<Product>> {
+    return this.productService.findAll(query, provinceId);
+  }
+
+  @Post('suggest-description')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @RequirePermission(SHOP_PERMISSIONS.PRODUCT_CREATE)
+  @Serialize(suggestDescriptionResponseSchema)
+  suggestDescription(
+    @Body({ schema: suggestDescriptionSchema })
+    input: SuggestDescriptionInput,
+  ): Promise<SuggestDescriptionResponse> {
+    return this.geminiService.suggestProductDescription(input);
   }
 
   @Get('me')
