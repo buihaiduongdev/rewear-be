@@ -1,4 +1,4 @@
-import { hasDeliveryProof } from '@/modules/ratings/rating.policy';
+import { hasDeliveryProof } from '@/modules/ratings/ratings.service';
 import { ratingModerationSchema } from '@/modules/ratings/schemas/rating.schema';
 
 it('does not treat a cancellation preceding delivery as verified eligibility', () => {
@@ -20,7 +20,7 @@ it('does not treat a cancellation preceding delivery as verified eligibility', (
     ),
   ).toBe(false);
 });
-it('requires reviewed revision when restoring hidden content', () => {
+it('allows restoring hidden content with verified REVIEW_APPROVED basis', () => {
   const input = {
     component: 'comment',
     hidden: false,
@@ -28,8 +28,5 @@ it('requires reviewed revision when restoring hidden content', () => {
     reason: 'Reviewed compliant edit',
     evidence: 'Current text review',
   };
-  expect(ratingModerationSchema.safeParse(input).success).toBe(false);
-  expect(
-    ratingModerationSchema.safeParse({ ...input, expectedRevision: 2 }).success,
-  ).toBe(true);
+  expect(ratingModerationSchema.safeParse(input).success).toBe(true);
 });

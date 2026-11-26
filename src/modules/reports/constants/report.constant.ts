@@ -1,5 +1,3 @@
-import ms from 'ms';
-
 export const REPORT_TARGET = { PRODUCT: 'PRODUCT', SHOP: 'SHOP' } as const;
 export const REPORT_REASON = {
   COUNTERFEIT: 'COUNTERFEIT',
@@ -39,8 +37,6 @@ export const REPORT_POLICY = {
   MAX_PAGE_SIZE: 100,
   MAX_EVIDENCE: 6,
   IMAGE_BYTES: 10 * 1024 * 1024,
-  DAY_MS: ms('1d'),
-  UPLOADS_PER_USER_DAY: 200,
   DESCRIPTION_LENGTH: 4000,
   REASON_LENGTH: 2000,
   ADMIN_NOTE_LENGTH: 5000,

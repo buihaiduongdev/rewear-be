@@ -193,21 +193,17 @@ describe('Verified Shop ratings HTTP', () => {
       .auth(token(buyer), { type: 'bearer' })
       .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
       .expect(201);
-    const attached = await request(app.getHttpServer())
-      .post('/api/ratings/media')
-      .auth(token(buyer), { type: 'bearer' })
-      .send({ orderId: order.id, mediaId: upload.body.data.id })
-      .expect(200);
-    mediaId = attached.body.data.id;
-    expect(attached.body.data).not.toHaveProperty('storageKey');
+    const ticketId = upload.body.data.id;
     await request(app.getHttpServer())
-      .get(`/api/ratings/media/${mediaId}/download`)
+      .get(`/api/ratings/media/${ticketId}/download`)
       .expect(404);
-    await request(app.getHttpServer())
+    const rated = await request(app.getHttpServer())
       .post('/api/ratings')
       .auth(token(buyer), { type: 'bearer' })
-      .send({ orderId: order.id, stars: 2, mediaIds: [mediaId] })
+      .send({ orderId: order.id, stars: 2, mediaIds: [ticketId] })
       .expect(200);
+    mediaId = rated.body.data.mediaIds[0];
+    expect(rated.body.data).not.toHaveProperty('storageKey');
     await request(app.getHttpServer())
       .get(`/api/ratings/media/${mediaId}/download`)
       .expect(200);

@@ -1,5 +1,3 @@
-import ms from 'ms';
-
 export const CHAT_SIDE = { BUYER: 'BUYER', SHOP: 'SHOP' } as const;
 export const CHAT_MIME_TYPES = [
   'image/jpeg',
@@ -13,5 +11,4 @@ export const CHAT_POLICY = {
   MAX_MEDIA: 6,
   DEFAULT_PAGE_SIZE: 50,
   MAX_PAGE_SIZE: 100,
-  DAY_MS: ms('1d'),
 } as const;

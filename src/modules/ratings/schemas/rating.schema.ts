@@ -29,24 +29,12 @@ export const ratingListSchema = z.strictObject({
 export const ratingModerationSchema = z
   .strictObject({
     component: z.enum(['comment', 'media', 'reply', 'rating']),
-    expectedRevision: z.number().int().positive().optional(),
-    expectedReplyRevision: z.number().int().nonnegative().optional(),
     hidden: z.boolean(),
     basis: z.enum(RATING_MODERATION_BASES),
     reason: z.string().trim().min(3).max(2000),
     evidence: z.string().trim().min(3).max(5000),
   })
   .superRefine((input, ctx) => {
-    if (
-      !input.hidden &&
-      (input.component === 'reply'
-        ? input.expectedReplyRevision === undefined
-        : input.expectedRevision === undefined)
-    )
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Reviewed revision is required to restore hidden content',
-      });
     const invalidBasis = input.hidden
       ? input.component === 'rating'
         ? !['FRAUD', 'INELIGIBLE'].includes(input.basis)
@@ -58,10 +46,6 @@ export const ratingModerationSchema = z
         message: 'Explicit verified moderation basis required',
       });
   });
-export const ratingUploadSchema = z.strictObject({
-  orderId: z.uuid(),
-  mediaId: z.uuid(),
-});
 
 export const publicRatingSchema = z.object({
   id: z.uuid(),
@@ -108,11 +92,6 @@ export const ratingVersionSchema = z.object({
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
-export const ratingMediaViewSchema = z.object({
-  id: z.uuid(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int(),
-});
 export const ratingDownloadSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
@@ -122,4 +101,3 @@ export const ratingDownloadSchema = z.object({
 export type RatingMode = (typeof RATING_MODES)[number];
 export type RatingInput = z.infer<typeof ratingInputSchema>;
 export type RatingModerationInput = z.infer<typeof ratingModerationSchema>;
-export type RatingUploadInput = z.infer<typeof ratingUploadSchema>;

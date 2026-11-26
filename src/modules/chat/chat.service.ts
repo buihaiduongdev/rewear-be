@@ -7,11 +7,20 @@ import {
 
 import { Brackets, DataSource, type EntityManager, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { DISPUTE_POLICY } from '@/modules/dispute/constants/dispute.constant';
+import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import {
+  disputeFileSchema,
+  disputeUploadSchema,
+} from '@/modules/dispute/schemas/dispute.schema';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
+import { Order } from '@/modules/order/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -40,6 +49,8 @@ export class ChatService {
     private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
     private readonly outboxService: OutboxService,
+    private readonly storage?: StorageService,
+    private readonly dispute?: DisputeAccess,
   ) {}
 
   open(buyerId: string, shopId: string) {
@@ -207,7 +218,6 @@ export class ChatService {
         );
       }
 
-      row.lastMessageAt = message.createdAt;
       await manager.update(ChatConversation, row.id, {
         lastMessageAt: message.createdAt,
       });
@@ -229,10 +239,7 @@ export class ChatService {
   read(userId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const { row, side } = await this.loadConversation(manager, userId, id);
-      const [{ now: timestamp }] = await manager.query(
-        'SELECT clock_timestamp() AS now',
-      );
-      const now = new Date(timestamp);
+      const now = new Date();
       if (side === CHAT_SIDE.BUYER) {
         row.buyerLastReadAt = now;
       } else {
@@ -243,7 +250,145 @@ export class ChatService {
     });
   }
 
-  async loadConversation(manager: EntityManager, userId: string, id: string) {
+  async download(userId: string, id: string) {
+    const links = await this.loadPrivateMediaLinks(
+      this.db.manager,
+      id,
+      'Attached chat media not found',
+    );
+    const member = await this.db.manager.findOneBy(ShopMember, { userId });
+    const link =
+      links.find(
+        (row) =>
+          row.message.conversation.buyerId === userId ||
+          (member && row.message.conversation.shopId === member.shopId),
+      ) ?? links[0];
+    await this.loadConversation(
+      this.db.manager,
+      userId,
+      link.message.conversationId,
+    );
+    return this.storage!.createDownloadUrl(link.media.storageKey);
+  }
+
+  async importEvidence(
+    userId: string,
+    mediaId: string,
+    orderId: string,
+    tags: string[],
+  ) {
+    return this.db.transaction(async (manager) => {
+      const links = await this.loadPrivateMediaLinks(
+        manager,
+        mediaId,
+        'Chat media not found',
+      );
+      const order = await manager.findOneBy(Order, { id: orderId });
+      const link =
+        (order &&
+          links.find(
+            (row) =>
+              row.message.conversation.buyerId === order.buyerId &&
+              row.message.conversation.shopId === order.shopId,
+          )) ??
+        links[0];
+
+      const { row: conversation } = await this.loadConversation(
+        manager,
+        userId,
+        link.message.conversationId,
+      );
+      const now = new Date();
+
+      if (
+        !order ||
+        order.buyerId !== conversation.buyerId ||
+        order.shopId !== conversation.shopId
+      ) {
+        throw new BadRequestException(
+          'Chat evidence order must belong to this buyer and Shop',
+        );
+      }
+      await this.dispute!.assertParty(manager, userId, orderId);
+
+      const media = link.media;
+      const input = disputeUploadSchema.parse({ mediaId, tags });
+      if (
+        !disputeFileSchema.safeParse({
+          mimeType: media.mimeType,
+          sizeBytes: media.sizeBytes,
+        }).success
+      ) {
+        throw new BadRequestException('Invalid evidence file');
+      }
+
+      const existing = await manager.findOneBy(DisputeEvidence, {
+        mediaId,
+        orderId,
+        uploadedById: userId,
+      });
+      if (existing) {
+        return this.evidenceView(existing);
+      }
+
+      await this.dispute!.assertUploadAllowed(manager, userId, orderId, now);
+      if (
+        (await manager.countBy(DisputeEvidence, {
+          orderId,
+          uploadedById: userId,
+        })) >= DISPUTE_POLICY.MAX_EVIDENCE_PER_ORDER_USER
+      ) {
+        throw new BadRequestException('Evidence limit reached');
+      }
+
+      const evidence = await manager.save(
+        DisputeEvidence,
+        manager.create(DisputeEvidence, {
+          orderId,
+          uploadedById: userId,
+          mediaId,
+          media,
+          tags: input.tags,
+        }),
+      );
+      return this.evidenceView(evidence);
+    });
+  }
+
+  private async loadPrivateMediaLinks(
+    manager: EntityManager,
+    mediaId: string,
+    notFoundMessage: string,
+  ) {
+    const links = await manager
+      .createQueryBuilder(ChatMessageMedia, 'link')
+      .innerJoinAndSelect('link.media', 'media')
+      .innerJoinAndSelect('link.message', 'message')
+      .innerJoinAndSelect('message.conversation', 'conversation')
+      .where('link.mediaId = :mediaId', { mediaId })
+      .andWhere('media.visibility = :visibility', { visibility: 'private' })
+      .andWhere('media.retiredAt IS NULL')
+      .getMany();
+    if (!links.length) {
+      throw new NotFoundException(notFoundMessage);
+    }
+    return links;
+  }
+
+  private evidenceView(evidence: DisputeEvidence) {
+    return {
+      id: evidence.id,
+      mimeType: evidence.mimeType,
+      sizeBytes: evidence.sizeBytes,
+      tags: evidence.tags,
+    };
+  }
+
+  private async loadConversation(
+    manager: EntityManager,
+    userId: string,
+    id: string,
+  ) {
     const row = await manager.findOneBy(ChatConversation, { id });
     if (!row) throw new NotFoundException('Conversation not found');
     const side = await this.resolveSide(manager, userId, row);

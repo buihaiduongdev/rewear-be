@@ -13,7 +13,6 @@ import type {
 } from '../schemas/report.schema';
 
 @Entity('violation_reports')
-@Index(['reporterId', 'requestId'], { unique: true })
 @Index(['status', 'createdAt', 'id'])
 @Index(['reporterId', 'createdAt', 'id'])
 export class ViolationReport extends BaseEntity {
@@ -22,10 +21,6 @@ export class ViolationReport extends BaseEntity {
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'reporterId' })
   reporter: User;
-  @Column('uuid')
-  requestId: string;
-  @Column('varchar', { length: 64 })
-  fingerprint: string;
   @Column('varchar', { length: 16 })
   targetType: ReportTargetType;
   @Column('uuid')
@@ -38,8 +33,6 @@ export class ViolationReport extends BaseEntity {
   description: string;
   @Column('varchar', { length: 16 })
   status: ReportStatus;
-  @Column('integer', { default: 1 })
-  version: number;
   @Column('uuid', { nullable: true })
   assignedAdminId: string | null;
   @Column('varchar', { length: 16, nullable: true })

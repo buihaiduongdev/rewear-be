@@ -5,37 +5,33 @@ import z from 'zod';
 import * as schemas from '@/modules/reports/schemas/report.schema';
 
 describe('Violation report contracts', () => {
-  it('rejects client ownership, unsupported images and duplicate attachments', () => {
+  it('rejects client ownership and duplicate media attachments', () => {
     const id = randomUUID();
     const input = {
-      requestId: randomUUID(),
       targetType: 'SHOP',
       targetId: randomUUID(),
       reason: 'FRAUD',
       description: 'Mô tả cần được Admin kiểm tra',
-      evidenceIds: [id, id],
+      mediaIds: [id, id],
     };
     expect(schemas.createReportSchema.safeParse(input).success).toBe(false);
     expect(
       schemas.createReportSchema.safeParse({
         ...input,
-        evidenceIds: [],
+        mediaIds: [],
         reporterId: randomUUID(),
       }).success,
     ).toBe(false);
     expect(
-      schemas.reportUploadSchema.safeParse({
-        targetType: 'SHOP',
-        targetId: randomUUID(),
-        mimeType: 'video/mp4',
-        sizeBytes: 100,
+      schemas.createReportSchema.safeParse({
+        ...input,
+        mediaIds: [id],
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
+
   it('requires an explicit safe outcome/measure and current Product review version', () => {
     const input = {
-      requestId: randomUUID(),
-      expectedVersion: 1,
       outcome: 'DISMISSED',
       action: 'DEACTIVATE_SHOP',
       reason: 'Không có căn cứ kết luận',
@@ -57,6 +53,7 @@ describe('Violation report contracts', () => {
       }).success,
     ).toBe(true);
   });
+
   it('bounds queue pagination and uses JSON-compatible response dates', () => {
     expect(schemas.reportQuerySchema.safeParse({ limit: 101 }).success).toBe(
       false,

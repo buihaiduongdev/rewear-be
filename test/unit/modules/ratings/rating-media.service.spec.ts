@@ -3,14 +3,15 @@ import { NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 
 import type { StorageService } from '@/infrastructure/storage';
+import type { AuthorizationService } from '@/modules/authorization/authorization.service';
 import type { MediaService } from '@/modules/media/media.service';
 import { ShopRating, ShopRatingMedia } from '@/modules/ratings/entities';
-import { RatingMediaService } from '@/modules/ratings/rating-media.service';
-import type { RatingsService } from '@/modules/ratings/ratings.service';
+import { RatingsService } from '@/modules/ratings/ratings.service';
 
 function fixture() {
   const row = {
-    id: 'media',
+    id: 'rating-media',
+    mediaId: 'media',
     buyerId: 'buyer',
     shopId: 'shop',
     mode: 'EVIDENCE',
@@ -30,9 +31,9 @@ function fixture() {
       url: 'https://signed.local/media',
     })),
   };
-  const service = new RatingMediaService(
+  const service = new RatingsService(
     db as unknown as DataSource,
-    { clock: async () => new Date() } as unknown as RatingsService,
+    {} as AuthorizationService,
     storage as unknown as StorageService,
     {} as MediaService,
   );

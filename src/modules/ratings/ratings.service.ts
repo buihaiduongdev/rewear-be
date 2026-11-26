@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,8 +7,10 @@ import {
 
 import { DataSource, type EntityManager, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
+import { MediaService } from '@/modules/media/media.service';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
 import { Shop } from '@/modules/shop/entities';
@@ -17,17 +18,8 @@ import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import {
-  ShopRating,
-  ShopRatingMedia,
-  ShopRatingModerationAudit,
-  ShopRatingVersion,
-} from './entities';
-import {
-  hasDeliveryProof,
-  publicRating,
-  summarizeRatings,
-} from './rating.policy';
+import { RATING_MIME_TYPES, RATING_POLICY } from './constants/rating.constant';
+import { ShopRating, ShopRatingMedia, ShopRatingVersion } from './entities';
 import {
   type RatingInput,
   ratingInputSchema,
@@ -38,17 +30,67 @@ import {
   ratingReplySchema,
 } from './schemas/rating.schema';
 
+export function hasDeliveryProof(
+  order: { deliveryVerifiedAt?: Date | null; cancelledAt?: Date | null },
+  proof: {
+    deliveredAt: Date;
+    mode: string;
+    actorId: string;
+    reason: string;
+    evidence: string;
+  } | null,
+  now: Date,
+) {
+  return Boolean(
+    proof &&
+    proof.deliveredAt <= now &&
+    (!order.cancelledAt || order.cancelledAt > proof.deliveredAt) &&
+    order.deliveryVerifiedAt?.getTime() === proof.deliveredAt.getTime() &&
+    ['EVIDENCE', 'SIMULATION'].includes(proof.mode) &&
+    proof.actorId &&
+    proof.reason?.trim() &&
+    proof.evidence?.trim(),
+  );
+}
+
+export function publicRating(row: ShopRating) {
+  return {
+    id: row.id,
+    shopId: row.shopId,
+    stars: row.stars,
+    comment: row.commentHidden ? null : row.comment,
+    mediaIds: row.mediaHidden ? [] : row.mediaIds,
+    reply: row.replyHidden ? null : row.reply,
+    revision: row.revision,
+    updatedAt: row.updatedAt,
+    mode: row.mode,
+    verifiedTransaction: true,
+  };
+}
+
+export function summarizeRatings(rows: ShopRating[], mode: RatingMode) {
+  const eligible = rows.filter((row) => row.mode === mode && !row.invalidated);
+  const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (const row of eligible) distribution[row.stars]++;
+  return {
+    mode,
+    count: eligible.length,
+    average: eligible.length
+      ? eligible.reduce((sum, row) => sum + row.stars, 0) / eligible.length
+      : null,
+    distribution,
+    verifiedBuyerCount: new Set(eligible.map((row) => row.buyerId)).size,
+  };
+}
+
 @Injectable()
 export class RatingsService {
   constructor(
     private readonly db: DataSource,
     private readonly authorization: AuthorizationService,
+    private readonly storage: StorageService,
+    private readonly media: MediaService,
   ) {}
-
-  async clock(manager: EntityManager) {
-    const [row] = await manager.query('SELECT clock_timestamp() AS now');
-    return new Date(row.now);
-  }
 
   async assertActiveUser(manager: EntityManager, userId: string) {
     const user = await manager.findOneBy(User, {
@@ -110,27 +152,56 @@ export class RatingsService {
     return row;
   }
 
-  private async media(
+  private async attachMedia(
     manager: EntityManager,
     buyerId: string,
-    shopId: string,
+    order: Order,
     mode: RatingMode,
     mediaIds: string[],
   ) {
     if (!mediaIds.length) return;
-    const media = await manager.findBy(ShopRatingMedia, {
-      id: In(mediaIds),
+    const existing = await manager.findBy(ShopRatingMedia, {
+      mediaId: In(mediaIds),
       buyerId,
-      shopId,
-      mode,
+      shopId: order.shopId,
     });
-    if (
-      media.length !== mediaIds.length ||
-      media.some((row) => row.media.retiredAt)
-    )
+    if (existing.some((row) => row.media.retiredAt))
       throw new BadRequestException(
         'Only owned Shop rating media can be attached',
       );
+    if (existing.length) {
+      await manager.update(
+        ShopRatingMedia,
+        { id: In(existing.map((row) => row.id)) },
+        { mode, orderId: order.id },
+      );
+    }
+    const existingIds = new Set(existing.map((row) => row.mediaId));
+    for (const mediaId of mediaIds) {
+      if (existingIds.has(mediaId)) continue;
+      const file = await this.media.verifyMedia(
+        manager,
+        buyerId,
+        mediaId,
+        undefined,
+        'private',
+      );
+      const limit = file.mimeType.startsWith('image/')
+        ? RATING_POLICY.IMAGE_BYTES
+        : RATING_POLICY.VIDEO_BYTES;
+      if (
+        !RATING_MIME_TYPES.some((mimeType) => mimeType === file.mimeType) ||
+        file.sizeBytes > limit
+      )
+        throw new BadRequestException('Invalid rating media');
+      await manager.getRepository(ShopRatingMedia).save({
+        buyerId,
+        shopId: order.shopId,
+        orderId: order.id,
+        mode,
+        mediaId: file.id,
+      });
+    }
   }
 
   private async version(
@@ -164,17 +235,17 @@ export class RatingsService {
     if (!parsed.success) throw new BadRequestException('Invalid rating');
     const value = parsed.data;
     return this.db.transaction(async (manager) => {
-      const now = await this.clock(manager);
+      const now = new Date();
       const { order, proof } = await this.assertEligible(
         manager,
         buyerId,
         value.orderId,
         now,
       );
-      await this.media(
+      await this.attachMedia(
         manager,
         buyerId,
-        order.shopId,
+        order,
         proof.mode,
         value.mediaIds,
       );
@@ -244,34 +315,35 @@ export class RatingsService {
       await this.assertAdmin(manager, actorId);
       const row = await this.find(manager, ratingId);
       const decision = parsed.data;
-      if (
-        (decision.expectedRevision !== undefined &&
-          decision.expectedRevision !== row.revision) ||
-        (decision.expectedReplyRevision !== undefined &&
-          decision.expectedReplyRevision !== row.replyRevision)
-      )
-        throw new ConflictException(
-          'Rating changed after the reviewed revision',
-        );
-      const before = {
-        commentHidden: row.commentHidden,
-        mediaHidden: row.mediaHidden,
-        replyHidden: row.replyHidden,
-        invalidated: row.invalidated,
-      };
       if (decision.component === 'rating') row.invalidated = decision.hidden;
       if (decision.component === 'comment') row.commentHidden = decision.hidden;
       if (decision.component === 'media') row.mediaHidden = decision.hidden;
       if (decision.component === 'reply') row.replyHidden = decision.hidden;
       await manager.save(row);
-      await manager.getRepository(ShopRatingModerationAudit).save({
-        ratingId,
-        actorId,
-        decision: { ...decision, before },
-        buyerRevision: row.revision,
-        replyRevision: row.replyRevision,
-      });
       return this.privateView(row);
+    });
+  }
+
+  async download(id: string, mode: RatingMode = 'EVIDENCE') {
+    const parsed = ratingModeSchema.safeParse(mode);
+    if (!parsed.success) throw new BadRequestException('Invalid rating mode');
+    return this.db.transaction(async (manager) => {
+      const row = await manager.findOneBy(ShopRatingMedia, { mediaId: id });
+      if (!row) throw new NotFoundException('Rating media not found');
+      const rating = await manager.findOneBy(ShopRating, {
+        buyerId: row.buyerId,
+        shopId: row.shopId,
+        mode: parsed.data,
+        invalidated: false,
+        mediaHidden: false,
+      });
+      if (
+        row.media.retiredAt ||
+        row.mode !== parsed.data ||
+        !rating?.mediaIds.includes(id)
+      )
+        throw new NotFoundException('Visible rating media not found');
+      return this.storage.createDownloadUrl(row.media.storageKey);
     });
   }
 

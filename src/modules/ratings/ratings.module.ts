@@ -5,13 +5,7 @@ import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { MediaModule } from '@/modules/media/media.module';
 
-import {
-  ShopRating,
-  ShopRatingMedia,
-  ShopRatingModerationAudit,
-  ShopRatingVersion,
-} from './entities';
-import { RatingMediaService } from './rating-media.service';
+import { ShopRating, ShopRatingMedia, ShopRatingVersion } from './entities';
 import { RatingsController } from './ratings.controller';
 import { RatingsService } from './ratings.service';
 
@@ -20,15 +14,10 @@ import { RatingsService } from './ratings.service';
     StorageModule,
     MediaModule,
     AuthorizationModule,
-    TypeOrmModule.forFeature([
-      ShopRating,
-      ShopRatingVersion,
-      ShopRatingModerationAudit,
-      ShopRatingMedia,
-    ]),
+    TypeOrmModule.forFeature([ShopRating, ShopRatingVersion, ShopRatingMedia]),
   ],
   controllers: [RatingsController],
-  providers: [RatingsService, RatingMediaService],
+  providers: [RatingsService],
   exports: [RatingsService],
 })
 export class RatingsModule {}

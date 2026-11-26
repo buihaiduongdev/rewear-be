@@ -14,7 +14,6 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
-import { ChatMediaService } from './chat-media.service';
 import { ChatService } from './chat.service';
 import {
   chatConversationPageSchema,
@@ -36,10 +35,7 @@ import {
 @AuthenticatedAccess()
 @Controller('chat')
 export class ChatController {
-  constructor(
-    private readonly service: ChatService,
-    private readonly media: ChatMediaService,
-  ) {}
+  constructor(private readonly service: ChatService) {}
 
   @Post('conversations')
   @HttpCode(200)
@@ -106,7 +102,7 @@ export class ChatController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.media.download(user.id, id);
+    return this.service.download(user.id, id);
   }
 
   @Post('media/:id/dispute-evidence')
@@ -118,6 +114,6 @@ export class ChatController {
     @Body({ schema: importEvidenceSchema })
     input: { orderId: string; tags: string[] },
   ) {
-    return this.media.importEvidence(user.id, id, input.orderId, input.tags);
+    return this.service.importEvidence(user.id, id, input.orderId, input.tags);
   }
 }

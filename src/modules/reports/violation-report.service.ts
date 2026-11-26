@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto';
-
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -9,38 +8,41 @@ import {
 
 import { DataSource, type EntityManager } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
+import { Category } from '@/modules/category/entities';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
+import { MediaService } from '@/modules/media/media.service';
+import { Order } from '@/modules/order/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
+import {
+  ProductModerationStatus,
+  ProductStatus,
+} from '@/modules/product/enums';
+import { suspendProductForModeration } from '@/modules/product/policies/suspend-product.policy';
 import { Shop } from '@/modules/shop/entities';
+import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import {
   REPORT_ACTION,
+  REPORT_MEASURE,
+  REPORT_MIME_TYPES,
+  REPORT_POLICY,
   REPORT_STATUS,
   REPORT_TARGET,
 } from './constants/report.constant';
+import { ReportEvidence, ViolationReport } from './entities';
 import {
-  ReportAudit,
-  ReportCommand,
-  ReportEvidence,
-  ViolationReport,
-} from './entities';
-import {
-  applyReportMeasure,
-  attachReportEvidence,
-  reportSubmissionTarget,
-} from './report.policy';
-import {
-  type ClaimReportInput,
-  claimReportSchema,
   type CreateReportInput,
   createReportSchema,
   type ReportAction,
   type ReportQuery,
   type ReportSupplementInput,
   reportSupplementSchema,
+  type ReportTargetSnapshot,
+  type ReportTargetType,
   type ResolveReportInput,
   resolveReportSchema,
 } from './schemas/report.schema';
@@ -50,18 +52,11 @@ export class ViolationReportService {
   constructor(
     private readonly db: DataSource,
     private readonly outboxService: OutboxService,
+    private readonly storage: StorageService,
+    private readonly mediaService: MediaService,
   ) {}
 
-  private fingerprint(input: unknown) {
-    return createHash('sha256').update(JSON.stringify(input)).digest('hex');
-  }
-
-  async clock(manager: EntityManager) {
-    const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
-    return new Date(now);
-  }
-
-  async assertActiveUser(manager: EntityManager, userId: string) {
+  private async assertActiveUser(manager: EntityManager, userId: string) {
     const user = await manager.findOneBy(User, {
       id: userId,
       status: UserStatus.ACTIVE,
@@ -70,14 +65,14 @@ export class ViolationReportService {
     return user;
   }
 
-  async assertAdmin(manager: EntityManager, userId: string) {
+  private async assertAdmin(manager: EntityManager, userId: string) {
     const user = await this.assertActiveUser(manager, userId);
     if (user.role !== UserRole.ADMIN)
       throw new ForbiddenException('Active Admin required');
     return user;
   }
 
-  async loadOwn(
+  private async loadOwn(
     manager: EntityManager,
     userId: string,
     id: string,
@@ -92,7 +87,7 @@ export class ViolationReportService {
     return row;
   }
 
-  async loadAdminReport(
+  private async loadAdminReport(
     manager: EntityManager,
     userId: string,
     id: string,
@@ -107,54 +102,18 @@ export class ViolationReportService {
     return row;
   }
 
-  private async isReplay(
-    manager: EntityManager,
-    actorId: string,
-    requestId: string,
-    reportId: string,
-    fingerprint: string,
-  ) {
-    const prior = await manager.findOneBy(ReportCommand, {
-      actorId,
-      requestId,
-    });
-    if (
-      prior &&
-      (prior.reportId !== reportId || prior.fingerprint !== fingerprint)
-    )
-      throw new ConflictException('Report command payload changed');
-    return !!prior;
-  }
-
-  private async recordAction(
+  private async recordOutboxAction(
     manager: EntityManager,
     row: ViolationReport,
-    actorId: string,
     action: ReportAction,
-    publicReason: string | null = null,
-    adminNote: string | null = null,
-    effect: Record<string, unknown> | null = null,
   ) {
-    await manager.save(
-      ReportAudit,
-      manager.create(ReportAudit, {
-        reportId: row.id,
-        actorId,
-        action,
-        version: row.version,
-        status: row.status,
-        publicReason,
-        adminNote,
-        effect,
-      }),
-    );
     await this.outboxService.record(manager, {
       eventType: EVENT_TYPES.VIOLATION_REPORT_UPDATED,
       resourceId: row.id,
       payload: {
         reportId: row.id,
         reporterId: row.reporterId,
-        version: row.version,
+        version: 1,
         action,
       },
     });
@@ -162,36 +121,24 @@ export class ViolationReportService {
 
   create(userId: string, input: CreateReportInput) {
     const data = createReportSchema.parse(input);
-    const fingerprint = this.fingerprint(data);
     return this.db.transaction(async (manager) => {
       await this.assertActiveUser(manager, userId);
-      await manager.findOneOrFail(User, {
-        where: { id: userId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      const existing = await manager.findOneBy(ViolationReport, {
-        reporterId: userId,
-        requestId: data.requestId,
-      });
-      if (existing) {
-        if (existing.fingerprint !== fingerprint)
-          throw new ConflictException('Report request payload changed');
-        return this.view(manager, existing);
-      }
-      const target = await reportSubmissionTarget(manager, userId, data);
+      const target = await this.reportTargetSnapshot(
+        manager,
+        userId,
+        data.targetType,
+        data.targetId,
+      );
       const row = await manager.save(
         ViolationReport,
         manager.create(ViolationReport, {
           reporterId: userId,
-          requestId: data.requestId,
-          fingerprint,
           targetType: data.targetType,
           targetId: data.targetId,
           target,
           reason: data.reason,
           description: data.description,
           status: REPORT_STATUS.OPEN,
-          version: 1,
           assignedAdminId: null,
           outcome: null,
           measure: null,
@@ -200,65 +147,31 @@ export class ViolationReportService {
           resolvedAt: null,
         }),
       );
-      await attachReportEvidence(manager, row, data.evidenceIds);
-      await this.recordAction(manager, row, userId, REPORT_ACTION.SUBMITTED);
+      await this.attachMedia(manager, row, data.mediaIds);
+      await this.recordOutboxAction(manager, row, REPORT_ACTION.SUBMITTED);
       return this.view(manager, row);
     });
   }
 
   supplement(userId: string, id: string, input: ReportSupplementInput) {
     const data = reportSupplementSchema.parse(input);
-    const fingerprint = this.fingerprint({
-      id,
-      action: REPORT_ACTION.SUPPLEMENTED,
-      data,
-    });
     return this.db.transaction(async (manager) => {
       const row = await this.loadOwn(manager, userId, id, true);
-      if (await this.isReplay(manager, userId, data.requestId, id, fingerprint))
-        return this.view(manager, row);
       if (row.status === REPORT_STATUS.RESOLVED)
         throw new ConflictException(
           'Closed reports cannot receive supplements',
         );
-      await attachReportEvidence(manager, row, data.evidenceIds);
-      row.version++;
+      await this.attachMedia(manager, row, data.mediaIds);
+      row.description = `${row.description}\n\n${data.text}`;
       await manager.save(row);
-      await manager.save(
-        ReportCommand,
-        manager.create(ReportCommand, {
-          actorId: userId,
-          requestId: data.requestId,
-          reportId: id,
-          fingerprint,
-        }),
-      );
-      await this.recordAction(
-        manager,
-        row,
-        userId,
-        REPORT_ACTION.SUPPLEMENTED,
-        data.text,
-      );
+      await this.recordOutboxAction(manager, row, REPORT_ACTION.SUPPLEMENTED);
       return this.view(manager, row);
     });
   }
 
-  claim(actorId: string, id: string, input: ClaimReportInput) {
-    const data = claimReportSchema.parse(input);
-    const fingerprint = this.fingerprint({
-      id,
-      action: REPORT_ACTION.CLAIMED,
-      data,
-    });
+  claim(actorId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const row = await this.loadAdminReport(manager, actorId, id, true);
-      if (
-        await this.isReplay(manager, actorId, data.requestId, id, fingerprint)
-      )
-        return this.view(manager, row, true);
-      if (row.version !== data.expectedVersion)
-        throw new ConflictException('Report version changed');
       if (row.status === REPORT_STATUS.RESOLVED)
         throw new ConflictException('Report already resolved');
       if (
@@ -267,73 +180,28 @@ export class ViolationReportService {
       ) {
         row.status = REPORT_STATUS.IN_REVIEW;
         row.assignedAdminId = actorId;
-        row.version++;
         await manager.save(row);
-        await this.recordAction(manager, row, actorId, REPORT_ACTION.CLAIMED);
+        await this.recordOutboxAction(manager, row, REPORT_ACTION.CLAIMED);
       }
-      await manager.save(
-        ReportCommand,
-        manager.create(ReportCommand, {
-          actorId,
-          requestId: data.requestId,
-          reportId: id,
-          fingerprint,
-        }),
-      );
       return this.view(manager, row, true);
     });
   }
 
   resolve(actorId: string, id: string, input: ResolveReportInput) {
     const data = resolveReportSchema.parse(input);
-    const fingerprint = this.fingerprint({
-      id,
-      action: REPORT_ACTION.RESOLVED,
-      data,
-    });
     return this.db.transaction(async (manager) => {
-      const now = await this.clock(manager);
       const row = await this.loadAdminReport(manager, actorId, id, true);
-      if (
-        await this.isReplay(manager, actorId, data.requestId, id, fingerprint)
-      )
-        return this.view(manager, row, true);
-      if (row.version !== data.expectedVersion)
-        throw new ConflictException('Report version changed');
       if (row.status === REPORT_STATUS.RESOLVED)
         throw new ConflictException('Report already resolved');
-      const effect = await applyReportMeasure(
-        manager,
-        row,
-        data,
-        this.outboxService,
-      );
+      await this.applyReportMeasure(manager, row, data);
       row.status = REPORT_STATUS.RESOLVED;
-      row.version++;
       row.outcome = data.outcome;
       row.measure = data.action;
       row.resolutionReason = data.reason;
       row.adminNote = data.adminNote;
-      row.resolvedAt = now;
+      row.resolvedAt = new Date();
       await manager.save(row);
-      await manager.save(
-        ReportCommand,
-        manager.create(ReportCommand, {
-          actorId,
-          requestId: data.requestId,
-          reportId: id,
-          fingerprint,
-        }),
-      );
-      await this.recordAction(
-        manager,
-        row,
-        actorId,
-        REPORT_ACTION.RESOLVED,
-        data.reason,
-        data.adminNote,
-        effect,
-      );
+      await this.recordOutboxAction(manager, row, REPORT_ACTION.RESOLVED);
       return this.view(manager, row, true);
     });
   }
@@ -346,6 +214,17 @@ export class ViolationReportService {
   async adminDetail(userId: string, id: string) {
     const row = await this.loadAdminReport(this.db.manager, userId, id);
     return this.view(this.db.manager, row, true);
+  }
+
+  async downloadEvidence(userId: string, id: string) {
+    const actor = await this.assertActiveUser(this.db.manager, userId);
+    const row = await this.db.manager.findOneBy(ReportEvidence, { id });
+    if (!row || row.media.retiredAt)
+      throw new NotFoundException('Attached report evidence not found');
+    if (actor.role === UserRole.ADMIN)
+      await this.loadAdminReport(this.db.manager, userId, row.reportId);
+    else await this.loadOwn(this.db.manager, userId, row.reportId);
+    return this.storage.createDownloadUrl(row.media.storageKey);
   }
 
   async list(userId: string, input: ReportQuery, admin = false) {
@@ -384,7 +263,6 @@ export class ViolationReportService {
       reason: row.reason,
       description: row.description,
       status: row.status,
-      version: row.version,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       resolution:
@@ -408,17 +286,6 @@ export class ViolationReportService {
       where: { reportId: row.id },
       order: { createdAt: 'ASC', id: 'ASC' },
     });
-    const audits = await manager.find(ReportAudit, {
-      where: { reportId: row.id },
-      order: { version: 'ASC' },
-    });
-    const history = audits.map((item) => ({
-      action: item.action,
-      version: item.version,
-      status: item.status,
-      reason: item.publicReason,
-      createdAt: item.createdAt,
-    }));
     const result = {
       ...this.summary(row),
       evidence: evidence.map((item) => ({
@@ -426,7 +293,6 @@ export class ViolationReportService {
         mimeType: item.media.mimeType,
         sizeBytes: item.media.sizeBytes,
       })),
-      history,
     };
     if (!admin) return result;
     const target =
@@ -444,17 +310,171 @@ export class ViolationReportService {
       reporterId: row.reporterId,
       assignedAdminId: row.assignedAdminId,
       adminNote: row.adminNote,
-      audits: audits.map((item, index) => ({
-        ...history[index],
-        actorId: item.actorId,
-        adminNote: item.adminNote,
-        effect: item.effect,
-      })),
       targetState: {
         exists: !!target,
         status: target?.status ?? null,
         moderationVersion: moderation?.version ?? null,
       },
     };
+  }
+
+  private async reportTargetSnapshot(
+    manager: EntityManager,
+    userId: string,
+    type: ReportTargetType,
+    id: string,
+  ): Promise<ReportTargetSnapshot> {
+    if (type === REPORT_TARGET.SHOP) {
+      const shop = await manager.findOneBy(Shop, {
+        id,
+        status: ShopStatus.ACTIVE,
+      });
+      if (shop)
+        return { type, id, shopId: id, label: shop.name, contextOrderId: null };
+      const order = await manager.findOne(Order, {
+        where: { buyerId: userId, shopId: id },
+        order: { createdAt: 'DESC', id: 'DESC' },
+      });
+      if (order)
+        return {
+          type,
+          id,
+          shopId: id,
+          label: order.shopName,
+          contextOrderId: order.id,
+        };
+    } else {
+      const product = await manager.findOneBy(Product, {
+        id,
+        status: ProductStatus.ACTIVE,
+      });
+      const isPublic =
+        product?.categoryId &&
+        (await manager.existsBy(Category, {
+          id: product.categoryId,
+          isActive: true,
+        })) &&
+        (await manager.existsBy(Shop, {
+          id: product.shopId,
+          status: ShopStatus.ACTIVE,
+        })) &&
+        (await manager.existsBy(ProductModeration, {
+          productId: id,
+          status: ProductModerationStatus.APPROVED,
+        }));
+      if (product && isPublic)
+        return {
+          type,
+          id,
+          shopId: product.shopId,
+          label: product.title ?? '',
+          contextOrderId: null,
+        };
+      const order = await manager
+        .createQueryBuilder(Order, 'order')
+        .where('order.buyerId = :userId', { userId })
+        .andWhere('order.items @> CAST(:items AS jsonb)', {
+          items: JSON.stringify([{ productId: id }]),
+        })
+        .orderBy('order.createdAt', 'DESC')
+        .addOrderBy('order.id', 'DESC')
+        .getOne();
+      const item = order?.items.find((item) => item.productId === id);
+      if (order && item)
+        return {
+          type,
+          id,
+          shopId: order.shopId,
+          label: item.title,
+          contextOrderId: order.id,
+        };
+    }
+    throw new NotFoundException('Report target not available');
+  }
+
+  private async attachMedia(
+    manager: EntityManager,
+    row: ViolationReport,
+    mediaIds: string[],
+  ) {
+    if (!mediaIds.length) return;
+    const count = await manager.countBy(ReportEvidence, { reportId: row.id });
+    if (count + mediaIds.length > REPORT_POLICY.MAX_EVIDENCE)
+      throw new BadRequestException('Report evidence limit reached');
+    for (const mediaId of mediaIds) {
+      const file = await this.mediaService.verifyMedia(
+        manager,
+        row.reporterId,
+        mediaId,
+        REPORT_POLICY.IMAGE_BYTES,
+        'private',
+      );
+      if (!REPORT_MIME_TYPES.some((mimeType) => mimeType === file.mimeType))
+        throw new BadRequestException('Unsupported report evidence type');
+      await manager.save(
+        ReportEvidence,
+        manager.create(ReportEvidence, {
+          reportId: row.id,
+          mediaId: file.id,
+        }),
+      );
+    }
+  }
+
+  private async applyReportMeasure(
+    manager: EntityManager,
+    row: ViolationReport,
+    input: ResolveReportInput,
+  ) {
+    if (input.action === REPORT_MEASURE.NONE) return;
+    if (input.action === REPORT_MEASURE.SUSPEND_PRODUCT) {
+      if (row.targetType !== REPORT_TARGET.PRODUCT)
+        throw new BadRequestException(
+          'Product suspension requires a Product report',
+        );
+      const effect = await suspendProductForModeration(
+        manager,
+        row.targetId,
+        input.reason,
+        {
+          expectedVersion: input.expectedTargetVersion,
+          expectedShopId: row.target.shopId,
+          allowAlreadySuspended: true,
+        },
+      );
+      if (effect.changed)
+        await this.outboxService.record(manager, {
+          eventType: EVENT_TYPES.PRODUCT_REVIEW_DECIDED,
+          resourceId: effect.product.id,
+          payload: {
+            productId: effect.product.id,
+            shopId: effect.product.shopId,
+            moderationId: effect.moderation.id,
+            version: effect.moderation.version,
+            status: effect.moderation.status,
+          },
+        });
+      return;
+    }
+    if (row.targetType !== REPORT_TARGET.SHOP)
+      throw new BadRequestException('Shop deactivation requires a Shop report');
+    const shop = await manager.findOne(Shop, {
+      where: { id: row.targetId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!shop) throw new ConflictException('Shop target no longer exists');
+    if (shop.status !== ShopStatus.INACTIVE) {
+      shop.status = ShopStatus.INACTIVE;
+      await manager.save(shop);
+      await this.outboxService.record(manager, {
+        eventType: EVENT_TYPES.SHOP_DEACTIVATED_FOR_REPORT,
+        resourceId: shop.id,
+        payload: {
+          reportId: row.id,
+          shopId: shop.id,
+          version: 1,
+        },
+      });
+    }
   }
 }

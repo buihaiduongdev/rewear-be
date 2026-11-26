@@ -9,30 +9,23 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import z from 'zod';
-
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { ReportMediaService } from './report-media.service';
 import {
   adminReportPageSchema,
   adminReportViewSchema,
-  type ClaimReportInput,
-  claimReportSchema,
   type CreateReportInput,
   createReportSchema,
   reportDownloadSchema,
-  reportEvidenceViewSchema,
   reportPageSchema,
   type ReportQuery,
   reportQuerySchema,
   type ReportSupplementInput,
   reportSupplementSchema,
-  reportUploadSchema,
   reportViewSchema,
   type ResolveReportInput,
   resolveReportSchema,
@@ -44,10 +37,7 @@ import { ViolationReportService } from './violation-report.service';
 @AuthenticatedAccess()
 @Controller('reports')
 export class ReportController {
-  constructor(
-    private readonly reports: ViolationReportService,
-    private readonly media: ReportMediaService,
-  ) {}
+  constructor(private readonly reports: ViolationReportService) {}
 
   @Post()
   @HttpCode(200)
@@ -68,24 +58,13 @@ export class ReportController {
     return this.reports.list(user.id, input);
   }
 
-  @Post('evidence')
-  @HttpCode(200)
-  @Serialize(reportEvidenceViewSchema)
-  upload(
-    @CurrentUser() user: User,
-    @Body({ schema: reportUploadSchema })
-    input: z.input<typeof reportUploadSchema>,
-  ) {
-    return this.media.attach(user.id, input);
-  }
-
   @Get('evidence/:id/download')
   @Serialize(reportDownloadSchema)
   download(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.media.download(user.id, id);
+    return this.reports.downloadEvidence(user.id, id);
   }
 
   @Get('admin')
@@ -115,9 +94,8 @@ export class ReportController {
   claim(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
-    @Body({ schema: claimReportSchema }) input: ClaimReportInput,
   ) {
-    return this.reports.claim(user.id, id, input);
+    return this.reports.claim(user.id, id);
   }
 
   @Post('admin/:id/resolve')
