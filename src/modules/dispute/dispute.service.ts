@@ -12,26 +12,32 @@ import { StorageService } from '@/infrastructure/storage';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
+import {
+  ORDER_POLICY,
+  ORDER_STATUS,
+} from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
-import { OrderAccess } from '@/modules/order/order.access';
+import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
+import { assertShopOrderManager } from '@/modules/order/order.service';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 
 import {
   businessDeadline,
   DISPUTE_CASE_STATE,
   DISPUTE_ISSUE_STATE,
+  DISPUTE_PARTY,
   DISPUTE_POLICY,
   hasMinimumDisputeEvidence,
+  OPEN_DISPUTE_STATES,
+  RETURN_STATE,
 } from './constants/dispute.constant';
-import { DisputeAccess } from './dispute.access';
 import { DisputeAppeal } from './entities/dispute-appeal.entity';
 import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeEvidence } from './entities/dispute-evidence.entity';
 import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeMessage } from './entities/dispute-message.entity';
-import { DisputeReturn } from './returns/entities/dispute-return.entity';
+import { DisputeReturn } from './entities/dispute-return.entity';
 import type {
   DisputeReplyInput,
   DisputeUploadInput,
@@ -44,14 +50,148 @@ import {
   openDisputeIssueSchema,
 } from './schemas/dispute.schema';
 
+export async function assertDisputeParty(
+  manager: EntityManager,
+  userId: string,
+  orderId: string,
+  existingOrder?: Order,
+) {
+  const order =
+    existingOrder ?? (await manager.findOneByOrFail(Order, { id: orderId }));
+  if (order.buyerId === userId) return { order, party: DISPUTE_PARTY.BUYER };
+  await assertShopOrderManager(manager, userId, order.shopId);
+  return { order, party: DISPUTE_PARTY.SELLER };
+}
+
+export async function isDisputeWindowOpen(
+  manager: EntityManager,
+  order: Order,
+  now: Date,
+) {
+  const verification = await manager.findOneBy(OrderDeliveryVerification, {
+    orderId: order.id,
+  });
+  if (!verification) return false;
+  const matchesDelivery =
+    order.deliveryVerifiedAt?.getTime() === verification.deliveredAt.getTime();
+  const matchesDeadline =
+    order.disputeDeadlineAt?.getTime() ===
+    verification.disputeDeadlineAt.getTime();
+  const hasFullWindow =
+    verification.disputeDeadlineAt.getTime() ===
+    verification.deliveredAt.getTime() + ORDER_POLICY.DISPUTE_WINDOW_MS;
+  const withinWindow =
+    verification.deliveredAt <= now && now < verification.disputeDeadlineAt;
+  const deliveredState = (
+    [
+      ORDER_STATUS.DELIVERED,
+      ORDER_STATUS.COMPLETED,
+      ORDER_STATUS.DISPUTE,
+    ] as readonly string[]
+  ).includes(order.status);
+  return (
+    matchesDelivery &&
+    matchesDeadline &&
+    hasFullWindow &&
+    withinWindow &&
+    deliveredState
+  );
+}
+
+export async function assertDisputeUploadAllowed(
+  manager: EntityManager,
+  userId: string,
+  orderId: string,
+  now: Date,
+  existingOrder?: Order,
+) {
+  const party = await assertDisputeParty(
+    manager,
+    userId,
+    orderId,
+    existingOrder,
+  );
+  const row = await manager.findOneBy(DisputeCase, {
+    orderId,
+    state: DISPUTE_CASE_STATE.OPEN,
+  });
+  const issues = row
+    ? await manager.find(DisputeIssue, {
+        where: {
+          caseId: row.id,
+          status: In([
+            DISPUTE_ISSUE_STATE.ACTIVE,
+            DISPUTE_ISSUE_STATE.AWAITING_APPEAL,
+            DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
+          ]),
+        },
+      })
+    : [];
+  const hasActiveIssue = issues.some(
+    (issue) => issue.status === DISPUTE_ISSUE_STATE.ACTIVE,
+  );
+  const appealIssueIds = issues
+    .filter(
+      (issue) =>
+        issue.status === DISPUTE_ISSUE_STATE.AWAITING_APPEAL ||
+        issue.status === DISPUTE_ISSUE_STATE.APPEAL_REVIEW,
+    )
+    .map((issue) => issue.id);
+  const decisions = appealIssueIds.length
+    ? await manager.find(DisputeDecision, {
+        where: { issueId: In(appealIssueIds) },
+      })
+    : [];
+  const canPrepareAppeal = decisions.some(
+    (decision) => !decision.finalizedAt && now <= decision.appealUntil,
+  );
+  const returnWindow = await manager.existsBy(DisputeReturn, {
+    orderId,
+    state: In([
+      RETURN_STATE.WAITING_LABEL,
+      RETURN_STATE.AWAITING_HANDOVER,
+      RETURN_STATE.IN_TRANSIT,
+    ]),
+  });
+  const buyerCanUpload =
+    party.party === DISPUTE_PARTY.BUYER &&
+    (hasActiveIssue ||
+      canPrepareAppeal ||
+      (await isDisputeWindowOpen(manager, party.order, now)));
+  const sellerCanUpload =
+    party.party === DISPUTE_PARTY.SELLER &&
+    (hasActiveIssue || canPrepareAppeal);
+  if (!buyerCanUpload && !sellerCanUpload && !returnWindow) {
+    throw new ConflictException('No open dispute evidence window');
+  }
+  return party;
+}
+
+export async function restoreDisputeCaseIfClear(
+  manager: EntityManager,
+  caseId: string,
+) {
+  const stillHeld = await manager.existsBy(DisputeIssue, {
+    caseId,
+    status: In([...OPEN_DISPUTE_STATES]),
+  });
+  if (stillHeld) return;
+  const row = await manager.findOneByOrFail(DisputeCase, { id: caseId });
+  row.state = DISPUTE_CASE_STATE.CLOSED;
+  await manager.save(row);
+  const order = await manager.findOneByOrFail(Order, { id: row.orderId });
+  if (order.status === ORDER_STATUS.DISPUTE) {
+    order.status = row.previousOrderStatus;
+    await manager.save(order);
+  }
+}
+
 @Injectable()
 export class DisputeService {
   constructor(
     private readonly db: DataSource,
-    private readonly access: DisputeAccess,
-    private readonly orders: OrderAccess,
-    private readonly storage: StorageService,
-    private readonly media: MediaService,
+    private readonly storageService: StorageService,
+    private readonly mediaService: MediaService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -79,7 +219,7 @@ export class DisputeService {
         }));
       if (existing) return existing;
 
-      if (!(await this.access.windowOpen(manager, order, now))) {
+      if (!(await isDisputeWindowOpen(manager, order, now))) {
         throw new ConflictException('Dispute window is closed or unverified');
       }
       if (await manager.existsBy(ShopSettlement, { orderId })) {
@@ -187,7 +327,7 @@ export class DisputeService {
         where: { id: issueId },
         lock: { mode: 'pessimistic_write' },
       });
-      const { party } = await this.access.assertParty(
+      const { party } = await assertDisputeParty(
         manager,
         userId,
         row.orderId,
@@ -232,13 +372,7 @@ export class DisputeService {
         where: { id: orderId },
         lock: { mode: 'pessimistic_write' },
       });
-      await this.access.assertUploadAllowed(
-        manager,
-        userId,
-        orderId,
-        now,
-        order,
-      );
+      await assertDisputeUploadAllowed(manager, userId, orderId, now, order);
       const repo = manager.getRepository(DisputeEvidence);
       const existing = await repo.findOneBy({
         orderId,
@@ -259,7 +393,7 @@ export class DisputeService {
       ) {
         throw new BadRequestException('Evidence limit reached');
       }
-      const file = await this.media.verifyMedia(
+      const file = await this.mediaService.verifyMedia(
         manager,
         userId,
         parsed.data.mediaId,
@@ -293,11 +427,13 @@ export class DisputeService {
 
   async downloadEvidence(userId: string, evidenceId: string) {
     const manager = this.db.manager;
-    const row = await manager.findOneBy(DisputeEvidence, { id: evidenceId });
-    if (!row || row.media.retiredAt) {
+    const row = await manager.findOneByOrFail(DisputeEvidence, {
+      id: evidenceId,
+    });
+    if (row.media.retiredAt) {
       throw new NotFoundException('Evidence not found');
     }
-    await this.access.assertParty(manager, userId, row.orderId);
+    await assertDisputeParty(manager, userId, row.orderId);
     if (row.uploadedById !== userId) {
       const submitted = await this.isEvidenceSubmitted(
         manager,
@@ -308,17 +444,17 @@ export class DisputeService {
         throw new ForbiddenException('Evidence has not been submitted');
       }
     }
-    return this.storage.createDownloadUrl(row.media.storageKey);
+    return this.storageService.createDownloadUrl(row.media.storageKey);
   }
 
   async adminDownloadEvidence(evidenceId: string) {
-    const row = await this.db.manager.findOneBy(DisputeEvidence, {
+    const row = await this.db.manager.findOneByOrFail(DisputeEvidence, {
       id: evidenceId,
     });
-    if (!row || row.media.retiredAt) {
+    if (row.media.retiredAt) {
       throw new NotFoundException('Evidence not found');
     }
-    return this.storage.createDownloadUrl(row.media.storageKey);
+    return this.storageService.createDownloadUrl(row.media.storageKey);
   }
 
   buyerList(buyerId: string, offset = 0) {
@@ -330,13 +466,13 @@ export class DisputeService {
   }
 
   async shopList(userId: string, shopId: string, offset = 0) {
-    await this.orders.assertManage(this.db.manager, userId, shopId);
+    await assertShopOrderManager(this.db.manager, userId, shopId);
     return this.list({ shopId }, offset);
   }
 
   async byOrder(userId: string, orderId: string, offset = 0) {
     const manager = this.db.manager;
-    await this.access.assertParty(manager, userId, orderId);
+    await assertDisputeParty(manager, userId, orderId);
     const row = await manager.findOneByOrFail(DisputeCase, { orderId });
     return this.detail(manager, row, offset);
   }
@@ -390,16 +526,22 @@ export class DisputeService {
         returns: [],
       };
     }
-    const messages = await manager.find(DisputeMessage, {
-      where: { issueId: In(issueIds) },
-      order: { createdAt: 'ASC', id: 'ASC' },
-      take: DISPUTE_POLICY.BATCH_SIZE,
-      skip: offset,
-    });
-    const decisions = await manager.find(DisputeDecision, {
-      where: { issueId: In(issueIds) },
-      order: { decidedAt: 'ASC', id: 'ASC' },
-    });
+    const [messages, decisions, returns] = await Promise.all([
+      manager.find(DisputeMessage, {
+        where: { issueId: In(issueIds) },
+        order: { createdAt: 'ASC', id: 'ASC' },
+        take: DISPUTE_POLICY.BATCH_SIZE,
+        skip: offset,
+      }),
+      manager.find(DisputeDecision, {
+        where: { issueId: In(issueIds) },
+        order: { decidedAt: 'ASC', id: 'ASC' },
+      }),
+      manager.find(DisputeReturn, {
+        where: { orderId: row.orderId },
+        order: { createdAt: 'ASC', id: 'ASC' },
+      }),
+    ]);
     const decisionIds = decisions.map((decision) => decision.id);
     const appeals = decisionIds.length
       ? await manager.find(DisputeAppeal, {
@@ -407,10 +549,6 @@ export class DisputeService {
           order: { filedAt: 'ASC', id: 'ASC' },
         })
       : [];
-    const returns = await manager.find(DisputeReturn, {
-      where: { orderId: row.orderId },
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
     const evidenceIds = [
       ...new Set([
         ...issues.flatMap((issue) => issue.evidenceIds),

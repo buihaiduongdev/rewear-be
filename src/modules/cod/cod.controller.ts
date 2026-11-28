@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  forwardRef,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
@@ -34,8 +43,9 @@ import type {
 export class CodController {
   constructor(
     private readonly codService: CodService,
+    @Inject(forwardRef(() => OrderService))
     private readonly orderService: OrderService,
-    private readonly policy: CodPolicy,
+    private readonly codPolicy: CodPolicy,
   ) {}
 
   @AuthenticatedAccess()
@@ -79,7 +89,7 @@ export class CodController {
   @Get('cod/restrictions/mine')
   @Serialize(codRestrictionsSchema)
   mine(@CurrentUser() user: User) {
-    return this.policy.mine(user.id);
+    return this.codPolicy.mine(user.id);
   }
 
   @AuthenticatedAccess()
@@ -91,6 +101,6 @@ export class CodController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: rejectOrderSchema }) input: RejectOrderInput,
   ) {
-    return this.policy.resolve(user.id, id, input);
+    return this.codPolicy.resolve(user.id, id, input);
   }
 }

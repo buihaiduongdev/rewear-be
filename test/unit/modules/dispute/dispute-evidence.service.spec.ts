@@ -1,5 +1,7 @@
 import { DisputeService } from '@/modules/dispute/dispute.service';
+import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeEvidence } from '@/modules/dispute/entities/dispute-evidence.entity';
+import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 
 describe('dispute evidence shared media', () => {
   it('attaches owned private media without a storage HEAD request', async () => {
@@ -22,7 +24,14 @@ describe('dispute evidence shared media', () => {
     };
     const manager = {
       query: jest.fn().mockResolvedValue([{ now: new Date() }]),
-      findOneOrFail: jest.fn().mockResolvedValue({ id: 'o1' }),
+      findOneOrFail: jest.fn().mockResolvedValue({ id: 'o1', buyerId: 'u1' }),
+      findOneBy: jest.fn(async (entity: unknown) =>
+        entity === DisputeCase ? { id: 'c1', orderId: 'o1' } : null,
+      ),
+      find: jest.fn(async (entity: unknown) =>
+        entity === DisputeIssue ? [{ id: 'i1', status: 'ACTIVE' }] : [],
+      ),
+      existsBy: jest.fn().mockResolvedValue(false),
       getRepository: jest.fn((entity: unknown) =>
         entity === DisputeEvidence ? repo : null,
       ),
@@ -31,16 +40,12 @@ describe('dispute evidence shared media', () => {
       transaction: async (fn: (m: typeof manager) => Promise<unknown>) =>
         fn(manager),
     };
-    const access = { assertUploadAllowed: jest.fn() };
-    const orders = { assertManage: jest.fn() };
-    const storage = { getObjectMetadata: jest.fn() };
-    const uploads = { verifyMedia: jest.fn().mockResolvedValue(file) };
+    const storageService = { getObjectMetadata: jest.fn() };
+    const mediaService = { verifyMedia: jest.fn().mockResolvedValue(file) };
     const service = new DisputeService(
       db as never,
-      access as never,
-      orders as never,
-      storage as never,
-      uploads as never,
+      storageService as never,
+      mediaService as never,
       { record: jest.fn() } as never,
     );
     const result = await service.attachEvidence('u1', 'o1', {
@@ -56,6 +61,6 @@ describe('dispute evidence shared media', () => {
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({ mediaId }),
     );
-    expect(storage.getObjectMetadata).not.toHaveBeenCalled();
+    expect(storageService.getObjectMetadata).not.toHaveBeenCalled();
   });
 });

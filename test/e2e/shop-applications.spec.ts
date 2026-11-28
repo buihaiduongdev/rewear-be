@@ -25,7 +25,7 @@ import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/entities';
-import { IdentityRenewalWorker } from '@/modules/shop/applications/renewal/identity-renewal.worker';
+import { IdentityRenewalWorker } from '@/modules/shop/applications/identity-renewal.worker';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import type { User } from '@/modules/user/entities';

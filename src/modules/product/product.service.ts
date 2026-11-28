@@ -25,7 +25,7 @@ import { OutboxService } from '@/modules/event/outbox.service';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 

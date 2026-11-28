@@ -7,13 +7,11 @@ import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-recon
 import { CoinService } from '@/modules/coins/coin.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
-import { DisputeAccess } from '@/modules/dispute/dispute.access';
+import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
-import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
-import { DisputeReturnService } from '@/modules/dispute/returns/return.service';
+import { DisputeReturn } from '@/modules/dispute/entities/dispute-return.entity';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
-import { OrderAccess } from '@/modules/order/order.access';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
 
 import { adjudicationFixture } from './adjudication-fixture';
@@ -49,7 +47,6 @@ export async function disputeReturnFixture(
     f.admin.id,
     f.order.id,
     {
-      requestId: randomUUID(),
       mode,
       waybillCode: shipment.orderCode!,
       collectedAmount: f.order.total,
@@ -61,20 +58,15 @@ export async function disputeReturnFixture(
   );
   await db.getRepository(Order).update(f.order.id, { status: 'dispute' });
 
-  const orderAccess = new OrderAccess();
-  const access = new DisputeAccess(orderAccess);
   const outbox = new OutboxService();
-  const refunds = new DisputeRefundService(db, access, outbox);
+  const refunds = new DisputeRefundService(db, outbox);
   const returns = new DisputeReturnService(
     db,
     {} as GhnShipmentClient,
-    access,
-    orderAccess,
     refunds,
   );
   const adjudication = new DisputeAdjudicationService(
     db,
-    access,
     refunds,
     returns,
     outbox,
@@ -101,10 +93,10 @@ export async function disputeReturnFixture(
     ...f,
     db,
     shipment,
-    decision: finalized,
-    returned,
     refunds,
     returns,
     adjudication,
+    decision: finalized,
+    returned,
   };
 }

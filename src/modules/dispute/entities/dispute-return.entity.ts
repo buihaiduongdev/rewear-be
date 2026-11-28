@@ -3,8 +3,8 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 
-import { DisputeDecision } from '../../entities/dispute-decision.entity';
-import type { ReturnState } from '../../schemas/dispute.schema';
+import type { ReturnState } from '../schemas/dispute.schema';
+import { DisputeDecision } from './dispute-decision.entity';
 
 @Entity('dispute_returns')
 @Index(['decisionId'], { unique: true })

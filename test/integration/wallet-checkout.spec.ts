@@ -19,7 +19,7 @@ import {
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CoinService } from '@/modules/coins/coin.service';
 import { CoinAccount, CoinOrderDebit } from '@/modules/coins/entities';
-import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
+import { refundFunding } from '@/modules/dispute/dispute-refund.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { ORDER_STATUS } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';

@@ -13,7 +13,6 @@ import type {
 
 @Entity('cod_collections')
 @Index(['orderId'], { unique: true })
-@Index(['requestId'], { unique: true })
 @Index(['shopId', 'mode', 'status'])
 @Check(
   'CHK_cod_collection_money',
@@ -40,9 +39,6 @@ export class CodCollection extends BaseEntity {
   @ManyToOne(() => Shipment, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'shipmentId' })
   shipment: Shipment;
-
-  @Column('uuid')
-  requestId: string;
 
   @Column('uuid')
   actorId: string;
@@ -88,12 +84,6 @@ export class CodCollection extends BaseEntity {
 
   @Column('text')
   evidence: string;
-
-  @Column({ type: 'varchar', length: 64 })
-  requestFingerprint: string;
-
-  @Column({ type: 'varchar', length: 64 })
-  orderFingerprint: string;
 
   @Column({ type: 'text', nullable: true })
   reviewReason: ReconciliationReviewReason | null;

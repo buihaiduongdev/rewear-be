@@ -162,7 +162,6 @@ describe('Dispute FEAT-09 end-to-end HTTP lifecycle', () => {
       db,
       new CoinService(db),
     ).recordCollection(admin.id, order.id, {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       waybillCode: shipment.orderCode!,
       collectedAmount: order.total,

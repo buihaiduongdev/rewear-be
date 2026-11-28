@@ -3,7 +3,7 @@ import {
   hasMinimumDisputeEvidence,
 } from '@/modules/dispute/constants/dispute.constant';
 import { resolveDecisionRefundAmount } from '@/modules/dispute/dispute-adjudication.service';
-import { reverseReturnPayload } from '@/modules/dispute/returns/return.service';
+import { reverseReturnPayload } from '@/modules/dispute/dispute-return.service';
 
 describe('Dispute business deadlines, evidence rules, and return payload', () => {
   it('skips Saturday and Sunday when computing Vietnam 17:00 ICT business deadlines', () => {

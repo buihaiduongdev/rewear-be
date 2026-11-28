@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { CodPolicyModule } from '@/modules/cod/cod-policy.module';
+import { CodModule } from '@/modules/cod/cod.module';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
 import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
 import { WalletModule } from '@/modules/wallet/wallet.module';
@@ -12,7 +12,6 @@ import { OrderFundingService } from './order-funding.service';
 import { OrderSettlementController } from './order-settlement.controller';
 import { OrderSettlementService } from './order-settlement.service';
 import { OrderSettlementWorker } from './order-settlement.worker';
-import { OrderAccess } from './order.access';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { OrderWorker } from './order.worker';
@@ -20,7 +19,7 @@ import { OrderWorker } from './order.worker';
 @Module({
   imports: [
     WalletModule,
-    CodPolicyModule,
+    forwardRef(() => CodModule),
     TypeOrmModule.forFeature([
       Order,
       OrderEvent,
@@ -31,13 +30,12 @@ import { OrderWorker } from './order.worker';
   ],
   controllers: [OrderController, OrderSettlementController],
   providers: [
-    OrderAccess,
     OrderService,
     OrderWorker,
     OrderFundingService,
     OrderSettlementService,
     OrderSettlementWorker,
   ],
-  exports: [OrderService, OrderAccess],
+  exports: [OrderService, OrderFundingService],
 })
 export class OrderModule {}

@@ -37,7 +37,7 @@ import {
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';

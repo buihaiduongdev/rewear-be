@@ -46,7 +46,7 @@ const deps = {
   In,
   ...policy,
   ...(await load(
-    '../src/modules/shop/applications/renewal/identity-sale.policy.ts',
+    '../src/modules/shop/applications/constants/shop-application.constant.ts',
   )),
   ...(await load('../src/modules/payment/constants/payment.constant.ts')),
   ...(await load('../src/modules/checkout/constants/checkout.constant.ts')),

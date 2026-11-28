@@ -110,7 +110,6 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     const server = app.getHttpServer(),
       path = `/api/admin/orders/${order.id}/cod/collection`;
     const data = {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       waybillCode: shipment.orderCode,
       collectedAmount: 230000,
@@ -141,7 +140,6 @@ describe('COD financial evidence HTTP authorization and privacy', () => {
     expect(recorded.body.data.actorId).toBe(admin.id);
     expect(recorded.body.data.status).toBe('AWAITING');
     const batch = {
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       reference: randomUUID(),
       netAmount: 198000,

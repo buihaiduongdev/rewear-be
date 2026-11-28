@@ -107,7 +107,6 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     cashAmount = 230000,
   ) {
     await reconciliation.recordCollection(adminId, f.order.id, {
-      requestId: randomUUID(),
       mode,
       waybillCode: f.shipment.orderCode!,
       collectedAmount: 230000,
@@ -118,7 +117,6 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
     });
     const [{ now }] = await f.db.query('SELECT clock_timestamp() AS now');
     await reconciliation.recordRemittance(adminId, {
-      requestId: randomUUID(),
       reference: randomUUID(),
       mode,
       netAmount: cashAmount,

@@ -34,6 +34,7 @@ import {
   ProductStatus,
 } from '@/modules/product/enums';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
+import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
@@ -64,8 +65,16 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     );
     const outbox = new OutboxService();
     const coins = new CoinService(db);
-    cod = new CodService(db, pricing, policy, outbox, coins);
     orders = new OrderService(db, new WalletService(db), policy, outbox, coins);
+    cod = new CodService(
+      db,
+      pricing,
+      policy,
+      outbox,
+      coins,
+      orders,
+      new ShopFinanceService(db),
+    );
   });
   afterAll(async () => database?.destroy());
 

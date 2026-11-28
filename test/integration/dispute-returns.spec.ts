@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DisputeCase } from '@/modules/dispute/entities/dispute-case.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
-import { DisputeReturn } from '@/modules/dispute/returns/entities/dispute-return.entity';
+import { DisputeReturn } from '@/modules/dispute/entities/dispute-return.entity';
 import { WalletAccount } from '@/modules/wallet/entities';
 
 import { createTestDatabase, type TestDatabase } from '../support/database';

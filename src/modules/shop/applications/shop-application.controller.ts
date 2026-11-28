@@ -39,7 +39,9 @@ import { ShopApplicationService } from './shop-application.service';
 @AuthenticatedAccess()
 @Controller()
 export class ShopApplicationController {
-  constructor(private readonly applications: ShopApplicationService) {}
+  constructor(
+    private readonly shopApplicationService: ShopApplicationService,
+  ) {}
 
   @Post('shops/:shopId/application')
   @HttpCode(200)
@@ -48,7 +50,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
   ) {
-    return this.applications.create(user.id, shopId);
+    return this.shopApplicationService.create(user.id, shopId);
   }
 
   @Post('shops/:shopId/identity-renewals')
@@ -58,7 +60,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
   ) {
-    return this.applications.createRenewal(user.id, shopId);
+    return this.shopApplicationService.createRenewal(user.id, shopId);
   }
 
   @Post('shop-applications/:id/submissions')
@@ -69,7 +71,7 @@ export class ShopApplicationController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: applicationSubmitSchema }) input: ApplicationSubmitInput,
   ) {
-    return this.applications.submit(user.id, id, input);
+    return this.shopApplicationService.submit(user.id, id, input);
   }
 
   @Post('shop-applications/:id/renewal-submissions')
@@ -81,7 +83,7 @@ export class ShopApplicationController {
     @Body({ schema: submitIdentityRenewalSchema })
     input: SubmitIdentityRenewalInput,
   ) {
-    return this.applications.submitRenewal(user.id, id, input);
+    return this.shopApplicationService.submitRenewal(user.id, id, input);
   }
 
   @Get('shop-applications/mine')
@@ -90,7 +92,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Query({ schema: applicationQuerySchema }) input: ApplicationQueryInput,
   ) {
-    return this.applications.list(user.id, input);
+    return this.shopApplicationService.list(user.id, input);
   }
 
   @Get('shop-applications/admin')
@@ -100,7 +102,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Query({ schema: applicationQuerySchema }) input: ApplicationQueryInput,
   ) {
-    return this.applications.list(user.id, input, true);
+    return this.shopApplicationService.list(user.id, input, true);
   }
 
   @Get('shop-applications/admin/:id')
@@ -110,7 +112,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.applications.detail(user.id, id, true);
+    return this.shopApplicationService.detail(user.id, id, true);
   }
 
   @Post('shop-applications/admin/:id/decisions')
@@ -123,7 +125,7 @@ export class ShopApplicationController {
     @Body({ schema: applicationDecisionSchema })
     input: ApplicationDecisionInput,
   ) {
-    return this.applications.decide(user.id, id, input);
+    return this.shopApplicationService.decide(user.id, id, input);
   }
 
   @Get('shop-applications/:id')
@@ -132,7 +134,7 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.applications.detail(user.id, id);
+    return this.shopApplicationService.detail(user.id, id);
   }
 
   @Post('shop-applications/:id/documents')
@@ -143,7 +145,7 @@ export class ShopApplicationController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: applicationUploadSchema }) input: ApplicationUploadInput,
   ) {
-    return this.applications.attach(user.id, id, input);
+    return this.shopApplicationService.attach(user.id, id, input);
   }
 
   @Get('shop-application-documents/:id/download')
@@ -152,6 +154,10 @@ export class ShopApplicationController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.applications.download(user.id, id);
+    return this.shopApplicationService.download(
+      user.id,
+      id,
+      user.role === UserRole.ADMIN,
+    );
   }
 }

@@ -21,14 +21,17 @@ import {
   DISPUTE_RESPONSIBILITY,
 } from './constants/dispute.constant';
 import { DisputeRefundService } from './dispute-refund.service';
-import { DisputeAccess, restoreDisputeCaseIfClear } from './dispute.access';
+import { DisputeReturnService } from './dispute-return.service';
+import {
+  assertDisputeParty,
+  restoreDisputeCaseIfClear,
+} from './dispute.service';
 import { DisputeAppeal } from './entities/dispute-appeal.entity';
 import { DisputeCase } from './entities/dispute-case.entity';
 import { DisputeDecision } from './entities/dispute-decision.entity';
 import { DisputeEvidence } from './entities/dispute-evidence.entity';
 import { DisputeIssue } from './entities/dispute-issue.entity';
 import { DisputeMessage } from './entities/dispute-message.entity';
-import { DisputeReturnService } from './returns/return.service';
 import type {
   DisputeAppealInput,
   DisputeDecisionInput,
@@ -90,9 +93,8 @@ export class DisputeAdjudicationService {
 
   constructor(
     private readonly db: DataSource,
-    private readonly access: DisputeAccess,
-    private readonly refunds: DisputeRefundService,
-    private readonly returns: DisputeReturnService,
+    private readonly disputeRefundService: DisputeRefundService,
+    private readonly disputeReturnService: DisputeReturnService,
     private readonly outboxService: OutboxService,
   ) {}
 
@@ -164,14 +166,9 @@ export class DisputeAdjudicationService {
     return { row, order, issue, decision };
   }
 
-  async extend(adminId: string, issueId: string, input: { reason: string }) {
+  async extend(_adminId: string, issueId: string, input: { reason: string }) {
     const data = disputeExtensionSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      await manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -199,11 +196,6 @@ export class DisputeAdjudicationService {
   async decide(adminId: string, issueId: string, input: DisputeDecisionInput) {
     const data = disputeDecisionInputSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      await manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -305,7 +297,7 @@ export class DisputeAdjudicationService {
       const now = new Date(clock);
       const { row, order, issue, decision } =
         await this.lockOrderIssueAndDecision(manager, decisionId);
-      const { party } = await this.access.assertParty(
+      const { party } = await assertDisputeParty(
         manager,
         userId,
         row.orderId,
@@ -382,11 +374,6 @@ export class DisputeAdjudicationService {
   ) {
     const data = disputeDecisionInputSchema.parse(input);
     return this.db.transaction(async (manager) => {
-      await manager.findOneByOrFail(User, {
-        id: adminId,
-        role: UserRole.ADMIN,
-        status: UserStatus.ACTIVE,
-      });
       const [{ now: clock }] = await manager.query(
         'SELECT clock_timestamp() AS now',
       );
@@ -518,10 +505,19 @@ export class DisputeAdjudicationService {
     issue.status = DISPUTE_ISSUE_STATE.AWAITING_EXECUTION;
     await manager.save(issue);
     if (decision.finalOutcome === DISPUTE_DECISION_OUTCOME.REQUIRE_RETURN) {
-      await this.returns.ensureReturn(manager, decision, issue, row);
+      await this.disputeReturnService.ensureReturn(
+        manager,
+        decision,
+        issue,
+        row,
+      );
       return;
     }
-    await this.refunds.executeInTransaction(manager, decision.id, now);
+    await this.disputeRefundService.executeInTransaction(
+      manager,
+      decision.id,
+      now,
+    );
   }
 
   async run() {
@@ -573,6 +569,6 @@ export class DisputeAdjudicationService {
       }
     }
 
-    await this.returns.expireDue();
+    await this.disputeReturnService.expireDue();
   }
 }

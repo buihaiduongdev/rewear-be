@@ -1,6 +1,6 @@
 import ms from 'ms';
 
-import { isSettlementWindowDue } from '@/modules/order/policies/order-settlement.policy';
+import { isSettlementWindowDue } from '@/modules/order/order-settlement.service';
 
 describe('72 continuous hour dispute window', () => {
   const deliveredAt = new Date('2026-11-13T15:00:00.000Z');

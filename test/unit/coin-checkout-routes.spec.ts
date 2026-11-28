@@ -187,6 +187,8 @@ describe('coin checkout payment routes', () => {
       {} as CodPolicy,
       { record: jest.fn() } as unknown as OutboxService,
       new CoinService({} as DataSource),
+      {} as never,
+      {} as never,
     );
     const orders = await (service as any).createOrders(
       manager,

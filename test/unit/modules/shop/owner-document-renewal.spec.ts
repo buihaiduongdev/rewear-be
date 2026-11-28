@@ -2,7 +2,7 @@ import {
   identityGraceDeadline,
   publicIdentitySaleState,
   shopAllowsIdentitySales,
-} from '@/modules/shop/applications/renewal/identity-sale.policy';
+} from '@/modules/shop/applications/constants/shop-application.constant';
 
 describe('Owner identity renewal sales gate', () => {
   it('enforces the full 30-day grace period in Vietnam time and manual restriction', () => {

@@ -10,8 +10,8 @@ export class DisputeWorker {
   private running = false;
 
   constructor(
-    private readonly adjudication: DisputeAdjudicationService,
-    private readonly refunds: DisputeRefundService,
+    private readonly disputeAdjudicationService: DisputeAdjudicationService,
+    private readonly disputeRefundService: DisputeRefundService,
   ) {}
 
   @Interval(60_000)
@@ -19,8 +19,8 @@ export class DisputeWorker {
     if (this.running) return;
     this.running = true;
     try {
-      await this.adjudication.run();
-      await this.refunds.run();
+      await this.disputeAdjudicationService.run();
+      await this.disputeRefundService.run();
     } catch (error) {
       this.logger.error(
         error instanceof Error ? error.message : 'Dispute scan failed',

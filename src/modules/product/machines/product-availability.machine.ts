@@ -1,5 +1,5 @@
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
-import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { ShopStatus } from '@/modules/shop/enums';
 
 import type { Product } from '../entities';

@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 
 import { DataSource, type EntityManager, In, IsNull, Not } from 'typeorm';
@@ -17,8 +16,6 @@ import { Media } from '@/modules/media/entities';
 import { MediaService } from '@/modules/media/media.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { ShopBankAccount } from '@/modules/shop-finance/entities';
-import { User } from '@/modules/user/entities';
-import { UserRole, UserStatus } from '@/modules/user/enums';
 
 import { Shop, ShopMember } from '../entities';
 import { ShopMemberRole, ShopStatus } from '../enums';
@@ -87,29 +84,12 @@ export function validateApplicantIdentity(
 export class ShopApplicationService {
   constructor(
     private readonly db: DataSource,
-    private readonly storage: StorageService,
-    private readonly media: MediaService,
+    private readonly storageService: StorageService,
+    private readonly mediaService: MediaService,
     private readonly outboxService: OutboxService,
   ) {}
 
-  async assertActiveUser(
-    manager: EntityManager,
-    userId: string,
-    admin = false,
-  ) {
-    const transactional = manager.queryRunner?.isTransactionActive;
-    const actor = await manager.findOne(User, {
-      where: { id: userId, status: UserStatus.ACTIVE },
-      ...(transactional ? { lock: { mode: 'pessimistic_read' as const } } : {}),
-    });
-    if (!actor) throw new UnauthorizedException('Active account required');
-    if (admin && actor.role !== UserRole.ADMIN)
-      throw new ForbiddenException('Active Admin required');
-    return actor;
-  }
-
   async assertOwner(manager: EntityManager, userId: string, shopId: string) {
-    await this.assertActiveUser(manager, userId);
     const isOwner = await manager.existsBy(ShopMember, {
       userId,
       shopId,
@@ -144,11 +124,7 @@ export class ShopApplicationService {
       .innerJoinAndSelect('a.shop', 'shop')
       .setLock('pessimistic_write')
       .where('a.id = :id AND a.applicantId = :userId', { id, userId })
-      .getOne();
-    if (!row) {
-      await this.assertActiveUser(manager, userId);
-      throw new NotFoundException('Shop application not found');
-    }
+      .getOneOrFail();
     await this.assertOwner(manager, userId, row.shopId);
     return { row, shop: row.shop };
   }
@@ -338,7 +314,7 @@ export class ShopApplicationService {
           },
         });
       }
-      return this.view(manager, row);
+      return (await this.loadView(manager, row.id)).view;
     });
   }
 
@@ -400,7 +376,7 @@ export class ShopApplicationService {
           },
         });
       }
-      return this.view(manager, row);
+      return (await this.loadView(manager, row.id)).view;
     });
   }
 
@@ -444,7 +420,7 @@ export class ShopApplicationService {
           sendEmail: false,
         },
       });
-      return this.view(manager, row);
+      return (await this.loadView(manager, row.id)).view;
     });
   }
 
@@ -485,7 +461,7 @@ export class ShopApplicationService {
           sendEmail: false,
         },
       });
-      return this.view(manager, row);
+      return (await this.loadView(manager, row.id)).view;
     });
   }
 
@@ -493,14 +469,12 @@ export class ShopApplicationService {
     const data = applicationDecisionSchema.parse(input);
     return this.db.transaction(async (manager) => {
       const now = new Date();
-      await this.assertActiveUser(manager, actorId, true);
       const row = await manager
         .createQueryBuilder(ShopApplication, 'a')
         .innerJoinAndSelect('a.shop', 'shop')
         .setLock('pessimistic_write')
         .where('a.id = :id', { id })
-        .getOne();
-      if (!row) throw new NotFoundException('Shop application not found');
+        .getOneOrFail();
       if (actorId === row.applicantId)
         throw new ForbiddenException(
           'An Admin cannot review their own application',
@@ -570,7 +544,7 @@ export class ShopApplicationService {
           ).includes(data.outcome),
         },
       });
-      return this.view(manager, row, true);
+      return (await this.loadView(manager, row.id, true)).view;
     });
   }
 
@@ -587,7 +561,7 @@ export class ShopApplicationService {
           'Application is not open for document uploads',
         );
       this.assertShopKindEligibility(shop, row.kind);
-      const file = await this.media.verifyMedia(
+      const file = await this.mediaService.verifyMedia(
         manager,
         userId,
         data.mediaId,
@@ -616,28 +590,25 @@ export class ShopApplicationService {
     });
   }
 
-  async download(userId: string, id: string) {
+  async download(userId: string, id: string, admin = false) {
     const manager = this.db.manager;
-    const row = await manager.findOne(ShopApplicationDocument, {
+    const row = await manager.findOneOrFail(ShopApplicationDocument, {
       where: { id },
       relations: { application: true },
     });
-    if (!row || row.media.visibility !== 'private' || row.media.retiredAt) {
-      await this.assertActiveUser(manager, userId);
+    if (row.media.visibility !== 'private' || row.media.retiredAt) {
       throw new NotFoundException('Identity document not found');
     }
     if (row.uploadedById === userId && row.application.applicantId === userId) {
       await this.assertOwner(manager, userId, row.application.shopId);
-    } else {
-      const actor = await this.assertActiveUser(manager, userId);
-      if (
-        actor.role !== UserRole.ADMIN ||
-        !row.isSelected ||
-        row.application.state === SHOP_APPLICATION_STATE.DRAFT
-      )
-        throw new NotFoundException('Identity document not found');
+    } else if (
+      !admin ||
+      !row.isSelected ||
+      row.application.state === SHOP_APPLICATION_STATE.DRAFT
+    ) {
+      throw new NotFoundException('Identity document not found');
     }
-    return this.storage.createDownloadUrl(row.media.storageKey);
+    return this.storageService.createDownloadUrl(row.media.storageKey);
   }
 
   private summary(row: ShopApplication) {
@@ -654,28 +625,15 @@ export class ShopApplicationService {
     };
   }
 
-  async view(manager: EntityManager, row: ShopApplication, admin = false) {
-    const [shop, documents, pickup, bank] = await Promise.all([
-      manager.findOneOrFail(Shop, {
-        where: { id: row.shopId },
-        relations: { logoMedia: true },
-      }),
-      manager.find(ShopApplicationDocument, {
-        where: { applicationId: row.id },
-        order: { createdAt: 'ASC', id: 'ASC' },
-      }),
-      row.kind === SHOP_APPLICATION_KIND.INITIAL
-        ? manager.findOneBy(PickupLocation, { shopId: row.shopId })
-        : Promise.resolve(null),
-      row.kind === SHOP_APPLICATION_KIND.INITIAL && row.bankAccountId
-        ? manager.findOneBy(ShopBankAccount, {
-            id: row.bankAccountId,
-            shopId: row.shopId,
-            deletedAt: IsNull(),
-          })
-        : Promise.resolve(null),
-    ]);
-    const visibleDocs = documents.filter(
+  private toView(
+    row: ShopApplication,
+    pickup: PickupLocation | null,
+    admin = false,
+  ) {
+    const shop = row.shop;
+    const bank =
+      row.kind === SHOP_APPLICATION_KIND.INITIAL ? row.bankAccount : null;
+    const visibleDocs = (row.documents ?? []).filter(
       (d) =>
         !d.media.retiredAt &&
         (!admin ||
@@ -690,7 +648,7 @@ export class ShopApplicationService {
         description: shop.description,
         logoUrl:
           shop.logoMedia && !shop.logoMedia.retiredAt
-            ? this.storage.getPublicUrl(shop.logoMedia.storageKey)
+            ? this.storageService.getPublicUrl(shop.logoMedia.storageKey)
             : null,
       },
       pickup: pickup
@@ -734,30 +692,59 @@ export class ShopApplicationService {
     };
   }
 
+  private async loadView(
+    manager: EntityManager,
+    id: string,
+    admin = false,
+    applicantId?: string,
+  ) {
+    const query = manager
+      .createQueryBuilder(ShopApplication, 'a')
+      .innerJoinAndSelect('a.shop', 'shop')
+      .leftJoinAndSelect('shop.logoMedia', 'logoMedia')
+      .leftJoinAndSelect('a.documents', 'doc')
+      .leftJoinAndSelect('doc.media', 'docMedia')
+      .leftJoinAndSelect(
+        'a.bankAccount',
+        'bank',
+        'bank."shopId" = a."shopId" AND bank."deletedAt" IS NULL',
+      )
+      .leftJoinAndMapOne(
+        'a.pickup',
+        PickupLocation,
+        'pickup',
+        'a.kind = :initialKind AND pickup."shopId" = a."shopId"',
+        { initialKind: SHOP_APPLICATION_KIND.INITIAL },
+      )
+      .where('a.id = :id', { id })
+      .orderBy('doc.createdAt', 'ASC')
+      .addOrderBy('doc.id', 'ASC');
+    if (applicantId) {
+      query.andWhere('a.applicantId = :applicantId', { applicantId });
+    }
+    const row = (await query.getOneOrFail()) as ShopApplication & {
+      pickup?: PickupLocation | null;
+    };
+    return { row, view: this.toView(row, row.pickup ?? null, admin) };
+  }
+
   async detail(userId: string, id: string, admin = false) {
     const manager = this.db.manager;
-    if (admin) {
-      await this.assertActiveUser(manager, userId, true);
-      const row = await manager.findOneBy(ShopApplication, { id });
-      if (!row) throw new NotFoundException('Shop application not found');
-      return this.view(manager, row, true);
-    }
-    const row = await manager.findOneBy(ShopApplication, {
+    const { row, view } = await this.loadView(
+      manager,
       id,
-      applicantId: userId,
-    });
-    if (!row) {
-      await this.assertActiveUser(manager, userId);
-      throw new NotFoundException('Shop application not found');
+      admin,
+      admin ? undefined : userId,
+    );
+    if (!admin) {
+      await this.assertOwner(manager, userId, row.shopId);
     }
-    await this.assertOwner(manager, userId, row.shopId);
-    return this.view(manager, row);
+    return view;
   }
 
   async list(userId: string, input: ApplicationQueryInput, admin = false) {
     const data = applicationQuerySchema.parse(input);
     const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId, admin);
     const query = manager.createQueryBuilder(ShopApplication, 'a');
     if (!admin)
       query

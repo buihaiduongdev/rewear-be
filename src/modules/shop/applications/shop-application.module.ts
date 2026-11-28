@@ -9,7 +9,7 @@ import {
   ShopApplication,
   ShopApplicationDocument,
 } from './entities';
-import { IdentityRenewalWorker } from './renewal/identity-renewal.worker';
+import { IdentityRenewalWorker } from './identity-renewal.worker';
 import { ShopApplicationController } from './shop-application.controller';
 import { ShopApplicationService } from './shop-application.service';
 

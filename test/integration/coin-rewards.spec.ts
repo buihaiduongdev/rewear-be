@@ -10,7 +10,7 @@ import {
   CoinOrderDebit,
   CoinPurchaseReward,
 } from '@/modules/coins/entities';
-import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
+import { refundFunding } from '@/modules/dispute/dispute-refund.service';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
@@ -105,7 +105,6 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       db,
       new CoinService(db),
     ).recordCollection(f.admin.id, f.order.id, {
-      requestId: randomUUID(),
       mode,
       waybillCode: shipment.orderCode!,
       collectedAmount: f.order.total,
@@ -130,7 +129,6 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     });
     const finance = new CodReconciliationService(f.db, new CoinService(f.db));
     await finance.recordRemittance(f.admin.id, {
-      requestId: randomUUID(),
       reference: randomUUID(),
       mode: 'EVIDENCE',
       netAmount: f.order.total,

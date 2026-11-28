@@ -50,3 +50,35 @@ export const IDENTITY_IMAGE_MIME = [
   'image/png',
   'image/webp',
 ] as const;
+
+export type IdentitySaleState = {
+  identityExpiresOn?: string | null;
+  identityManualRestriction?: boolean;
+};
+
+/** Expiration date is valid through Vietnam local midnight plus 30 complete following days. */
+export function identityGraceDeadline(expiresOn: string): Date {
+  return new Date(
+    Date.parse(expiresOn + 'T00:00:00Z') -
+      IDENTITY_RENEWAL_POLICY.VIETNAM_OFFSET_MS +
+      (IDENTITY_RENEWAL_POLICY.GRACE_DAYS + 1) * IDENTITY_RENEWAL_POLICY.DAY_MS,
+  );
+}
+
+export function shopAllowsIdentitySales(
+  shop: IdentitySaleState,
+  now = new Date(),
+): boolean {
+  if (shop.identityManualRestriction) return false;
+  if (!shop.identityExpiresOn) return true;
+  return (
+    now.getTime() < identityGraceDeadline(shop.identityExpiresOn).getTime()
+  );
+}
+
+export function publicIdentitySaleState(
+  shop: IdentitySaleState,
+  now = new Date(),
+) {
+  return { identitySalesPaused: !shopAllowsIdentitySales(shop, now) };
+}
