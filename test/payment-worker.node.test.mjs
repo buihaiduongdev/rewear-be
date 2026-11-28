@@ -17,6 +17,7 @@ class Logger {
 }
 globalThis.__workerDependencies = {
   ...(await load('../src/modules/payment/constants/payment.constant.ts')),
+  RECONCILIATION_MODE: { EVIDENCE: 'EVIDENCE', SIMULATION: 'SIMULATION' },
   PaymentAttempt,
   PaymentRefund,
   Logger,
@@ -29,7 +30,8 @@ const source = (
 )
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '')
-  .replace(/@Inject\(PAYOS_CLIENT\)/g, '')
+  .replace(/@Inject\(forwardRef\(\(\) => [^)]+\)\)/g, '')
+  .replace(/@Inject\([^)]+\)/g, '')
   .replace(/@Interval\([^)]+\)/g, '');
 const { PaymentWorker } = await import(
   `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(globalThis.__workerDependencies).join(', ')} } = globalThis.__workerDependencies;\n${stripTypeScriptTypes(source, { mode: 'transform' })}\n//# sourceURL=payment-worker-under-test.js`).toString('base64')}`
@@ -38,6 +40,12 @@ const { PaymentWorker } = await import(
 function fixture() {
   errors.length = 0;
   let now = 1000;
+  const attempt = {
+    id: 'payment-1',
+    buyerId: 'buyer-1',
+    provider: 'PAYOS',
+    state: 'REFUND_REQUIRED',
+  };
   const refund = {
     id: 'refund-1',
     paymentId: 'payment-1',
@@ -52,6 +60,7 @@ function fixture() {
     query: async (sql) =>
       sql.includes('clock_timestamp') ? [{ now: new Date(now) }] : [],
     findOne: async () => refund,
+    findOneBy: async () => attempt,
     save: async (value) => value,
   };
   let queue = Promise.resolve();
@@ -62,8 +71,13 @@ function fixture() {
       return result;
     },
   };
+  const walletService = {
+    creditLatePaymentRefund: async () => {
+      throw new Error('Wallet cap exceeded');
+    },
+  };
   return {
-    worker: new PaymentWorker(db, {}, {}),
+    worker: new PaymentWorker(db, {}, {}, null, walletService),
     refund,
     advance: () => {
       now += 3600001;

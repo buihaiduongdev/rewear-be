@@ -31,6 +31,7 @@ export async function refundFunding(
   const money = reconciliationMoney(order);
   if (
     order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS ||
+    order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO ||
     order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
   ) {
     const credit = await new OrderFundingService().heldCredit(

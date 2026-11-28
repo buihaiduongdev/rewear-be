@@ -57,6 +57,8 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
       ),
       new OutboxService(),
       new CoinService(database.dataSource),
+      null,
+      {} as never,
     );
   });
   afterAll(async () => {

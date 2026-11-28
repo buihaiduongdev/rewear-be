@@ -131,6 +131,8 @@ describe('coin checkout payment routes', () => {
       pricing as unknown as PaymentPricing,
       { record: jest.fn() } as unknown as OutboxService,
       new CoinService({} as DataSource),
+      null,
+      {} as never,
     );
     await expect(
       (service as any).prepareAttempt(
@@ -154,6 +156,8 @@ describe('coin checkout payment routes', () => {
       pricing as unknown as PaymentPricing,
       { record: jest.fn() } as unknown as OutboxService,
       new CoinService({} as DataSource),
+      null,
+      {} as never,
     );
     await expect(
       (service as any).prepareAttempt(

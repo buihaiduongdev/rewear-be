@@ -3,12 +3,13 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
@@ -24,10 +25,14 @@ import { UserRole } from '@/modules/user/enums';
 import {
   bankAccountInputSchema,
   bankAccountViewSchema,
+  payoutAdminItemViewSchema,
   payoutAdminViewSchema,
   payoutFailureSchema,
   payoutOwnerViewSchema,
   payoutReasonSchema,
+  payoutReceiptDownloadViewSchema,
+  payoutReceiptUploadTicketSchema,
+  payoutReceiptUploadTicketViewSchema,
   payoutRequestSchema,
   payoutSuccessSchema,
   payoutViewSchema,
@@ -35,6 +40,7 @@ import {
 import type {
   BankAccountInput,
   PayoutFailureInput,
+  PayoutReceiptUploadTicketInput,
   PayoutRequestInput,
   PayoutSuccessInput,
 } from './schemas/payout.schema';
@@ -171,10 +177,45 @@ export class ShopFinanceController {
     return this.shopPayoutService.fail(user.id, id, input);
   }
 
-  @Serialize(payoutViewSchema)
+  @Serialize(payoutReceiptUploadTicketViewSchema, {
+    status: HttpStatus.CREATED,
+  })
+  @Roles(UserRole.ADMIN)
+  @AuthenticatedAccess()
+  @Post('admin/shop-payouts/receipt-upload-ticket')
+  @ApiOperation({
+    summary: 'Create a private upload ticket for a payout UNC bank receipt',
+  })
+  createReceiptUploadTicket(
+    @CurrentUser() user: User,
+    @Body({ schema: payoutReceiptUploadTicketSchema })
+    input: PayoutReceiptUploadTicketInput,
+  ) {
+    return this.shopPayoutService.createReceiptUploadTicket(user.id, input);
+  }
+
+  @Serialize(payoutReceiptDownloadViewSchema)
+  @Roles(UserRole.ADMIN)
+  @AuthenticatedAccess()
+  @Get('admin/shop-payouts/:id/receipt')
+  @ApiOperation({
+    summary: 'Get a signed download URL for an attached payout UNC receipt',
+  })
+  getPayoutReceipt(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.shopPayoutService.getReceiptDownload(user.id, id);
+  }
+
+  @Serialize(payoutAdminItemViewSchema)
   @Roles(UserRole.ADMIN)
   @AuthenticatedAccess()
   @Post('admin/shop-payouts/:id/success')
+  @ApiOperation({
+    summary:
+      'Mark a seller payout as succeeded with bank reference and optional UNC receipt image',
+  })
   succeedPayout(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,

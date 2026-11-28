@@ -58,7 +58,8 @@ export const walletViewSchema = z.object({
   credits: z.array(
     z.object({
       id: z.uuid(),
-      orderId: z.uuid(),
+      orderId: z.uuid().nullable(),
+      paymentRefundId: z.uuid().nullable().optional(),
       amount: vndAmountSchema.positive(),
       reason: z.enum(WALLET_CREDIT_REASON),
       mode: z.enum(RECONCILIATION_MODE).nullable(),
