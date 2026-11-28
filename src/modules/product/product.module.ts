@@ -8,6 +8,7 @@ import { ProductMedia } from '@/modules/media/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 
 import { Product, ProductModeration } from './entities';
+import { GeminiService } from './gemini.service';
 import { ProductController } from './product.controller';
 import { ProductService } from './product.service';
 
@@ -25,7 +26,7 @@ import { ProductService } from './product.service';
     ]),
   ],
   controllers: [ProductController],
-  providers: [ProductService],
-  exports: [ProductService],
+  providers: [ProductService, GeminiService],
+  exports: [ProductService, GeminiService],
 })
 export class ProductModule {}

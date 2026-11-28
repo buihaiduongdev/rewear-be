@@ -56,6 +56,26 @@ export const moderateProductSchema = z
 export const suspendProductSchema = z.strictObject({
   reason: trimmedTextSchema.min(1).max(2000),
 });
+export const optionalProvinceIdSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .optional();
+
+export const suggestDescriptionSchema = z.strictObject({
+  title: trimmedTextSchema.min(1).max(150),
+  categoryName: trimmedTextSchema.min(1).max(100).optional(),
+  brand: trimmedTextSchema.min(1).max(100).optional(),
+  condition: z.enum(ProductCondition).optional(),
+  size: trimmedTextSchema.min(1).max(50).optional(),
+  color: trimmedTextSchema.min(1).max(50).optional(),
+  material: trimmedTextSchema.min(1).max(100).optional(),
+  measurements: measurementsSchema.optional(),
+  repairs: trimmedTextSchema.min(1).max(1000).optional(),
+  defects: z.array(trimmedTextSchema.min(1).max(500)).max(20).optional(),
+  notes: trimmedTextSchema.min(1).max(1000).optional(),
+});
+
 export type CreateProductInput = z.output<typeof createProductSchema>;
 export type UpdateProductInput = z.output<typeof updateProductSchema>;
 export type UpdateProductStatusInput = z.output<
@@ -63,3 +83,4 @@ export type UpdateProductStatusInput = z.output<
 >;
 export type ModerateProductInput = z.output<typeof moderateProductSchema>;
 export type SuspendProductInput = z.output<typeof suspendProductSchema>;
+export type SuggestDescriptionInput = z.output<typeof suggestDescriptionSchema>;

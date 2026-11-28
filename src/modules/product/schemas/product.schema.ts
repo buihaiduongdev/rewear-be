@@ -57,3 +57,12 @@ export const productModerationSchema = z.object({
   version: z.number().int().positive(),
   reason: z.string().nullable(),
 });
+
+export const suggestDescriptionResponseSchema = z.object({
+  description: z.string().min(1),
+  model: z.string().min(1),
+});
+
+export type SuggestDescriptionResponse = z.output<
+  typeof suggestDescriptionResponseSchema
+>;
