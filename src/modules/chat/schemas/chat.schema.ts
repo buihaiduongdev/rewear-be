@@ -1,7 +1,6 @@
 import z from 'zod';
 
 import { dateTimeSchema } from '@/common/schemas/date-time.schema';
-import { DISPUTE_EVIDENCE_TAG } from '@/modules/dispute/constants/dispute.constant';
 
 import {
   CHAT_MIME_TYPES,
@@ -20,6 +19,14 @@ const pageOf = <T extends z.ZodType>(item: T) =>
   });
 
 export const openChatSchema = z.strictObject({ shopId: z.uuid() });
+export const chatOpenViewSchema = z.object({
+  id: z.uuid(),
+  buyerId: z.uuid(),
+  shopId: z.uuid(),
+  lastMessageAt: dateTimeSchema.nullable(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+});
 export const sendChatSchema = z
   .strictObject({
     text: z.string().trim().min(1).max(CHAT_POLICY.TEXT_LENGTH).optional(),
@@ -28,16 +35,10 @@ export const sendChatSchema = z
       .max(CHAT_POLICY.MAX_MEDIA)
       .default([])
       .refine((ids) => new Set(ids).size === ids.length, 'Duplicate media'),
-    productId: z.uuid().optional(),
-    orderId: z.uuid().optional(),
   })
   .refine(
-    (input) =>
-      !!input.text ||
-      input.mediaIds.length > 0 ||
-      !!input.productId ||
-      !!input.orderId,
-    'Message must contain text, media, a product or an order',
+    (input) => !!input.text || input.mediaIds.length > 0,
+    'Message must contain text or media',
   );
 export const chatPageSchema = z.object({
   limit: z.coerce
@@ -65,24 +66,6 @@ export const chatMessageViewSchema = z.object({
       sizeBytes: z.number().int(),
     }),
   ),
-  product: z
-    .object({
-      id: z.uuid(),
-      title: z.string(),
-      price: z.number().nullable(),
-      status: z.string(),
-    })
-    .nullable(),
-  orderId: z.uuid().nullable(),
-  order: z
-    .object({
-      id: z.uuid(),
-      orderCode: z.string(),
-      status: z.string(),
-      total: z.number().int(),
-      itemCount: z.number().int(),
-    })
-    .nullable(),
   createdAt: dateTimeSchema,
 });
 export const chatConversationViewSchema = z.object({
@@ -101,23 +84,6 @@ export const chatDownloadSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
   expiresAt: dateTimeSchema,
-});
-export const importEvidenceSchema = z.strictObject({
-  orderId: z.uuid(),
-  tags: z
-    .array(z.enum(DISPUTE_EVIDENCE_TAG))
-    .min(1)
-    .max(7)
-    .refine(
-      (tags) => new Set(tags).size === tags.length,
-      'Duplicate evidence tags',
-    ),
-});
-export const importedEvidenceViewSchema = z.object({
-  id: z.uuid(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int(),
-  tags: z.array(z.string()),
 });
 
 export type SendChatInput = z.infer<typeof sendChatSchema>;

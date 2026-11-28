@@ -7,21 +7,14 @@ import {
 
 import { Brackets, DataSource, type EntityManager, In } from 'typeorm';
 
+import { StorageService } from '@/infrastructure/storage';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
-import { Order } from '@/modules/order/entities';
-import { Product, ProductModeration } from '@/modules/product/entities';
-import {
-  ProductModerationStatus,
-  ProductStatus,
-} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserStatus } from '@/modules/user/enums';
 
 import { CHAT_SIDE } from './constants/chat.constant';
 import { ChatConversation, ChatMessage } from './entities';
@@ -41,39 +34,46 @@ export class ChatService {
     private readonly authorization: AuthorizationService,
     private readonly media: MediaService,
     private readonly outboxService: OutboxService,
+    private readonly storage: StorageService,
   ) {}
 
-  open(buyerId: string, shopId: string) {
-    return this.db.transaction(async (manager) => {
-      await this.assertActiveUser(manager, buyerId);
-      let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
-      if (!row) {
-        await this.assertActiveShop(manager, shopId);
-        if (await manager.existsBy(ShopMember, { userId: buyerId, shopId })) {
-          throw new BadRequestException(
-            'Shop members cannot open a buyer conversation with their own Shop',
-          );
-        }
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(ChatConversation)
-          .values({
-            buyerId,
-            shopId,
-            buyerLastReadAt: null,
-            shopLastReadAt: null,
-            lastMessageAt: null,
-          })
-          .orIgnore()
-          .execute();
-        row = await manager.findOneByOrFail(ChatConversation, {
-          buyerId,
-          shopId,
-        });
+  async open(buyerId: string, shopId: string) {
+    const manager = this.db.manager;
+    let row = await manager.findOneBy(ChatConversation, { buyerId, shopId });
+    if (!row) {
+      const shopCheck = await manager
+        .createQueryBuilder(Shop, 'shop')
+        .leftJoin(
+          ShopMember,
+          'member',
+          'member.shopId = shop.id AND member.userId = :buyerId',
+          { buyerId },
+        )
+        .select('shop.status', 'status')
+        .addSelect('member.id', 'memberId')
+        .where('shop.id = :shopId', { shopId })
+        .getRawOne<{ status: ShopStatus; memberId: string | null }>();
+      if (shopCheck?.status !== ShopStatus.ACTIVE) {
+        throw new ForbiddenException('Shop is not accepting new chat messages');
       }
-      return this.conversationView(manager, row, buyerId, CHAT_SIDE.BUYER);
-    });
+      if (shopCheck.memberId) {
+        throw new BadRequestException(
+          'Shop members cannot open a buyer conversation with their own Shop',
+        );
+      }
+      await manager
+        .createQueryBuilder()
+        .insert()
+        .into(ChatConversation)
+        .values({ buyerId, shopId })
+        .orIgnore()
+        .execute();
+      row = await manager.findOneByOrFail(ChatConversation, {
+        buyerId,
+        shopId,
+      });
+    }
+    return row;
   }
 
   async detail(userId: string, id: string) {
@@ -82,12 +82,16 @@ export class ChatService {
       userId,
       id,
     );
-    return this.conversationView(this.db.manager, row, userId, side);
+    const unreadMap = await this.unreadCounts(
+      this.db.manager,
+      [row.id],
+      userId,
+    );
+    return this.conversationView(row, side, unreadMap.get(row.id) ?? 0);
   }
 
   async list(userId: string, input: ChatPageInput) {
     const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId);
     const member = await manager.findOneBy(ShopMember, { userId });
     const shopId =
       member &&
@@ -124,16 +128,13 @@ export class ChatService {
       userId,
     );
 
-    const items = rows.map((row) => {
-      const side = row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP;
-      return this.formatConversationView(
+    const items = rows.map((row) =>
+      this.conversationView(
         row,
-        row.buyer.fullName,
-        row.shop.name,
-        side,
+        row.buyerId === userId ? CHAT_SIDE.BUYER : CHAT_SIDE.SHOP,
         unreadMap.get(row.id) ?? 0,
-      );
-    });
+      ),
+    );
     return { items, total, ...input };
   }
 
@@ -142,8 +143,6 @@ export class ChatService {
     await this.loadConversation(manager, userId, id);
     const [rows, total] = await manager
       .createQueryBuilder(ChatMessage, 'message')
-      .leftJoinAndSelect('message.product', 'product')
-      .leftJoinAndSelect('message.order', 'order')
       .where('message.conversationId = :id', { id })
       .orderBy('message.createdAt', 'DESC')
       .addOrderBy('message.id', 'DESC')
@@ -181,23 +180,12 @@ export class ChatService {
         }
       }
 
-      const product = parsed.productId
-        ? await this.resolveProduct(manager, row, parsed.productId)
-        : null;
-      const order = parsed.orderId
-        ? await this.resolveOrder(manager, row, parsed.orderId)
-        : null;
-
       const message = await manager.save(
         ChatMessage,
         manager.create(ChatMessage, {
           conversationId: id,
           senderId: userId,
           text: parsed.text ?? null,
-          productId: product?.id ?? null,
-          product,
-          orderId: order?.id ?? null,
-          order,
         }),
       );
 
@@ -214,7 +202,6 @@ export class ChatService {
         );
       }
 
-      row.lastMessageAt = message.createdAt;
       await manager.update(ChatConversation, row.id, {
         lastMessageAt: message.createdAt,
       });
@@ -236,43 +223,47 @@ export class ChatService {
   read(userId: string, id: string) {
     return this.db.transaction(async (manager) => {
       const { row, side } = await this.loadConversation(manager, userId, id);
-      const [{ now: timestamp }] = await manager.query(
-        'SELECT clock_timestamp() AS now',
-      );
-      const now = new Date(timestamp);
+      const now = new Date();
       if (side === CHAT_SIDE.BUYER) {
         row.buyerLastReadAt = now;
       } else {
         row.shopLastReadAt = now;
       }
       await manager.save(row);
-      return this.conversationView(manager, row, userId, side);
+      return this.conversationView(row, side, 0);
     });
   }
 
-  async loadConversation(manager: EntityManager, userId: string, id: string) {
-    const row = await manager.findOneBy(ChatConversation, { id });
-    if (!row) throw new NotFoundException('Conversation not found');
-    const side = await this.resolveSide(manager, userId, row);
-    return { row, side };
+  async download(userId: string, id: string) {
+    const link = await this.db.manager
+      .createQueryBuilder(ChatMessageMedia, 'link')
+      .innerJoinAndSelect('link.media', 'media')
+      .innerJoinAndSelect('link.message', 'message')
+      .where('link.mediaId = :mediaId', { mediaId: id })
+      .andWhere('media.visibility = :visibility', { visibility: 'private' })
+      .andWhere('media.retiredAt IS NULL')
+      .getOne();
+    if (!link) {
+      throw new NotFoundException('Attached chat media not found');
+    }
+    await this.loadConversation(
+      this.db.manager,
+      userId,
+      link.message.conversationId,
+    );
+    return this.storage.createDownloadUrl(link.media.storageKey);
   }
 
-  private async assertActiveUser(manager: EntityManager, userId: string) {
-    const user = await manager.findOneBy(User, {
-      id: userId,
-      status: UserStatus.ACTIVE,
-    });
-    if (!user) throw new ForbiddenException('Active chat participant required');
-    return user;
-  }
-
-  private async resolveSide(
+  private async loadConversation(
     manager: EntityManager,
     userId: string,
-    row: ChatConversation,
+    id: string,
   ) {
-    await this.assertActiveUser(manager, userId);
-    if (row.buyerId === userId) return CHAT_SIDE.BUYER;
+    const row = await manager.findOneOrFail(ChatConversation, {
+      where: { id },
+      relations: { buyer: true, shop: true },
+    });
+    if (row.buyerId === userId) return { row, side: CHAT_SIDE.BUYER };
     if (
       await this.authorization.hasPermission(
         userId,
@@ -280,16 +271,10 @@ export class ChatService {
         SHOP_PERMISSIONS.CHAT_MANAGE,
         manager,
       )
-    )
-      return CHAT_SIDE.SHOP;
+    ) {
+      return { row, side: CHAT_SIDE.SHOP };
+    }
     throw new ForbiddenException('Chat access denied');
-  }
-
-  private async assertActiveShop(manager: EntityManager, shopId: string) {
-    if (
-      !(await manager.existsBy(Shop, { id: shopId, status: ShopStatus.ACTIVE }))
-    )
-      throw new ForbiddenException('Shop is not accepting new chat messages');
   }
 
   private async unreadCounts(
@@ -317,39 +302,17 @@ export class ChatService {
     return new Map(rows.map((r) => [r.conversationId, Number(r.cnt)]));
   }
 
-  private async conversationView(
-    manager: EntityManager,
+  private conversationView(
     row: ChatConversation,
-    userId: string,
-    side: ChatSide,
-  ) {
-    const buyer =
-      row.buyer ?? (await manager.findOneByOrFail(User, { id: row.buyerId }));
-    const shop =
-      row.shop ?? (await manager.findOneByOrFail(Shop, { id: row.shopId }));
-    const unreadMap = await this.unreadCounts(manager, [row.id], userId);
-    return this.formatConversationView(
-      row,
-      buyer.fullName,
-      shop.name,
-      side,
-      unreadMap.get(row.id) ?? 0,
-    );
-  }
-
-  private formatConversationView(
-    row: ChatConversation,
-    buyerName: string,
-    shopName: string,
     side: ChatSide,
     unreadCount: number,
   ) {
     return {
       id: row.id,
       buyerId: row.buyerId,
-      buyerName,
+      buyerName: row.buyer.fullName,
       shopId: row.shopId,
-      shopName,
+      shopName: row.shop.name,
       side,
       unreadCount,
       lastMessageAt: row.lastMessageAt,
@@ -369,24 +332,6 @@ export class ChatService {
       conversationId: row.conversationId,
       senderId: row.senderId,
       text: row.text,
-      product: row.product
-        ? {
-            id: row.product.id,
-            title: row.product.title ?? '',
-            price: row.product.price,
-            status: row.product.status,
-          }
-        : null,
-      orderId: row.orderId ?? null,
-      order: row.order
-        ? {
-            id: row.order.id,
-            orderCode: row.order.orderCode,
-            status: row.order.status,
-            total: row.order.total,
-            itemCount: row.order.items?.length ?? 0,
-          }
-        : null,
       createdAt: row.createdAt,
       media: links
         .filter((link) => link.messageId === row.id)
@@ -396,52 +341,5 @@ export class ChatService {
           sizeBytes: media.sizeBytes,
         })),
     }));
-  }
-
-  private async resolveProduct(
-    manager: EntityManager,
-    conversation: ChatConversation,
-    productId: string,
-  ) {
-    const product = await manager.findOne(Product, {
-      where: {
-        id: productId,
-        shopId: conversation.shopId,
-        status: ProductStatus.ACTIVE,
-      },
-      relations: { category: true, shop: true },
-    });
-    const approved =
-      product &&
-      (await manager.existsBy(ProductModeration, {
-        productId: product.id,
-        status: ProductModerationStatus.APPROVED,
-      }));
-    if (
-      !product ||
-      !approved ||
-      product.category?.isActive !== true ||
-      product.shop?.status !== ShopStatus.ACTIVE
-    ) {
-      throw new BadRequestException(
-        'Product must be a public approved listing of this Shop',
-      );
-    }
-    return product;
-  }
-
-  private async resolveOrder(
-    manager: EntityManager,
-    conversation: ChatConversation,
-    orderId: string,
-  ) {
-    const order = await manager.findOneByOrFail(Order, { id: orderId });
-    if (
-      order.buyerId !== conversation.buyerId ||
-      order.shopId !== conversation.shopId
-    ) {
-      throw new BadRequestException('Order must belong to this buyer and Shop');
-    }
-    return order;
   }
 }

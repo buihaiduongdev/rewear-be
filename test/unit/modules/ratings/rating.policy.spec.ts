@@ -2,11 +2,10 @@ import {
   hasDeliveryProof,
   publicRating,
   summarizeRatings,
-} from '@/modules/ratings/rating.policy';
+} from '@/modules/ratings/ratings.service';
 import {
   ratingInputSchema,
   ratingModerationSchema,
-  ratingUploadSchema,
 } from '@/modules/ratings/schemas/rating.schema';
 
 const proof = {
@@ -143,15 +142,5 @@ describe('verified shop rating policy', () => {
         evidence: 'reviewed text',
       }).success,
     ).toBe(true);
-  });
-  it('requires an order and a media ID to attach rating media', () => {
-    const orderId = '00000000-0000-4000-8000-000000000001';
-    const mediaId = '00000000-0000-4000-8000-000000000002';
-    expect(ratingUploadSchema.safeParse({ orderId, mediaId }).success).toBe(
-      true,
-    );
-    expect(
-      ratingUploadSchema.safeParse({ orderId, mediaId: 'invalid' }).success,
-    ).toBe(false);
   });
 });

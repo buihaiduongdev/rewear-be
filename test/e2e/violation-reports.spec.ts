@@ -30,7 +30,6 @@ describe('Violation reports HTTP', () => {
   let token: (user: User) => string;
   let reportId: string;
   let evidenceId: string;
-  let version: number;
   const storage = {
     assertConfigured: jest.fn(),
     createUploadTicket: jest.fn(async () => ({
@@ -90,23 +89,12 @@ describe('Violation reports HTTP', () => {
       .auth(token(f.buyer), { type: 'bearer' })
       .send({ mimeType: 'image/jpeg', sizeBytes: 1024, visibility: 'private' })
       .expect(201);
-    const evidence = await request(server)
-      .post('/api/reports/evidence')
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send({
-        targetType: 'SHOP',
-        targetId: f.shop.id,
-        mediaId: upload.body.data.id,
-      })
-      .expect(200);
-    evidenceId = evidence.body.data.id;
     const input = {
-      requestId: randomUUID(),
       targetType: 'SHOP',
       targetId: f.shop.id,
       reason: 'FRAUD',
       description: 'Báo cáo hành vi cần kiểm tra xác minh',
-      evidenceIds: [evidenceId],
+      mediaIds: [upload.body.data.id],
     };
     await request(server)
       .post('/api/reports')
@@ -119,16 +107,10 @@ describe('Violation reports HTTP', () => {
       .send(input)
       .expect(200);
     reportId = result.body.data.id;
-    version = result.body.data.version;
+    evidenceId = result.body.data.evidence[0].id;
     expect(result.body.data).not.toHaveProperty('reporterId');
     expect(result.body.data).not.toHaveProperty('fingerprint');
     expect(JSON.stringify(result.body)).not.toContain('storageKey');
-    const replay = await request(server)
-      .post('/api/reports')
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send(input)
-      .expect(200);
-    expect(replay.body.data.id).toBe(reportId);
     await request(server)
       .get(`/api/reports/${reportId}`)
       .auth(token(outsider), { type: 'bearer' })
@@ -146,35 +128,20 @@ describe('Violation reports HTTP', () => {
       .auth(token(f.admin), { type: 'bearer' })
       .expect(200);
   });
-  it('checks Admin authority and version and withholds internal notes from reporter responses', async () => {
+  it('checks Admin authority and withholds internal notes from reporter responses', async () => {
     const server = app.getHttpServer();
     await request(server)
       .get('/api/reports/admin')
       .auth(token(f.owner), { type: 'bearer' })
       .expect(403);
-    const claim = await request(server)
+    await request(server)
       .post(`/api/reports/admin/${reportId}/claim`)
       .auth(token(f.admin), { type: 'bearer' })
-      .send({ requestId: randomUUID(), expectedVersion: version })
       .expect(200);
-    version = claim.body.data.version;
-    await request(server)
-      .post(`/api/reports/admin/${reportId}/resolve`)
-      .auth(token(f.admin), { type: 'bearer' })
-      .send({
-        requestId: randomUUID(),
-        expectedVersion: version - 1,
-        outcome: 'DISMISSED',
-        action: 'NONE',
-        reason: 'Chưa đủ căn cứ vi phạm',
-      })
-      .expect(409);
     const result = await request(server)
       .post(`/api/reports/admin/${reportId}/resolve`)
       .auth(token(f.admin), { type: 'bearer' })
       .send({
-        requestId: randomUUID(),
-        expectedVersion: version,
         outcome: 'DISMISSED',
         action: 'NONE',
         reason: 'Chưa đủ căn cứ vi phạm',

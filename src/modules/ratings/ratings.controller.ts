@@ -20,22 +20,17 @@ import { PublicAccess } from '@/modules/authorization/decorators/public-access.d
 import { User } from '@/modules/user/entities';
 import { UserRole } from '@/modules/user/enums';
 
-import { RatingMediaService } from './rating-media.service';
 import { RatingsService } from './ratings.service';
 import {
   privateRatingSchema,
   publicRatingPageSchema,
-  ratingDownloadSchema,
   type RatingInput,
   ratingInputSchema,
   ratingListSchema,
-  ratingMediaViewSchema,
   type RatingMode,
   type RatingModerationInput,
   ratingModerationSchema,
   ratingReplySchema,
-  type RatingUploadInput,
-  ratingUploadSchema,
   ratingVersionSchema,
   shopReplyRatingSchema,
 } from './schemas/rating.schema';
@@ -45,10 +40,7 @@ import {
 @AuthenticatedAccess()
 @Controller('ratings')
 export class RatingsController {
-  constructor(
-    private readonly ratings: RatingsService,
-    private readonly media: RatingMediaService,
-  ) {}
+  constructor(private readonly ratings: RatingsService) {}
   @Get('shops/:shopId')
   @PublicAccess()
   @Serialize(publicRatingPageSchema)
@@ -119,24 +111,5 @@ export class RatingsController {
     @Body({ schema: ratingModerationSchema }) input: RatingModerationInput,
   ) {
     return this.ratings.moderate(user.id, id, input);
-  }
-  @Post('media')
-  @HttpCode(200)
-  @Serialize(ratingMediaViewSchema)
-  upload(
-    @CurrentUser() user: User,
-    @Body({ schema: ratingUploadSchema }) input: RatingUploadInput,
-  ) {
-    return this.media.attach(user.id, input);
-  }
-  @Get('media/:id/download')
-  @PublicAccess()
-  @Serialize(ratingDownloadSchema)
-  download(
-    @Param('id', { schema: uuidSchema }) id: string,
-    @Query({ schema: ratingListSchema.pick({ mode: true }) })
-    query: { mode: RatingMode },
-  ) {
-    return this.media.download(id, query.mode);
   }
 }
