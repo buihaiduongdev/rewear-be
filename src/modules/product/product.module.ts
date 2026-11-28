@@ -4,7 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { Category } from '@/modules/category/entities';
-import { Media, ProductMedia } from '@/modules/media/entities';
+import { ProductMedia } from '@/modules/media/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 
 import { Product, ProductModeration } from './entities';
@@ -18,7 +18,6 @@ import { ProductService } from './product.service';
     TypeOrmModule.forFeature([
       Product,
       ProductModeration,
-      Media,
       ProductMedia,
       Category,
       Shop,

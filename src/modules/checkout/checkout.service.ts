@@ -9,17 +9,13 @@ import { CartService } from '@/modules/cart';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { Category } from '@/modules/category/entities';
-import {
-  CHECKOUT_HOLD_SECONDS,
-  CHECKOUT_REMOVAL_REASON,
-  CHECKOUT_STATUS,
-} from '@/modules/checkout/constants/checkout.constant';
 import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
 import { CoinService } from '@/modules/coins/core/coin.service';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
 import { ProductStatus } from '@/modules/product/enums';
+import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
@@ -27,9 +23,13 @@ import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
 
+import {
+  CHECKOUT_HOLD_SECONDS,
+  CHECKOUT_REMOVAL_REASON,
+  CHECKOUT_STATUS,
+} from './constants/checkout.constant';
 import { CheckoutOrder } from './entities/checkout-order.entity';
 import { Checkout } from './entities/checkout.entity';
-import { pruneIdentityCheckout } from './identity-checkout.policy';
 import type {
   CheckoutAddress,
   CreateCheckoutInput,
@@ -37,6 +37,95 @@ import type {
 } from './schemas/checkout.schema';
 
 const EXPIRE_BATCH_SIZE = 100;
+
+const UNRESOLVED_PAYMENT_STATES = [
+  PAYMENT_ATTEMPT_STATE.CREATING,
+  PAYMENT_ATTEMPT_STATE.PENDING,
+  PAYMENT_ATTEMPT_STATE.UNKNOWN,
+  PAYMENT_ATTEMPT_STATE.PAID,
+  PAYMENT_ATTEMPT_STATE.REFUND_REQUIRED,
+];
+
+/** Caller holds the checkout row lock. Never rewrite an unresolved provider amount. */
+export async function pruneIdentityCheckout(
+  manager: EntityManager,
+  checkout: Checkout,
+  now: Date,
+  coinService: CoinService,
+): Promise<CheckoutOrder[] | null> {
+  const active =
+    checkout.status === CHECKOUT_STATUS.HELD &&
+    checkout.expiresAt &&
+    checkout.expiresAt > now;
+  if (!active) return null;
+
+  const orders = await manager.find(CheckoutOrder, {
+    where: { checkoutId: checkout.id },
+    relations: { shop: true },
+    order: { id: 'ASC' },
+  });
+  const removed = orders.filter((o) => !shopAllowsIdentitySales(o.shop, now));
+  if (!removed.length) return orders;
+
+  checkout.identityReviewRequired = true;
+  const unresolved = await manager.existsBy(PaymentAttempt, {
+    checkoutId: checkout.id,
+    state: In(UNRESOLVED_PAYMENT_STATES),
+  });
+  if (unresolved) {
+    await manager.save(checkout);
+    return orders;
+  }
+
+  const holds = await manager.find(WalletCheckoutHold, {
+    where: { checkoutId: checkout.id, state: WALLET_HOLD_STATE.HELD },
+    order: { id: 'ASC' },
+    lock: { mode: 'pessimistic_write' },
+  });
+  for (const hold of holds) {
+    await releaseWalletHold(manager, hold, now, WALLET_HOLD_STATE.RELEASED);
+  }
+  await coinService.releaseCheckoutCoins(manager, checkout.id, now);
+  checkout.coinDiscount = 0;
+  checkout.coinMode = null;
+
+  const removedProductIds = removed.flatMap((o) =>
+    o.items.map((item) => item.productId),
+  );
+  if (removedProductIds.length) {
+    await manager.update(
+      Product,
+      {
+        id: In(removedProductIds),
+        reservationId: checkout.id,
+        status: ProductStatus.HELD,
+      },
+      { status: ProductStatus.ACTIVE, reservationId: null, heldUntil: null },
+    );
+    const existingRemoved = new Set(
+      checkout.removedItems.map((r) => r.productId),
+    );
+    for (const productId of removedProductIds) {
+      if (!existingRemoved.has(productId)) {
+        existingRemoved.add(productId);
+        checkout.removedItems.push({
+          productId,
+          reason: CHECKOUT_REMOVAL_REASON.IDENTITY_RESTRICTED,
+        });
+      }
+    }
+  }
+  await manager.delete(CheckoutOrder, { id: In(removed.map((o) => o.id)) });
+
+  const removedIds = new Set(removed.map((o) => o.id));
+  const remaining = orders.filter((o) => !removedIds.has(o.id));
+  if (!remaining.length) {
+    checkout.status = CHECKOUT_STATUS.EMPTY;
+    checkout.identityReviewRequired = false;
+  }
+  await manager.save(checkout);
+  return remaining;
+}
 
 @Injectable()
 export class CheckoutService {
@@ -46,6 +135,7 @@ export class CheckoutService {
   constructor(
     private readonly db: DataSource,
     private readonly cartService: CartService,
+    private readonly coinService: CoinService,
   ) {}
 
   @Interval(30_000)
@@ -83,8 +173,9 @@ export class CheckoutService {
             'Request ID was already used with a different selection or address',
           );
         }
-        return this.view(manager, previous);
+        return this.view(previous, await this.loadOrders(manager, previous.id));
       }
+
       const snapshot = await this.snapshotAddress(
         manager,
         buyerId,
@@ -108,14 +199,14 @@ export class CheckoutService {
         holdSeconds: CHECKOUT_HOLD_SECONDS,
         removedItems: [],
       });
-      const groups = this.buildOrderGroups(
+      const { orders: orderList, shopNames } = this.buildOrderGroups(
         manager,
         checkout,
         products,
         cartView,
         snapshot,
       );
-      if (groups.size) {
+      if (orderList.length) {
         checkout.status = CHECKOUT_STATUS.HELD;
         const [{ now }] = await manager.query(
           'SELECT clock_timestamp() AS now',
@@ -125,7 +216,6 @@ export class CheckoutService {
         );
       }
       await manager.save(checkout);
-      const orderList = Array.from(groups.values());
       for (const order of orderList) {
         order.checkoutId = checkout.id;
       }
@@ -156,7 +246,11 @@ export class CheckoutService {
           productId: In(checkout.removedItems.map((i) => i.productId)),
         });
       }
-      return this.view(manager, checkout);
+      for (const order of orderList) {
+        order.shop = { name: shopNames.get(order.shopId) ?? '' } as Shop;
+      }
+      orderList.sort((a, b) => a.id.localeCompare(b.id));
+      return this.view(checkout, orderList);
     });
   }
 
@@ -164,23 +258,27 @@ export class CheckoutService {
     manager: EntityManager,
     products: Product[],
   ) {
-    for (const id of [
+    const categoryIds = [
       ...new Set(
         products.map((p) => p.categoryId).filter((id): id is string => !!id),
       ),
-    ].sort()) {
-      await manager.findOne(Category, {
-        where: { id },
+    ];
+    if (categoryIds.length) {
+      await manager.find(Category, {
+        where: { id: In(categoryIds) },
+        order: { id: 'ASC' },
         lock: { mode: 'pessimistic_read' },
       });
     }
-    for (const id of [
+    const shopIds = [
       ...new Set(
         products.map((p) => p.shopId).filter((id): id is string => !!id),
       ),
-    ].sort()) {
-      await manager.findOne(Shop, {
-        where: { id },
+    ];
+    if (shopIds.length) {
+      await manager.find(Shop, {
+        where: { id: In(shopIds) },
+        order: { id: 'ASC' },
         lock: { mode: 'pessimistic_read' },
       });
     }
@@ -200,7 +298,9 @@ export class CheckoutService {
         ),
       ),
     );
+    const productsById = new Map(products.map((p) => [p.id, p]));
     const groups = new Map<string, CheckoutOrder>();
+    const shopNames = new Map<string, string>();
     for (const productId of checkout.requestedProductIds) {
       const cartEntry = saved.get(productId);
       const product = cartEntry?.item.product;
@@ -217,9 +317,10 @@ export class CheckoutService {
         });
         continue;
       }
-      const row = products.find((p) => p.id === productId)!;
-      if (row.reservationId)
+      const row = productsById.get(productId)!;
+      if (row.reservationId) {
         throw new ConflictException('Product reservation is inconsistent');
+      }
       let order = groups.get(cartEntry.shop.id);
       if (!order) {
         order = manager.create(CheckoutOrder, {
@@ -230,6 +331,7 @@ export class CheckoutService {
           shippingFee: null,
         });
         groups.set(cartEntry.shop.id, order);
+        shopNames.set(cartEntry.shop.id, cartEntry.shop.name);
       }
       order.items.push({
         shippingPackage: row.shippingPackage
@@ -244,7 +346,7 @@ export class CheckoutService {
       });
       order.subtotal += product.price;
     }
-    return groups;
+    return { orders: Array.from(groups.values()), shopNames };
   }
 
   private async snapshotAddress(
@@ -287,13 +389,10 @@ export class CheckoutService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      const checkout =
-        typeof manager.findOneOrFail === 'function'
-          ? await manager.findOneOrFail(Checkout, {
-              where: { id, buyerId },
-              lock: { mode: 'pessimistic_write' },
-            })
-          : await manager.findOneByOrFail(Checkout, { id, buyerId });
+      const checkout = await manager.findOneOrFail(Checkout, {
+        where: { id, buyerId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (
         checkout.status === CHECKOUT_STATUS.HELD &&
         checkout.expiresAt &&
@@ -305,8 +404,9 @@ export class CheckoutService {
         checkout.status !== CHECKOUT_STATUS.HELD ||
         !checkout.expiresAt ||
         checkout.expiresAt <= now
-      )
+      ) {
         throw new ConflictException('An active checkout is required');
+      }
       const attempts = await manager.find(PaymentAttempt, {
         where: { checkoutId: id },
       });
@@ -320,14 +420,13 @@ export class CheckoutService {
           checkoutId: id,
           state: WALLET_HOLD_STATE.HELD,
         }))
-      )
+      ) {
         throw new ConflictException(
           'Resolve payment reservations before changing coins',
         );
-      const orders = await manager.find(CheckoutOrder, {
-        where: { checkoutId: id },
-      });
-      await new CoinService().reserveCheckoutCoins(
+      }
+      const orders = await this.loadOrders(manager, id);
+      await this.coinService.reserveCheckoutCoins(
         manager,
         {
           ...checkout,
@@ -341,7 +440,7 @@ export class CheckoutService {
       checkout.coinDiscount = input.amount;
       checkout.coinMode = input.amount ? input.mode : null;
       await manager.save(checkout);
-      return this.view(manager, checkout);
+      return this.view(checkout, orders);
     });
   }
 
@@ -355,6 +454,7 @@ export class CheckoutService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
+      let orders: CheckoutOrder[] | null = null;
       if (
         checkout.status === CHECKOUT_STATUS.HELD &&
         checkout.expiresAt &&
@@ -362,9 +462,17 @@ export class CheckoutService {
       ) {
         await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
       } else {
-        await pruneIdentityCheckout(manager, checkout, now);
+        orders = await pruneIdentityCheckout(
+          manager,
+          checkout,
+          now,
+          this.coinService,
+        );
       }
-      return this.view(manager, checkout);
+      return this.view(
+        checkout,
+        orders ?? (await this.loadOrders(manager, checkout.id)),
+      );
     });
   }
 
@@ -378,7 +486,7 @@ export class CheckoutService {
         'SELECT clock_timestamp() AS now',
       );
       const now = new Date(clock);
-      if (checkout.status === CHECKOUT_STATUS.HELD)
+      if (checkout.status === CHECKOUT_STATUS.HELD) {
         await this.release(
           manager,
           checkout,
@@ -386,7 +494,8 @@ export class CheckoutService {
             ? CHECKOUT_STATUS.EXPIRED
             : CHECKOUT_STATUS.CANCELLED,
         );
-      return this.view(manager, checkout);
+      }
+      return this.view(checkout, await this.loadOrders(manager, checkout.id));
     });
   }
 
@@ -449,8 +558,9 @@ export class CheckoutService {
       .orderBy('checkout.id', 'ASC')
       .setLock('pessimistic_write')
       .getMany();
-    for (const checkout of expired)
+    for (const checkout of expired) {
       await this.release(manager, checkout, CHECKOUT_STATUS.EXPIRED);
+    }
   }
 
   private async release(
@@ -469,7 +579,7 @@ export class CheckoutService {
       order: { id: 'ASC' },
       lock: { mode: 'pessimistic_write' },
     });
-    for (const hold of holds)
+    for (const hold of holds) {
       await releaseWalletHold(
         manager,
         hold,
@@ -478,7 +588,8 @@ export class CheckoutService {
           ? WALLET_HOLD_STATE.EXPIRED
           : WALLET_HOLD_STATE.RELEASED,
       );
-    await new CoinService().releaseCheckoutCoins(
+    }
+    await this.coinService.releaseCheckoutCoins(
       manager,
       checkout.id,
       new Date(now),
@@ -487,12 +598,15 @@ export class CheckoutService {
     await manager.save(checkout);
   }
 
-  private async view(manager: EntityManager, checkout: Checkout) {
-    const orders = await manager.find(CheckoutOrder, {
-      where: { checkoutId: checkout.id },
+  private loadOrders(manager: EntityManager, checkoutId: string) {
+    return manager.find(CheckoutOrder, {
+      where: { checkoutId },
       relations: { shop: true },
       order: { id: 'ASC' },
     });
+  }
+
+  private view(checkout: Checkout, orders: CheckoutOrder[]) {
     const allocation = allocateCoins(
       orders.map((order) => ({ id: order.id, amount: order.subtotal })),
       checkout.coinDiscount ?? 0,

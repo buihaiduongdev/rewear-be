@@ -13,7 +13,7 @@ import {
 } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
 import type { GhnShipmentSnapshot } from '@/infrastructure/shipping/types/ghn-shipment.type';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
-import { quoteInputs } from '@/modules/checkout/shipping-quote.inputs';
+import { quoteInputs } from '@/modules/checkout/shipping-quote.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import {
