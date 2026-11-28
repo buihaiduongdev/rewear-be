@@ -1,10 +1,6 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
-import { DataSource, type EntityManager, In } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 
 import { StorageService } from '@/infrastructure/storage';
 import { ProductMedia } from '@/modules/media/entities';
@@ -16,8 +12,6 @@ import {
 } from '@/modules/product/enums';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserStatus } from '@/modules/user/enums';
 
 import { ShopFollow } from './entities/shop-follow.entity';
 import type { ShopFollowQuery } from './schemas/shop-follow.schema';
@@ -25,74 +19,59 @@ import type { ShopFollowQuery } from './schemas/shop-follow.schema';
 @Injectable()
 export class ShopFollowService {
   constructor(
-    private readonly db: DataSource,
-    private readonly storage: StorageService,
+    private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
   ) {}
 
-  private async assertActiveUser(manager: EntityManager, userId: string) {
-    if (
-      !(await manager.existsBy(User, { id: userId, status: UserStatus.ACTIVE }))
-    ) {
-      throw new ForbiddenException('Active account required');
+  async follow(userId: string, shopId: string) {
+    const manager = this.dataSource.manager;
+    const existing = await manager.findOneBy(ShopFollow, { userId, shopId });
+    if (existing) {
+      return { shopId, following: true, followedAt: existing.createdAt };
     }
-  }
-
-  follow(userId: string, shopId: string) {
-    return this.db.transaction(async (manager) => {
-      await this.assertActiveUser(manager, userId);
-      const shop = await manager.findOneBy(Shop, { id: shopId });
-      const existing = await manager.findOneBy(ShopFollow, { userId, shopId });
-      if (!shop || (!existing && shop.status !== ShopStatus.ACTIVE)) {
-        throw new NotFoundException('Active Shop not found');
-      }
-      if (!existing) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(ShopFollow)
-          .values({ userId, shopId })
-          .orIgnore()
-          .execute();
-      }
-      const row =
-        existing ??
-        (await manager.findOneByOrFail(ShopFollow, { userId, shopId }));
-      return { shopId, following: true, followedAt: row.createdAt };
+    await manager.findOneByOrFail(Shop, {
+      id: shopId,
+      status: ShopStatus.ACTIVE,
     });
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(ShopFollow)
+      .values({ userId, shopId })
+      .orIgnore()
+      .execute();
+    const row = await manager.findOneByOrFail(ShopFollow, { userId, shopId });
+    return { shopId, following: true, followedAt: row.createdAt };
   }
 
   async unfollow(userId: string, shopId: string) {
-    await this.assertActiveUser(this.db.manager, userId);
-    await this.db.manager.delete(ShopFollow, { userId, shopId });
+    await this.dataSource.manager.delete(ShopFollow, { userId, shopId });
     return { shopId, following: false, followedAt: null };
   }
 
   async state(userId: string, shopId: string) {
-    const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId);
+    const manager = this.dataSource.manager;
     const row = await manager.findOneBy(ShopFollow, { userId, shopId });
-    if (
-      !row &&
-      !(await manager.existsBy(Shop, {
+    if (!row) {
+      await manager.findOneByOrFail(Shop, {
         id: shopId,
         status: ShopStatus.ACTIVE,
-      }))
-    ) {
-      throw new NotFoundException('Active Shop not found');
+      });
     }
     return { shopId, following: !!row, followedAt: row?.createdAt ?? null };
   }
 
   async list(userId: string, input: ShopFollowQuery) {
-    const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId);
-    const [rows, totalCount] = await manager.findAndCount(ShopFollow, {
-      where: { userId },
-      relations: { shop: true },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: input.limit,
-      skip: input.offset,
-    });
+    const [rows, totalCount] = await this.dataSource.manager.findAndCount(
+      ShopFollow,
+      {
+        where: { userId },
+        relations: { shop: true },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take: input.limit,
+        skip: input.offset,
+      },
+    );
     return {
       items: rows.map((row) => ({
         shopId: row.shopId,
@@ -109,8 +88,7 @@ export class ShopFollowService {
   }
 
   async products(userId: string, input: ShopFollowQuery) {
-    const manager = this.db.manager;
-    await this.assertActiveUser(manager, userId);
+    const manager = this.dataSource.manager;
     const [products, totalCount] = await manager
       .createQueryBuilder(Product, 'product')
       .innerJoin(
@@ -148,27 +126,30 @@ export class ShopFollowService {
           relations: { media: true },
         })
       : [];
-    return {
-      items: products.map((product) => {
-        const cover = links.find(
-          (link) =>
-            link.productId === product.id &&
-            link.media.retiredAt === null &&
-            link.media.mediaType === MediaType.IMAGE,
+    const coverByProductId = new Map<string, string>();
+    for (const link of links) {
+      if (
+        !coverByProductId.has(link.productId) &&
+        link.media.retiredAt === null &&
+        link.media.mediaType === MediaType.IMAGE
+      ) {
+        coverByProductId.set(
+          link.productId,
+          this.storageService.getPublicUrl(link.media.storageKey),
         );
-        return {
-          id: product.id,
-          title: product.title!,
-          price: product.price!,
-          condition: product.condition,
-          size: product.size,
-          coverUrl: cover
-            ? this.storage.getPublicUrl(cover.media.storageKey)
-            : null,
-          publishedAt: product.publishedAt!,
-          shop: { id: product.shop.id, name: product.shop.name },
-        };
-      }),
+      }
+    }
+    return {
+      items: products.map((product) => ({
+        id: product.id,
+        title: product.title!,
+        price: product.price!,
+        condition: product.condition,
+        size: product.size,
+        coverUrl: coverByProductId.get(product.id) ?? null,
+        publishedAt: product.publishedAt!,
+        shop: { id: product.shop.id, name: product.shop.name },
+      })),
       totalCount,
       ...input,
     };
