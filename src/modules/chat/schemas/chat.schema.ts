@@ -29,10 +29,15 @@ export const sendChatSchema = z
       .default([])
       .refine((ids) => new Set(ids).size === ids.length, 'Duplicate media'),
     productId: z.uuid().optional(),
+    orderId: z.uuid().optional(),
   })
   .refine(
-    (input) => !!input.text || input.mediaIds.length > 0 || !!input.productId,
-    'Message must contain text, media or a product',
+    (input) =>
+      !!input.text ||
+      input.mediaIds.length > 0 ||
+      !!input.productId ||
+      !!input.orderId,
+    'Message must contain text, media, a product or an order',
   );
 export const chatPageSchema = z.object({
   limit: z.coerce
@@ -66,6 +71,16 @@ export const chatMessageViewSchema = z.object({
       title: z.string(),
       price: z.number().nullable(),
       status: z.string(),
+    })
+    .nullable(),
+  orderId: z.uuid().nullable(),
+  order: z
+    .object({
+      id: z.uuid(),
+      orderCode: z.string(),
+      status: z.string(),
+      total: z.number().int(),
+      itemCount: z.number().int(),
     })
     .nullable(),
   createdAt: dateTimeSchema,

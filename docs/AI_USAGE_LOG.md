@@ -1372,3 +1372,14 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 597 tệp, Prettier, TypeScript, Build); `pnpm test:payment:core` pass 20/20 tests; unit test trọng tâm nhóm `payment`, `shop-finance`, `wallet` pass 10/10 suites (55/55 tests); kiểm tra tài liệu Swagger UI và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần triển khai đầu AI để lại 7 chỗ `@Optional()` DI trên `PaymentService`, `PaymentController`, `PaymentWorker`, `ShopPayoutService`, thêm kiểm tra `assertAdmin` lặp lại sau role guard và dùng `findOne` kèm ném 404 thủ công; toàn bộ đã được rà soát và sửa gọn ở commit `95c14f3`.
 - **Minh chứng:** PR #84; branch `feat/momo-payment-and-payout-receipt`, commits `2a0f4a1`, `95c14f3`.
+### 2026-11-26 — Bổ sung đính kèm thẻ đơn hàng trong tin nhắn trò chuyện
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Mở rộng phân hệ trò chuyện giữa người mua và cửa hàng (`chat`) để cho phép gửi và hiển thị thẻ xem nhanh đơn hàng (`orderId` cùng thông tin tóm tắt đơn hàng) song song với tính năng đính kèm thẻ sản phẩm hiện có.
+- **Prompt chính:** Mở rộng module chat để hỗ trợ đính kèm thẻ đơn hàng trong tin nhắn: thêm cột `orderId` và quan hệ tới `Order` trên `ChatMessage` tương tự `productId`, cập nhật schema gửi tin nhắn và phản hồi có phần xem trước đơn hàng, kiểm tra đơn hàng thuộc đúng cặp `(buyerId, shopId)` của hội thoại, tải dữ liệu bằng join tránh N+1 và bổ sung unit test tương ứng.
+- **Đầu ra AI được sử dụng:** Bổ sung cột nullable `orderId` cùng quan hệ `ManyToOne` tới `Order` trong `src/modules/chat/entities/chat-message.entity.ts`; cập nhật `sendChatSchema` và `chatMessageViewSchema` trong `src/modules/chat/schemas/chat.schema.ts` (trả `orderId` và thông tin thẻ đơn hàng gồm `id`, `orderCode`, `status`, `total`, `itemCount`); bổ sung `resolveOrder()` kiểm tra `findOneByOrFail` và khớp đúng cặp `(buyerId, shopId)` kèm `leftJoinAndSelect('message.order', 'order')` trong `src/modules/chat/chat.service.ts`; bổ sung unit test tại `test/unit/modules/chat/chat-schema.spec.ts` và `test/unit/modules/chat/chat-service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi tính năng FEAT-10, kiểm tra ranh giới xác thực quyền sở hữu đơn hàng theo hội thoại, xác minh tài liệu OpenAPI/Swagger và kiểm thử toàn bộ luồng trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); unit test module chat pass 2/2 suites (9/9 tests) và toàn bộ bộ unit test pass 62/62 suites (344/344 tests); kiểm tra tài liệu Swagger UI thực tế và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #80; branch `feat/chat-order-card`, commit `1fb8ede`.

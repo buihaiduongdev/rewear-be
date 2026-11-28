@@ -23,6 +23,16 @@ describe('Chat contracts', () => {
         productId: randomUUID(),
       }).success,
     ).toBe(true);
+    expect(
+      schemas.sendChatSchema.safeParse({
+        orderId: randomUUID(),
+      }).success,
+    ).toBe(true);
+    expect(
+      schemas.sendChatSchema.safeParse({
+        orderId: 'not-a-uuid',
+      }).success,
+    ).toBe(false);
   });
   it('bounds pagination and upload size while accepting video', () => {
     expect(schemas.chatPageSchema.safeParse({ limit: 101 }).success).toBe(
