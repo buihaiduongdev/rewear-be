@@ -9,8 +9,7 @@ import { CartService } from '@/modules/cart';
 import { Cart, CartItem } from '@/modules/cart/entities';
 import { CartAvailability } from '@/modules/cart/enums/cart-availability.enum';
 import { Category } from '@/modules/category/entities';
-import { allocateCoins } from '@/modules/coins/checkout/coin-allocation';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { allocateCoins, CoinService } from '@/modules/coins/coin.service';
 import { PAYMENT_ATTEMPT_STATE } from '@/modules/payment/constants/payment.constant';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Product } from '@/modules/product/entities';
@@ -19,9 +18,9 @@ import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/ide
 import { Shop } from '@/modules/shop/entities';
 import { UserAddress } from '@/modules/user-address/entities';
 import { User } from '@/modules/user/entities';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { releaseWalletHold } from '@/modules/wallet/checkout/wallet-checkout.service';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
+import { releaseWalletHold } from '@/modules/wallet/wallet-hold.helper';
 
 import {
   CHECKOUT_HOLD_SECONDS,

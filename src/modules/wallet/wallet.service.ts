@@ -4,13 +4,12 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
+import { verifiedOrderCoinDebit } from '@/modules/coins/coin.service';
 import { DisputeRefundCredit } from '@/modules/dispute/entities/dispute-refund-credit.entity';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
-import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
+import { verifiedPayosCapture } from '@/modules/payment/payment.service';
 
-import { verifiedWalletCapture } from './checkout/verified-wallet-capture';
 import { WALLET_CREDIT_REASON } from './constants/wallet.constant';
 import { WalletAccount, WalletCredit } from './entities';
 import {
@@ -18,6 +17,7 @@ import {
   walletBalanceSchema,
 } from './schemas/wallet.schema';
 import type { WalletQueryInput } from './schemas/wallet.schema';
+import { verifiedWalletCapture } from './wallet-checkout.service';
 
 @Injectable()
 export class WalletService {
@@ -112,19 +112,23 @@ export class WalletService {
 
   async mine(userId: string, input: WalletQueryInput) {
     const manager = this.db.manager;
-    const account = await manager.findOneBy(WalletAccount, { userId });
-    const credits = await manager.find(WalletCredit, {
-      where: { userId },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: input.limit ?? 100,
-      skip: input.offset ?? 0,
-    });
-    const disputeRefunds = await manager.find(DisputeRefundCredit, {
-      where: { buyerId: userId },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: input.limit ?? 100,
-      skip: input.offset ?? 0,
-    });
+    const take = input.limit ?? 100;
+    const skip = input.offset ?? 0;
+    const [account, credits, disputeRefunds] = await Promise.all([
+      manager.findOneBy(WalletAccount, { userId }),
+      manager.find(WalletCredit, {
+        where: { userId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take,
+        skip,
+      }),
+      manager.find(DisputeRefundCredit, {
+        where: { buyerId: userId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        take,
+        skip,
+      }),
+    ]);
     return {
       balance: account?.balance ?? 0,
       simulationBalance: account?.simulationBalance ?? 0,

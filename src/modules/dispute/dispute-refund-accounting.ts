@@ -8,7 +8,7 @@ import {
   RECONCILIATION_REVIEW_REASON,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 
 import { DisputeRefundCredit } from './entities/dispute-refund-credit.entity';
 

@@ -2,7 +2,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
@@ -13,14 +12,13 @@ import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
 import { UserRole, UserStatus } from '@/modules/user/enums';
 
-import { readPayoutSources } from '../payout-sources';
 import {
   ACTIVE_PAYOUT_STATUSES,
   PAYOUT_POLICY,
   PAYOUT_STATUS,
 } from './constants/payout.constant';
 import { ShopBankAccount, ShopPayout, ShopPayoutAllocation } from './entities';
-import { allocatePayout, assertExactTransfer } from './payout-policy';
+import { readPayoutSources } from './payout-sources';
 import {
   type BankAccountInput,
   bankAccountInputSchema,
@@ -28,10 +26,45 @@ import {
   payoutFailureSchema,
   type PayoutRequestInput,
   payoutRequestSchema,
+  type PayoutSource,
   type PayoutStatus,
   type PayoutSuccessInput,
   payoutSuccessSchema,
+  type RecipientSnapshot,
 } from './schemas/payout.schema';
+
+export function allocatePayout(
+  sources: PayoutSource[],
+  amount: number,
+): PayoutSource[] {
+  if (!Number.isSafeInteger(amount) || amount <= 0)
+    throw new ConflictException('Invalid payout amount');
+  let remaining = amount;
+  const allocations: PayoutSource[] = [];
+  for (const source of sources) {
+    if (remaining === 0) break;
+    const take = Math.min(source.amount, remaining);
+    if (take > 0) allocations.push({ ...source, amount: take });
+    remaining -= take;
+  }
+  if (remaining !== 0)
+    throw new ConflictException('Insufficient available source funds');
+  return allocations;
+}
+
+export function assertExactTransfer(
+  amount: number,
+  recipient: RecipientSnapshot,
+  result: RecipientSnapshot & { amount: number },
+): void {
+  if (
+    amount !== result.amount ||
+    recipient.bankCode !== result.bankCode ||
+    recipient.accountNumber !== result.accountNumber ||
+    recipient.accountName !== result.accountName
+  )
+    throw new ConflictException('Bank evidence does not match payout snapshot');
+}
 
 @Injectable()
 export class ShopPayoutService {
@@ -56,17 +89,17 @@ export class ShopPayoutService {
     userId: string,
     shopId: string,
   ) {
-    const member = await manager.findOneBy(ShopMember, {
-      shopId,
-      userId,
-      memberRole: ShopMemberRole.OWNER,
-    });
-    const user =
-      member &&
-      (await manager.findOneBy(User, {
+    const [member, user] = await Promise.all([
+      manager.findOneBy(ShopMember, {
+        shopId,
+        userId,
+        memberRole: ShopMemberRole.OWNER,
+      }),
+      manager.findOneBy(User, {
         id: userId,
         status: UserStatus.ACTIVE,
-      }));
+      }),
+    ]);
     if (!member || !user)
       throw new ForbiddenException('Current active Shop Owner required');
   }
@@ -90,45 +123,43 @@ export class ShopPayoutService {
     return bank;
   }
 
-  private async findForUpdate(manager: EntityManager, id: string) {
-    const payout = await manager.findOne(ShopPayout, {
-      where: { id },
+  private findForUpdate(manager: EntityManager, id: string, shopId?: string) {
+    return manager.findOneOrFail(ShopPayout, {
+      where: shopId ? { id, shopId } : { id },
       lock: { mode: 'pessimistic_write' },
     });
-    if (!payout) throw new NotFoundException('Payout not found');
-    return payout;
   }
 
   async ownerView(userId: string, shopId: string) {
-    return this.db.transaction(async (manager) => {
-      await this.assertOwner(manager, userId, shopId);
-      const accounts = await manager.find(ShopBankAccount, {
+    const manager = this.db.manager;
+    await this.assertOwner(manager, userId, shopId);
+    const [accounts, payouts] = await Promise.all([
+      manager.find(ShopBankAccount, {
         where: { shopId, deletedAt: IsNull() },
         order: { createdAt: 'DESC' },
-      });
-      const payouts = await manager.find(ShopPayout, {
+      }),
+      manager.find(ShopPayout, {
         where: { shopId },
         order: { createdAt: 'DESC' },
         take: 100,
-      });
-      return {
-        accounts,
-        payouts: payouts.map(
-          ({ transferEvidence: _transferEvidence, ...payout }) => payout,
-        ),
-      };
-    });
+      }),
+    ]);
+    return {
+      accounts,
+      payouts: payouts.map(
+        ({ transferEvidence: _transferEvidence, ...payout }) => payout,
+      ),
+    };
   }
 
   async adminView(actorId: string) {
-    return this.db.transaction(async (manager) => {
-      await this.assertAdmin(manager, actorId);
-      const payouts = await manager.find(ShopPayout, {
-        order: { createdAt: 'DESC' },
-        take: 100,
-      });
-      return { payouts };
+    const manager = this.db.manager;
+    await this.assertAdmin(manager, actorId);
+    const payouts = await manager.find(ShopPayout, {
+      order: { createdAt: 'DESC' },
+      take: 100,
     });
+    return { payouts };
   }
 
   async saveBank(
@@ -146,14 +177,12 @@ export class ShopPayoutService {
         lock: { mode: 'pessimistic_write' },
       });
       const existing = id
-        ? await manager.findOneBy(ShopBankAccount, {
+        ? await manager.findOneByOrFail(ShopBankAccount, {
             id,
             shopId,
             deletedAt: IsNull(),
           })
         : null;
-      if (id && !existing)
-        throw new NotFoundException('Bank profile not found');
       if (data.isDefault)
         await manager.update(
           ShopBankAccount,
@@ -177,11 +206,10 @@ export class ShopPayoutService {
     return this.db.transaction(async (manager) => {
       const now = await this.now(manager);
       await this.assertOwner(manager, userId, shopId);
-      const bank = await manager.findOne(ShopBankAccount, {
+      const bank = await manager.findOneOrFail(ShopBankAccount, {
         where: { id, shopId, deletedAt: IsNull() },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!bank) throw new NotFoundException('Bank profile not found');
       bank.deletedAt = now;
       bank.isDefault = false;
       await manager.save(bank);
@@ -254,15 +282,10 @@ export class ShopPayoutService {
   }
 
   private async backed(manager: EntityManager, payout: ShopPayout) {
-    const funds = await readPayoutSources(
-      manager,
-      payout.shopId,
-      payout.mode,
-      payout.id,
-    );
-    const allocations = await manager.findBy(ShopPayoutAllocation, {
-      payoutId: payout.id,
-    });
+    const [funds, allocations] = await Promise.all([
+      readPayoutSources(manager, payout.shopId, payout.mode, payout.id),
+      manager.findBy(ShopPayoutAllocation, { payoutId: payout.id }),
+    ]);
     return (
       allocations.length > 0 &&
       allocations.every((allocation) =>
@@ -316,9 +339,7 @@ export class ShopPayoutService {
     return this.db.transaction(async (manager) => {
       if (shopId) await this.assertOwner(manager, actorId, shopId);
       else await this.assertAdmin(manager, actorId);
-      const payout = await this.findForUpdate(manager, id);
-      if (shopId && payout.shopId !== shopId)
-        throw new NotFoundException('Payout not found');
+      const payout = await this.findForUpdate(manager, id, shopId);
       if (payout.status !== PAYOUT_STATUS.PENDING)
         throw new ConflictException(
           'Only pending payouts can be cancelled or rejected',

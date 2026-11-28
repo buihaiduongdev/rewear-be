@@ -5,6 +5,7 @@ import ms from 'ms';
 import { AuthProvider } from '@/modules/auth/enums';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
@@ -34,7 +35,10 @@ describe('Receipt and evidenced 72-hour settlement (PostgreSQL)', () => {
       new OrderFundingService(),
       new OutboxService(),
     );
-    reconciliation = new CodReconciliationService(database.dataSource);
+    reconciliation = new CodReconciliationService(
+      database.dataSource,
+      new CoinService(database.dataSource),
+    );
   });
   afterAll(async () => database?.destroy());
   async function fixture(age = ms('73h')) {

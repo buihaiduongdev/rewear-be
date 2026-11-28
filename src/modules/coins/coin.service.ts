@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 
 import { DataSource, EntityManager, In } from 'typeorm';
 
@@ -18,40 +22,141 @@ import type {
   CoinOrder,
 } from './schemas/coin.schema';
 
+export const COIN_DISCOUNT_DIVISOR = COIN_POLICY.SUBTOTAL_LIMIT_DIVISOR;
+
+export function allocateCoins(
+  rows: { id: string; amount: number }[],
+  amount: number,
+  cap = true,
+): Map<string, number> {
+  const total = rows.reduce((sum, row) => sum + BigInt(row.amount), 0n);
+  if (
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    BigInt(amount) > (cap ? total / BigInt(COIN_DISCOUNT_DIVISOR) : total)
+  )
+    throw new ConflictException('Coins exceed item subtotal limit');
+  const parts = rows.map((row) => ({
+    id: row.id,
+    value: total ? (BigInt(amount) * BigInt(row.amount)) / total : 0n,
+    remainder: total ? (BigInt(amount) * BigInt(row.amount)) % total : 0n,
+  }));
+  let left = BigInt(amount) - parts.reduce((sum, row) => sum + row.value, 0n);
+  parts.sort((a, b) =>
+    a.remainder === b.remainder
+      ? a.id.localeCompare(b.id)
+      : a.remainder > b.remainder
+        ? -1
+        : 1,
+  );
+  for (const row of parts) {
+    if (left <= 0n) break;
+    row.value++;
+    left--;
+  }
+  return new Map(parts.map((row) => [row.id, Number(row.value)]));
+}
+
+export async function verifiedOrderCoinDebit(
+  manager: EntityManager,
+  order: Order,
+  mode: ReconciliationMode,
+) {
+  const amount = order.coinDiscount ?? 0;
+  if (amount === 0) return true;
+  if (!Number.isSafeInteger(amount) || amount < 0 || order.coinMode !== mode)
+    return false;
+  const debit = await manager.findOneBy(CoinOrderDebit, { orderId: order.id });
+  return (
+    !!debit &&
+    debit.amount === amount &&
+    debit.buyerId === order.buyerId &&
+    debit.mode === mode
+  );
+}
+
+function assertCoinTransaction(manager: EntityManager) {
+  if (!manager.queryRunner?.isTransactionActive)
+    throw new Error('Coin mutations require caller transaction');
+}
+
+function assertValidCoinAmount(amount: number) {
+  if (
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    amount > COIN_POLICY.MAX_POSTGRES_AMOUNT
+  )
+    throw new BadRequestException('Invalid coin amount');
+}
+
+function coinBalanceFields(mode: ReconciliationMode) {
+  return mode === 'SIMULATION'
+    ? ({
+        available: 'simulationBalance',
+        held: 'simulationHeldBalance',
+      } as const)
+    : ({ available: 'balance', held: 'heldBalance' } as const);
+}
+
+async function lockCoinAccount(manager: EntityManager, userId: string) {
+  await manager
+    .createQueryBuilder()
+    .insert()
+    .into(CoinAccount)
+    .values({ userId })
+    .orIgnore()
+    .execute();
+  return manager.findOneOrFail(CoinAccount, {
+    where: { userId },
+    lock: { mode: 'pessimistic_write' },
+  });
+}
+
+export async function releaseCheckoutCoins(
+  manager: EntityManager,
+  checkoutId: string,
+  _now?: Date,
+) {
+  assertCoinTransaction(manager);
+  const rows = await manager.find(CoinReservation, {
+    where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
+    lock: { mode: 'pessimistic_write' },
+  });
+  if (!rows.length) return;
+  for (const row of rows) {
+    const account = await lockCoinAccount(manager, row.buyerId);
+    const fields = coinBalanceFields(row.mode);
+    account[fields.held] -= row.amount;
+    account[fields.available] += row.amount;
+    await manager.save(CoinAccount, account);
+  }
+  await manager.remove(CoinReservation, rows);
+}
+
+export async function clawbackCoins(
+  manager: EntityManager,
+  buyerId: string,
+  amount: number,
+  mode: ReconciliationMode,
+) {
+  assertCoinTransaction(manager);
+  assertValidCoinAmount(amount);
+  if (!amount) return 0;
+  const account = await lockCoinAccount(manager, buyerId);
+  const fields = coinBalanceFields(mode);
+  const deducted = Math.min(account[fields.available], amount);
+  if (deducted > 0) {
+    account[fields.available] -= deducted;
+    await manager.save(CoinAccount, account);
+  }
+  return deducted;
+}
+
 @Injectable()
 export class CoinService {
-  constructor(@Optional() private readonly db?: DataSource) {}
-
-  private assertTransaction(manager: EntityManager) {
-    if (!manager.queryRunner?.isTransactionActive)
-      throw new Error('Coin mutations require caller transaction');
-  }
-
-  private balanceFields(mode: ReconciliationMode) {
-    return mode === 'SIMULATION'
-      ? ({
-          available: 'simulationBalance',
-          held: 'simulationHeldBalance',
-        } as const)
-      : ({ available: 'balance', held: 'heldBalance' } as const);
-  }
-
-  private async lockAccount(manager: EntityManager, userId: string) {
-    await manager
-      .createQueryBuilder()
-      .insert()
-      .into(CoinAccount)
-      .values({ userId })
-      .orIgnore()
-      .execute();
-    return manager.findOneOrFail(CoinAccount, {
-      where: { userId },
-      lock: { mode: 'pessimistic_write' },
-    });
-  }
+  constructor(private readonly db: DataSource) {}
 
   async balance(userId: string) {
-    if (!this.db) throw new Error('DataSource is required');
     const account = await this.db.manager.findOneBy(CoinAccount, { userId });
     return {
       balance: account?.balance ?? 0,
@@ -62,7 +167,6 @@ export class CoinService {
   }
 
   async history(userId: string, query: Partial<CoinHistoryQueryInput> = {}) {
-    if (!this.db) throw new Error('DataSource is required');
     const take = query.limit ?? 50;
     const skip = query.offset ?? 0;
     const [rewards, debits] = await Promise.all([
@@ -90,8 +194,8 @@ export class CoinService {
     _requestId: string,
     now: Date,
   ) {
-    this.assertTransaction(manager);
-    this.validAmount(amount);
+    assertCoinTransaction(manager);
+    assertValidCoinAmount(amount);
     if (!checkout.expiresAt || checkout.expiresAt <= now)
       throw new BadRequestException('Checkout expired');
     const orders =
@@ -105,8 +209,8 @@ export class CoinService {
       throw new BadRequestException('Coins exceed 10% of merchandise subtotal');
     await this.releaseCheckoutCoins(manager, checkout.id, now);
     if (amount === 0) return [];
-    const account = await this.lockAccount(manager, checkout.buyerId);
-    const fields = this.balanceFields(mode);
+    const account = await lockCoinAccount(manager, checkout.buyerId);
+    const fields = coinBalanceFields(mode);
     if (account[fields.available] < amount)
       throw new BadRequestException('Insufficient available coins');
     account[fields.available] -= amount;
@@ -127,25 +231,8 @@ export class CoinService {
     return [reservation];
   }
 
-  async releaseCheckoutCoins(
-    manager: EntityManager,
-    checkoutId: string,
-    _now?: Date,
-  ) {
-    this.assertTransaction(manager);
-    const rows = await manager.find(CoinReservation, {
-      where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
-      lock: { mode: 'pessimistic_write' },
-    });
-    if (!rows.length) return;
-    for (const row of rows) {
-      const account = await this.lockAccount(manager, row.buyerId);
-      const fields = this.balanceFields(row.mode);
-      account[fields.held] -= row.amount;
-      account[fields.available] += row.amount;
-      await manager.save(CoinAccount, account);
-    }
-    await manager.remove(CoinReservation, rows);
+  releaseCheckoutCoins(manager: EntityManager, checkoutId: string, now?: Date) {
+    return releaseCheckoutCoins(manager, checkoutId, now);
   }
 
   async consumeCheckoutCoins(
@@ -155,7 +242,7 @@ export class CoinService {
     mode: ReconciliationMode,
     now: Date,
   ) {
-    this.assertTransaction(manager);
+    assertCoinTransaction(manager);
     const rows = await manager.find(CoinReservation, {
       where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
       lock: { mode: 'pessimistic_write' },
@@ -184,15 +271,15 @@ export class CoinService {
     )
       throw new BadRequestException('Coin source does not match order');
 
-    const account = await this.lockAccount(manager, buyerId);
-    const fields = this.balanceFields(mode);
+    const account = await lockCoinAccount(manager, buyerId);
+    const fields = coinBalanceFields(mode);
     account[fields.held] -= heldAmount;
     await manager.save(CoinAccount, account);
     await manager.remove(CoinReservation, rows);
 
     for (const order of orders) {
       const amount = order.coinDiscount ?? 0;
-      this.validAmount(amount);
+      assertValidCoinAmount(amount);
       if (!amount) continue;
       await manager.save(
         CoinOrderDebit,
@@ -212,7 +299,7 @@ export class CoinService {
     orders: CoinOrder[],
     now: Date,
   ) {
-    this.assertTransaction(manager);
+    assertCoinTransaction(manager);
     const rows = await manager.find(CoinReservation, {
       where: { checkoutId, state: COIN_RESERVATION_STATE.HELD },
       lock: { mode: 'pessimistic_write' },
@@ -263,7 +350,7 @@ export class CoinService {
     await manager.remove(CoinReservation, rows);
     for (const order of orders) {
       const amount = order.coinDiscount ?? 0;
-      this.validAmount(amount);
+      assertValidCoinAmount(amount);
       if (!amount) continue;
       await manager.save(
         CoinReservation,
@@ -304,11 +391,11 @@ export class CoinService {
     mode: ReconciliationMode,
     now: Date,
   ) {
-    this.assertTransaction(manager);
+    assertCoinTransaction(manager);
     if (order.coinMode && order.coinMode !== mode)
       throw new BadRequestException('Coin order mode mismatch');
     const amount = order.coinDiscount ?? 0;
-    this.validAmount(amount);
+    assertValidCoinAmount(amount);
     const rows = await manager.find(CoinReservation, {
       where: {
         orderId: order.id,
@@ -341,8 +428,8 @@ export class CoinService {
     if (rows.some((row) => row.mode !== mode || row.buyerId !== order.buyerId))
       throw new BadRequestException('Coin debit source mismatch');
 
-    const account = await this.lockAccount(manager, order.buyerId);
-    const fields = this.balanceFields(mode);
+    const account = await lockCoinAccount(manager, order.buyerId);
+    const fields = coinBalanceFields(mode);
     account[fields.held] -= amount;
     await manager.save(CoinAccount, account);
     await manager.remove(CoinReservation, rows);
@@ -363,14 +450,14 @@ export class CoinService {
     _cause?: string,
     _now?: Date,
   ) {
-    this.assertTransaction(manager);
+    assertCoinTransaction(manager);
     const rows = await manager.find(CoinReservation, {
       where: { orderId: order.id, state: COIN_RESERVATION_STATE.COD },
       lock: { mode: 'pessimistic_write' },
     });
     for (const row of rows) {
-      const account = await this.lockAccount(manager, row.buyerId);
-      const fields = this.balanceFields(row.mode);
+      const account = await lockCoinAccount(manager, row.buyerId);
+      const fields = coinBalanceFields(row.mode);
       account[fields.held] -= row.amount;
       account[fields.available] += row.amount;
       await manager.save(CoinAccount, account);
@@ -387,9 +474,9 @@ export class CoinService {
     mode: ReconciliationMode,
     now: Date = new Date(),
   ) {
-    this.assertTransaction(manager);
-    this.validAmount(amount);
-    const account = await this.lockAccount(manager, buyerId);
+    assertCoinTransaction(manager);
+    assertValidCoinAmount(amount);
+    const account = await lockCoinAccount(manager, buyerId);
     const prior = await manager.findOneBy(CoinPurchaseReward, { orderId });
     if (prior) {
       if (
@@ -400,7 +487,7 @@ export class CoinService {
         throw new BadRequestException('Purchase grant amount or mode changed');
       return prior;
     }
-    const fields = this.balanceFields(mode);
+    const fields = coinBalanceFields(mode);
     if (
       account[fields.available] + account[fields.held] + amount >
       COIN_POLICY.MAX_POSTGRES_AMOUNT
@@ -422,31 +509,12 @@ export class CoinService {
     );
   }
 
-  async clawbackCoins(
+  clawbackCoins(
     manager: EntityManager,
     buyerId: string,
     amount: number,
     mode: ReconciliationMode,
   ) {
-    this.assertTransaction(manager);
-    this.validAmount(amount);
-    if (!amount) return 0;
-    const account = await this.lockAccount(manager, buyerId);
-    const fields = this.balanceFields(mode);
-    const deducted = Math.min(account[fields.available], amount);
-    if (deducted > 0) {
-      account[fields.available] -= deducted;
-      await manager.save(CoinAccount, account);
-    }
-    return deducted;
-  }
-
-  private validAmount(amount: number) {
-    if (
-      !Number.isSafeInteger(amount) ||
-      amount < 0 ||
-      amount > COIN_POLICY.MAX_POSTGRES_AMOUNT
-    )
-      throw new BadRequestException('Invalid coin amount');
+    return clawbackCoins(manager, buyerId, amount, mode);
   }
 }

@@ -12,7 +12,7 @@ import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
-import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
+import { CoinRewardWorker } from '@/modules/coins/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';

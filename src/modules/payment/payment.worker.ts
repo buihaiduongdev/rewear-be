@@ -24,12 +24,12 @@ export class PaymentWorker {
   constructor(
     private readonly db: DataSource,
     private readonly paymentService: PaymentService,
-    @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
+    @Inject(PAYOS_CLIENT) private readonly payosClient: PayosClient | null,
   ) {}
 
   @Interval(PAYMENT_WORKER_INTERVAL_MS)
   async run() {
-    if (!this.client || this.running) return;
+    if (!this.payosClient || this.running) return;
     this.running = true;
     try {
       const [{ now }] = await this.db.query('SELECT clock_timestamp() AS now');
@@ -90,7 +90,7 @@ export class PaymentWorker {
   }
 
   async refund(id: string) {
-    if (!this.client) return;
+    if (!this.payosClient) return;
     await this.db.transaction(async (manager) => {
       const [{ now }] = await manager.query('SELECT clock_timestamp() AS now');
       const current = new Date(now);

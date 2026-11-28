@@ -14,7 +14,6 @@ import { uuidSchema } from '@/common/schemas/request.schema';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
-import { WalletCheckoutService } from './checkout/wallet-checkout.service';
 import {
   reserveWalletCheckoutSchema,
   walletCheckoutViewSchema,
@@ -25,6 +24,7 @@ import type {
   ReserveWalletCheckoutInput,
   WalletQueryInput,
 } from './schemas/wallet.schema';
+import { WalletCheckoutService } from './wallet-checkout.service';
 import { WalletService } from './wallet.service';
 
 @ApiTags('Wallet')
@@ -34,7 +34,7 @@ import { WalletService } from './wallet.service';
 export class WalletController {
   constructor(
     private readonly walletService: WalletService,
-    private readonly checkoutService: WalletCheckoutService,
+    private readonly walletCheckoutService: WalletCheckoutService,
   ) {}
 
   @Get('wallet/mine')
@@ -55,7 +55,7 @@ export class WalletController {
     @Body({ schema: reserveWalletCheckoutSchema })
     input: ReserveWalletCheckoutInput,
   ) {
-    return this.checkoutService.reserve(user.id, id, input);
+    return this.walletCheckoutService.reserve(user.id, id, input);
   }
 
   @Get('wallet/checkouts/:id')
@@ -64,7 +64,7 @@ export class WalletController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.checkoutService.findMine(user.id, id);
+    return this.walletCheckoutService.findMine(user.id, id);
   }
 
   @Post('wallet/checkouts/:id/confirm')
@@ -74,7 +74,7 @@ export class WalletController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.checkoutService.confirm(user.id, id);
+    return this.walletCheckoutService.confirm(user.id, id);
   }
 
   @Post('wallet/checkouts/:id/release')
@@ -84,6 +84,6 @@ export class WalletController {
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.checkoutService.release(user.id, id);
+    return this.walletCheckoutService.release(user.id, id);
   }
 }

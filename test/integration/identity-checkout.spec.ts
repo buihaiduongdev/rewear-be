@@ -5,7 +5,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import type { ShippingQuoteResult } from '@/modules/checkout/schemas/shipping-quote.schema';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { Product } from '@/modules/product/entities';

@@ -13,6 +13,7 @@ import {
   RemittanceInput,
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -35,7 +36,10 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
   const adminId = randomUUID();
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new CodReconciliationService(database.dataSource);
+    service = new CodReconciliationService(
+      database.dataSource,
+      new CoinService(database.dataSource),
+    );
     finance = new ShopFinanceService(database.dataSource);
   });
   afterAll(async () => database?.destroy());
@@ -467,6 +471,7 @@ describe('COD actual receipt and Shop held subledger (PostgreSQL)', () => {
         new WalletService(f.db),
         new CodPolicy(f.db),
         outbox,
+        new CoinService(f.db),
       ),
       carrier as unknown as GhnShipmentClient,
       outbox,

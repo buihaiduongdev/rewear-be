@@ -9,7 +9,7 @@ import {
   GhnSandboxAdapter,
 } from '@/infrastructure/shipping/adapters/ghn-sandbox.adapter';
 import { GHN_SHIPPING_LIMITS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 
 import { pruneIdentityCheckout } from './checkout.service';

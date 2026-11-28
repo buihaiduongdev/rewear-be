@@ -3,7 +3,7 @@ import type { EntityManager } from 'typeorm';
 
 import type { Order } from '@/modules/order/entities/order.entity';
 import { PaymentAttempt } from '@/modules/payment/entities';
-import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
+import { verifiedPayosCapture } from '@/modules/payment/payment.service';
 import { WalletCredit } from '@/modules/wallet/entities';
 import { WalletService } from '@/modules/wallet/wallet.service';
 

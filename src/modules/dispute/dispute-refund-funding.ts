@@ -8,13 +8,13 @@ import {
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import { reconciliationMoney } from '@/modules/cod-reconciliation/policies/cod-reconciliation-money.policy';
 import { orderFundingFingerprint } from '@/modules/cod-reconciliation/policies/order-fingerprint.policy';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
+import { verifiedOrderCoinDebit } from '@/modules/coins/coin.service';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { WalletCredit } from '@/modules/wallet/entities';
 
 export async function refundFunding(

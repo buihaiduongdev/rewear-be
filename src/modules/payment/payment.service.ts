@@ -24,7 +24,7 @@ import { Cart, CartItem } from '@/modules/cart/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import {
@@ -39,8 +39,8 @@ import { ProductStatus } from '@/modules/product/enums';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/renewal/identity-sale.policy';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
 
 import {
   PAYMENT_ATTEMPT_STATE,
@@ -64,19 +64,77 @@ import {
 } from './policies/payment.policy';
 import type { CreatePaymentInput } from './schemas/payment.schema';
 
+/** Persisted provider capture and immutable order snapshots authorize money, never order fields alone. */
+export async function verifiedPayosCapture(
+  manager: EntityManager,
+  order: Order,
+) {
+  if (order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS || !order.paymentId)
+    return null;
+  const payment = await manager.findOneBy(PaymentAttempt, {
+    id: order.paymentId,
+  });
+  if (!payment) return null;
+  const checkout = await manager.findOneBy(Checkout, {
+    id: payment.checkoutId,
+  });
+  const snapshot = payment.orders.find(
+    (row) => row.checkoutOrderId === order.checkoutOrderId,
+  );
+  const refunded = await manager.existsBy(PaymentRefund, {
+    paymentId: payment.id,
+    providerTransId: payment.providerTransId ?? '',
+  });
+  const total = payment.orders.reduce(
+    (sum, row) =>
+      sum + row.subtotal + row.shippingFee - (row.coinDiscount ?? 0),
+    0,
+  );
+  const captureMatches =
+    payment.state === PAYMENT_ATTEMPT_STATE.PAID &&
+    Boolean(payment.providerTransId) &&
+    payment.paidAt &&
+    payment.capturedAmount === payment.amount &&
+    Number.isSafeInteger(payment.amount) &&
+    payment.amount > 0 &&
+    payment.amount === total &&
+    !refunded &&
+    payment.buyerId === order.buyerId &&
+    payment.checkoutId === order.checkoutId &&
+    checkout?.status === CHECKOUT_STATUS.PAID &&
+    checkout.buyerId === order.buyerId &&
+    (!order.deliveryObservedAt || payment.paidAt <= order.deliveryObservedAt);
+  const snapshotMatches =
+    snapshot &&
+    order.commissionBasisPoints ===
+      ORDER_POLICY.DEFAULT_COMMISSION_BASIS_POINTS &&
+    snapshot.shopId === order.shopId &&
+    snapshot.subtotal === order.subtotal &&
+    snapshot.shippingFee === order.shippingFee &&
+    (snapshot.coinDiscount ?? 0) === (order.coinDiscount ?? 0) &&
+    (snapshot.coinMode ?? null) === (order.coinMode ?? null) &&
+    (!(order.coinDiscount ?? 0) || order.coinMode === 'SIMULATION') &&
+    order.total ===
+      order.subtotal + order.shippingFee - (order.coinDiscount ?? 0) &&
+    JSON.stringify(snapshot.items) === JSON.stringify(order.items) &&
+    JSON.stringify(snapshot.address) === JSON.stringify(order.address);
+  return captureMatches && snapshotMatches ? payment : null;
+}
+
 @Injectable()
 export class PaymentService {
   constructor(
     private readonly db: DataSource,
-    @Inject(PAYOS_CLIENT) private readonly client: PayosClient | null,
-    private readonly pricing: PaymentPricing,
+    @Inject(PAYOS_CLIENT) private readonly payosClient: PayosClient | null,
+    private readonly paymentPricing: PaymentPricing,
     private readonly outboxService: OutboxService,
+    private readonly coinService: CoinService,
   ) {}
 
   private gateway() {
-    if (!this.client)
+    if (!this.payosClient)
       throw new ServiceUnavailableException('PayOS gateway is disabled');
-    return this.client;
+    return this.payosClient;
   }
 
   private async now(manager: EntityManager): Promise<Date> {
@@ -96,7 +154,7 @@ export class PaymentService {
       requestId,
     });
     if (existing) return this.findMine(buyerId, existing.id);
-    const quote = await this.pricing.quote(buyerId, checkoutId);
+    const quote = await this.paymentPricing.quote(buyerId, checkoutId);
     const prepared = await this.db.transaction(async (manager) =>
       this.prepareAttempt(manager, buyerId, checkoutId, requestId, quote),
     );
@@ -155,11 +213,10 @@ export class PaymentService {
     quote: Awaited<ReturnType<PaymentPricing['quote']>>,
   ) {
     const now = await this.now(manager);
-    const checkout = await manager.findOne(Checkout, {
+    const checkout = await manager.findOneOrFail(Checkout, {
       where: { id: checkoutId, buyerId },
       lock: { mode: 'pessimistic_write' },
     });
-    if (!checkout) throw new NotFoundException('Checkout not found');
     const attempts = await manager.find(PaymentAttempt, {
       where: { checkoutId },
       order: { createdAt: 'ASC', id: 'ASC' },
@@ -199,7 +256,7 @@ export class PaymentService {
       checkout.coinMode !== RECONCILIATION_MODE.SIMULATION
     )
       throw new ConflictException('PayOS gateway requires simulation coins');
-    const orders = await this.pricing.snapshot(manager, checkout, quote);
+    const orders = await this.paymentPricing.snapshot(manager, checkout, quote);
     const amount = orders.reduce(
       (sum, order) =>
         sum + order.subtotal + order.shippingFee - (order.coinDiscount ?? 0),
@@ -220,16 +277,18 @@ export class PaymentService {
       )
     )
       throw new ConflictException('Checkout stock is no longer reserved');
-    for (const shopId of [
-      ...new Set(orders.map((order) => order.shopId)),
-    ].sort()) {
-      const eligibleShop = await manager.findOneOrFail(Shop, {
-        where: { id: shopId, status: ShopStatus.ACTIVE },
-        lock: { mode: 'pessimistic_read' },
-      });
-      if (!shopAllowsIdentitySales(eligibleShop, now))
-        throw new ConflictException('Shop identity requires review');
-    }
+    const shopIds = [...new Set(orders.map((order) => order.shopId))].sort();
+    const shops = shopIds.length
+      ? await manager.find(Shop, {
+          where: { id: In(shopIds), status: ShopStatus.ACTIVE },
+          order: { id: 'ASC' },
+          lock: { mode: 'pessimistic_read' },
+        })
+      : [];
+    if (shops.length !== shopIds.length)
+      throw new NotFoundException('Active shop not found');
+    if (shops.some((shop) => !shopAllowsIdentitySales(shop, now)))
+      throw new ConflictException('Shop identity requires review');
     const attempt = await this.savePreparedAttempt(
       manager,
       buyerId,
@@ -339,11 +398,10 @@ export class PaymentService {
     const gateway = this.gateway();
     const orderCode = await this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      const attempt = await manager.findOne(PaymentAttempt, {
+      const attempt = await manager.findOneOrFail(PaymentAttempt, {
         where: { id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!attempt) throw new NotFoundException('Payment attempt not found');
       const attemptCannotBeQueried =
         !attempt.providerOrderCode ||
         !(
@@ -371,11 +429,10 @@ export class PaymentService {
   async applyResult(id: string, result: PayosPaymentResult) {
     await this.db.transaction(async (manager) => {
       const now = await this.now(manager);
-      const attempt = await manager.findOne(PaymentAttempt, {
+      const attempt = await manager.findOneOrFail(PaymentAttempt, {
         where: { id },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!attempt) throw new NotFoundException('Payment attempt not found');
       if (
         attempt.providerOrderCode &&
         Number(attempt.providerOrderCode) !== result.orderCode
@@ -418,11 +475,10 @@ export class PaymentService {
         }
         return;
       }
-      const checkout = await manager.findOne(Checkout, {
+      const checkout = await manager.findOneOrFail(Checkout, {
         where: { id: attempt.checkoutId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!checkout) throw new NotFoundException('Checkout not found');
       const products = await this.lockProducts(manager, checkout);
       const expectedIds = attempt.orders.flatMap((order) =>
         order.items.map((item) => item.productId),
@@ -486,21 +542,23 @@ export class PaymentService {
     result: PayosPaymentResult,
     now: Date,
   ) {
-    let shopsActive = true;
-    for (const shopId of [
+    const shopIds = [
       ...new Set(attempt.orders.map((order) => order.shopId)),
-    ].sort()) {
-      const shop = await manager.findOne(Shop, {
-        where: { id: shopId },
-        lock: { mode: 'pessimistic_read' },
-      });
-      if (
-        !shop ||
-        shop.status !== ShopStatus.ACTIVE ||
-        !shopAllowsIdentitySales(shop, now)
-      )
-        shopsActive = false;
-    }
+    ].sort();
+    const shops = shopIds.length
+      ? await manager.find(Shop, {
+          where: { id: In(shopIds) },
+          order: { id: 'ASC' },
+          lock: { mode: 'pessimistic_read' },
+        })
+      : [];
+    const shopsActive =
+      shops.length === shopIds.length &&
+      shops.every(
+        (shop) =>
+          shop.status === ShopStatus.ACTIVE &&
+          shopAllowsIdentitySales(shop, now),
+      );
     const expectedIds = attempt.orders.flatMap((order) =>
       order.items.map((item) => item.productId),
     );
@@ -547,7 +605,7 @@ export class PaymentService {
     const createdOrders = await manager.find(Order, {
       where: { checkoutId: checkout.id },
     });
-    await new CoinService().consumeCheckoutCoins(
+    await this.coinService.consumeCheckoutCoins(
       manager,
       checkout.id,
       createdOrders,

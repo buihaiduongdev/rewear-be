@@ -11,29 +11,30 @@ const constants = await loadTypeScriptModule(
     import.meta.url,
   ),
 );
-const allocationSource = (
+const coinConstants = await loadTypeScriptModule(
+  new URL('../src/modules/coins/constants/coin.constant.ts', import.meta.url),
+);
+const coinSource = (
   await readFile(
-    new URL(
-      '../src/modules/coins/checkout/coin-allocation.ts',
-      import.meta.url,
-    ),
+    new URL('../src/modules/coins/coin.service.ts', import.meta.url),
     'utf8',
   )
-).replace(/^import.*;\s*/gm, '');
-const { COIN_POLICY } = await loadTypeScriptModule(
-  new URL(
-    '../src/modules/coins/core/constants/coin.constant.ts',
-    import.meta.url,
-  ),
-);
+)
+  .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
+  .replace(/@Injectable\(\)/g, '');
+globalThis.__coinServiceTestDependencies = {
+  ...coinConstants,
+  BadRequestException: Error,
+  ConflictException: Error,
+  In: (values) => ({ values }),
+  Order: class {},
+  CoinAccount: class {},
+  CoinOrderDebit: class {},
+  CoinPurchaseReward: class {},
+  CoinReservation: class {},
+};
 const { allocateCoins } = await import(
-  'data:text/javascript;base64,' +
-    Buffer.from(
-      'const ConflictException = Error;\nconst COIN_POLICY = ' +
-        JSON.stringify(COIN_POLICY) +
-        ';\n' +
-        stripTypeScriptTypes(allocationSource, { mode: 'transform' }),
-    ).toString('base64')
+  `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(globalThis.__coinServiceTestDependencies).join(', ')} } = globalThis.__coinServiceTestDependencies;\n${stripTypeScriptTypes(coinSource, { mode: 'transform' })}\n//# sourceURL=coin-service-under-test.js`).toString('base64')}`
 );
 let quote;
 globalThis.__paymentPricingDependencies = {

@@ -199,6 +199,7 @@ function setup() {
       snapshot: async () => snapshot,
     },
     { record: async () => undefined },
+    new CoinService(),
   );
   return { service, rows, checkout, client, calls: () => createCalls };
 }

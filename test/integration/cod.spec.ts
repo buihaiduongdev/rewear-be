@@ -15,12 +15,12 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinReservation,
-} from '@/modules/coins/core/entities';
+} from '@/modules/coins/entities';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -63,8 +63,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       ),
     );
     const outbox = new OutboxService();
-    cod = new CodService(db, pricing, policy, outbox);
-    orders = new OrderService(db, new WalletService(db), policy, outbox);
+    const coins = new CoinService(db);
+    cod = new CodService(db, pricing, policy, outbox, coins);
+    orders = new OrderService(db, new WalletService(db), policy, outbox, coins);
   });
   afterAll(async () => database?.destroy());
 
@@ -457,6 +458,7 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       gateway,
       pricing,
       new OutboxService(),
+      new CoinService(f.db),
     );
     const failed = await payments.create(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),

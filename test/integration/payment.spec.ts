@@ -13,7 +13,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -56,6 +56,7 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
         ),
       ),
       new OutboxService(),
+      new CoinService(database.dataSource),
     );
   });
   afterAll(async () => {
@@ -380,6 +381,7 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
       new WalletService(db),
       new CodPolicy(db),
       new OutboxService(),
+      new CoinService(db),
     );
     await orders.expireDue();
     await service.applyResult(payment.id, capture);

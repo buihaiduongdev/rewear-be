@@ -12,7 +12,7 @@ import { AppModule } from '@/app.module';
 import { AllExceptionsFilter } from '@/common/filters/all-exception.filter';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { StorageService } from '@/infrastructure/storage';
-import { CoinRewardWorker } from '@/modules/coins/rewards/coin-reward.worker';
+import { CoinRewardWorker } from '@/modules/coins/coin-reward.worker';
 import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';

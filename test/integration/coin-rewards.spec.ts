@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import ms from 'ms';
 
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinRewardService } from '@/modules/coins/coin-reward.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinPurchaseReward,
-} from '@/modules/coins/core/entities';
-import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
+} from '@/modules/coins/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund-funding';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
@@ -44,7 +44,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
         coinDiscount: discount,
       }));
       await db.getRepository(Order).save(f.order);
-      const coins = new CoinService();
+      const coins = new CoinService(db);
       await db.transaction(async (manager) => {
         const now = new Date();
         const checkout = {
@@ -101,26 +101,25 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       codAmount: f.order.total,
       providerStatus: 'delivered',
     });
-    await new CodReconciliationService(db).recordCollection(
-      f.admin.id,
-      f.order.id,
-      {
-        requestId: randomUUID(),
-        mode,
-        waybillCode: shipment.orderCode!,
-        collectedAmount: f.order.total,
-        approvedCarrierFee: 0,
-        collectedAt: deliveredAt.toISOString(),
-        reason: 'Matched collection',
-        evidence: 'Signed collection statement',
-      },
-    );
+    await new CodReconciliationService(
+      db,
+      new CoinService(db),
+    ).recordCollection(f.admin.id, f.order.id, {
+      requestId: randomUUID(),
+      mode,
+      waybillCode: shipment.orderCode!,
+      collectedAmount: f.order.total,
+      approvedCarrierFee: 0,
+      collectedAt: deliveredAt.toISOString(),
+      reason: 'Matched collection',
+      evidence: 'Signed collection statement',
+    });
     return {
       ...f,
       db,
       deliveredAt,
       shipment,
-      service: new CoinRewardService(db, new CoinService()),
+      service: new CoinRewardService(db, new CoinService(db)),
     };
   }
 
@@ -129,7 +128,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
     expect(await f.service.evaluate(f.order.id)).toMatchObject({
       entitlement: 450,
     });
-    const finance = new CodReconciliationService(f.db);
+    const finance = new CodReconciliationService(f.db, new CoinService(f.db));
     await finance.recordRemittance(f.admin.id, {
       requestId: randomUUID(),
       reference: randomUUID(),

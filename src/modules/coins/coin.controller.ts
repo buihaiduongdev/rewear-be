@@ -5,29 +5,29 @@ import { CurrentUser, Serialize } from '@/common/decorators';
 import { AuthenticatedAccess } from '@/modules/authorization/decorators/authenticated-access.decorator';
 import { User } from '@/modules/user/entities';
 
-import { CoinService } from './core/coin.service';
+import { CoinService } from './coin.service';
 import {
   coinBalanceViewSchema,
   coinHistoryQuerySchema,
   coinHistoryViewSchema,
-} from './core/schemas/coin.schema';
+} from './schemas/coin.schema';
 import type {
   CoinBalanceView,
   CoinHistoryQueryInput,
   CoinHistoryView,
-} from './core/schemas/coin.schema';
+} from './schemas/coin.schema';
 
 @ApiTags('Coins')
 @ApiBearerAuth()
 @AuthenticatedAccess()
 @Controller('coins')
 export class CoinController {
-  constructor(private readonly coins: CoinService) {}
+  constructor(private readonly coinService: CoinService) {}
 
   @Get('balance')
   @Serialize(coinBalanceViewSchema)
   balance(@CurrentUser() user: User): Promise<CoinBalanceView> {
-    return this.coins.balance(user.id);
+    return this.coinService.balance(user.id);
   }
 
   @Get('history')
@@ -36,6 +36,6 @@ export class CoinController {
     @CurrentUser() user: User,
     @Query({ schema: coinHistoryQuerySchema }) query: CoinHistoryQueryInput,
   ): Promise<CoinHistoryView> {
-    return this.coins.history(user.id, query);
+    return this.coinService.history(user.id, query);
   }
 }
