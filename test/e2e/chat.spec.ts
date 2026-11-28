@@ -148,13 +148,6 @@ describe('Buyer–Shop chat HTTP', () => {
       .get(`/api/chat/media/${mediaId}/download`)
       .auth(token(f.owner), { type: 'bearer' })
       .expect(200);
-    const imported = await request(server)
-      .post(`/api/chat/media/${mediaId}/dispute-evidence`)
-      .auth(token(f.buyer), { type: 'bearer' })
-      .send({ orderId: f.order.id, tags: ['UNBOX'] })
-      .expect(200);
-    expect(imported.body.data.mimeType).toBe('video/mp4');
-    expect(imported.body.data).not.toHaveProperty('storageKey');
   });
   it('marks read, lists only own conversations and generates OpenAPI', async () => {
     const server = app.getHttpServer();
@@ -178,6 +171,6 @@ describe('Buyer–Shop chat HTTP', () => {
     );
     expect(doc.paths).toHaveProperty('/api/chat/conversations');
     expect(doc.paths).toHaveProperty('/api/chat/conversations/{id}/messages');
-    expect(doc.paths).toHaveProperty('/api/chat/media/{id}/dispute-evidence');
+    expect(doc.paths).toHaveProperty('/api/chat/media/{id}/download');
   });
 });

@@ -1,21 +1,13 @@
-import { randomUUID } from 'node:crypto';
-
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
-import { Category } from '@/modules/category/entities';
 import { ChatService } from '@/modules/chat/chat.service';
 import { ChatConversation, ChatMessage } from '@/modules/chat/entities';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { OutboxService } from '@/modules/event/outbox.service';
-import { Product, ProductModeration } from '@/modules/product/entities';
-import {
-  ProductModerationStatus,
-  ProductStatus,
-} from '@/modules/product/enums';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole, ShopStatus } from '@/modules/shop/enums';
 
@@ -32,82 +24,10 @@ describe('Buyer–Shop chat PostgreSQL', () => {
       new AuthorizationService(database.dataSource),
       {} as never,
       new OutboxService(),
+      {} as never,
     );
   });
   afterAll(async () => database?.destroy());
-  it('allows only currently public approved product attachments from the same Shop', async () => {
-    const db = database.dataSource;
-    const f = await adjudicationFixture(db);
-    const thread = await service.open(f.buyer.id, f.shop.id);
-    const category = await db.manager.save(
-      Category,
-      db.manager.create(Category, {
-        name: 'Chat category',
-        slug: randomUUID(),
-        isActive: true,
-      }),
-    );
-    const product = await db.manager.save(
-      Product,
-      db.manager.create(Product, {
-        shopId: f.shop.id,
-        title: 'Áo khoác',
-        price: 200000,
-        status: ProductStatus.ACTIVE,
-        categoryId: category.id,
-      }),
-    );
-    const moderation = await db.manager.save(
-      ProductModeration,
-      db.manager.create(ProductModeration, {
-        productId: product.id,
-        status: ProductModerationStatus.APPROVED,
-        version: 1,
-        reason: null,
-      }),
-    );
-    const sent = await service.send(f.buyer.id, thread.id, {
-      mediaIds: [],
-      productId: product.id,
-    });
-    expect(sent.product).toEqual({
-      id: product.id,
-      title: 'Áo khoác',
-      price: 200000,
-      status: 'ACTIVE',
-    });
-    await db.manager.update(ProductModeration, moderation.id, {
-      status: ProductModerationStatus.DRAFT,
-    });
-    await expect(
-      service.send(f.buyer.id, thread.id, {
-        mediaIds: [],
-        productId: product.id,
-      }),
-    ).rejects.toThrow('public approved listing');
-    expect(
-      (await service.messages(f.owner.id, thread.id, { limit: 50, offset: 0 }))
-        .items[0].product?.title,
-    ).toBe('Áo khoác');
-    await db.manager.update(ProductModeration, moderation.id, {
-      status: ProductModerationStatus.APPROVED,
-    });
-    await db.manager.update(Category, category.id, { isActive: false });
-    await expect(
-      service.send(f.buyer.id, thread.id, {
-        mediaIds: [],
-        productId: product.id,
-      }),
-    ).rejects.toThrow('public approved listing');
-    await db.manager.update(Category, category.id, { isActive: true });
-    await db.manager.update(Shop, f.shop.id, { status: ShopStatus.INACTIVE });
-    await expect(
-      service.send(f.owner.id, thread.id, {
-        mediaIds: [],
-        productId: product.id,
-      }),
-    ).rejects.toThrow('public approved listing');
-  });
   it('creates one conversation per buyer/Shop even under concurrent retries', async () => {
     const f = await adjudicationFixture(database.dataSource);
     const [a, b] = await Promise.all([

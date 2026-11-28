@@ -166,7 +166,13 @@ describe('Seed data (PostgreSQL)', () => {
     expect(follows.totalCount).toBe(3);
     const authorization = new AuthorizationService(db);
     const outbox = new OutboxService();
-    const chat = new ChatService(db, authorization, {} as never, outbox);
+    const chat = new ChatService(
+      db,
+      authorization,
+      {} as never,
+      outbox,
+      {} as never,
+    );
     const conversations = await chat.list(buyer.id, { limit: 20, offset: 0 });
     expect(conversations.items).toHaveLength(3);
     const sellerConversations = await chat.list(seed.users[2].id, {

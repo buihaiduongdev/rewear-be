@@ -343,7 +343,6 @@ export async function runInitialDataSeed(manager: EntityManager) {
       conversationId: conversation.id,
       senderId: buyer.id,
       text: payload.text,
-      productId: null,
     });
     await new OutboxService().record(manager, {
       eventType: EVENT_TYPES.CHAT_MESSAGE_CREATED,

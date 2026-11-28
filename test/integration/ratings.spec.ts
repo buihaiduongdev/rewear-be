@@ -1,17 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
+import type { StorageService } from '@/infrastructure/storage';
 import { AuthProvider } from '@/modules/auth/enums';
 import { AuthorizationService } from '@/modules/authorization/authorization.service';
 import { ShopMemberRoleAssignment } from '@/modules/authorization/entities/shop-member-role-assignment.entity';
 import { ShopRolePermission } from '@/modules/authorization/entities/shop-role-permission.entity';
 import { ShopRole } from '@/modules/authorization/entities/shop-role.entity';
+import type { MediaService } from '@/modules/media/media.service';
 import { Order } from '@/modules/order/entities';
 import { OrderDeliveryVerification } from '@/modules/order/entities/order-delivery-verification.entity';
-import {
-  ShopRating,
-  ShopRatingModerationAudit,
-  ShopRatingVersion,
-} from '@/modules/ratings/entities';
+import { ShopRating, ShopRatingVersion } from '@/modules/ratings/entities';
 import { RatingsService } from '@/modules/ratings/ratings.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
@@ -26,7 +24,12 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
   beforeAll(async () => {
     database = await createTestDatabase();
     const auth = new AuthorizationService(database.dataSource);
-    ratings = new RatingsService(database.dataSource, auth);
+    ratings = new RatingsService(
+      database.dataSource,
+      auth,
+      { createDownloadUrl: jest.fn() } as unknown as StorageService,
+      { verifyMedia: jest.fn() } as unknown as MediaService,
+    );
   });
   afterAll(async () => database?.destroy());
   async function fixture() {
@@ -211,7 +214,7 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
       ratings.reply(f.staff.id, row.id, 'After revocation'),
     ).rejects.toThrow('Shop rating reply permission required');
   });
-  it('rejects stale moderation approvals and keeps edited Shop replies hidden until current review', async () => {
+  it('keeps edited Shop replies hidden until current review', async () => {
     const f = await fixture();
     const row = await ratings.upsert(f.buyer.id, f.input);
     await ratings.reply(f.owner.id, row.id, 'First reply');
@@ -223,30 +226,17 @@ describe('Verified Shop ratings (PostgreSQL)', () => {
       evidence: 'Reply review',
     });
     await ratings.reply(f.owner.id, row.id, 'Changed reply');
-    const restore = {
+    expect((await ratings.publicShop(f.shop.id)).ratings[0].reply).toBeNull();
+    await ratings.moderate(f.admin.id, row.id, {
       component: 'reply',
       hidden: false,
       basis: 'REVIEW_APPROVED',
       reason: 'Current reply is compliant',
       evidence: 'Review case',
-      expectedReplyRevision: 1,
-    } as const;
-    await expect(ratings.moderate(f.admin.id, row.id, restore)).rejects.toThrow(
-      'Rating changed',
-    );
-    expect((await ratings.publicShop(f.shop.id)).ratings[0].reply).toBeNull();
-    await ratings.moderate(f.admin.id, row.id, {
-      ...restore,
-      expectedReplyRevision: 2,
     });
     expect((await ratings.publicShop(f.shop.id)).ratings[0].reply).toBe(
       'Changed reply',
     );
-    expect(
-      await f.db
-        .getRepository(ShopRatingModerationAudit)
-        .countBy({ ratingId: row.id }),
-    ).toBe(2);
   });
   it('updates one cross-mode buyer/Shop rating when a legitimate later order becomes the basis', async () => {
     const f = await fixture();

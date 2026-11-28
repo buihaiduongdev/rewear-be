@@ -1395,3 +1395,27 @@
 - **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 592 tệp, Prettier, TypeScript, Build); unit test trọng tâm nhóm vận hành - khiếu nại pass 14/14 suites (65/65 tests); `node --test test/payment-service.node.test.mjs` pass 8/8 tests; `git diff --check` pass 0 lỗi.
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
 - **Minh chứng:** PR #81; branch `refactor/clean-fulfillment-dispute-kyc`, commit `73aacb6`.
+
+### 2026-11-26 — Tinh gọn ba module phụ trợ reports, ratings và chat
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và cắt bỏ các cơ chế dư thừa trên ba module phụ trợ (`reports`, `ratings`, `chat`) sau khi đối chiếu lại các bảng audit, command, mã băm chống trùng và các service tách lẻ không cần thiết.
+- **Prompt chính:** Rà soát và dọn gọn ba module phụ trợ `reports`, `ratings` và `chat`: bỏ các bảng audit, command, mã băm `fingerprint`, kiểm tra `version`/`clock_timestamp()` dư thừa, gộp các file policy và media service lẻ về service chính, cập nhật lại kiểm thử liên quan và đẩy lên PR #75.
+- **Đầu ra AI được sử dụng:** Gộp `report.policy.ts` và `ReportMediaService` vào `ViolationReportService`, xóa `ReportCommand` và `ReportAudit`, bỏ `requestId`/`fingerprint`/`version` và nhận trực tiếp `mediaIds` qua `MediaService.verifyMedia`; xóa `ShopRatingModerationAudit`, gộp `rating.policy.ts` và `RatingMediaService` vào `RatingsService`, bỏ `expectedRevision` và giới hạn upload theo ngày; gộp `ChatMediaService` vào `ChatService`, bỏ `SELECT clock_timestamp()` và kiểm tra `tagsChanged` dư thừa; đồng bộ các bộ unit, integration và E2E test liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Phát hiện sự bất hợp lý của các bảng audit/command/fingerprint trên nhóm module phụ trợ dù đã qua các đợt dọn trước, chốt phạm vi giữ lại và kiểm tra kết quả sau khi gộp.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 warnings/errors, Prettier, TypeScript, Build); `pnpm test:unit` đạt 61/61 suites (337/337 tests).
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện (đã chủ động rà thêm các E2E test cũ còn gọi endpoint pre-upload đã xóa để cập nhật đồng bộ).
+- **Minh chứng:** PR #76; branch `refactor/clean-auxiliary-modules`.
+
+### 2026-11-28 — Đồng bộ bản tinh gọn reports, ratings và chat lên nhánh chính
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Hydrogen)
+- **Mục đích và phạm vi:** Đồng bộ đầy đủ bản tinh gọn ba module phụ trợ (`reports`, `ratings`, `chat`) từ PR #76 lên `main` và gỡ bỏ hoàn toàn phần đính kèm `productId`/`orderId` khỏi `chat` để dữ liệu trò chuyện chỉ giữ nội dung văn bản và tệp đính kèm gọn nhẹ.
+- **Prompt chính:** Đưa lại phần rút gọn ở PR #76 lên `main` cho `reports`, `ratings` và `chat`, đồng thời bỏ `productId`/`orderId` khỏi `ChatMessage` và cập nhật lại kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Áp dụng lại toàn bộ thay đổi của PR #76 lên `main`, giữ bản `chat` thuần văn bản/media (không `productId`/`orderId`), xóa `test/unit/modules/chat/chat-service.spec.ts` và cập nhật `test/unit/modules/chat/chat-schema.spec.ts` cùng `docs/AI_USAGE_LOG.md`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi chỉ giữ tinh gọn ở `reports`, `ratings`, `chat` và rà soát toàn bộ kiểm thử trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint, Prettier, TypeScript, Build); `pnpm test:unit` pass 62/62 suites (352/352 tests); `pnpm test:payment:core` pass 20/20 tests.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #87; branch `refactor/sync-clean-auxiliary-modules`.

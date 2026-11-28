@@ -13,7 +13,7 @@ import {
   REPORT_TARGET,
 } from '../constants/report.constant';
 
-const evidenceIds = z
+const mediaIds = z
   .array(z.uuid())
   .max(REPORT_POLICY.MAX_EVIDENCE)
   .default([])
@@ -21,14 +21,15 @@ const evidenceIds = z
     (ids) => new Set(ids).size === ids.length,
     'Duplicate report evidence',
   );
+
 export const createReportSchema = z.strictObject({
-  requestId: z.uuid(),
   targetType: z.enum(REPORT_TARGET),
   targetId: z.uuid(),
   reason: z.enum(REPORT_REASON),
   description: z.string().trim().min(10).max(REPORT_POLICY.DESCRIPTION_LENGTH),
-  evidenceIds,
+  mediaIds,
 });
+
 export const reportQuerySchema = z.object({
   limit: z.coerce
     .number()
@@ -40,17 +41,14 @@ export const reportQuerySchema = z.object({
   status: z.enum(REPORT_STATUS).optional(),
   targetType: z.enum(REPORT_TARGET).optional(),
 });
+
 export const reportSupplementSchema = z.strictObject({
-  requestId: z.uuid(),
   text: z.string().trim().min(3).max(REPORT_POLICY.DESCRIPTION_LENGTH),
-  evidenceIds,
+  mediaIds,
 });
-export const claimReportSchema = z.strictObject({
-  requestId: z.uuid(),
-  expectedVersion: z.number().int().positive(),
-});
-export const resolveReportSchema = claimReportSchema
-  .extend({
+
+export const resolveReportSchema = z
+  .strictObject({
     outcome: z.enum(REPORT_OUTCOME),
     action: z.enum(REPORT_MEASURE),
     reason: z.string().trim().min(3).max(REPORT_POLICY.REASON_LENGTH),
@@ -79,17 +77,13 @@ export const resolveReportSchema = claimReportSchema
         message: 'Current product moderation version is required',
       });
   });
-export const reportUploadSchema = z.strictObject({
-  targetType: z.enum(REPORT_TARGET),
-  targetId: z.uuid(),
-  reportId: z.uuid().optional(),
-  mediaId: z.uuid(),
-});
+
 export const reportEvidenceViewSchema = z.object({
   id: z.uuid(),
   mimeType: z.enum(REPORT_MIME_TYPES),
   sizeBytes: z.number().int(),
 });
+
 const reportTargetSchema = z.object({
   type: z.enum(REPORT_TARGET),
   id: z.uuid(),
@@ -97,13 +91,7 @@ const reportTargetSchema = z.object({
   label: z.string(),
   contextOrderId: z.uuid().nullable(),
 });
-const reportHistorySchema = z.object({
-  action: z.enum(REPORT_ACTION),
-  version: z.number().int(),
-  status: z.enum(REPORT_STATUS),
-  reason: z.string().nullable(),
-  createdAt: dateTimeSchema,
-});
+
 export const reportViewSchema = z.object({
   id: z.uuid(),
   targetType: z.enum(REPORT_TARGET),
@@ -111,7 +99,6 @@ export const reportViewSchema = z.object({
   reason: z.enum(REPORT_REASON),
   description: z.string(),
   status: z.enum(REPORT_STATUS),
-  version: z.number().int(),
   evidence: z.array(reportEvidenceViewSchema),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
@@ -123,45 +110,42 @@ export const reportViewSchema = z.object({
       resolvedAt: dateTimeSchema,
     })
     .nullable(),
-  history: z.array(reportHistorySchema),
 });
+
 export const adminReportViewSchema = reportViewSchema.extend({
   reporterId: z.uuid(),
   assignedAdminId: z.uuid().nullable(),
   adminNote: z.string().nullable(),
-  audits: z.array(
-    reportHistorySchema.extend({
-      actorId: z.uuid(),
-      adminNote: z.string().nullable(),
-      effect: z.record(z.string(), z.unknown()).nullable(),
-    }),
-  ),
   targetState: z.object({
     exists: z.boolean(),
     status: z.string().nullable(),
     moderationVersion: z.number().int().nullable(),
   }),
 });
+
 export const reportSummarySchema = reportViewSchema.omit({
-  history: true,
   evidence: true,
 });
+
 export const adminReportSummarySchema = reportSummarySchema.extend({
   reporterId: z.uuid(),
   assignedAdminId: z.uuid().nullable(),
 });
+
 export const reportPageSchema = z.object({
   items: z.array(reportSummarySchema),
   totalCount: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
 });
+
 export const adminReportPageSchema = z.object({
   items: z.array(adminReportSummarySchema),
   totalCount: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
 });
+
 export const reportDownloadSchema = z.object({
   url: z.url(),
   headers: z.record(z.string(), z.string()),
@@ -187,5 +171,4 @@ export type ReportTargetSnapshot = {
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 export type ReportSupplementInput = z.infer<typeof reportSupplementSchema>;
-export type ClaimReportInput = z.infer<typeof claimReportSchema>;
 export type ResolveReportInput = z.infer<typeof resolveReportSchema>;

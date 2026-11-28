@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import z from 'zod';
 
 import * as schemas from '@/modules/chat/schemas/chat.schema';
@@ -20,19 +18,9 @@ describe('Chat contracts', () => {
     ).toBe(false);
     expect(
       schemas.sendChatSchema.safeParse({
-        productId: randomUUID(),
+        text: 'Hello',
       }).success,
     ).toBe(true);
-    expect(
-      schemas.sendChatSchema.safeParse({
-        orderId: randomUUID(),
-      }).success,
-    ).toBe(true);
-    expect(
-      schemas.sendChatSchema.safeParse({
-        orderId: 'not-a-uuid',
-      }).success,
-    ).toBe(false);
   });
   it('bounds pagination and upload size while accepting video', () => {
     expect(schemas.chatPageSchema.safeParse({ limit: 101 }).success).toBe(
