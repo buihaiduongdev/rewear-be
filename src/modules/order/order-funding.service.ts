@@ -9,13 +9,13 @@ import {
   SHOP_LEDGER_TYPE,
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
-import { verifiedPayosCapture } from '@/modules/payment/verified-payos-capture';
+import { verifiedOrderCoinDebit } from '@/modules/coins/coin.service';
+import { verifiedPayosCapture } from '@/modules/payment/payment.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
-import { verifiedWalletCapture } from '@/modules/wallet/checkout/verified-wallet-capture';
 import { WalletCredit } from '@/modules/wallet/entities';
+import { verifiedWalletCapture } from '@/modules/wallet/wallet-checkout.service';
 
 import { ORDER_PAYMENT_METHOD, ORDER_POLICY } from './constants/order.constant';
 import { Order } from './entities';
@@ -40,7 +40,11 @@ export async function resolveOrderHeldCredit(
     return resolveCodCredit(manager, order, shipment, money.sellerNet);
   if (order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET)
     return resolveWalletCredit(manager, order, money.sellerNet);
-  if (order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS) return null;
+  if (
+    order.paymentMethod !== ORDER_PAYMENT_METHOD.PAYOS &&
+    order.paymentMethod !== ORDER_PAYMENT_METHOD.MOMO
+  )
+    return null;
   return resolvePayosCredit(manager, order, money.sellerNet);
 }
 

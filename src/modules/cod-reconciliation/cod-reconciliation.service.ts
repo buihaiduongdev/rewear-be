@@ -4,7 +4,7 @@ import { DataSource, EntityManager, In, Not, QueryFailedError } from 'typeorm';
 
 import { BASIS_POINTS_SCALE } from '@/common/constants/money.constant';
 import { GHN_SHIPMENT_STATUS } from '@/infrastructure/shipping/constants/ghn-shipment.constant';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import {
   ORDER_CANCEL_STATE,
   ORDER_PAYMENT_METHOD,
@@ -17,8 +17,8 @@ import {
   UNSAFE_CARRIER_REVIEW_REASONS,
 } from '@/modules/shipment/constants/shipment.constant';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 
 import {
   COD_RECONCILIATION_STATUS,

@@ -24,6 +24,7 @@ import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { ProductMedia } from '@/modules/media/entities';
 import { MediaRole } from '@/modules/media/enums';
+import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
 import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/shop-application.constant';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
@@ -32,10 +33,10 @@ import { Product, ProductModeration } from './entities';
 import { ProductModerationStatus, ProductStatus } from './enums';
 import { PRODUCT_PAGINATION_CONFIG } from './pagination.config';
 import { suspendProductForModeration } from './policies/suspend-product.policy';
-import type { SuspendProductInput } from './schemas/product-input.schema';
 import type {
   CreateProductInput,
   ModerateProductInput,
+  SuspendProductInput,
   UpdateProductInput,
   UpdateProductStatusInput,
 } from './schemas/product-input.schema';
@@ -59,13 +60,26 @@ export class ProductService {
     private readonly outboxService: OutboxService,
   ) {}
 
-  findAll(query: PaginateQuery): Promise<Paginated<ProductView>> {
+  findAll(
+    query: PaginateQuery,
+    provinceId?: number,
+  ): Promise<Paginated<ProductView>> {
     const queryBuilder = this.createProductQueryBuilder()
       .where('product.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('category.isActive = true')
       .andWhere('shop.status = :shopStatus', {
         shopStatus: ShopStatus.ACTIVE,
       });
+
+    if (provinceId !== undefined) {
+      queryBuilder.innerJoin(
+        PickupLocation,
+        'pickupLocation',
+        'pickupLocation.shopId = product.shopId AND pickupLocation.provinceId = :provinceId',
+        { provinceId },
+      );
+    }
+
     return this.paginateProducts(queryBuilder, query);
   }
 
@@ -185,15 +199,13 @@ export class ProductService {
       this.assertEditable(product);
       if (input.categoryId)
         await this.assertActiveCategory(input.categoryId, manager);
+      const isPublished = [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
+        product.status,
+      );
       const contentChanged = this.applyContentChanges(product, input);
       let priceChanged = false;
       if (input.price !== undefined && product.price !== input.price) {
-        const publishedPriceIsInvalid =
-          [ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-            product.status,
-          ) &&
-          (!input.price || input.price <= 0);
-        if (publishedPriceIsInvalid) {
+        if (isPublished && (!input.price || input.price <= 0)) {
           throw new BadRequestException(
             'A published product must have a positive price',
           );
@@ -201,16 +213,25 @@ export class ProductService {
         product.price = input.price;
         priceChanged = true;
       }
-      // Editing content moves the product back to draft.
-      const requiresContentReview =
-        contentChanged ||
-        (priceChanged &&
-          ![ProductStatus.ACTIVE, ProductStatus.HIDDEN].includes(
-            product.status,
-          ));
-      if (requiresContentReview) {
-        await this.markContentChanged(manager, product);
-      } else if (priceChanged) await manager.save(Product, product);
+      if (!contentChanged && !priceChanged) return;
+      // Any content or price edit on a published listing hides it for admin re-approval.
+      if (isPublished) {
+        const missingRequired =
+          !product.title ||
+          !product.categoryId ||
+          !product.condition ||
+          !product.description?.trim() ||
+          !product.price ||
+          product.price <= 0;
+        if (missingRequired) {
+          throw new BadRequestException(
+            'Title, category, condition, description and a positive price are required',
+          );
+        }
+        await this.queueForReview(manager, product);
+        return;
+      }
+      await this.markContentChanged(manager, product);
     });
     return this.findManagedProduct(id);
   }
@@ -251,16 +272,19 @@ export class ProductService {
       product.condition = input.condition;
       contentChanged = true;
     }
-    for (const field of ['measurements', 'defects'] as const) {
-      if (
-        input[field] !== undefined &&
-        JSON.stringify(product[field]) !== JSON.stringify(input[field])
-      ) {
-        if (field === 'measurements')
-          product.measurements = input.measurements!;
-        else product.defects = input.defects!;
-        contentChanged = true;
-      }
+    if (
+      input.measurements !== undefined &&
+      !isDeepStrictEqual(product.measurements, input.measurements)
+    ) {
+      product.measurements = input.measurements;
+      contentChanged = true;
+    }
+    if (
+      input.defects !== undefined &&
+      !isDeepStrictEqual(product.defects, input.defects)
+    ) {
+      product.defects = input.defects;
+      contentChanged = true;
     }
     if (
       input.shippingPackage !== undefined &&
@@ -301,29 +325,36 @@ export class ProductService {
       if (product.status !== ProductStatus.DRAFT)
         throw new ConflictException('Only a draft can be submitted');
       await this.validateForPublication(manager, product);
-      const moderation = await manager.findOneBy(ProductModeration, {
-        productId: id,
-      });
-      if (moderation) {
-        moderation.version += 1;
-        moderation.status = ProductModerationStatus.PENDING;
-        moderation.reason = null;
-        await manager.save(ProductModeration, moderation);
-      } else {
-        await manager.save(
-          ProductModeration,
-          manager.create(ProductModeration, {
-            productId: id,
-            version: 1,
-            status: ProductModerationStatus.PENDING,
-            reason: null,
-          }),
-        );
-      }
-      product.status = ProductStatus.PENDING_REVIEW;
-      await manager.save(Product, product);
+      await this.queueForReview(manager, product);
     });
     return this.findManagedProduct(id);
+  }
+
+  private async queueForReview(
+    manager: EntityManager,
+    product: Product,
+  ): Promise<void> {
+    const moderation = await manager.findOneBy(ProductModeration, {
+      productId: product.id,
+    });
+    if (moderation) {
+      moderation.version += 1;
+      moderation.status = ProductModerationStatus.PENDING;
+      moderation.reason = null;
+      await manager.save(ProductModeration, moderation);
+    } else {
+      await manager.save(
+        ProductModeration,
+        manager.create(ProductModeration, {
+          productId: product.id,
+          version: 1,
+          status: ProductModerationStatus.PENDING,
+          reason: null,
+        }),
+      );
+    }
+    product.status = ProductStatus.PENDING_REVIEW;
+    await manager.save(Product, product);
   }
 
   async cancelSubmission(id: string, shopId?: string): Promise<ProductView> {
@@ -412,7 +443,7 @@ export class ProductService {
     shopId?: string,
   ): Promise<ProductModeration> {
     if (shopId) {
-      await this.findManagedProduct(id, shopId);
+      await this.productRepository.findOneByOrFail({ id, shopId });
     }
     return this.dataSource
       .getRepository(ProductModeration)

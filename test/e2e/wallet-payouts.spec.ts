@@ -16,9 +16,9 @@ import { DisputeWorker } from '@/modules/dispute/dispute.worker';
 import { OrderSettlementWorker } from '@/modules/order/order-settlement.worker';
 import { OrderWorker } from '@/modules/order/order.worker';
 import { ShipmentWorker } from '@/modules/shipment/shipment.worker';
-import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
+import { ShopBankAccount } from '@/modules/shop-finance/entities';
 import { User } from '@/modules/user/entities';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase } from '../support/database';
@@ -65,7 +65,6 @@ describe('Wallet and payout HTTP access and API contracts', () => {
     const hold = await db.getRepository(WalletCheckoutHold).save({
       checkoutId: checkout.id,
       buyerId: f.buyer.id,
-      requestId: randomUUID(),
       mode: 'EVIDENCE',
       state: 'RELEASED',
       amount: 100,
@@ -133,7 +132,7 @@ describe('Wallet and payout HTTP access and API contracts', () => {
     await request(app.getHttpServer())
       .post(`/api/checkouts/${randomUUID()}/payments/wallet`)
       .auth(token(f.buyer), { type: 'bearer' })
-      .send({ requestId: randomUUID(), expectedTotal: 100, mode: 'REAL' })
+      .send({ expectedTotal: 100, mode: 'REAL' })
       .expect(400);
     await request(app.getHttpServer())
       .post(`/api/shops/${f.shop.id}/finance/bank-accounts`)

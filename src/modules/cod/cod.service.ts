@@ -11,7 +11,7 @@ import { Cart, CartItem } from '@/modules/cart/entities';
 import { Category } from '@/modules/category/entities';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import {
@@ -37,8 +37,8 @@ import { shopAllowsIdentitySales } from '@/modules/shop/applications/constants/s
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
 import { WALLET_HOLD_STATE } from '@/modules/wallet/constants/wallet.constant';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
 
 import { COD_FAULT_PARTY } from './constants/cod.constant';
 import { CodPolicy } from './policies/cod.policy';

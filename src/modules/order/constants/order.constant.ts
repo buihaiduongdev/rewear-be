@@ -27,6 +27,7 @@ export const ORDER_CANCEL_STATE = {
 
 export const ORDER_PAYMENT_METHOD = {
   PAYOS: 'PAYOS',
+  MOMO: 'MOMO',
   COD: 'COD',
   WALLET: 'WALLET',
 } as const;

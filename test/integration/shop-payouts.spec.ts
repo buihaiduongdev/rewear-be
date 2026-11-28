@@ -3,15 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { AuthProvider } from '@/modules/auth/enums';
 import { Order } from '@/modules/order/entities';
 import { businessDeadline } from '@/modules/shipment/utils/business-calendar';
-import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
-import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
 import {
   ShopPayout,
   ShopPayoutAllocation,
-} from '@/modules/shop-finance/payouts/entities';
-import { payoutOwnerViewSchema } from '@/modules/shop-finance/payouts/schemas/payout.schema';
-import { ShopPayoutService } from '@/modules/shop-finance/payouts/shop-payout.service';
+} from '@/modules/shop-finance/entities';
+import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
+import { ShopSettlement } from '@/modules/shop-finance/entities/shop-settlement.entity';
+import { readPayoutSources } from '@/modules/shop-finance/payout-sources';
+import { payoutOwnerViewSchema } from '@/modules/shop-finance/schemas/payout.schema';
+import { ShopPayoutService } from '@/modules/shop-finance/shop-payout.service';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 import { User } from '@/modules/user/entities';
@@ -25,7 +25,11 @@ describe('manual evidenced shop payouts (PostgreSQL)', () => {
   const admin = randomUUID();
   beforeAll(async () => {
     database = await createTestDatabase();
-    service = new ShopPayoutService(database.dataSource);
+    service = new ShopPayoutService(
+      database.dataSource,
+      {} as never,
+      {} as never,
+    );
     await database.dataSource.getRepository(User).save({
       id: admin,
       email: randomUUID() + '@test.local',

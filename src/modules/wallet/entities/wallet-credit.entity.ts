@@ -10,6 +10,7 @@ import type { WalletCreditReason } from '../schemas/wallet.schema';
 
 @Entity('wallet_credits')
 @Index(['orderId'], { unique: true })
+@Index(['paymentRefundId'], { unique: true })
 @Index(['userId', 'createdAt'])
 @Check('CHK_wallet_credit_positive', '"amount" > 0')
 export class WalletCredit extends BaseEntity {
@@ -23,12 +24,15 @@ export class WalletCredit extends BaseEntity {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column('uuid')
-  orderId: string;
+  @Column('uuid', { nullable: true })
+  orderId: string | null;
 
-  @ManyToOne(() => Order, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Order, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'orderId' })
-  order: Order;
+  order: Order | null;
+
+  @Column('uuid', { nullable: true })
+  paymentRefundId: string | null;
 
   @Column('integer')
   amount: number;

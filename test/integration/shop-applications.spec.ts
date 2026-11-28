@@ -11,7 +11,7 @@ import { MediaService } from '@/modules/media/media.service';
 import { Product } from '@/modules/product/entities';
 import { ProductService } from '@/modules/product/product.service';
 import { PickupLocation } from '@/modules/shipping/entities/pickup-location.entity';
-import { ShopBankAccount } from '@/modules/shop-finance/payouts/entities/shop-bank-account.entity';
+import { ShopBankAccount } from '@/modules/shop-finance/entities';
 import {
   OwnerIdentity,
   ShopApplicationDocument,

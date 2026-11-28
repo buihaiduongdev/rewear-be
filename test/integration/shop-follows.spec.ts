@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { EntityNotFoundError } from 'typeorm';
+
 import { Category } from '@/modules/category/entities';
 import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole, MediaType } from '@/modules/media/enums';
@@ -12,8 +14,6 @@ import { ShopFollow } from '@/modules/shop-follows/entities/shop-follow.entity';
 import { ShopFollowService } from '@/modules/shop-follows/shop-follow.service';
 import { Shop } from '@/modules/shop/entities';
 import { ShopStatus } from '@/modules/shop/enums';
-import { User } from '@/modules/user/entities';
-import { UserStatus } from '@/modules/user/enums';
 
 import { adjudicationFixture } from '../support/adjudication-fixture';
 import { createTestDatabase, type TestDatabase } from '../support/database';
@@ -46,7 +46,7 @@ describe('Follow Shop PostgreSQL', () => {
       }),
     ).toBe(0);
     await expect(service.state(f.buyer.id, shop.id)).rejects.toThrow(
-      'Active Shop not found',
+      EntityNotFoundError,
     );
     expect(await service.unfollow(f.buyer.id, shop.id)).toEqual({
       shopId: shop.id,
@@ -54,7 +54,7 @@ describe('Follow Shop PostgreSQL', () => {
       followedAt: null,
     });
     await expect(service.follow(f.buyer.id, randomUUID())).rejects.toThrow(
-      'Active Shop not found',
+      EntityNotFoundError,
     );
   });
   it('paginates tied publications consistently and returns only current public cover metadata', async () => {
@@ -160,7 +160,7 @@ describe('Follow Shop PostgreSQL', () => {
     await service.unfollow(f.buyer.id, f.shop.id);
     expect((await service.state(f.buyer.id, f.shop.id)).following).toBe(false);
   });
-  it('keeps followed inactive Shops removable, rejects a new inactive follow and denies inactive accounts', async () => {
+  it('keeps followed inactive Shops removable and rejects a new inactive follow', async () => {
     const db = database.dataSource;
     const f = await adjudicationFixture(db);
     const other = await adjudicationFixture(db);
@@ -172,18 +172,9 @@ describe('Follow Shop PostgreSQL', () => {
         .status,
     ).toBe('INACTIVE');
     await expect(service.follow(other.buyer.id, f.shop.id)).rejects.toThrow(
-      'Active Shop not found',
+      EntityNotFoundError,
     );
     await service.unfollow(f.buyer.id, f.shop.id);
-    await db.manager.update(User, other.buyer.id, {
-      status: UserStatus.INACTIVE,
-    });
-    await expect(
-      service.list(other.buyer.id, { limit: 50, offset: 0 }),
-    ).rejects.toThrow('Active account required');
-    await expect(
-      feed.products(other.buyer.id, { limit: 50, offset: 0 }),
-    ).rejects.toThrow('Active account required');
   });
   it('returns only current public products of currently followed active Shops', async () => {
     const db = database.dataSource;

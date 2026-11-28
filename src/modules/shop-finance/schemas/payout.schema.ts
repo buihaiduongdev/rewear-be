@@ -59,9 +59,31 @@ export const payoutSuccessSchema = recipientSchema
     bankReference: z.string().trim().min(1).max(200),
     transferredAt: z.iso.datetime({ offset: true }),
     evidence: text,
+    transferEvidenceMediaId: z.uuid().optional(),
   })
   .strict();
 export type PayoutSuccessInput = z.infer<typeof payoutSuccessSchema>;
+
+export const payoutReceiptUploadTicketSchema = z.strictObject({
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/avif']),
+  sizeBytes: z.number().int().min(1),
+});
+export type PayoutReceiptUploadTicketInput = z.infer<
+  typeof payoutReceiptUploadTicketSchema
+>;
+
+export const payoutReceiptUploadTicketViewSchema = z.object({
+  id: z.uuid(),
+  uploadUrl: z.url(),
+  method: z.literal('PUT'),
+  headers: z.record(z.string(), z.string()),
+});
+
+export const payoutReceiptDownloadViewSchema = z.object({
+  mediaId: z.uuid(),
+  url: z.url(),
+  expiresAt: dateTimeSchema.nullable().default(null),
+});
 
 export const payoutFailureSchema = z
   .object({
@@ -109,6 +131,8 @@ export const payoutOwnerViewSchema = z.object({
 
 export const payoutAdminItemViewSchema = payoutViewSchema.extend({
   transferEvidence: z.string().nullable().default(null),
+  transferEvidenceMediaId: z.uuid().nullable().default(null),
+  transferEvidenceUrl: z.url().nullable().default(null),
 });
 
 export const payoutAdminViewSchema = z.object({

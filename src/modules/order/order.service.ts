@@ -11,7 +11,7 @@ import { DataSource, EntityManager, In } from 'typeorm';
 
 import { Category } from '@/modules/category/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Product, ProductModeration } from '@/modules/product/entities';

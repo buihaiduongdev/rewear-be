@@ -1,7 +1,7 @@
 import {
   allocatePayout,
   assertExactTransfer,
-} from '@/modules/shop-finance/payouts/payout-policy';
+} from '@/modules/shop-finance/shop-payout.service';
 
 describe('manual payout invariants', () => {
   it('locks only exact source amounts and refuses an unfunded request', () => {

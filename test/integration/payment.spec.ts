@@ -13,7 +13,7 @@ import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -52,9 +52,13 @@ describe('PayOS checkout settlement (PostgreSQL)', () => {
         new ShippingQuoteService(
           database.dataSource,
           carrier as unknown as GhnSandboxAdapter,
+          new CoinService(database.dataSource),
         ),
       ),
       new OutboxService(),
+      new CoinService(database.dataSource),
+      null,
+      {} as never,
     );
   });
   afterAll(async () => {

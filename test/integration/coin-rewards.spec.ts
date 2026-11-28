@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import ms from 'ms';
 
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinRewardService } from '@/modules/coins/coin-reward.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinPurchaseReward,
-} from '@/modules/coins/core/entities';
-import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
+} from '@/modules/coins/entities';
 import { refundFunding } from '@/modules/dispute/dispute-refund.service';
 import { DisputeDecision } from '@/modules/dispute/entities/dispute-decision.entity';
 import { DisputeIssue } from '@/modules/dispute/entities/dispute-issue.entity';
@@ -44,7 +44,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
         coinDiscount: discount,
       }));
       await db.getRepository(Order).save(f.order);
-      const coins = new CoinService();
+      const coins = new CoinService(db);
       await db.transaction(async (manager) => {
         const now = new Date();
         const checkout = {
@@ -118,7 +118,7 @@ describe('Verified purchase coin rewards (PostgreSQL)', () => {
       db,
       deliveredAt,
       shipment,
-      service: new CoinRewardService(db, new CoinService()),
+      service: new CoinRewardService(db, new CoinService(db)),
     };
   }
 

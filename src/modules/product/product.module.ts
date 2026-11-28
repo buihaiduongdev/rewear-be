@@ -4,10 +4,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StorageModule } from '@/infrastructure/storage';
 import { AuthorizationModule } from '@/modules/authorization/authorization.module';
 import { Category } from '@/modules/category/entities';
-import { Media, ProductMedia } from '@/modules/media/entities';
+import { ProductMedia } from '@/modules/media/entities';
 import { Shop, ShopMember } from '@/modules/shop/entities';
 
 import { Product, ProductModeration } from './entities';
+import { GeminiService } from './gemini.service';
 import { ProductController } from './product.controller';
 import { ProductService } from './product.service';
 
@@ -18,7 +19,6 @@ import { ProductService } from './product.service';
     TypeOrmModule.forFeature([
       Product,
       ProductModeration,
-      Media,
       ProductMedia,
       Category,
       Shop,
@@ -26,7 +26,7 @@ import { ProductService } from './product.service';
     ]),
   ],
   controllers: [ProductController],
-  providers: [ProductService],
-  exports: [ProductService],
+  providers: [ProductService, GeminiService],
+  exports: [ProductService, GeminiService],
 })
 export class ProductModule {}

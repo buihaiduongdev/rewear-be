@@ -1315,6 +1315,75 @@
 - **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Bổ sung gói phụ thuộc `ioredis` còn thiếu cho `bullmq` khi chạy E2E; rà soát cơ chế enqueue email sau khi giao dịch DB commit và xác nhận tính đồng bộ với luồng hiện hành.
 - **Minh chứng:** PR #75; branch `feat/notifications-bullmq`.
 
+### 2026-11-26 — Tinh gọn module theo dõi cửa hàng
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn module theo dõi cửa hàng (`shop-follows`) để giảm truy vấn kiểm tra lặp, tận dụng cơ chế sẵn có của TypeORM/NestJS và đơn giản hóa schema cùng kiểm thử liên quan.
+- **Prompt chính:** Rà soát module theo dõi cửa hàng (`shop-follows`), bỏ các bước kiểm tra trạng thái người dùng đang hoạt động bị lặp lại sau JWT guard, chuyển các đoạn kiểm tra không tìm thấy thủ công sang `findOneByOrFail`, gọn hóa schema phân trang/phản hồi và tối ưu bước tra cứu theo dõi trong danh sách, đồng thời cập nhật lại kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Gỡ bỏ hàm kiểm tra `assertActiveUser` dư thừa và chuyển tra cứu cửa hàng/bản ghi theo dõi sang `findOneByOrFail` trong `src/modules/shop-follows/shop-follow.service.ts`; thay thao tác tìm tuyến tính trong vòng lặp bằng `Map`; gộp gọn các schema chỉ dùng một lần với `pageOf` trong `src/modules/shop-follows/schemas/shop-follow.schema.ts`; cập nhật đồng bộ `src/modules/shop-follows/shop-follow.controller.ts` và `test/integration/shop-follows.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi công việc để giữ nguyên toàn bộ các phân hệ đã chốt ổn định, rà soát luồng nghiệp vụ và kiểm tra lại kết quả build cùng unit test trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:unit` pass 61/61 suites (338/338 unit tests); `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #77; branch `refactor/clean-social-moderation-modules`, commit `52605b9`.
+### 2026-11-26 — Tinh gọn module thanh toán giỏ hàng và sản phẩm
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn hai module `checkout` và `product` theo hướng giảm truy vấn lặp (N+1), tiêm phụ thuộc chuẩn NestJS, gom các tệp phụ trợ nhỏ lẻ và bỏ các máy trạng thái dư thừa mà vẫn giữ nguyên các module đã chốt ổn định.
+- **Prompt chính:** Rà soát và dọn gọn hai module `checkout` và `product`: gộp truy vấn theo lô `In(...)` thay cho truy vấn lặp từng phần tử, tiêm `CoinService` qua DI thay vì khởi tạo thủ công, gộp các file helper/enum nhỏ lẻ, bỏ máy trạng thái vòng đời không còn sử dụng và thay phần kiểm tra khả dụng sản phẩm bằng các hàm thuần gọn gàng hơn, đồng thời cập nhật lại kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Gộp truy vấn trong `lockProductEligibility` và `quoteInputs` bằng `In(...)`, chuyển `CheckoutService#view()` sang đồng bộ, tiêm `CoinService` vào `CheckoutService` và `ShippingQuoteService`, gộp `identity-checkout.policy.ts` và `shipping-quote.inputs.ts` vào các service tương ứng; xóa `product-lifecycle.machine.ts` không dùng, thay boilerplate XState trong `product-availability.machine.ts` bằng hàm thuần, gom 3 file enum sản phẩm về `product.enum.ts`, tối ưu `ProductService#findModeration` bằng `findOneByOrFail`, đồng bộ các test constructor liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu toàn bộ 6 tiêu chí rà soát module và phạm vi cô lập để không đụng vào 12 phân hệ đã chốt; yêu cầu khôi phục nguyên vẹn giá trị enum tình trạng sản phẩm và loại bỏ triệt để toàn bộ chỗ khởi tạo `new CoinService()` thủ công trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 596 tệp, Prettier, TypeScript, Build); unit test trọng tâm (`coin-checkout-routes.spec.ts` và nhóm `test/unit/modules/product`) pass 3/3 suites (25/25 tests); `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần gộp đầu tiên AI làm lệch giá trị enum `ProductCondition` so với database và còn sót 3 chỗ khởi tạo thủ công `new CoinService()` trong `checkout.service.ts`; đã rà soát phát hiện, khôi phục đúng giá trị enum gốc (`FAIR`, `GOOD`, `EXCELLENT`, `PRISTINE`) và chuyển sang tiêm `CoinService` qua DI ở commit `c6276dd`.
+- **Minh chứng:** PR #78; branch `refactor/clean-duong-modules`, commits `51e345a`, `c6276dd`.
+
+### 2026-11-26 — Gợi ý mô tả sản phẩm bằng Gemini AI và lọc khu vực cửa hàng
+
+- **Người thực hiện:** Bùi Hải Dương
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Triển khai gợi ý mô tả sản phẩm bằng Gemini AI cho người bán, bổ sung bộ lọc khu vực cửa hàng (`provinceId`) trên danh mục công khai và khắc phục lỗi không chuyển lại trạng thái chờ duyệt khi chỉ sửa giá trên sản phẩm đang hiển thị hoặc đang ẩn (`FEAT-03`).
+- **Prompt chính:** Trên nền nhánh tinh gọn module sản phẩm, triển khai thêm ba phần: dịch vụ `GeminiService` gọi trực tiếp API Gemini có timeout và validate schema kèm endpoint gợi ý mô tả cho người bán; bộ lọc tùy chọn `provinceId` theo điểm lấy hàng của cửa hàng trên API danh sách sản phẩm mà không gây truy vấn N+1; và sửa `ProductService.update` để thay đổi giá trên sản phẩm `ACTIVE`/`HIDDEN` cũng ẩn tin và chuyển về `PENDING_REVIEW` chờ duyệt lại, kèm bộ unit test đầy đủ.
+- **Đầu ra AI được sử dụng:** Sửa `ProductService#update` dùng chung `queueForReview` với `submit` để thay đổi nội dung hoặc giá trên sản phẩm `ACTIVE`/`HIDDEN` đều chuyển về `PENDING_REVIEW` và tăng `ProductModeration.version`; thêm `optionalProvinceIdSchema` và `innerJoin(PickupLocation, ...)` trong `ProductService#findAll`; thêm `GeminiService` (dùng `fetch`, header `x-goog-api-key`, `AbortSignal.timeout(15s)`, parse phản hồi bằng Zod, ném `ServiceUnavailableException` khi thiếu khóa/lỗi/timeout) và endpoint `POST /api/products/suggest-description` có kiểm tra quyền `PRODUCT_CREATE`; bổ sung biến môi trường tùy chọn trong `.env.example` và unit test trong `test/unit/modules/product/`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu quy tắc nghiệp vụ kiểm duyệt lại khi chỉnh sửa giá theo `LIST_TASK.MD`, rà soát cách gọi Gemini gọn nhẹ không tạo lớp trừu tượng rườm rà, xác minh OpenAPI/Swagger, ghi nhận defect và kiểm tra bộ test trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 598 tệp, Prettier, TypeScript, Build); unit test `test/unit/modules/product` pass 3/3 suites (32/32 tests, gồm gợi ý Gemini AI, bộ lọc `provinceId` và chuyển trạng thái duyệt lại khi sửa giá); kiểm tra tài liệu Swagger UI và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Phát hiện lỗi tồn đọng trước đó ở `ProductService.update` bỏ sót bước chuyển về `PENDING_REVIEW` khi người bán chỉ sửa giá trên sản phẩm `ACTIVE`/`HIDDEN`; đã ghi nhận Issue #82 và khắc phục ở commit `30b0f5b`.
+- **Minh chứng:** PR #83, Issue #82; branch `feat/gemini-ai-and-product-filters`, commits `30b0f5b`, `c6adfff`.
+### 2026-11-26 — Tinh gọn nhóm module tài chính và thanh toán
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Rà soát và tinh gọn bốn phân hệ `coins`, `payment`, `wallet` và `shop-finance` theo hướng làm phẳng cấu trúc thư mục, chuẩn hóa tiêm phụ thuộc (DI), gộp truy vấn lặp (N+1), bỏ kiểm tra không tìm thấy thủ công và gỡ cơ chế `requestId` thừa trong ví nhưng vẫn giữ trọn vẹn ràng buộc toàn vẹn tài chính.
+- **Prompt chính:** Rà soát bốn module `coins`, `payment`, `wallet` và `shop-finance`: bỏ `@Optional()` và các đoạn khởi tạo `new CoinService()` thủ công, làm phẳng các thư mục lồng nhiều cấp, gộp các helper ngắn, thay vòng lặp truy vấn cửa hàng bằng truy vấn theo lô `In(...)`, chuyển các đoạn kiểm tra 404 đơn lẻ sang `findOneOrFail`/`findOneByOrFail`, bỏ phần `requestId` chống trùng dư thừa ở ví trong khi giữ nguyên ràng buộc unique và khóa dòng, đồng thời chạy song song các truy vấn đọc độc lập và cập nhật kiểm thử liên quan.
+- **Đầu ra AI được sử dụng:** Chuẩn hóa DI bắt buộc cho `CoinService` và bỏ mọi khởi tạo thủ công trên mã nguồn; làm phẳng cấu trúc thư mục ở `coins`, `wallet` và `shop-finance`; gộp 6 helper nhỏ (`coin-allocation`, `verified-order-coin-debit`, `adjust-purchase-reward`, `verified-payos-capture`, `verified-wallet-capture`, `payout-policy`); gộp truy vấn `Shop` bằng `In(shopIds)` ở `payment` và `wallet`; chuyển các kiểm tra tồn tại đơn lẻ sang `findOneOrFail`/`findOneByOrFail`; bỏ `requestId` ở `WalletCheckoutHold`/`WalletDebit` nhưng giữ `UQ_wallet_active_checkout`, unique `holdId`, `@Check` và `pessimistic_write`; song song hóa truy vấn đọc ở `WalletService.mine()`, `ShopFinanceService.view()`, `ShopPayoutService.ownerView()` và `readPayoutSources()`; đồng bộ toàn bộ import và bộ test liên quan.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu 6 tiêu chí tinh gọn và xác nhận giữ nguyên các ràng buộc khóa dòng, chỉ mục duy nhất cùng 12 phân hệ đã chốt ổn định; rà soát kết quả kiểm thử thanh toán cốt lõi, unit test và build trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); `pnpm test:payment:core` pass 20/20 tests; `pnpm test:unit` pass 61/61 suites (338/338 tests, trong đó 13 suites / 56 tests thuộc 4 phân hệ tài chính - thanh toán); `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #79; branch `refactor/clean-finance-payment-modules`, commit `d5bb63d`.
+
+### 2026-11-26 — Tích hợp MoMo Sandbox và chứng từ chi trả cửa hàng
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Tích hợp cổng thanh toán MoMo Sandbox song song với PayOS, hoàn thiện quy trình hoàn tiền cho giao dịch thanh toán trễ sau khi hết giữ hàng (`FEAT-06`) và hỗ trợ đính kèm ảnh chứng từ ủy nhiệm chi (UNC) khi quản trị viên xác nhận chi trả cho cửa hàng (`FEAT-10`).
+- **Prompt chính:** Trên nền nhánh tinh gọn tài chính - thanh toán, bổ sung client MoMo Sandbox ký HMAC-SHA256 (tạo giao dịch, xác thực IPN, tra cứu, hoàn tiền) hoạt động song song PayOS, hoàn thiện luồng hoàn tiền thanh toán trễ (hoàn qua MoMo hoặc tự cộng vào ví hoàn tiền của người mua, kèm API để quản trị viên xử lý các ca cần rà soát), đồng thời thêm tính năng tải và xem chứng từ ảnh UNC riêng tư cho yêu cầu rút tiền cửa hàng kèm kiểm thử đơn vị.
+- **Đầu ra AI được sử dụng:** Tạo `src/modules/payment/momo.client.ts` và đọc cấu hình trong `payment.config.ts` cùng `.env.example` (không chỉnh sửa `src/modules/config`); điều phối `MOMO | PAYOS` trong `PaymentService`, `PaymentController` (`POST /checkouts/:id/payments/momo`, `POST /payments/momo/ipn`) và các luồng đơn hàng/ví/hoàn tiền tranh chấp; hoàn thiện `PaymentWorker.refund()` (MoMo refund -> cộng ví hoàn tiền `WalletService.creditLatePaymentRefund` -> cảnh báo `REVIEW_REQUIRED`) cùng hai API quản trị `GET /admin/payments/refunds` và `POST /admin/payments/refunds/:id/resolve`; bổ sung `transferEvidenceMediaId` (FK tới `Media`, giữ tương thích ngược `transferEvidence`), `POST /admin/shop-payouts/receipt-upload-ticket` và `GET /admin/shop-payouts/:id/receipt` trong `shop-finance`; viết unit test cho MoMo HMAC, hoàn tiền trễ và đính kèm chứng từ UNC.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi nghiệp vụ `FEAT-06` và `FEAT-10`, rà soát bỏ toàn bộ `@Optional()` DI, bước kiểm tra `assertAdmin` lặp và kiểm tra 404 thủ công sau vòng review trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi trên 597 tệp, Prettier, TypeScript, Build); `pnpm test:payment:core` pass 20/20 tests; unit test trọng tâm nhóm `payment`, `shop-finance`, `wallet` pass 10/10 suites (55/55 tests); kiểm tra tài liệu Swagger UI và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Lần triển khai đầu AI để lại 7 chỗ `@Optional()` DI trên `PaymentService`, `PaymentController`, `PaymentWorker`, `ShopPayoutService`, thêm kiểm tra `assertAdmin` lặp lại sau role guard và dùng `findOne` kèm ném 404 thủ công; toàn bộ đã được rà soát và sửa gọn ở commit `95c14f3`.
+- **Minh chứng:** PR #84; branch `feat/momo-payment-and-payout-receipt`, commits `2a0f4a1`, `95c14f3`.
+### 2026-11-26 — Bổ sung đính kèm thẻ đơn hàng trong tin nhắn trò chuyện
+
+- **Người thực hiện:** Bùi Thành Tâm
+- **Công cụ:** Antigravity (Gemini 4 Carbon)
+- **Mục đích và phạm vi:** Mở rộng phân hệ trò chuyện giữa người mua và cửa hàng (`chat`) để cho phép gửi và hiển thị thẻ xem nhanh đơn hàng (`orderId` cùng thông tin tóm tắt đơn hàng) song song với tính năng đính kèm thẻ sản phẩm hiện có.
+- **Prompt chính:** Mở rộng module chat để hỗ trợ đính kèm thẻ đơn hàng trong tin nhắn: thêm cột `orderId` và quan hệ tới `Order` trên `ChatMessage` tương tự `productId`, cập nhật schema gửi tin nhắn và phản hồi có phần xem trước đơn hàng, kiểm tra đơn hàng thuộc đúng cặp `(buyerId, shopId)` của hội thoại, tải dữ liệu bằng join tránh N+1 và bổ sung unit test tương ứng.
+- **Đầu ra AI được sử dụng:** Bổ sung cột nullable `orderId` cùng quan hệ `ManyToOne` tới `Order` trong `src/modules/chat/entities/chat-message.entity.ts`; cập nhật `sendChatSchema` và `chatMessageViewSchema` trong `src/modules/chat/schemas/chat.schema.ts` (trả `orderId` và thông tin thẻ đơn hàng gồm `id`, `orderCode`, `status`, `total`, `itemCount`); bổ sung `resolveOrder()` kiểm tra `findOneByOrFail` và khớp đúng cặp `(buyerId, shopId)` kèm `leftJoinAndSelect('message.order', 'order')` trong `src/modules/chat/chat.service.ts`; bổ sung unit test tại `test/unit/modules/chat/chat-schema.spec.ts` và `test/unit/modules/chat/chat-service.spec.ts`.
+- **Phần tự làm hoặc đã chỉnh sửa:** Đối chiếu phạm vi tính năng FEAT-10, kiểm tra ranh giới xác thực quyền sở hữu đơn hàng theo hội thoại, xác minh tài liệu OpenAPI/Swagger và kiểm thử toàn bộ luồng trước khi mở PR.
+- **Cách kiểm chứng:** `pnpm check` pass 100% (Oxlint 0 cảnh báo/0 lỗi, Prettier, TypeScript, Build); unit test module chat pass 2/2 suites (9/9 tests) và toàn bộ bộ unit test pass 62/62 suites (344/344 tests); kiểm tra tài liệu Swagger UI thực tế và chụp ảnh minh chứng; `git diff --check` pass 0 lỗi.
+- **Lỗi hoặc đề xuất sai của AI đã phát hiện:** Không phát hiện.
+- **Minh chứng:** PR #80; branch `feat/chat-order-card`, commit `1fb8ede`.
+
 ### 2026-11-26 — Tinh gọn nhóm module vận hành đơn hàng và khiếu nại
 
 - **Người thực hiện:** Bùi Thành Tâm

@@ -11,7 +11,7 @@ import { ChatService } from '@/modules/chat/chat.service';
 import { CHECKOUT_STATUS } from '@/modules/checkout/constants/checkout.constant';
 import { Checkout, CheckoutOrder } from '@/modules/checkout/entities';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxEvent } from '@/modules/event/entities/outbox-event.entity';
 import { OutboxService } from '@/modules/event/outbox.service';

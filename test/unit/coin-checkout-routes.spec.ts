@@ -7,14 +7,14 @@ import { CheckoutService } from '@/modules/checkout/checkout.service';
 import { CheckoutOrder } from '@/modules/checkout/entities/checkout-order.entity';
 import { CodService } from '@/modules/cod/cod.service';
 import type { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import type { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import type { PaymentPricing } from '@/modules/payment/payment.pricing';
 import { PaymentService } from '@/modules/payment/payment.service';
-import { WalletCheckoutHold } from '@/modules/wallet/checkout/entities';
-import { WalletCheckoutService } from '@/modules/wallet/checkout/wallet-checkout.service';
+import { WalletCheckoutHold } from '@/modules/wallet/entities';
+import { WalletCheckoutService } from '@/modules/wallet/wallet-checkout.service';
 
 jest.mock('@/modules/cart', () => ({ CartService: class {} }));
 
@@ -66,6 +66,7 @@ describe('coin checkout payment routes', () => {
     const service = new CheckoutService(
       db as unknown as DataSource,
       {} as CartService,
+      new CoinService(db as unknown as DataSource),
     );
     const requestId = randomUUID();
     await service.selectCoins(row.buyerId, row.id, {
@@ -105,6 +106,7 @@ describe('coin checkout payment routes', () => {
         new CheckoutService(
           db as unknown as DataSource,
           {} as CartService,
+          new CoinService(db as unknown as DataSource),
         ).selectCoins(row.buyerId, row.id, {
           requestId: randomUUID(),
           amount: 0,
@@ -128,6 +130,9 @@ describe('coin checkout payment routes', () => {
       null,
       pricing as unknown as PaymentPricing,
       { record: jest.fn() } as unknown as OutboxService,
+      new CoinService({} as DataSource),
+      null,
+      {} as never,
     );
     await expect(
       (service as any).prepareAttempt(
@@ -150,6 +155,9 @@ describe('coin checkout payment routes', () => {
       null,
       pricing as unknown as PaymentPricing,
       { record: jest.fn() } as unknown as OutboxService,
+      new CoinService({} as DataSource),
+      null,
+      {} as never,
     );
     await expect(
       (service as any).prepareAttempt(
@@ -178,7 +186,7 @@ describe('coin checkout payment routes', () => {
       {} as PaymentPricing,
       {} as CodPolicy,
       { record: jest.fn() } as unknown as OutboxService,
-      {} as CoinService,
+      new CoinService({} as DataSource),
       {} as never,
       {} as never,
     );
@@ -211,6 +219,7 @@ describe('coin checkout payment routes', () => {
       {} as DataSource,
       {} as PaymentPricing,
       { record: jest.fn() } as unknown as OutboxService,
+      new CoinService({} as DataSource),
     );
     await (service as any).createOrders(
       manager,

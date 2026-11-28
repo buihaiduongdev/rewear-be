@@ -15,12 +15,12 @@ import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { ShippingQuoteService } from '@/modules/checkout/shipping-quote.service';
 import { CodService } from '@/modules/cod/cod.service';
 import { CodPolicy } from '@/modules/cod/policies/cod.policy';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinReservation,
-} from '@/modules/coins/core/entities';
+} from '@/modules/coins/entities';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order } from '@/modules/order/entities';
 import { OrderService } from '@/modules/order/order.service';
@@ -57,7 +57,11 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     const db = database.dataSource;
     const policy = new CodPolicy(db);
     const pricing = new PaymentPricing(
-      new ShippingQuoteService(db, carrier as unknown as GhnSandboxAdapter),
+      new ShippingQuoteService(
+        db,
+        carrier as unknown as GhnSandboxAdapter,
+        new CoinService(db),
+      ),
     );
     const outbox = new OutboxService();
     const coins = new CoinService(db);
@@ -189,11 +193,15 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       userId: f.buyer.id,
       balance: 20000,
     });
-    await new CheckoutService(f.db, {} as CartService).selectCoins(
-      f.buyer.id,
-      f.checkout.id,
-      { requestId: randomUUID(), amount: 20000, mode: 'EVIDENCE' },
-    );
+    await new CheckoutService(
+      f.db,
+      {} as CartService,
+      new CoinService(f.db),
+    ).selectCoins(f.buyer.id, f.checkout.id, {
+      requestId: randomUUID(),
+      amount: 20000,
+      mode: 'EVIDENCE',
+    });
     const [order] = await cod.place(f.buyer.id, f.checkout.id, {
       expectedTotal: 210000,
     });
@@ -215,7 +223,11 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     await f.db
       .getRepository(Checkout)
       .update(f.checkout.id, { expiresAt: new Date(Date.now() - 1000) });
-    await new CheckoutService(f.db, {} as CartService).expire();
+    await new CheckoutService(
+      f.db,
+      {} as CartService,
+      new CoinService(f.db),
+    ).expire();
     expect(
       await f.db
         .getRepository(CoinAccount)
@@ -261,7 +273,11 @@ describe('COD placement and reservations (PostgreSQL)', () => {
     await f.db
       .getRepository(Checkout)
       .update(f.checkout.id, { expiresAt: new Date(Date.now() - 1) });
-    await new CheckoutService(f.db, {} as CartService).expire();
+    await new CheckoutService(
+      f.db,
+      {} as CartService,
+      new CoinService(f.db),
+    ).expire();
     expect(
       (await f.db.getRepository(Product).findOneByOrFail({ id: f.product.id }))
         .reservedOrderId,
@@ -431,7 +447,11 @@ describe('COD placement and reservations (PostgreSQL)', () => {
   it('refunds late PayOS capture after switching a failed attempt to COD without touching COD stock', async () => {
     const f = await fixture();
     const pricing = new PaymentPricing(
-      new ShippingQuoteService(f.db, carrier as unknown as GhnSandboxAdapter),
+      new ShippingQuoteService(
+        f.db,
+        carrier as unknown as GhnSandboxAdapter,
+        new CoinService(f.db),
+      ),
     );
     const gateway = {
       createPaymentLink: async (input: { orderCode: number }) => ({
@@ -447,6 +467,9 @@ describe('COD placement and reservations (PostgreSQL)', () => {
       gateway,
       pricing,
       new OutboxService(),
+      new CoinService(f.db),
+      null,
+      {} as never,
     );
     const failed = await payments.create(f.buyer.id, f.checkout.id, {
       requestId: randomUUID(),

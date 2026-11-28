@@ -12,16 +12,16 @@ import {
 } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
-import { adjustPurchaseReward } from '@/modules/coins/rewards/adjust-purchase-reward';
+import { adjustPurchaseReward } from '@/modules/coins/coin-reward.service';
+import { verifiedOrderCoinDebit } from '@/modules/coins/coin.service';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { ORDER_PAYMENT_METHOD } from '@/modules/order/constants/order.constant';
 import { Order } from '@/modules/order/entities';
 import { resolveOrderHeldCredit } from '@/modules/order/order-funding.service';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
 import { walletBalanceSchema } from '@/modules/wallet/schemas/wallet.schema';
 
@@ -123,6 +123,7 @@ export async function refundFunding(
   const money = reconciliationMoney(order);
   if (
     order.paymentMethod === ORDER_PAYMENT_METHOD.PAYOS ||
+    order.paymentMethod === ORDER_PAYMENT_METHOD.MOMO ||
     order.paymentMethod === ORDER_PAYMENT_METHOD.WALLET
   ) {
     const credit = await resolveOrderHeldCredit(manager, order, shipment);

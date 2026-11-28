@@ -7,7 +7,7 @@ import {
 } from '@/modules/product/machines/product-availability.machine';
 import { ShopStatus } from '@/modules/shop/enums';
 
-describe('productAvailabilityMachine (XState)', () => {
+describe('productAvailability', () => {
   const createBaseProduct = (overrides: Partial<Product> = {}): Product =>
     ({
       id: 'prod-1',

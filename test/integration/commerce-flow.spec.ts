@@ -10,6 +10,7 @@ import { AuthorizationService } from '@/modules/authorization/authorization.serv
 import { CartService } from '@/modules/cart/cart.service';
 import { Category } from '@/modules/category/entities';
 import { CheckoutService } from '@/modules/checkout/checkout.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Media, ProductMedia } from '@/modules/media/entities';
 import { MediaRole, MediaType } from '@/modules/media/enums';
@@ -171,7 +172,7 @@ describe('commerce behavior with PostgreSQL', () => {
       totalPrice: 250000,
     });
 
-    const checkout = new CheckoutService(db, cart);
+    const checkout = new CheckoutService(db, cart, new CoinService(db));
     const held = await checkout.create(buyer.id, {
       requestId: randomUUID(),
       addressId: address.id,

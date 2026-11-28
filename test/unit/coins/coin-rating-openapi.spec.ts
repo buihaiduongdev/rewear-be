@@ -1,6 +1,6 @@
 import z from 'zod';
 
-import * as coinSchemas from '@/modules/coins/core/schemas/coin.schema';
+import * as coinSchemas from '@/modules/coins/schemas/coin.schema';
 import * as ratingSchemas from '@/modules/ratings/schemas/rating.schema';
 
 describe('Coin and rating OpenAPI schemas', () => {

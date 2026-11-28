@@ -4,7 +4,7 @@ import type { DataSource } from 'typeorm';
 
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';

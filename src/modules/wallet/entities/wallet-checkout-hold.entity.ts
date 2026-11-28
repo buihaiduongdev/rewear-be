@@ -7,11 +7,10 @@ import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/co
 import type { PaymentOrderSnapshot } from '@/modules/payment/schemas/payment.schema';
 import { User } from '@/modules/user/entities';
 
-import { WALLET_HOLD_STATE } from '../../constants/wallet.constant';
-import type { WalletHoldState } from '../../schemas/wallet.schema';
+import { WALLET_HOLD_STATE } from '../constants/wallet.constant';
+import type { WalletHoldState } from '../schemas/wallet.schema';
 
 @Entity('wallet_checkout_holds')
-@Index(['buyerId', 'requestId'], { unique: true })
 @Index(['checkoutId', 'state'])
 @Index('UQ_wallet_active_checkout', ['checkoutId'], {
   unique: true,
@@ -40,9 +39,6 @@ export class WalletCheckoutHold extends BaseEntity {
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'buyerId' })
   buyer: User;
-
-  @Column('uuid')
-  requestId: string;
 
   @Column({ type: 'varchar', length: 16 })
   mode: ReconciliationMode;

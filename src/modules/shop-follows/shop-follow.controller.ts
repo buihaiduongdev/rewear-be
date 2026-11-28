@@ -29,14 +29,14 @@ import { ShopFollowService } from './shop-follow.service';
 @AuthenticatedAccess()
 @Controller('shop-follows')
 export class ShopFollowController {
-  constructor(private readonly follows: ShopFollowService) {}
+  constructor(private readonly shopFollowService: ShopFollowService) {}
   @Get()
   @Serialize(shopFollowPageSchema)
   list(
     @CurrentUser() user: User,
     @Query({ schema: shopFollowQuerySchema }) query: ShopFollowQuery,
   ) {
-    return this.follows.list(user.id, query);
+    return this.shopFollowService.list(user.id, query);
   }
   @Get('products')
   @Serialize(shopFollowProductPageSchema)
@@ -44,7 +44,7 @@ export class ShopFollowController {
     @CurrentUser() user: User,
     @Query({ schema: shopFollowQuerySchema }) query: ShopFollowQuery,
   ) {
-    return this.follows.products(user.id, query);
+    return this.shopFollowService.products(user.id, query);
   }
   @Get('shops/:shopId')
   @Serialize(shopFollowStateSchema)
@@ -52,7 +52,7 @@ export class ShopFollowController {
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
   ) {
-    return this.follows.state(user.id, shopId);
+    return this.shopFollowService.state(user.id, shopId);
   }
   @Put('shops/:shopId')
   @Serialize(shopFollowStateSchema)
@@ -61,7 +61,7 @@ export class ShopFollowController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Body({ schema: shopFollowInputSchema }) _input: Record<string, never>,
   ) {
-    return this.follows.follow(user.id, shopId);
+    return this.shopFollowService.follow(user.id, shopId);
   }
   @Delete('shops/:shopId')
   @Serialize(shopFollowStateSchema)
@@ -69,6 +69,6 @@ export class ShopFollowController {
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
   ) {
-    return this.follows.unfollow(user.id, shopId);
+    return this.shopFollowService.unfollow(user.id, shopId);
   }
 }

@@ -5,7 +5,7 @@ import ms from 'ms';
 import { AuthProvider } from '@/modules/auth/enums';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
+import { CoinService } from '@/modules/coins/coin.service';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { Order, OrderEvent } from '@/modules/order/entities';
 import { OrderFundingService } from '@/modules/order/order-funding.service';

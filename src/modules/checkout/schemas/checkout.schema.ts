@@ -2,7 +2,6 @@ import z from 'zod';
 
 import { MONEY_CURRENCY } from '@/common/constants/money.constant';
 import { dateTimeSchema } from '@/common/schemas';
-import type { ResolvedShippingPackage } from '@/common/schemas/shipping-package.schema';
 import { resolvedShippingPackageSchema } from '@/common/schemas/shipping-package.schema';
 import { RECONCILIATION_MODE } from '@/modules/cod-reconciliation/constants/cod-reconciliation.constant';
 
@@ -13,35 +12,6 @@ import {
 
 export type CheckoutState =
   (typeof CHECKOUT_STATUS)[keyof typeof CHECKOUT_STATUS];
-
-export type CheckoutAddress = {
-  recipientName: string;
-  phone: string;
-  addressLine1: string;
-  addressLine2: string | null;
-  countryCode: string;
-  provinceId: number;
-  provinceName: string;
-  districtId: number;
-  districtName: string;
-  wardCode: string;
-  wardName: string;
-  postalCode: string | null;
-  deliveryInstructions: string | null;
-};
-
-export type CheckoutItem = {
-  coinDiscount?: number;
-  shippingPackage: ResolvedShippingPackage | null;
-  productId: string;
-  title: string;
-  price: number;
-  size: string | null;
-  condition: string;
-  coverUrl: string | null;
-};
-
-export type RemovedCheckoutItem = { productId: string; reason: string };
 
 export const createCheckoutSchema = z.strictObject({
   requestId: z.uuid(),
@@ -72,6 +42,30 @@ const addressSchema = z.object({
   postalCode: z.string().nullable(),
   deliveryInstructions: z.string().nullable(),
 });
+export type CheckoutAddress = z.infer<typeof addressSchema>;
+
+const removedCheckoutItemSchema = z.object({
+  productId: z.uuid(),
+  reason: z.string(),
+});
+export type RemovedCheckoutItem = z.infer<typeof removedCheckoutItemSchema>;
+
+const checkoutItemSchema = z.object({
+  shippingPackage: resolvedShippingPackageSchema.nullable().default(null),
+  coinDiscount: z.number().int().nonnegative().default(0),
+  productId: z.uuid(),
+  title: z.string(),
+  price: z.number().int(),
+  size: z.string().nullable(),
+  condition: z.string(),
+  coverUrl: z.string().nullable(),
+});
+export type CheckoutItem = Omit<
+  z.infer<typeof checkoutItemSchema>,
+  'coinDiscount'
+> & {
+  coinDiscount?: number;
+};
 
 export const checkoutSchema = z.object({
   identityReviewRequired: z.boolean().default(false),
@@ -81,7 +75,7 @@ export const checkoutSchema = z.object({
   status: z.enum(CHECKOUT_STATUS),
   expiresAt: dateTimeSchema.nullable(),
   holdSeconds: z.number().int(),
-  removedItems: z.array(z.object({ productId: z.uuid(), reason: z.string() })),
+  removedItems: z.array(removedCheckoutItemSchema),
   address: addressSchema,
   orders: z.array(
     z.object({
@@ -90,20 +84,7 @@ export const checkoutSchema = z.object({
       shopId: z.uuid(),
       shopName: z.string(),
       address: addressSchema,
-      items: z.array(
-        z.object({
-          shippingPackage: resolvedShippingPackageSchema
-            .nullable()
-            .default(null),
-          coinDiscount: z.number().int().nonnegative().default(0),
-          productId: z.uuid(),
-          title: z.string(),
-          price: z.number().int(),
-          size: z.string().nullable(),
-          condition: z.string(),
-          coverUrl: z.string().nullable(),
-        }),
-      ),
+      items: z.array(checkoutItemSchema),
       subtotal: z.number().int(),
       shippingFee: z.number().int().nullable(),
     }),

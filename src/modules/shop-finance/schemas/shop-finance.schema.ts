@@ -9,8 +9,8 @@ import {
 } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
 import { refundCreditViewSchema } from '@/modules/dispute/schemas/refund-execution.schema';
 
-import { SHOP_LEDGER_ENTRY_TYPE } from '../payouts/constants/payout.constant';
-import type { PayoutSource } from '../payouts/schemas/payout.schema';
+import { SHOP_LEDGER_ENTRY_TYPE } from '../constants/payout.constant';
+import type { PayoutSource } from './payout.schema';
 
 export type ShopLedgerEntryType =
   (typeof SHOP_LEDGER_ENTRY_TYPE)[keyof typeof SHOP_LEDGER_ENTRY_TYPE];

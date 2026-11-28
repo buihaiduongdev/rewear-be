@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { GhnShipmentClient } from '@/infrastructure/shipping/clients/ghn-shipment.client';
 import { Checkout } from '@/modules/checkout/entities/checkout.entity';
 import { CodReconciliationService } from '@/modules/cod-reconciliation/cod-reconciliation.service';
-import { CoinService } from '@/modules/coins/core/coin.service';
-import { CoinAccount, CoinPurchaseReward } from '@/modules/coins/core/entities';
-import { CoinRewardService } from '@/modules/coins/rewards/coin-reward.service';
+import { CoinRewardService } from '@/modules/coins/coin-reward.service';
+import { CoinService } from '@/modules/coins/coin.service';
+import { CoinAccount, CoinPurchaseReward } from '@/modules/coins/entities';
 import { DisputeAdjudicationService } from '@/modules/dispute/dispute-adjudication.service';
 import { DisputeRefundService } from '@/modules/dispute/dispute-refund.service';
 import { DisputeReturnService } from '@/modules/dispute/dispute-return.service';
@@ -20,8 +20,8 @@ import { OrderFundingService } from '@/modules/order/order-funding.service';
 import { OrderSettlementService } from '@/modules/order/order-settlement.service';
 import { PaymentAttempt } from '@/modules/payment/entities';
 import { Shipment } from '@/modules/shipment/entities/shipment.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/constants/payout.constant';
 import { ShopLedgerEntry } from '@/modules/shop-finance/entities/shop-ledger.entity';
-import { SHOP_LEDGER_ENTRY_TYPE } from '@/modules/shop-finance/payouts/constants/payout.constant';
 import { ShopFinanceService } from '@/modules/shop-finance/shop-finance.service';
 import { User } from '@/modules/user/entities';
 import { WalletAccount, WalletCredit } from '@/modules/wallet/entities';
@@ -268,7 +268,7 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
     await f.db
       .getRepository(DisputeIssue)
       .update(f.issue.id, { status: 'RESOLVED_NO_REFUND' });
-    const rewards = new CoinRewardService(f.db, new CoinService());
+    const rewards = new CoinRewardService(f.db, new CoinService(f.db));
     const reward = await rewards.evaluate(f.order.id);
     expect(reward?.entitlement).toBe(500);
     await f.db
@@ -474,7 +474,7 @@ describe('Automatic internal wallet refund execution (PostgreSQL)', () => {
       reason: 'Verified delivery',
       evidence: 'Signed handoff',
     });
-    const rewards = new CoinRewardService(f.db, new CoinService());
+    const rewards = new CoinRewardService(f.db, new CoinService(f.db));
     expect(await rewards.evaluate(f.order.id)).toMatchObject({
       entitlement: 300,
       grantedAmount: 300,

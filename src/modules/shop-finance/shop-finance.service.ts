@@ -28,10 +28,9 @@ import { Order } from '@/modules/order/entities';
 import { ShopMember } from '@/modules/shop/entities';
 import { ShopMemberRole } from '@/modules/shop/enums';
 
-import { ShopLedgerEntry } from './entities/shop-ledger.entity';
-import { ShopSettlement } from './entities/shop-settlement.entity';
+import { SHOP_LEDGER_ENTRY_TYPE } from './constants/payout.constant';
+import { ShopLedgerEntry, ShopSettlement } from './entities';
 import { readPayoutSources } from './payout-sources';
-import { SHOP_LEDGER_ENTRY_TYPE } from './payouts/constants/payout.constant';
 
 @Injectable()
 export class ShopFinanceService {
@@ -94,13 +93,10 @@ export class ShopFinanceService {
     });
     if (!owner)
       throw new ForbiddenException('Shop finance Owner access required');
-    const totals = await this.readTotals(manager, shopId, mode);
-    const history = await this.readHistory(
-      manager,
-      shopId,
-      mode,
-      data.offset ?? 0,
-    );
+    const [totals, history] = await Promise.all([
+      this.readTotals(manager, shopId, mode),
+      this.readHistory(manager, shopId, mode, data.offset ?? 0),
+    ]);
     return { shopId, mode, ...totals, ...history };
   }
 
@@ -109,11 +105,13 @@ export class ShopFinanceService {
     shopId: string,
     mode: ReconciliationMode,
   ) {
-    const { funded, released, releasedRefundDebit, pending } =
-      await this.readFundingTotals(manager, shopId, mode);
-    const deductions = await shopRefundDeductions(manager, shopId, mode);
+    const [funding, deductions, payoutFunds] = await Promise.all([
+      this.readFundingTotals(manager, shopId, mode),
+      shopRefundDeductions(manager, shopId, mode),
+      readPayoutSources(manager, shopId, mode),
+    ]);
+    const { funded, released, releasedRefundDebit, pending } = funding;
     const lateDebit = deductions.settled - releasedRefundDebit;
-    const payoutFunds = await readPayoutSources(manager, shopId, mode);
     const { available } = payoutFunds;
     const held = funded - deductions.funded - released + lateDebit;
     const receivable = pending - deductions.receivable;
@@ -141,51 +139,53 @@ export class ShopFinanceService {
     shopId: string,
     mode: ReconciliationMode,
   ) {
-    const heldRow = await manager
-      .createQueryBuilder(ShopLedgerEntry, 'entry')
-      .select(
-        'COALESCE(SUM(CASE WHEN entry.type = :debitType THEN 0 ELSE entry.amount END), 0)',
-        'total',
-      )
-      .where('entry.shopId = :shopId AND entry.mode = :mode', {
-        shopId,
-        mode,
-        debitType: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
-      })
-      .getRawOne<{ total: string }>();
-    const pendingRow = await manager
-      .createQueryBuilder(CodCollection, 'collection')
-      .select('COALESCE(SUM(collection.sellerNet),0)', 'total')
-      .where('collection.shopId = :shopId AND collection.mode = :mode', {
-        shopId,
-        mode,
-      })
-      .andWhere(
-        `(collection.status IN (:...statuses) OR (collection.status = :review AND collection.reviewReason = :reviewReason AND EXISTS (SELECT 1 FROM dispute_refund_credits refund WHERE refund."orderId" = collection."orderId" AND refund.mode = collection.mode)))`,
-        {
-          review: COD_RECONCILIATION_STATUS.REVIEW,
-          reviewReason:
-            RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW,
-          statuses: [
-            COD_RECONCILIATION_STATUS.AWAITING,
-            COD_RECONCILIATION_STATUS.PARTIAL,
-          ],
-        },
-      )
-      .andWhere(
-        'NOT EXISTS (SELECT 1 FROM shop_ledger_entries entry WHERE entry."orderId" = collection."orderId" AND entry.mode = collection.mode AND entry.type <> :debitType)',
-        { debitType: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT },
-      )
-      .getRawOne<{ total: string }>();
-    const releasedRow = await manager
-      .createQueryBuilder(ShopSettlement, 'release')
-      .select('COALESCE(SUM(release.amount),0)', 'total')
-      .addSelect('COALESCE(SUM(release.refundDebit),0)', 'refundDebit')
-      .where('release.shopId = :shopId AND release.mode = :mode', {
-        shopId,
-        mode,
-      })
-      .getRawOne<{ total: string; refundDebit: string }>();
+    const [heldRow, pendingRow, releasedRow] = await Promise.all([
+      manager
+        .createQueryBuilder(ShopLedgerEntry, 'entry')
+        .select(
+          'COALESCE(SUM(CASE WHEN entry.type = :debitType THEN 0 ELSE entry.amount END), 0)',
+          'total',
+        )
+        .where('entry.shopId = :shopId AND entry.mode = :mode', {
+          shopId,
+          mode,
+          debitType: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT,
+        })
+        .getRawOne<{ total: string }>(),
+      manager
+        .createQueryBuilder(CodCollection, 'collection')
+        .select('COALESCE(SUM(collection.sellerNet),0)', 'total')
+        .where('collection.shopId = :shopId AND collection.mode = :mode', {
+          shopId,
+          mode,
+        })
+        .andWhere(
+          `(collection.status IN (:...statuses) OR (collection.status = :review AND collection.reviewReason = :reviewReason AND EXISTS (SELECT 1 FROM dispute_refund_credits refund WHERE refund."orderId" = collection."orderId" AND refund.mode = collection.mode)))`,
+          {
+            review: COD_RECONCILIATION_STATUS.REVIEW,
+            reviewReason:
+              RECONCILIATION_REVIEW_REASON.CARRIER_OR_ORDER_REQUIRES_REVIEW,
+            statuses: [
+              COD_RECONCILIATION_STATUS.AWAITING,
+              COD_RECONCILIATION_STATUS.PARTIAL,
+            ],
+          },
+        )
+        .andWhere(
+          'NOT EXISTS (SELECT 1 FROM shop_ledger_entries entry WHERE entry."orderId" = collection."orderId" AND entry.mode = collection.mode AND entry.type <> :debitType)',
+          { debitType: SHOP_LEDGER_ENTRY_TYPE.COD_SHIPPING_DEBIT },
+        )
+        .getRawOne<{ total: string }>(),
+      manager
+        .createQueryBuilder(ShopSettlement, 'release')
+        .select('COALESCE(SUM(release.amount),0)', 'total')
+        .addSelect('COALESCE(SUM(release.refundDebit),0)', 'refundDebit')
+        .where('release.shopId = :shopId AND release.mode = :mode', {
+          shopId,
+          mode,
+        })
+        .getRawOne<{ total: string; refundDebit: string }>(),
+    ]);
     return {
       funded: Number(heldRow?.total ?? 0),
       released: Number(releasedRow?.total ?? 0),
@@ -200,30 +200,18 @@ export class ShopFinanceService {
     mode: ReconciliationMode,
     offset: number,
   ) {
-    const entries = await manager.find(ShopLedgerEntry, {
+    const query = {
       where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
+      order: { createdAt: 'DESC' as const, id: 'DESC' as const },
       take: 100,
       skip: offset,
-    });
-    const collections = await manager.find(CodCollection, {
-      where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: 100,
-      skip: offset,
-    });
-    const settlements = await manager.find(ShopSettlement, {
-      where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: 100,
-      skip: offset,
-    });
-    const refunds = await manager.find(DisputeRefundCredit, {
-      where: { shopId, mode },
-      order: { createdAt: 'DESC', id: 'DESC' },
-      take: 100,
-      skip: offset,
-    });
+    };
+    const [entries, collections, settlements, refunds] = await Promise.all([
+      manager.find(ShopLedgerEntry, query),
+      manager.find(CodCollection, query),
+      manager.find(ShopSettlement, query),
+      manager.find(DisputeRefundCredit, query),
+    ]);
     return {
       refunds,
       settlements: settlements.map(({ id, orderId, amount, createdAt }) => ({

@@ -1,7 +1,8 @@
-import { Check, Column, Entity, Index } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '@/common/entities';
 import type { ReconciliationMode } from '@/modules/cod-reconciliation/schemas/cod-reconciliation.schema';
+import { Media } from '@/modules/media/entities';
 
 import type { PayoutStatus, RecipientSnapshot } from '../schemas/payout.schema';
 
@@ -58,6 +59,13 @@ export class ShopPayout extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   transferEvidence: string | null;
+
+  @Column('uuid', { nullable: true })
+  transferEvidenceMediaId: string | null;
+
+  @ManyToOne(() => Media, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'transferEvidenceMediaId' })
+  transferEvidenceMedia?: Media | null;
 
   @Column({ type: 'text', nullable: true })
   reason: string | null;

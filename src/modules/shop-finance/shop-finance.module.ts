@@ -1,23 +1,27 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { StorageModule } from '@/infrastructure/storage';
 import { CodCollection } from '@/modules/cod-reconciliation/entities';
+import { MediaModule } from '@/modules/media';
 import { OrderModule } from '@/modules/order/order.module';
 
-import { ShopLedgerEntry } from './entities/shop-ledger.entity';
-import { ShopSettlement } from './entities/shop-settlement.entity';
 import {
   ShopBankAccount,
+  ShopLedgerEntry,
   ShopPayout,
   ShopPayoutAllocation,
-} from './payouts/entities';
-import { ShopPayoutService } from './payouts/shop-payout.service';
+  ShopSettlement,
+} from './entities';
 import { ShopFinanceController } from './shop-finance.controller';
 import { ShopFinanceService } from './shop-finance.service';
+import { ShopPayoutService } from './shop-payout.service';
 
 @Module({
   imports: [
     OrderModule,
+    MediaModule,
+    StorageModule,
     TypeOrmModule.forFeature([
       CodCollection,
       ShopLedgerEntry,

@@ -12,6 +12,7 @@ import { SHOP_PERMISSIONS } from '@/modules/authorization/constants';
 import { EVENT_TYPES } from '@/modules/event/constants/event-type.constant';
 import { OutboxService } from '@/modules/event/outbox.service';
 import { MediaService } from '@/modules/media/media.service';
+import { Order } from '@/modules/order/entities';
 import { Product, ProductModeration } from '@/modules/product/entities';
 import {
   ProductModerationStatus,
@@ -142,6 +143,7 @@ export class ChatService {
     const [rows, total] = await manager
       .createQueryBuilder(ChatMessage, 'message')
       .leftJoinAndSelect('message.product', 'product')
+      .leftJoinAndSelect('message.order', 'order')
       .where('message.conversationId = :id', { id })
       .orderBy('message.createdAt', 'DESC')
       .addOrderBy('message.id', 'DESC')
@@ -182,6 +184,9 @@ export class ChatService {
       const product = parsed.productId
         ? await this.resolveProduct(manager, row, parsed.productId)
         : null;
+      const order = parsed.orderId
+        ? await this.resolveOrder(manager, row, parsed.orderId)
+        : null;
 
       const message = await manager.save(
         ChatMessage,
@@ -191,6 +196,8 @@ export class ChatService {
           text: parsed.text ?? null,
           productId: product?.id ?? null,
           product,
+          orderId: order?.id ?? null,
+          order,
         }),
       );
 
@@ -370,6 +377,16 @@ export class ChatService {
             status: row.product.status,
           }
         : null,
+      orderId: row.orderId ?? null,
+      order: row.order
+        ? {
+            id: row.order.id,
+            orderCode: row.order.orderCode,
+            status: row.order.status,
+            total: row.order.total,
+            itemCount: row.order.items?.length ?? 0,
+          }
+        : null,
       createdAt: row.createdAt,
       media: links
         .filter((link) => link.messageId === row.id)
@@ -411,5 +428,20 @@ export class ChatService {
       );
     }
     return product;
+  }
+
+  private async resolveOrder(
+    manager: EntityManager,
+    conversation: ChatConversation,
+    orderId: string,
+  ) {
+    const order = await manager.findOneByOrFail(Order, { id: orderId });
+    if (
+      order.buyerId !== conversation.buyerId ||
+      order.shopId !== conversation.shopId
+    ) {
+      throw new BadRequestException('Order must belong to this buyer and Shop');
+    }
+    return order;
   }
 }

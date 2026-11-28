@@ -3,12 +3,13 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, Roles, Serialize } from '@/common/decorators';
 import { uuidSchema } from '@/common/schemas/request.schema';
@@ -24,23 +25,28 @@ import { UserRole } from '@/modules/user/enums';
 import {
   bankAccountInputSchema,
   bankAccountViewSchema,
+  payoutAdminItemViewSchema,
   payoutAdminViewSchema,
   payoutFailureSchema,
   payoutOwnerViewSchema,
   payoutReasonSchema,
+  payoutReceiptDownloadViewSchema,
+  payoutReceiptUploadTicketSchema,
+  payoutReceiptUploadTicketViewSchema,
   payoutRequestSchema,
   payoutSuccessSchema,
   payoutViewSchema,
-} from './payouts/schemas/payout.schema';
+} from './schemas/payout.schema';
 import type {
   BankAccountInput,
   PayoutFailureInput,
+  PayoutReceiptUploadTicketInput,
   PayoutRequestInput,
   PayoutSuccessInput,
-} from './payouts/schemas/payout.schema';
-import { ShopPayoutService } from './payouts/shop-payout.service';
+} from './schemas/payout.schema';
 import { shopFinanceViewSchema } from './schemas/shop-finance.schema';
 import { ShopFinanceService } from './shop-finance.service';
+import { ShopPayoutService } from './shop-payout.service';
 
 @ApiTags('Shop finance')
 @ApiBearerAuth()
@@ -48,7 +54,7 @@ import { ShopFinanceService } from './shop-finance.service';
 export class ShopFinanceController {
   constructor(
     private readonly shopFinanceService: ShopFinanceService,
-    private readonly payoutService: ShopPayoutService,
+    private readonly shopPayoutService: ShopPayoutService,
   ) {}
 
   @RequirePermission(SHOP_PERMISSIONS.SHOP_OWNER)
@@ -69,7 +75,7 @@ export class ShopFinanceController {
     @CurrentUser() user: User,
     @Param('shopId', { schema: uuidSchema }) shopId: string,
   ) {
-    return this.payoutService.ownerView(user.id, shopId);
+    return this.shopPayoutService.ownerView(user.id, shopId);
   }
 
   @Serialize(bankAccountViewSchema)
@@ -80,7 +86,7 @@ export class ShopFinanceController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Body({ schema: bankAccountInputSchema }) input: BankAccountInput,
   ) {
-    return this.payoutService.saveBank(user.id, shopId, input);
+    return this.shopPayoutService.saveBank(user.id, shopId, input);
   }
 
   @Serialize(bankAccountViewSchema)
@@ -92,7 +98,7 @@ export class ShopFinanceController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: bankAccountInputSchema }) input: BankAccountInput,
   ) {
-    return this.payoutService.saveBank(user.id, shopId, input, id);
+    return this.shopPayoutService.saveBank(user.id, shopId, input, id);
   }
 
   @Delete('shops/:shopId/finance/bank-accounts/:id')
@@ -102,7 +108,7 @@ export class ShopFinanceController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.payoutService.deleteBank(user.id, shopId, id);
+    return this.shopPayoutService.deleteBank(user.id, shopId, id);
   }
 
   @Serialize(payoutViewSchema)
@@ -113,7 +119,7 @@ export class ShopFinanceController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Body({ schema: payoutRequestSchema }) input: PayoutRequestInput,
   ) {
-    return this.payoutService.request(user.id, shopId, input);
+    return this.shopPayoutService.request(user.id, shopId, input);
   }
 
   @Serialize(payoutViewSchema)
@@ -124,7 +130,7 @@ export class ShopFinanceController {
     @Param('shopId', { schema: uuidSchema }) shopId: string,
     @Param('id', { schema: uuidSchema }) id: string,
   ) {
-    return this.payoutService.cancel(user.id, shopId, id);
+    return this.shopPayoutService.cancel(user.id, shopId, id);
   }
 
   @Serialize(payoutAdminViewSchema)
@@ -132,7 +138,7 @@ export class ShopFinanceController {
   @AuthenticatedAccess()
   @Get('admin/shop-payouts')
   adminViewPayouts(@CurrentUser() user: User) {
-    return this.payoutService.adminView(user.id);
+    return this.shopPayoutService.adminView(user.id);
   }
 
   @Serialize(payoutViewSchema)
@@ -144,7 +150,7 @@ export class ShopFinanceController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: acceptOrderSchema }) _input: Record<string, never>,
   ) {
-    return this.payoutService.start(user.id, id);
+    return this.shopPayoutService.start(user.id, id);
   }
 
   @Serialize(payoutViewSchema)
@@ -156,7 +162,7 @@ export class ShopFinanceController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: payoutReasonSchema }) input: { reason: string },
   ) {
-    return this.payoutService.reject(user.id, id, input.reason);
+    return this.shopPayoutService.reject(user.id, id, input.reason);
   }
 
   @Serialize(payoutViewSchema)
@@ -168,18 +174,53 @@ export class ShopFinanceController {
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: payoutFailureSchema }) input: PayoutFailureInput,
   ) {
-    return this.payoutService.fail(user.id, id, input);
+    return this.shopPayoutService.fail(user.id, id, input);
   }
 
-  @Serialize(payoutViewSchema)
+  @Serialize(payoutReceiptUploadTicketViewSchema, {
+    status: HttpStatus.CREATED,
+  })
+  @Roles(UserRole.ADMIN)
+  @AuthenticatedAccess()
+  @Post('admin/shop-payouts/receipt-upload-ticket')
+  @ApiOperation({
+    summary: 'Create a private upload ticket for a payout UNC bank receipt',
+  })
+  createReceiptUploadTicket(
+    @CurrentUser() user: User,
+    @Body({ schema: payoutReceiptUploadTicketSchema })
+    input: PayoutReceiptUploadTicketInput,
+  ) {
+    return this.shopPayoutService.createReceiptUploadTicket(user.id, input);
+  }
+
+  @Serialize(payoutReceiptDownloadViewSchema)
+  @Roles(UserRole.ADMIN)
+  @AuthenticatedAccess()
+  @Get('admin/shop-payouts/:id/receipt')
+  @ApiOperation({
+    summary: 'Get a signed download URL for an attached payout UNC receipt',
+  })
+  getPayoutReceipt(
+    @CurrentUser() user: User,
+    @Param('id', { schema: uuidSchema }) id: string,
+  ) {
+    return this.shopPayoutService.getReceiptDownload(user.id, id);
+  }
+
+  @Serialize(payoutAdminItemViewSchema)
   @Roles(UserRole.ADMIN)
   @AuthenticatedAccess()
   @Post('admin/shop-payouts/:id/success')
+  @ApiOperation({
+    summary:
+      'Mark a seller payout as succeeded with bank reference and optional UNC receipt image',
+  })
   succeedPayout(
     @CurrentUser() user: User,
     @Param('id', { schema: uuidSchema }) id: string,
     @Body({ schema: payoutSuccessSchema }) input: PayoutSuccessInput,
   ) {
-    return this.payoutService.succeed(user.id, id, input);
+    return this.shopPayoutService.succeed(user.id, id, input);
   }
 }

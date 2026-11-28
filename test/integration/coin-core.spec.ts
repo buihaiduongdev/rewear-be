@@ -1,24 +1,27 @@
 import { randomUUID } from 'node:crypto';
 
-import { CoinService } from '@/modules/coins/core/coin.service';
+import {
+  CoinService,
+  verifiedOrderCoinDebit,
+} from '@/modules/coins/coin.service';
 import {
   CoinAccount,
   CoinOrderDebit,
   CoinPurchaseReward,
   CoinReservation,
-} from '@/modules/coins/core/entities';
-import { verifiedOrderCoinDebit } from '@/modules/coins/core/verified-order-coin-debit';
+} from '@/modules/coins/entities';
 import type { Order } from '@/modules/order/entities';
 
 import { createTestDatabase, TestDatabase } from '../support/database';
 
 describe('Coin account, checkout holds, and reward clawback (PostgreSQL)', () => {
   let database: TestDatabase;
-  const coins = new CoinService();
+  let coins: CoinService;
   const now = new Date('2026-11-21T00:00:00Z');
 
   beforeAll(async () => {
     database = await createTestDatabase();
+    coins = new CoinService(database.dataSource);
   });
 
   afterAll(async () => database?.destroy());

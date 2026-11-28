@@ -84,7 +84,8 @@ const original = await readFile(
 const transformed = original
   .replace(/^import[\s\S]*?from ['"][^'"]+['"];\s*/gm, '')
   .replace(/@Injectable\(\)/g, '')
-  .replace(/@Inject\(PAYOS_CLIENT\)/g, '');
+  .replace(/@Inject\(forwardRef\(\(\) => [^)]+\)\)/g, '')
+  .replace(/@Inject\([^)]+\)/g, '');
 const { PaymentService } = await import(
   `data:text/javascript;base64,${Buffer.from(`const { ${Object.keys(deps).join(', ')} } = globalThis.__paymentServiceTestDependencies;\n${stripTypeScriptTypes(transformed, { mode: 'transform' })}\n//# sourceURL=payment-service-under-test.js`).toString('base64')}`
 );
@@ -199,6 +200,9 @@ function setup() {
       snapshot: async () => snapshot,
     },
     { record: async () => undefined },
+    new CoinService(),
+    null,
+    { creditLatePaymentRefund: async () => undefined },
   );
   return { service, rows, checkout, client, calls: () => createCalls };
 }

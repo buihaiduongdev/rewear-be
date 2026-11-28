@@ -58,7 +58,8 @@ export const walletViewSchema = z.object({
   credits: z.array(
     z.object({
       id: z.uuid(),
-      orderId: z.uuid(),
+      orderId: z.uuid().nullable(),
+      paymentRefundId: z.uuid().nullable().optional(),
       amount: vndAmountSchema.positive(),
       reason: z.enum(WALLET_CREDIT_REASON),
       mode: z.enum(RECONCILIATION_MODE).nullable(),
@@ -68,7 +69,6 @@ export const walletViewSchema = z.object({
 });
 
 export const reserveWalletCheckoutSchema = z.strictObject({
-  requestId: z.uuid(),
   expectedTotal: z.number().int().positive().max(MAX_VND_AMOUNT),
   mode: z.enum(RECONCILIATION_MODE).default(RECONCILIATION_MODE.EVIDENCE),
 });
@@ -79,7 +79,6 @@ export type ReserveWalletCheckoutInput = z.infer<
 export const walletCheckoutViewSchema = z.object({
   id: z.uuid(),
   checkoutId: z.uuid(),
-  requestId: z.uuid(),
   amount: z.number().int().positive(),
   mode: z.enum(RECONCILIATION_MODE),
   state: z.enum(WALLET_HOLD_STATE),
